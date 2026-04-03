@@ -1,0 +1,28 @@
+# Dependencies & builds
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+**/.turbo/
+
+# Env & secrets (never commit)
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE / local
+.idea/
+.vscode/
+*.swp
+.cursor/
+
+# Supabase local (if used)
+.supabase/

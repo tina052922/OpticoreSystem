@@ -1,0 +1,52 @@
+import Link from "next/link";
+import { ChevronRight, ClipboardList, MapPin, Scale } from "lucide-react";
+import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
+import { DashboardCard } from "@/components/portal/DashboardCard";
+import { getAuthenticatedProfile } from "@/lib/auth/require-role";
+
+export default async function DoiDashboardPage() {
+  const profile = await getAuthenticatedProfile();
+
+  return (
+    <div className="space-y-8 pb-8">
+      <CiDashboard welcomeName={profile.name} basePath="/doi" variant="doi" />
+
+      <div className="px-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <DashboardCard title="DOI responsibilities">
+            <ul className="space-y-2 text-sm text-black/75">
+              <li className="flex gap-2">
+                <ClipboardList className="w-4 h-4 mt-0.5 text-[var(--color-opticore-orange)] shrink-0" />
+                View campus-wide schedules and validation status
+              </li>
+              <li className="flex gap-2">
+                <Scale className="w-4 h-4 mt-0.5 text-[var(--color-opticore-orange)] shrink-0" />
+                Review & approve / reject drafts; request justification when policies are violated
+              </li>
+            </ul>
+          </DashboardCard>
+
+          <DashboardCard title="Quick actions">
+            <Link
+              href="/doi/reviews"
+              className="flex items-center justify-between rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-3 text-sm font-semibold shadow-sm hover:opacity-95"
+            >
+              Load policy reviews
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/campus-navigation"
+              className="mt-3 flex items-center justify-between rounded-lg border border-black/10 px-4 py-3 text-sm font-medium hover:bg-black/[0.02]"
+            >
+              <span className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[var(--color-opticore-orange)]" />
+                Campus navigation
+              </span>
+              <ChevronRight className="w-4 h-4 text-black/35" />
+            </Link>
+          </DashboardCard>
+        </div>
+      </div>
+    </div>
+  );
+}
