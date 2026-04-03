@@ -1,0 +1,5987 @@
+/* Central Hub Evaluator (Timetabling & Optimization) */
+
+position: relative;
+width: 1728px;
+height: 1117px;
+
+background: #E8E6E6;
+
+
+/* Rectangle 6 */
+
+position: absolute;
+width: 345px;
+height: 1117px;
+left: 0px;
+top: 0px;
+
+background: #EEEEEE;
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* header */
+
+position: absolute;
+width: 1728px;
+height: 99px;
+left: 0px;
+top: -6px;
+
+background: linear-gradient(90deg, #780301 0%, #DE0602 100%);
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Cebu_Technological_University_Logo 1 */
+
+position: absolute;
+width: 70px;
+height: 70px;
+left: 37px;
+top: 14px;
+
+background: url(Cebu_Technological_University_Logo);
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* Ellipse 1 */
+
+position: absolute;
+width: 70px;
+height: 70px;
+left: 1551px;
+top: 123px;
+
+background: url(629739364_18096711194314344_3303262988579741821_n.jpg);
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Campus Intelligence System – CTU Argao */
+
+position: absolute;
+width: 314px;
+height: 19px;
+left: 119px;
+top: 52px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+
+
+/* High-level view of today's academic activity and room usage. */
+
+position: absolute;
+width: 462px;
+height: 19px;
+left: 393px;
+top: 174px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* OptiCore */
+
+position: absolute;
+width: 95px;
+height: 26px;
+left: 119px;
+top: 27px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 22px;
+line-height: 26px;
+
+color: #FFFFFF;
+
+
+
+/* Central Hub Evaluator */
+
+position: absolute;
+width: 386px;
+height: 48px;
+left: 390px;
+top: 126px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 590;
+font-size: 40px;
+line-height: 48px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Notification Systems - iconSvg.co */
+
+position: absolute;
+width: 70px;
+height: 70px;
+left: 1621px;
+top: 123px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 24.42%;
+right: 24.42%;
+top: 22.94%;
+bottom: 22.94%;
+
+background: #000000;
+
+
+/* Rectangle 7 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 110px;
+
+background: #FF990A;
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 15px;
+
+
+/* 2nd Semester S.Y. 2025-2026 */
+
+position: absolute;
+width: 233px;
+height: 19px;
+left: 50px;
+top: 121px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 510;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* 2nd Semester S.Y. 2025-2026 */
+
+position: absolute;
+width: 233px;
+height: 19px;
+left: 50px;
+top: 121px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 510;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* keyboard_arrow_down */
+
+position: absolute;
+width: 33.43px;
+height: 33.43px;
+left: 292px;
+top: 115px;
+
+
+
+/* icon */
+
+position: absolute;
+left: 25%;
+right: 25%;
+top: 33.33%;
+bottom: 35.83%;
+
+background: linear-gradient(0deg, #FFFFFF, #FFFFFF), #636364;
+
+
+/* Group 1 */
+
+position: absolute;
+width: 337px;
+height: 41px;
+left: 0px;
+top: 245px;
+
+
+
+/* Rectangle 8 */
+
+position: absolute;
+width: 337px;
+height: 41px;
+left: 0px;
+top: 245px;
+
+background: rgba(255, 162, 31, 0.11);
+border-radius: 0px 15px 15px 0px;
+
+
+/* Central Hub Evaluator */
+
+position: absolute;
+width: 181.3px;
+height: 19px;
+left: 31px;
+top: 256px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 2 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 204px;
+
+
+
+/* Rectangle 8 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 204px;
+
+border-radius: 15px;
+
+
+/* INS Form (Schedule View) */
+
+position: absolute;
+width: 210px;
+height: 19px;
+left: 31px;
+top: 215px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 3 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 167px;
+
+
+
+/* Rectangle 8 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 167px;
+
+border-radius: 15px;
+
+
+/* Campus Intelligence */
+
+position: absolute;
+width: 165px;
+height: 19px;
+left: 31px;
+top: 178px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 6 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 253px;
+
+
+
+/* Rectangle 9 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 10px 0px 0px 0px;
+
+
+/* Rectangle 18 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 0px 10px 0px 0px;
+
+
+/* Rectangle 10 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Rectangle 11 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Rectangle 12 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Rectangle 13 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Rectangle 14 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Rectangle 15 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Rectangle 16 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Rectangle 17 */
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 253px;
+
+background: #FF990A;
+box-shadow: inset 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Major */
+
+position: absolute;
+width: 46px;
+height: 19px;
+left: 369px;
+top: 267px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Section */
+
+position: absolute;
+width: 62px;
+height: 19px;
+left: 502px;
+top: 267px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Students */
+
+position: absolute;
+width: 74px;
+height: 19px;
+left: 639px;
+top: 267px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Subject Code */
+
+position: absolute;
+width: 66px;
+height: 38px;
+left: 773px;
+top: 257px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Instructor */
+
+position: absolute;
+width: 81px;
+height: 19px;
+left: 908px;
+top: 267px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Room */
+
+position: absolute;
+width: 46px;
+height: 19px;
+left: 1045px;
+top: 267px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Time */
+
+position: absolute;
+width: 40px;
+height: 19px;
+left: 1178px;
+top: 267px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Day */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1317px;
+top: 267px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Faculty Conflict */
+
+position: absolute;
+width: 64px;
+height: 38px;
+left: 1454px;
+top: 257px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Section Conflict */
+
+position: absolute;
+width: 66px;
+height: 38px;
+left: 1589px;
+top: 257px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Group 8 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 297px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 297px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 297px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 309px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 309px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-3211 */
+
+position: absolute;
+width: 64px;
+height: 19px;
+left: 773px;
+top: 309px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Enoc, AB */
+
+position: absolute;
+width: 68px;
+height: 19px;
+left: 908px;
+top: 308px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL3 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 308px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 7:00-9:00 */
+
+position: absolute;
+width: 77px;
+height: 19px;
+left: 1180px;
+top: 308px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* M */
+
+position: absolute;
+width: 14px;
+height: 19px;
+left: 1317px;
+top: 309px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 9 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 341px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 341px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 341px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 353px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 353px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-3211L */
+
+position: absolute;
+width: 73px;
+height: 19px;
+left: 773px;
+top: 353px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Enoc, AB */
+
+position: absolute;
+width: 68px;
+height: 19px;
+left: 908px;
+top: 352px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL3 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 352px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 9:00-11:00 */
+
+position: absolute;
+width: 83px;
+height: 19px;
+left: 1180px;
+top: 352px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* M */
+
+position: absolute;
+width: 14px;
+height: 19px;
+left: 1317px;
+top: 353px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 10 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 385px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 385px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 385px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 397px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 397px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-3211L */
+
+position: absolute;
+width: 73px;
+height: 19px;
+left: 773px;
+top: 397px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Enoc, AB */
+
+position: absolute;
+width: 68px;
+height: 19px;
+left: 908px;
+top: 396px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL3 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 396px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 7:00-11:00 */
+
+position: absolute;
+width: 82px;
+height: 19px;
+left: 1180px;
+top: 396px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* W */
+
+position: absolute;
+width: 16px;
+height: 19px;
+left: 1317px;
+top: 397px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 11 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 429px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 429px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 429px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 441px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 441px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-3211L */
+
+position: absolute;
+width: 73px;
+height: 19px;
+left: 773px;
+top: 441px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Enoc, AB */
+
+position: absolute;
+width: 68px;
+height: 19px;
+left: 908px;
+top: 440px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL3 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 440px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 7:00-10:00 */
+
+position: absolute;
+width: 84px;
+height: 19px;
+left: 1180px;
+top: 440px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Th */
+
+position: absolute;
+width: 20px;
+height: 19px;
+left: 1317px;
+top: 441px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 12 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 473px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 473px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 473px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 485px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 485px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* AP-4 */
+
+position: absolute;
+width: 39px;
+height: 19px;
+left: 773px;
+top: 485px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Enoc, AB */
+
+position: absolute;
+width: 68px;
+height: 19px;
+left: 908px;
+top: 484px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL3 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 484px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 15:00-17:00 */
+
+position: absolute;
+width: 92px;
+height: 19px;
+left: 1180px;
+top: 484px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* M */
+
+position: absolute;
+width: 14px;
+height: 19px;
+left: 1317px;
+top: 485px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 13 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 517px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 517px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 517px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 529px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 529px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* AP-4 */
+
+position: absolute;
+width: 39px;
+height: 19px;
+left: 773px;
+top: 529px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Enoc, AB */
+
+position: absolute;
+width: 68px;
+height: 19px;
+left: 908px;
+top: 528px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL4 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 528px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 15:00-17:00 */
+
+position: absolute;
+width: 92px;
+height: 19px;
+left: 1180px;
+top: 528px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* W */
+
+position: absolute;
+width: 16px;
+height: 19px;
+left: 1317px;
+top: 529px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 14 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 561px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 561px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 561px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 573px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 573px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* AP-4 */
+
+position: absolute;
+width: 39px;
+height: 19px;
+left: 773px;
+top: 573px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Enoc, AB */
+
+position: absolute;
+width: 68px;
+height: 19px;
+left: 908px;
+top: 572px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL4 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 572px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 8:00-9:00 */
+
+position: absolute;
+width: 78px;
+height: 19px;
+left: 1180px;
+top: 572px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* F */
+
+position: absolute;
+width: 10px;
+height: 19px;
+left: 1317px;
+top: 573px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 15 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 605px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 605px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 605px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 617px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 617px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-329 */
+
+position: absolute;
+width: 60px;
+height: 19px;
+left: 773px;
+top: 617px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Tomol, CJ */
+
+position: absolute;
+width: 75px;
+height: 19px;
+left: 908px;
+top: 616px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL4 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 616px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 8:00-10:00 */
+
+position: absolute;
+width: 86px;
+height: 19px;
+left: 1180px;
+top: 616px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* T */
+
+position: absolute;
+width: 11px;
+height: 19px;
+left: 1317px;
+top: 617px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 16 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 649px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 649px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 649px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 661px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 661px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-329 */
+
+position: absolute;
+width: 60px;
+height: 19px;
+left: 773px;
+top: 661px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Tomol, CJ */
+
+position: absolute;
+width: 75px;
+height: 19px;
+left: 908px;
+top: 660px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL4 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 660px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 9:00-10:00 */
+
+position: absolute;
+width: 86px;
+height: 19px;
+left: 1180px;
+top: 660px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* F */
+
+position: absolute;
+width: 10px;
+height: 19px;
+left: 1317px;
+top: 661px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 17 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 693px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 693px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 693px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 705px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 705px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* AP-5 */
+
+position: absolute;
+width: 39px;
+height: 19px;
+left: 773px;
+top: 705px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Teo, R */
+
+position: absolute;
+width: 47px;
+height: 19px;
+left: 908px;
+top: 704px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL1 */
+
+position: absolute;
+width: 28px;
+height: 19px;
+left: 1045px;
+top: 704px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 10:00-12:00 */
+
+position: absolute;
+width: 92px;
+height: 19px;
+left: 1180px;
+top: 704px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* T */
+
+position: absolute;
+width: 11px;
+height: 19px;
+left: 1317px;
+top: 705px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 18 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 737px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 737px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 737px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 749px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 749px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* AP-5 */
+
+position: absolute;
+width: 39px;
+height: 19px;
+left: 773px;
+top: 749px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Teo, R */
+
+position: absolute;
+width: 47px;
+height: 19px;
+left: 908px;
+top: 748px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL3 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 748px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 14:00-17:00 */
+
+position: absolute;
+width: 92px;
+height: 19px;
+left: 1180px;
+top: 748px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* T */
+
+position: absolute;
+width: 11px;
+height: 19px;
+left: 1317px;
+top: 749px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 19 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 781px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 781px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 781px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 793px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 793px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-3210 */
+
+position: absolute;
+width: 67px;
+height: 19px;
+left: 773px;
+top: 793px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Narte, K */
+
+position: absolute;
+width: 62px;
+height: 19px;
+left: 908px;
+top: 792px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL3 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 792px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 10:00-11:00 */
+
+position: absolute;
+width: 90px;
+height: 19px;
+left: 1180px;
+top: 792px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Th */
+
+position: absolute;
+width: 20px;
+height: 19px;
+left: 1317px;
+top: 793px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 20 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 825px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 825px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 825px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 837px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 837px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-3210 */
+
+position: absolute;
+width: 67px;
+height: 19px;
+left: 773px;
+top: 837px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Narte, K */
+
+position: absolute;
+width: 62px;
+height: 19px;
+left: 908px;
+top: 836px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* TBA */
+
+position: absolute;
+width: 32px;
+height: 19px;
+left: 1045px;
+top: 836px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 11:00-12:00 */
+
+position: absolute;
+width: 90px;
+height: 19px;
+left: 1180px;
+top: 836px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* F */
+
+position: absolute;
+width: 10px;
+height: 19px;
+left: 1317px;
+top: 837px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 21 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 869px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 869px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 869px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* BSIT 3A */
+
+position: absolute;
+width: 61px;
+height: 19px;
+left: 502px;
+top: 881px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 40 */
+
+position: absolute;
+width: 21px;
+height: 19px;
+left: 639px;
+top: 881px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* PC-3210 */
+
+position: absolute;
+width: 67px;
+height: 19px;
+left: 773px;
+top: 881px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Narte, K */
+
+position: absolute;
+width: 62px;
+height: 19px;
+left: 908px;
+top: 880px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* CL3 */
+
+position: absolute;
+width: 31px;
+height: 19px;
+left: 1045px;
+top: 880px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* 11:00-12:00 */
+
+position: absolute;
+width: 90px;
+height: 19px;
+left: 1180px;
+top: 880px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* W */
+
+position: absolute;
+width: 16px;
+height: 19px;
+left: 1317px;
+top: 881px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 22 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 913px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 913px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 913px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Group 23 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 957px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 957px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 957px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Group 24 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 1001px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 1001px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 1001px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Group 25 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 1045px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 1045px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Group 26 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 1045px;
+
+
+
+/* Group 7 */
+
+position: absolute;
+width: 1360px;
+height: 44px;
+left: 356px;
+top: 1045px;
+
+
+
+/* Rectangle 9 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 356px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 18 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1580px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+border-radius: 0px;
+
+
+/* Rectangle 10 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 492px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 11 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 628px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 12 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 764px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 13 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 900px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 14 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1036px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 15 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1172px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 16 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1308px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 17 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 136px;
+height: 44px;
+left: 1444px;
+top: 1045px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+
+
+/* Rectangle 19 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 594px;
+top: 266px;
+
+background: url(down-chevron (1).png);
+filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+
+
+/* Rectangle 28 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 464px;
+top: 267px;
+
+background: url(down-chevron (1).png);
+filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+
+
+/* Rectangle 20 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 730px;
+top: 266px;
+
+background: url(down-chevron (1).png);
+filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+
+
+/* Rectangle 21 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 868px;
+top: 266px;
+
+background: url(down-chevron (1).png);
+filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+
+
+/* Rectangle 22 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 1002px;
+top: 266px;
+
+background: url(down-chevron (1).png);
+filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+
+
+/* Rectangle 23 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 1134px;
+top: 266px;
+
+background: url(down-chevron (1).png);
+filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+
+
+/* Rectangle 24 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 1269px;
+top: 266px;
+
+background: url(down-chevron (1).png);
+filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+
+
+/* Rectangle 25 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 1408px;
+top: 266px;
+
+background: url(down-chevron (1).png);
+filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+
+
+/* Rectangle 26 */
+
+position: absolute;
+width: 243px;
+height: 35px;
+left: 358px;
+top: 210px;
+
+background: #FF990A;
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 10px;
+
+
+/* Rectangle 27 */
+
+position: absolute;
+width: 243px;
+height: 35px;
+left: 607px;
+top: 210px;
+
+background: rgba(255, 153, 10, 0.11);
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 10px;
+
+
+/* Hrs-Units-Preps-Remarks */
+
+position: absolute;
+width: 197px;
+height: 19px;
+left: 627px;
+top: 218px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Timetabling & Optimization */
+
+position: absolute;
+width: 214px;
+height: 19px;
+left: 373px;
+top: 218px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 590;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Group 39 */
+
+position: absolute;
+width: 272px;
+height: 35px;
+left: 1226px;
+top: 210px;
+
+
+
+/* Rectangle 29 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 272px;
+height: 35px;
+left: 1226px;
+top: 210px;
+
+background: #FFFFFF;
+border: 1px solid rgba(0, 0, 0, 0.5);
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 10px;
+
+
+/* Select Department */
+
+position: absolute;
+width: 142px;
+height: 19px;
+left: 1240px;
+top: 218px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+
+
+/* Rectangle 63 */
+
+position: absolute;
+width: 25px;
+height: 25px;
+left: 1464px;
+top: 215px;
+
+background: url(down-chevron (2).png);
+
+
+/* Group 39 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 286px;
+
+
+
+/* Rectangle 8 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 286px;
+
+border-radius: 15px;
+
+
+/* Inbox */
+
+position: absolute;
+width: 45px;
+height: 19px;
+left: 31px;
+top: 297px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 40 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 327px;
+
+
+
+/* Rectangle 8 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 327px;
+
+border-radius: 15px;
+
+
+/* Faculty Profile */
+
+position: absolute;
+width: 117px;
+height: 19px;
+left: 31px;
+top: 338px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Group 41 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 368px;
+
+
+
+/* Rectangle 8 */
+
+position: absolute;
+width: 329px;
+height: 41px;
+left: 8px;
+top: 368px;
+
+border-radius: 15px;
+
+
+/* Subject Codes */
+
+position: absolute;
+width: 117px;
+height: 19px;
+left: 31px;
+top: 379px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #000000;
+
+
+
+/* Rectangle 29 */
+
+position: absolute;
+width: 208px;
+height: 35px;
+left: 1508px;
+top: 210px;
+
+background: #F7960F;
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 10px;
+
+
+/* Alternative Suggestion */
+
+position: absolute;
+width: 180px;
+height: 19px;
+left: 1523px;
+top: 218px;
+
+font-family: 'SF Pro';
+font-style: normal;
+font-weight: 590;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: #FFFFFF;
+
+text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);

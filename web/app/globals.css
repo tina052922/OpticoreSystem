@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --color-opticore-orange: #ff990a;
+  --color-opticore-red-1: #780301;
+  --color-opticore-red-2: #de0602;
+  --color-opticore-bg: #f8f8f8;
+  --color-opticore-sidebar: #eeeeee;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-opticore-bg);
+  color: #000;
+  font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Display", "SF Pro Text", Inter,
+    Segoe UI, Roboto, Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+@media print {
+  body {
+    background: white;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-paper {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}
+
