@@ -8,11 +8,11 @@ This guide supports drawing a UML use case diagram for **OptiCore: Campus Intell
 
 | Actor | Description |
 |--------|-------------|
-| **Chairman Admin** | Program-scoped chair; plots schedules, INS views, forwards workflow mail. |
-| **College Admin** | College-scoped; reviews drafts, access requests, audit; may view campus-wide read-only data. |
+| **Chairman Admin** | Program-scoped chair; plots and saves **`ScheduleEntry`** data, uses INS views, then **forwards** a workflow message (INS + Evaluator references) to **College Admin** via Inbox so coordination is documented without re-sending grid payloads. |
+| **College Admin** | College-scoped; **receives** forwarded mail, may **download** the message text, and **reads the same persisted schedule rows** in the **Central Hub Evaluator** (college tiles). Reviews **access requests** and **audit**; may view cross-college hub context where policy allows. |
 | **CAS Admin** | Receives college forwards; coordinates GEC distribution. |
-| **GEC Chairman** | Uses the **same Campus Intelligence shell** as other admins (dashboard, centralized evaluator view, centralized schedule view). May **only** create or edit work related to **GEC subjects** for programs that offer those subjects, and **only** on **vacant slots** that correspond to GEC offerings. **Editing vacant slots** requires submitting an **approval request** to the **College Admin** of the college that owns the program. |
-| **DOI Admin** | Same UI and most workflows as College Admin, plus **final institutional review**: policy checks, justification requests to Chairman when needed, **digital approval/signature**, **notifications** to admins, chairmen, and instructors when the schedule is officially published. |
+| **GEC Chairman** | Uses the **same Campus Intelligence shell**; opens **Central Hub** to **view** schedules by college after the Chairman’s data is **centralized** in **`ScheduleEntry`**. Edits **only** **vacant GEC slot** cells relevant to GEC offerings; **editing** requires an **AccessRequest** ( **`gec_vacant_slots`** scope) approved by the **owning College Admin**—avoiding repeated back-and-forth of files because the hub already holds the authoritative rows. |
+| **DOI Admin** | Same **Campus Intelligence** shell and **Central Hub** evaluator/schedule views as other campus admins; dedicated **Policy reviews** page lists **`ScheduleLoadJustification`** rows (chair-authored text when loads exceed policy). **No** persisted DOI approve/reject or digital-signature record in the database—**notifications** are used for in-app alerts (for example certain evaluator saves), not a full “publication” workflow. |
 | **Instructor** | Views own schedule, notifications; may use faculty portal features. |
 | **Student** | Views own schedule and announcements (read-heavy). |
 | **System (OptiCore + Supabase)** | External system boundary for persistence, auth, realtime, and notifications. |
@@ -28,13 +28,13 @@ This guide supports drawing a UML use case diagram for **OptiCore: Campus Intell
 - **UC-C02 Manage program schedule (Evaluator)** — Plot `ScheduleEntry` rows for sections/subjects/rooms in assigned program.
 - **UC-C03 View INS forms** — Faculty / section / room schedule views from live data.
 - **UC-C04 Run conflict checks** — Client-side conflict scan on scoped entries.
-- **UC-C05 Forward draft to College Admin** — Inbox / workflow message.
+- **UC-C05 Forward draft to College Admin** — Inbox **`WorkflowInboxMessage`** with links to INS and Evaluator; persists audit + mail; **does not** duplicate `ScheduleEntry` rows (data already saved).
 - **UC-C06 Manage subject codes & faculty profile** — CRUD within RLS.
 
 ### College Admin
 - **UC-A01 Authenticate** — College-scoped session.
-- **UC-A02 Review inbox & workflow** — Mail/sent; persisted `WorkflowInboxMessage` where applicable.
-- **UC-A03 View centralized evaluator & schedules (read)** — Cross-college **view** where policy allows; **editing** another college’s vacant slots is not direct—use **access / approval** paths.
+- **UC-A02 Review inbox & workflow** — Mail/sent; **download** message text; persisted `WorkflowInboxMessage`.
+- **UC-A03 Open Central Hub Evaluator** — **Colleges** tab → select college → read **centralized** `ScheduleEntry` / hub context; **editing** (e.g. vacant GEC slots) requires **UC-A04** / **UC-A05** for the requesting user.
 - **UC-A04 Approve access requests** — GEC/CAS requests for evaluator, INS, vacant-slot scopes.
 - **UC-A05 Approve vacant-slot edit requests** — **«include»** when GEC Chairman or another role requests approval to modify vacant slots in the college’s scope.
 - **UC-A06 Audit log** — Review `AuditLog` entries.
@@ -53,11 +53,10 @@ This guide supports drawing a UML use case diagram for **OptiCore: Campus Intell
 
 ### DOI Admin
 - **UC-D01 Authenticate**
-- **UC-D02 Review finalized, conflict-free schedules** — After college/CAS workflow.
-- **UC-D03 Policy & compliance review** — Check against institutional rules.
-- **UC-D04 Request justification from Chairman** — **«extend»** when anomalies exist.
-- **UC-D05 Approve & digitally sign** — Final approval record.
-- **UC-D06 Notify stakeholders** — Admins, chairmen, instructors via `Notification` / inbox.
+- **UC-D02 View Central Hub schedules** — Read-oriented evaluator context across colleges (same hub pattern as College/CAS).
+- **UC-D03 Read load-policy justifications** — Open **`/doi/reviews`**; data from **`ScheduleLoadJustification`** (written by chairs when saving under violations).
+- **UC-D04 Use inbox / audit** — Same persisted **`WorkflowInboxMessage`** and **`AuditLog`** visibility as other admin roles where RLS allows.
+- **UC-D05 Receive notifications** — **`Notification`** rows; realtime updates in the notification bell for new inserts.
 
 ### Instructor / Student
 - **UC-I01 View assigned schedule / notifications**
@@ -70,15 +69,16 @@ This guide supports drawing a UML use case diagram for **OptiCore: Campus Intell
 | Base use case | «include» | Meaning |
 |---------------|-----------|---------|
 | **UC-C02 Manage program schedule** | **Validate conflicts** | Conflict detection is part of responsible plotting. |
-| **UC-C05 Forward draft** | **Persist workflow message** | Forwarding writes/reads workflow inbox data where enabled. |
+| **UC-C05 Forward draft** | **Persist workflow message** | Forwarding writes **`WorkflowInboxMessage`** + audit; College Admin reads mail; schedule state remains in **`ScheduleEntry`**. |
+| **UC-A03 Open Central Hub** | **Query shared schedule repository** | Hub reads persisted rows; avoids repeated attachment exchange. |
 | **UC-G04 Propose vacant-slot edits** | **Submit approval to College Admin** | Cannot complete slot change without approval path. |
-| **UC-D05 Approve & sign** | **UC-D06 Notify stakeholders** | Publication implies notification (or include a subprocess “Record approval” then notify). |
+| **UC-C02 Manage program schedule** | **Persist justification** | When policies are exceeded, saving can upsert **`ScheduleLoadJustification`**. |
 
 ## «extend» relationships (examples)
 
 | Extension | Extends | Condition |
 |-----------|---------|-----------|
-| **UC-D04 Request justification** | **UC-D03 Policy review** | Only if violations or load anomalies are detected. |
+| **UC-D03 Read justifications** | **UC-D02 View Central Hub** | When chairs have saved under policy violations, justification text exists for DOI to read—no in-app “request justification” action. |
 | **UC-G05 Request temporary access** | **UC-G03 Work on GEC subjects** | When scoped access is insufficient. |
 | **UC-A03 View centralized data** | **(read-only branch)** | College Admin may extend to “export/report” if implemented. |
 
@@ -98,14 +98,15 @@ This guide supports drawing a UML use case diagram for **OptiCore: Campus Intell
 
 ---
 
-## End-to-end flow (narrative)
+## End-to-end flow (narrative) — centralized hub
 
-1. **Chairman** builds a draft in the **Evaluator**, validates conflicts, previews **INS** views, and **forwards** a package to **College Admin** via **Inbox**.
-2. **College Admin** reviews, may run **schedule review** / conflict checks, handles **access requests**, and forwards toward **CAS** as policy dictates.
-3. **CAS Admin** splits or routes **GEC** portions to **GEC Chairman**.
-4. **GEC Chairman** fills **only** vacant slots that carry **GEC subjects** for eligible programs; slot edits that need institutional clearance trigger **approval requests** to the **College Admin** for that college.
-5. **College Admin** (and possibly **CAS**) escalate toward **DOI** when ready.
-6. **DOI Admin** performs **final policy review**, may **request justification** from **Chairman**, **approves** with **digital signature**, and triggers **notifications** so **instructors** and **students** consume the published schedule.
+1. **Chairman Admin** (program-scoped) plots in the **Evaluator**, runs **conflict** checks (with root-cause overlap), filters **prospectus** / subject scope as implemented, **saves** rows to **`ScheduleEntry`**, and previews **INS** forms (search/filter as available).
+2. **Chairman** **forwards** a **workflow message** to **College Admin** (INS + Evaluator links in the body; message persisted in **`WorkflowInboxMessage`**). The schedule **does not** travel only inside the email—the **authoritative copy** is already **centralized** in the database.
+3. **College Admin** **receives** mail under Inbox, may **download** the message for records, and opens **Central Hub Evaluator** to **review the same persisted data** by **selecting the college**—avoiding continuous re-sending of evaluator exports.
+4. **CAS Admin**, **other College Admins**, **GEC Chairman**, and **DOI Admin** (per RLS) use **Central Hub** to **view** consolidated schedules; **GEC** (and others lacking edit rights) **submit `AccessRequest`** to the **owning College Admin** before **editing vacant GEC slots** or other scoped actions.
+5. **College Admin** **approves** or **rejects** **AccessRequest** records; **notifications** and **audit** entries support traceability.
+6. **CAS Admin** may **forward** coordination messages toward **GEC** / **DOI** as policy dictates.
+7. **DOI Admin** reads **Central Hub** schedules and **`/doi/reviews`** (**`ScheduleLoadJustification`**). No separate digital-signature column is assumed in the baseline schema.
 
 ---
 
@@ -113,5 +114,5 @@ This guide supports drawing a UML use case diagram for **OptiCore: Campus Intell
 
 - Draw a single **system boundary** rectangle labeled **OptiCore**.
 - Place **GEC Chairman** near **College Admin** and connect **«extend»** / **«include»** to **Approve vacant-slot / access** use cases.
-- Keep **DOI Admin** on the opposite side of the boundary from students to show final gatekeeping.
+- Place **DOI Admin** to show **cross-college read** and **justification visibility** rather than a separate “approve” use case unless you document an external process.
 - Use notes (UML comment) for: *“GEC Chairman UI equals admin shell; write access limited to GEC vacant slots + approvals.”*
