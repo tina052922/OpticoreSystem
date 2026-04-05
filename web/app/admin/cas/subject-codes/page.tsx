@@ -1,6 +1,5 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
-import { SubjectCodesWorkspace } from "@/components/subjects/SubjectCodesWorkspace";
+import { SubjectCodesWithScope } from "@/components/subjects/SubjectCodesWithScope";
 
 export default function CasSubjectCodesPage() {
   return (
@@ -9,10 +8,7 @@ export default function CasSubjectCodesPage() {
         title="Subject Codes"
         subtitle="Campus-wide subject repository — filter by college and department (program)."
       />
-      <div className="px-8 pb-2">
-        <CampusScopeFilters />
-      </div>
-      <SubjectCodesWorkspace />
+      <SubjectCodesWithScope />
     </div>
   );
 }

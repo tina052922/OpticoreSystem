@@ -1,6 +1,5 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
-import { FacultyProfileWorkspace } from "@/components/faculty/FacultyProfileWorkspace";
+import { FacultyProfileWithScope } from "@/components/faculty/FacultyProfileWithScope";
 
 export default function DoiFacultyProfilePage() {
   return (
@@ -9,10 +8,7 @@ export default function DoiFacultyProfilePage() {
         title="Faculty Profile"
         subtitle="Campus-wide directory — filter by college and department (program)."
       />
-      <div className="px-8 pb-2">
-        <CampusScopeFilters />
-      </div>
-      <FacultyProfileWorkspace />
+      <FacultyProfileWithScope />
     </div>
   );
 }
