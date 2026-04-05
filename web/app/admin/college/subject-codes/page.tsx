@@ -1,18 +1,17 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
-import { SubjectCodesWorkspace } from "@/components/subjects/SubjectCodesWorkspace";
+import { SubjectCodesWithScope } from "@/components/subjects/SubjectCodesWithScope";
+import { getAuthenticatedProfile } from "@/lib/auth/require-role";
 
-export default function CollegeSubjectCodesPage() {
+export default async function CollegeSubjectCodesPage() {
+  const profile = await getAuthenticatedProfile();
+
   return (
     <div>
       <ChairmanPageHeader
         title="Subject Codes"
         subtitle="Campus-wide subject repository — filter by college and department (program)."
       />
-      <div className="px-8 pb-2">
-        <CampusScopeFilters />
-      </div>
-      <SubjectCodesWorkspace />
+      <SubjectCodesWithScope initialCollegeId={profile.collegeId} />
     </div>
   );
 }

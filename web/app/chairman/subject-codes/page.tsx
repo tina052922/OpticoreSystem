@@ -16,7 +16,7 @@ export default async function ChairmanSubjectCodesPage() {
       chairmanProgramCode={session.programCode}
       chairmanProgramName={session.programName}
     >
-      <SubjectCodesWorkspace />
+      <SubjectCodesWorkspace lockedProgramId={session.programId} />
     </ChairmanScopedPage>
   );
 }

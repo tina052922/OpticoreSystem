@@ -16,7 +16,10 @@ export default async function ChairmanFacultyProfilePage() {
       chairmanProgramCode={session.programCode}
       chairmanProgramName={session.programName}
     >
-      <FacultyProfileWorkspace />
+      <FacultyProfileWorkspace
+        chairmanCollegeId={session.collegeId}
+        chairmanProgramCode={session.programCode}
+      />
     </ChairmanScopedPage>
   );
 }
