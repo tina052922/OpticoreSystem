@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronDown, LogOut, MapPin, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, ChevronDown, LogOut, MapPin, User, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { cn } from "@/components/ui/utils";
 
 export type PortalNavItem = { label: string; href: string };
 
@@ -39,6 +41,19 @@ export function PortalShell({
 }: PortalShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (mobileNavOpen) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileNavOpen]);
 
   async function logout() {
     const supabase = createSupabaseBrowserClient();
@@ -53,8 +68,18 @@ export function PortalShell({
         className="h-[99px] w-full flex-none flex items-center justify-between px-4 md:px-8 no-print shrink-0 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
         style={{ background: "linear-gradient(90deg, #780301 0%, #DE0602 100%)" }}
       >
-        <div className="flex items-center gap-3 md:gap-4 min-w-0">
-          <div className="w-[64px] h-[64px] md:w-[70px] md:h-[70px] rounded-full overflow-hidden bg-white/10 flex items-center justify-center shrink-0 p-1">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0">
+          <button
+            type="button"
+            className="lg:hidden inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25"
+            aria-expanded={mobileNavOpen}
+            aria-controls="portal-sidebar-nav"
+            aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+            onClick={() => setMobileNavOpen((o) => !o)}
+          >
+            {mobileNavOpen ? <X className="h-6 w-6" aria-hidden /> : <Menu className="h-6 w-6" aria-hidden />}
+          </button>
+          <div className="w-[52px] h-[52px] sm:w-[64px] sm:h-[64px] md:w-[70px] md:h-[70px] rounded-full overflow-hidden bg-white/10 flex items-center justify-center shrink-0 p-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={CTU_LOGO_PNG}
@@ -119,8 +144,27 @@ export function PortalShell({
         </div>
       </header>
 
+      {mobileNavOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          aria-label="Close navigation"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      ) : null}
+
       <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-        <aside className="w-[min(100%,345px)] max-w-[345px] sm:w-[345px] bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] flex-none flex flex-col border-r border-black/5">
+        <aside
+          id="portal-sidebar-nav"
+          className={cn(
+            "fixed z-50 lg:z-auto left-0 top-[99px] lg:top-0 bottom-0",
+            "w-[min(90vw,320px)] max-w-[320px] lg:w-[345px] lg:max-w-[345px]",
+            "bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] flex flex-col border-r border-black/5",
+            "transform transition-transform duration-200 ease-out lg:transform-none",
+            mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+            "lg:static lg:flex-none",
+          )}
+        >
           <div className="p-2 pt-4 no-print">
             <p className="text-[11px] font-bold uppercase tracking-wide text-black/50 px-3 mb-2 truncate">
               {sidebarBadge}
@@ -141,7 +185,8 @@ export function PortalShell({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full text-left font-medium text-sm ${
+                  onClick={() => setMobileNavOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full text-left font-medium text-sm min-h-[44px] ${
                     active
                       ? "bg-[#FF990A] text-white shadow-[0px_4px_4px_0px_rgba(0,0,0,0.2)]"
                       : "text-gray-700 hover:bg-gray-200"

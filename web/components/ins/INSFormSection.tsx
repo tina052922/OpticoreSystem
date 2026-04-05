@@ -137,7 +137,7 @@ export function INSFormSection({
   }
 
   return (
-    <div className="p-6 bg-[#F8F8F8] min-h-full">
+    <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       <div className="mb-6 max-w-[1200px] mx-auto">
         <CampusScopeFilters
           variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
@@ -168,7 +168,7 @@ export function INSFormSection({
               <Link
                 key={t.href}
                 href={t.href}
-                className={`px-6 py-3 font-medium transition-colors rounded-t-lg ${
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
                   active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
                 }`}
               >

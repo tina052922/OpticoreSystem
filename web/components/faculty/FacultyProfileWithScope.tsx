@@ -13,7 +13,7 @@ export function FacultyProfileWithScope({ initialCollegeId }: { initialCollegeId
 
   return (
     <>
-      <div className="px-8 pb-2">
+      <div className="px-4 sm:px-6 lg:px-8 pb-2">
         <CampusScopeFilters
           initialCollegeId={initialCollegeId ?? undefined}
           onScopeChange={(s) => setScopeCollegeId(s.collegeId)}

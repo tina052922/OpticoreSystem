@@ -137,7 +137,7 @@ export function CiDashboard({ welcomeName, basePath, variant = "full" }: CiDashb
   const quickLinks = variant === "gec" ? gecQuickLinks : fullQuickLinks;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div>
         {welcomeName ? (
           <p className="text-sm font-medium text-gray-600 mb-1">Welcome, {welcomeName}</p>

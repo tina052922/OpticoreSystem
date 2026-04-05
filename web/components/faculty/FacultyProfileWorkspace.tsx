@@ -244,7 +244,7 @@ export function FacultyProfileWorkspace({
   }
 
   return (
-    <div className="px-8 pb-8 space-y-6">
+    <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex gap-2 flex-wrap">
           {[
