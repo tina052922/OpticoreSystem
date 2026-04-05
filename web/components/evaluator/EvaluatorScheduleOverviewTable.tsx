@@ -4,12 +4,18 @@ export type EvaluatorScheduleOverviewTableProps = {
   rows: ScheduleEvaluatorTableRow[];
   /** Campus-wide hub shows an extra College column. */
   showCollegeColumn?: boolean;
+  /** Row ids with resource/time conflicts (from “Run full conflict check”). */
+  highlightRowIds?: Set<string>;
 };
 
 /**
  * Shared orange-striped schedule grid used on Central Hub and Chairman Evaluator.
  */
-export function EvaluatorScheduleOverviewTable({ rows, showCollegeColumn }: EvaluatorScheduleOverviewTableProps) {
+export function EvaluatorScheduleOverviewTable({
+  rows,
+  showCollegeColumn,
+  highlightRowIds,
+}: EvaluatorScheduleOverviewTableProps) {
   const headers = showCollegeColumn
     ? [
         "College",
@@ -60,8 +66,15 @@ export function EvaluatorScheduleOverviewTable({ rows, showCollegeColumn }: Eval
                 </td>
               </tr>
             ) : (
-              rows.map((row, i) => (
-                <tr key={row.id} className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}`}>
+              rows.map((row, i) => {
+                const conflictRow = highlightRowIds?.has(row.id);
+                return (
+                <tr
+                  key={row.id}
+                  className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"} ${
+                    conflictRow ? "bg-red-100 ring-2 ring-inset ring-red-400/80" : ""
+                  }`}
+                >
                   {showCollegeColumn ? (
                     <td className="border border-black/10 px-2 py-2 max-w-[140px] truncate" title={row.college}>
                       {row.college}
@@ -78,7 +91,8 @@ export function EvaluatorScheduleOverviewTable({ rows, showCollegeColumn }: Eval
                   <td className="border border-black/10 px-2 py-2 text-red-700">{row.facultyConflict}</td>
                   <td className="border border-black/10 px-2 py-2 text-red-700">{row.sectionConflict}</td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

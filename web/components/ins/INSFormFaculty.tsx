@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,8 +13,25 @@ import {
 import { shareInsView } from "@/lib/share-ins";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocuments";
+import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
+import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+
+const DEMO_SCHEDULE: Record<DayKey, Array<{ time: string; course: string; yearSec: string; room: string }>> = {
+  Monday: [{ time: "7:00-9:00", course: "IT 203", yearSec: "BSIT 2A", room: "Lab 301" }],
+  Tuesday: [{ time: "9:00-11:00", course: "IT 101", yearSec: "BSIT 2B", room: "Room 201" }],
+  Wednesday: [],
+  Thursday: [],
+  Friday: [],
+  Saturday: [],
+  Sunday: [],
+};
+
+const DEMO_COURSES = [
+  { students: 42, code: "IT 101", title: "Introduction to Computing", degreeYrSec: "BSIT 2B" },
+  { students: 40, code: "IT 203", title: "Data Structures", degreeYrSec: "BSIT 2A" },
+];
 
 export type INSFormFacultyProps = {
   insBasePath?: string;
@@ -23,6 +39,8 @@ export type INSFormFacultyProps = {
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
+  /** When set (e.g. College Admin), live schedule uses this college even without chairman session props. */
+  viewerCollegeId?: string | null;
 };
 
 export function INSFormFaculty({
@@ -31,38 +49,36 @@ export function INSFormFaculty({
   chairmanProgramId = null,
   chairmanProgramCode = null,
   chairmanProgramName = null,
+  viewerCollegeId = null,
 }: INSFormFacultyProps) {
   const pathname = usePathname();
 
-  const facultyOptions = ["Dr. Maria Santos", "Juan Dela Cruz", "Ana Reyes"];
-  const selectedFaculty = "Dr. Maria Santos";
+  const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
+  const useLiveData = Boolean(effectiveCollegeId);
 
-  const schedule: Record<DayKey, Array<{ time: string; course: string; yearSec: string; room: string }>> = {
-    Monday: [{ time: "7:00-9:00", course: "IT 203", yearSec: "BSIT 2A", room: "Lab 301" }],
-    Tuesday: [{ time: "9:00-11:00", course: "IT 101", yearSec: "BSIT 2B", room: "Room 201" }],
-    Wednesday: [],
-    Thursday: [],
-    Friday: [],
-    Saturday: [],
-    Sunday: [],
-  };
+  const live = useInsLiveSchedule({
+    collegeId: effectiveCollegeId,
+    programId: chairmanProgramId,
+  });
 
-  const courses = [
-    { students: 42, code: "IT 101", title: "Introduction to Computing", degreeYrSec: "BSIT 2B" },
-    { students: 40, code: "IT 203", title: "Data Structures", degreeYrSec: "BSIT 2A" },
-  ];
+  const selectedFacultyName =
+    live.instructorOptions.find((x) => x.id === live.selectedInstructorId)?.name ?? "Search faculty";
+
+  const displaySchedule = useLiveData ? live.schedule : DEMO_SCHEDULE;
+  const displayCourses = useLiveData ? live.courses : DEMO_COURSES;
+  const displayFacultyName = useLiveData ? selectedFacultyName : "Dr. Maria Santos (demo)";
 
   async function onShare() {
     try {
       await shareInsView("faculty");
-      alert("Shared to College Admin inbox (simulated).");
+      alert("Shared to College Admin inbox.");
     } catch (e) {
       alert(e instanceof Error ? e.message : "Share failed");
     }
   }
 
   function handleDownload() {
-    const content = `INS Form 5A — PROGRAM BY TEACHER\nCEBU TECHNOLOGICAL UNIVERSITY\nFaculty: ${selectedFaculty}\n`;
+    const content = `INS Form 5A — PROGRAM BY TEACHER\nCEBU TECHNOLOGICAL UNIVERSITY\nFaculty: ${displayFacultyName}\n`;
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -72,6 +88,19 @@ export function INSFormFaculty({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  function runInsConflict() {
+    if (!useLiveData) {
+      alert("Connect to Supabase with a college scope to run conflict checks on live data.");
+      return;
+    }
+    const lines = live.getInsConflictSummaries();
+    if (lines.length === 0) {
+      alert("No instructor / room / section time conflicts detected for this college and term.");
+    } else {
+      alert(`Conflicts:\n\n${lines.join("\n")}`);
+    }
   }
 
   return (
@@ -89,7 +118,11 @@ export function INSFormFaculty({
       <div className="max-w-[1200px] mx-auto space-y-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
-          <p className="text-gray-600 text-sm">Official INS forms — Program by Teacher (5A), Section (5B), Room (5C).</p>
+          <p className="text-gray-600 text-sm">
+            Official INS forms — Program by Teacher (5A), Section (5B), Room (5C). Faculty view reflects{" "}
+            <strong>Evaluator / ScheduleEntry</strong> data when a college is in scope (updates via Supabase
+            Realtime).
+          </p>
         </div>
 
         <div className="flex gap-2 border-b border-gray-200 flex-wrap">
@@ -113,27 +146,41 @@ export function INSFormFaculty({
           })}
         </div>
 
+        {useLiveData && live.error ? (
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{live.error}</p>
+        ) : null}
+        {useLiveData && live.periodLabel ? (
+          <p className="text-xs text-gray-600">
+            Live term: <strong>{live.periodLabel}</strong>
+            {live.loading ? " · Loading…" : null}
+          </p>
+        ) : null}
+
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="w-full lg:max-w-xs">
-            <Input
-              list="faculty-list"
-              placeholder="Search Faculty (by name)"
-              className="bg-white"
-              aria-label="Search Faculty"
-            />
-            <datalist id="faculty-list">
-              {facultyOptions.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
+          <div className="w-full lg:max-w-md space-y-1">
+            {useLiveData ? (
+              <>
+                <InsScheduleEntitySearch
+                  label="Faculty / instructor (search)"
+                  placeholder="Type name — schedule updates when one match"
+                  options={live.instructorOptions}
+                  selectedId={live.selectedInstructorId}
+                  onSelectedIdChange={live.setSelectedInstructorId}
+                  disabled={live.loading || live.instructorOptions.length === 0}
+                  listId="ins-faculty-list"
+                />
+                {!live.loading && live.instructorOptions.length === 0 ? (
+                  <p className="text-xs text-amber-800">No faculty with classes this term yet — use Evaluator to plot.</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">Demo mode: set a college scope (Chairman or College Admin) for live data.</p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 justify-end">
-            <Button
-              className="bg-[#FF990A] hover:bg-[#e88909] text-white"
-              onClick={() => alert("Conflict detection (Faculty view) — connect to schedule rules when data is live.")}
-            >
-              Run Conflict
+            <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
+              Run Conflict Check
             </Button>
 
             <DropdownMenu>
@@ -155,20 +202,31 @@ export function INSFormFaculty({
                   <Printer className="w-4 h-4 mr-2" />
                   Print INS Form
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => alert("View schedules — wire to evaluator when integrated.")}>
-                  View Schedules
+                <DropdownMenuItem asChild>
+                  <Link
+                    href={
+                      insBasePath.includes("/college")
+                        ? "/admin/college/evaluator"
+                        : insBasePath.includes("/cas")
+                          ? "/admin/cas/evaluator"
+                          : "/chairman/evaluator"
+                    }
+                    className="cursor-pointer"
+                  >
+                    Open Evaluator
+                  </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="outline" className="bg-white" onClick={() => window.print()}>
+            <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
               Print / PDF
             </Button>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8 print-paper print:shadow-none">
-          <OpticoreInsForm5A facultyName={selectedFaculty} schedule={schedule} courses={courses} />
+          <OpticoreInsForm5A facultyName={displayFacultyName} schedule={displaySchedule} courses={displayCourses} />
         </div>
       </div>
     </div>

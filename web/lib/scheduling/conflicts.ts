@@ -37,21 +37,21 @@ export function detectConflictsForEntry(
     if (o.instructorId === candidate.instructorId) {
       hits.push({
         type: "faculty",
-        message: "Instructor double-booked at this time.",
+        message: "Instructor is already scheduled at this time/day.",
         withEntryId: o.id,
       });
     }
     if (o.sectionId === candidate.sectionId) {
       hits.push({
         type: "section",
-        message: "Section has another class at this time.",
+        message: "Section already has a class at this time.",
         withEntryId: o.id,
       });
     }
     if (o.roomId === candidate.roomId) {
       hits.push({
         type: "room",
-        message: "Room is occupied by another class at this time.",
+        message: "Room is already occupied.",
         withEntryId: o.id,
       });
     }
@@ -94,26 +94,55 @@ export function detectConflictsSparse(
     ) {
       hits.push({
         type: "faculty",
-        message: "Instructor double-booked at this time.",
+        message: "Instructor is already scheduled at this time/day.",
         withEntryId: o.id,
       });
     }
     if (candidate.sectionId && o.sectionId && candidate.sectionId === o.sectionId) {
       hits.push({
         type: "section",
-        message: "Section has another class at this time.",
+        message: "Section already has a class at this time.",
         withEntryId: o.id,
       });
     }
     if (candidate.roomId && o.roomId && candidate.roomId === o.roomId) {
       hits.push({
         type: "room",
-        message: "Room is occupied by another class at this time.",
+        message: "Room is already occupied.",
         withEntryId: o.id,
       });
     }
   }
   return hits;
+}
+
+/** Full-term scan: every entry checked against the full set; collect all involved row ids and human-readable causes. */
+export function scanAllScheduleConflicts(blocks: ScheduleBlock[]): {
+  conflictingEntryIds: Set<string>;
+  /** Unique root-cause lines for summary UI */
+  issueSummaries: string[];
+  /** Per-row issues (same message may repeat for different rows) */
+  issues: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
+} {
+  const conflictingEntryIds = new Set<string>();
+  const issues: { entryId: string; type: string; message: string; relatedEntryId?: string }[] = [];
+
+  for (const b of blocks) {
+    const hits = detectConflictsForEntry(b, blocks);
+    for (const h of hits) {
+      conflictingEntryIds.add(b.id);
+      if (h.withEntryId) conflictingEntryIds.add(h.withEntryId);
+      issues.push({
+        entryId: b.id,
+        type: h.type,
+        message: h.message,
+        relatedEntryId: h.withEntryId,
+      });
+    }
+  }
+
+  const issueSummaries = [...new Set(issues.map((i) => i.message))];
+  return { conflictingEntryIds, issueSummaries, issues };
 }
 
 export function uniqueConflictTypes(hits: ConflictHit[]): Set<string> {

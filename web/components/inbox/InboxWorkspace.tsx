@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   Circle,
   Download,
@@ -18,10 +19,17 @@ type Props = {
   portal: PortalId;
   title?: string;
   subtitle?: string;
+  /** Chairman: show “Forward to College Admin” (persists when WorkflowInboxMessage exists). */
+  enableChairmanForward?: boolean;
 };
 
 /** Opticore-CampusIntelligence Inbox layout: Mail | Sent, search, 2+3 grid, orange list header, preview + actions. */
-export function InboxWorkspace({ portal, title = "Inbox", subtitle }: Props) {
+export function InboxWorkspace({
+  portal,
+  title = "Inbox",
+  subtitle,
+  enableChairmanForward = false,
+}: Props) {
   const [tab, setTab] = useState<"mail" | "sent">("mail");
   const [query, setQuery] = useState("");
   const [mail, setMail] = useState<InboxMessage[]>([]);
@@ -70,6 +78,51 @@ export function InboxWorkspace({ portal, title = "Inbox", subtitle }: Props) {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when portal changes only
   }, [portal]);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    const ch = supabase
+      .channel(`workflow-inbox-${portal}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "WorkflowInboxMessage" },
+        () => void refresh(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, [portal]);
+
+  async function forwardDraftToCollege() {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const res = await fetch("/api/inbox/forward", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mailFor: "college",
+        sentFor: "chairman",
+        fromLabel: "Chairman (OptiCore)",
+        toLabel: "College Admin",
+        subject: "Draft schedule — INS Form + Evaluator",
+        body:
+          `Forwarded from OptiCore Chairman Inbox.\n\n` +
+          `Please review:\n` +
+          `• INS Form (Schedule View): ${origin}/chairman/ins/faculty\n` +
+          `• Evaluator: ${origin}/chairman/evaluator\n\n` +
+          `College Admin will see this under Mail after refresh (and in persisted inbox when the DB migration is applied).`,
+        workflowStage: "chairman_to_college",
+      }),
+    });
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (!res.ok) {
+      alert(data?.error || "Forward failed");
+      return;
+    }
+    await refresh();
+    alert("Forwarded to College Admin. They can open Inbox → Mail to read it.");
+  }
 
   const filtered = useMemo(() => {
     const pool = tab === "mail" ? mail : sent;
@@ -136,6 +189,21 @@ export function InboxWorkspace({ portal, title = "Inbox", subtitle }: Props) {
       <ChairmanPageHeader title={title} subtitle={subtitle ?? defaultSubtitle} />
 
       <div className="px-6 pb-8 space-y-4">
+        {enableChairmanForward ? (
+          <div className="rounded-lg border border-[#FF990A]/40 bg-[#FF990A]/10 px-4 py-3 flex flex-wrap items-center gap-3">
+            <p className="text-sm text-gray-800 flex-1 min-w-[200px]">
+              After plotting in the Evaluator, forward this draft to <strong>College Admin</strong> so it appears in
+              their Inbox (persisted when the workflow table is migrated).
+            </p>
+            <Button
+              type="button"
+              className="bg-[#780301] hover:bg-[#5a0201] text-white shrink-0"
+              onClick={() => void forwardDraftToCollege()}
+            >
+              Forward INS + Evaluator to College Admin
+            </Button>
+          </div>
+        ) : null}
         <div className="flex gap-2 border-b border-gray-200">
           <button
             type="button"
