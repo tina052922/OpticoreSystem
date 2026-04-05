@@ -6,8 +6,8 @@ import { DashboardCard } from "@/components/portal/DashboardCard";
 import type { AuditEntry } from "./AuditLogViewer";
 
 type Props = {
-  /** Full audit log route for this portal (College vs CAS). */
-  auditHref?: string;
+  /** Full audit log route for this portal. Omit for default college log; pass `null` to hide the footer link. */
+  auditHref?: string | null;
 };
 
 export function RecentActivityCard({ auditHref = "/admin/college/audit-log" }: Props) {
@@ -40,9 +40,11 @@ export function RecentActivityCard({ auditHref = "/admin/college/audit-log" }: P
           ))}
         </ul>
       )}
-      <Link href={auditHref} className="inline-block mt-4 text-sm font-medium text-[#780301] hover:underline">
-        Open full audit log →
-      </Link>
+      {auditHref ? (
+        <Link href={auditHref} className="inline-block mt-4 text-sm font-medium text-[#780301] hover:underline">
+          Open full audit log →
+        </Link>
+      ) : null}
     </DashboardCard>
   );
 }

@@ -104,7 +104,7 @@ export function PortalShell({
               </div>
               {profileHref ? (
                 <DropdownMenuItem asChild>
-                  <Link href={profileHref}>Profile Account</Link>
+                  <Link href={profileHref}>Profile</Link>
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuItem

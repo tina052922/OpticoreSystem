@@ -136,7 +136,7 @@ export function CampusIntelligenceShell({
                 {userEmail ? <div className="truncate">{userEmail}</div> : null}
               </div>
               <DropdownMenuItem asChild>
-                <Link href={profileHref}>Profile Account</Link>
+                <Link href={profileHref}>Profile</Link>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => void logout()}
