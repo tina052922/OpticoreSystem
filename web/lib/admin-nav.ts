@@ -43,7 +43,6 @@ export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
   { label: "Audit log", href: "/admin/college/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/admin/college/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/college/subject-codes", icon: "Layers" },
-  { label: "Profile", href: "/admin/college/profile", icon: "UserCircle" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
@@ -57,7 +56,6 @@ export const CAS_ADMIN_NAV: AdminNavItem[] = [
   { label: "Audit log", href: "/admin/cas/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/admin/cas/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/cas/subject-codes", icon: "Layers" },
-  { label: "Profile", href: "/admin/cas/profile", icon: "UserCircle" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
@@ -68,7 +66,6 @@ export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Vacant GEC slots", href: "/admin/gec/vacant-slots", icon: "CalendarPlus" },
   { label: "Inbox", href: "/admin/gec/inbox", icon: "Inbox" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
-  { label: "Profile", href: "/admin/gec/profile", icon: "UserCircle" },
 ];
 
 /** DOI / VPAA */
@@ -81,6 +78,5 @@ export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },
-  { label: "Profile", href: "/doi/profile", icon: "UserCircle" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
