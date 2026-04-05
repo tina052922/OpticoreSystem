@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell,
   BookOpen,
   CalendarPlus,
   ChevronDown,
@@ -28,6 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { AdminNavItem, NavIconKey } from "@/lib/admin-nav";
@@ -118,10 +118,7 @@ export function CampusIntelligenceShell({
             <MapPin className="w-4 h-4 shrink-0" aria-hidden />
             <span className="truncate">Campus Navigation</span>
           </Link>
-          <button type="button" className="relative p-1" aria-label="Notifications">
-            <Bell className="w-6 h-6 text-white" />
-            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-[#FF990A] rounded-full border border-white/30" />
-          </button>
+          <NotificationBell />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

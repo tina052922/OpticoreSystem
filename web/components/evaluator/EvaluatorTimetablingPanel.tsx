@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, TIME_SLOT_OPTIONS, WEEKDAYS } from "@/lib/scheduling/constants";
-import { detectConflictsForEntry } from "@/lib/scheduling/conflicts";
+import { detectConflictsForEntry, scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import type { ConflictHit, GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
@@ -24,10 +24,13 @@ import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/Evaluator
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
 import { ScheduleLivePreview } from "./ScheduleLivePreview";
 import {
+  type BsitSemester,
   isBsitChairmanProgram,
   isBsitSchedulingRoomCode,
   isBsitSectionName,
-  isProspectusSubjectCode,
+  normalizeProspectusCode,
+  prospectusSubjectsForYearAndSemester,
+  yearLevelFromBsitSectionName,
 } from "@/lib/chairman/bsit-prospectus";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
@@ -96,6 +99,12 @@ export function EvaluatorTimetablingPanel({
   const [altOpen, setAltOpen] = useState(false);
   const [altBusy, setAltBusy] = useState(false);
   const [altSuggestions, setAltSuggestions] = useState<GASuggestion[]>([]);
+  const [fullConflictIds, setFullConflictIds] = useState<Set<string>>(() => new Set());
+  const [fullConflictSummaries, setFullConflictSummaries] = useState<string[]>([]);
+  const [fullConflictDetails, setFullConflictDetails] = useState<
+    { entryId: string; type: string; message: string; relatedEntryId?: string }[]
+  >([]);
+  const [fullCheckRan, setFullCheckRan] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -183,6 +192,9 @@ export function EvaluatorTimetablingPanel({
   const bsitScope =
     Boolean(chairmanProgramId) && isBsitChairmanProgram(chairmanProgramCode ?? undefined);
 
+  const [bsitYearLevel, setBsitYearLevel] = useState(1);
+  const [bsitSemester, setBsitSemester] = useState<BsitSemester>(1);
+
   const sectionsInProgram = useMemo(
     () => sections.filter((s) => !programId || s.programId === programId),
     [sections, programId],
@@ -201,9 +213,16 @@ export function EvaluatorTimetablingPanel({
 
   const subjectsForPlotter = useMemo(() => {
     let list = subjectsInProgram;
-    if (bsitScope) list = list.filter((s) => isProspectusSubjectCode(s.code));
+    if (bsitScope) {
+      const allowed = new Set(
+        prospectusSubjectsForYearAndSemester(bsitYearLevel, bsitSemester).map((p) =>
+          normalizeProspectusCode(p.code),
+        ),
+      );
+      list = list.filter((s) => allowed.has(normalizeProspectusCode(s.code)));
+    }
     return list;
-  }, [subjectsInProgram, bsitScope]);
+  }, [subjectsInProgram, bsitScope, bsitYearLevel, bsitSemester]);
 
   const roomsInCollege = useMemo(
     () =>
@@ -259,6 +278,21 @@ export function EvaluatorTimetablingPanel({
     sections.forEach((s) => m.set(s.id, s));
     return m;
   }, [sections]);
+
+  useEffect(() => {
+    if (!bsitScope || !sectionId) return;
+    const sec = sectionById.get(sectionId);
+    if (!sec) return;
+    const y = yearLevelFromBsitSectionName(sec.name);
+    if (y != null) setBsitYearLevel(y);
+  }, [bsitScope, sectionId, sectionById]);
+
+  useEffect(() => {
+    if (!subjectId) return;
+    if (!subjectsForPlotter.some((s) => s.id === subjectId)) {
+      setSubjectId("");
+    }
+  }, [subjectsForPlotter, subjectId]);
 
   const programById = useMemo(() => {
     const m = new Map<string, Program>();
@@ -410,6 +444,45 @@ export function EvaluatorTimetablingPanel({
     userById,
     collegeNameById,
   ]);
+
+  const scopeCollegeForConflicts = chairmanCollegeId || collegeId;
+
+  const scopeBlocksForFullCheck = useMemo(() => {
+    if (!academicPeriodId) return [] as ScheduleBlock[];
+    const progFilter = chairmanProgramId || programId || null;
+    return mergedScheduleEntries
+      .filter((e) => e.academicPeriodId === academicPeriodId)
+      .filter((e) => !scopeCollegeForConflicts || sectionToCollegeId(e.sectionId) === scopeCollegeForConflicts)
+      .filter((e) => {
+        if (!progFilter) return true;
+        const sec = sectionById.get(e.sectionId);
+        return sec?.programId === progFilter;
+      })
+      .map(toBlock);
+  }, [
+    mergedScheduleEntries,
+    academicPeriodId,
+    scopeCollegeForConflicts,
+    chairmanProgramId,
+    programId,
+    sectionById,
+    sectionToCollegeId,
+  ]);
+
+  useEffect(() => {
+    setFullConflictIds(new Set());
+    setFullConflictSummaries([]);
+    setFullConflictDetails([]);
+    setFullCheckRan(false);
+  }, [academicPeriodId, scopeCollegeForConflicts, chairmanProgramId, programId]);
+
+  function runFullConflictCheck() {
+    const { conflictingEntryIds, issueSummaries, issues } = scanAllScheduleConflicts(scopeBlocksForFullCheck);
+    setFullConflictIds(conflictingEntryIds);
+    setFullConflictSummaries(issueSummaries);
+    setFullConflictDetails(issues);
+    setFullCheckRan(true);
+  }
 
   const slot = TIME_SLOT_OPTIONS[slotIndex] ?? TIME_SLOT_OPTIONS[0]!;
 
@@ -570,6 +643,21 @@ export function EvaluatorTimetablingPanel({
         setSaveMsg(error.message);
         return;
       }
+
+      const actor = collegeUsers.find((u) => u.id === user.id);
+      if (actor?.role === "chairman_admin" && effectiveCollegeId && rows.length > 0) {
+        const { data: admins } = await supabase
+          .from("User")
+          .select("id")
+          .eq("role", "college_admin")
+          .eq("collegeId", effectiveCollegeId);
+        if (admins?.length) {
+          const periodName = periods.find((p) => p.id === academicPeriodId)?.name ?? "the current term";
+          const msg = `${authorName} plotted or updated ${rows.length} schedule row(s) in the Evaluator (${periodName}). Open INS Form (Schedule View) and Evaluator to review.`;
+          await supabase.from("Notification").insert(admins.map((a) => ({ userId: a.id, message: msg })));
+        }
+      }
+
       setLocalDrafts([]);
       setJustModalOpen(false);
       await load();
@@ -777,9 +865,60 @@ export function EvaluatorTimetablingPanel({
               >
                 {altBusy ? "Working…" : "Alternative Suggestion"}
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 px-5 border-red-300 text-red-900 hover:bg-red-50 font-semibold"
+                disabled={!academicPeriodId || scopeBlocksForFullCheck.length === 0}
+                onClick={runFullConflictCheck}
+              >
+                Run full conflict check
+              </Button>
             </div>
           </div>
-          <EvaluatorScheduleOverviewTable rows={scheduleTableRows} showCollegeColumn={false} />
+          {fullCheckRan && fullConflictSummaries.length > 0 ? (
+            <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm space-y-2">
+              <div className="font-semibold text-red-900">Conflicts in saved + draft rows (this term & scope)</div>
+              <p className="text-[12px] text-red-900/85">
+                Highlighted rows in the table below overlap in time and share the same instructor, room, or section.
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-red-900">
+                {fullConflictSummaries.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              {fullConflictDetails.length > 0 ? (
+                <details className="text-[12px] text-red-900/90">
+                  <summary className="cursor-pointer font-medium">Affected entry ids</summary>
+                  <ul className="mt-2 font-mono text-[11px] space-y-0.5 pl-2">
+                    {fullConflictDetails.slice(0, 40).map((d, i) => (
+                      <li key={`${d.entryId}-${i}`}>
+                        {d.entryId.slice(0, 8)}… · {d.type}: {d.message}
+                        {d.relatedEntryId ? ` (with ${d.relatedEntryId.slice(0, 8)}…)` : ""}
+                      </li>
+                    ))}
+                    {fullConflictDetails.length > 40 ? (
+                      <li>…and {fullConflictDetails.length - 40} more</li>
+                    ) : null}
+                  </ul>
+                </details>
+              ) : null}
+            </div>
+          ) : fullCheckRan ? (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+              No resource conflicts detected for this term and scope. Faculty load policy checks are in the plotting
+              panel.
+            </div>
+          ) : academicPeriodId && scopeBlocksForFullCheck.length > 0 ? (
+            <p className="text-[12px] text-black/50">
+              Run <strong>Run full conflict check</strong> to validate all rows in the table for this term.
+            </p>
+          ) : null}
+          <EvaluatorScheduleOverviewTable
+            rows={scheduleTableRows}
+            showCollegeColumn={false}
+            highlightRowIds={fullConflictIds}
+          />
         </>
       ) : null}
 
@@ -891,6 +1030,44 @@ export function EvaluatorTimetablingPanel({
                 ))}
               </select>
             </label>
+
+            {bsitScope ? (
+              <label className="text-sm font-medium">
+                Year level (BSIT prospectus)
+                <select
+                  className={`mt-1 ${selectClass}`}
+                  value={bsitYearLevel}
+                  onChange={(e) => {
+                    setBsitYearLevel(parseInt(e.target.value, 10));
+                    setSubjectId("");
+                  }}
+                  disabled={!programId}
+                >
+                  <option value={1}>1st Year</option>
+                  <option value={2}>2nd Year</option>
+                  <option value={3}>3rd Year</option>
+                  <option value={4}>4th Year</option>
+                </select>
+              </label>
+            ) : null}
+
+            {bsitScope ? (
+              <label className="text-sm font-medium">
+                Semester (BSIT prospectus)
+                <select
+                  className={`mt-1 ${selectClass}`}
+                  value={bsitSemester}
+                  onChange={(e) => {
+                    setBsitSemester(parseInt(e.target.value, 10) as BsitSemester);
+                    setSubjectId("");
+                  }}
+                  disabled={!programId}
+                >
+                  <option value={1}>1st Semester</option>
+                  <option value={2}>2nd Semester</option>
+                </select>
+              </label>
+            ) : null}
 
             <label className="text-sm font-medium">
               Subject code

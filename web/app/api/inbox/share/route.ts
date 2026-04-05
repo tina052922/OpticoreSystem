@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { appendWorkflowMessage } from "@/lib/inbox-store";
 import { insertAuditLog } from "@/lib/server/audit-log";
+import { insertWorkflowInboxMessage } from "@/lib/server/workflow-inbox";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -28,6 +29,19 @@ export async function POST(req: Request) {
         entityType: "InboxWorkflow",
         details: { subject, view: body?.view ?? null },
       });
+      if (row?.collegeId) {
+        await insertWorkflowInboxMessage(supabase, {
+          senderId: user.id,
+          collegeId: row.collegeId,
+          fromLabel: row.name ?? "Chairman",
+          toLabel: "College Admin",
+          subject,
+          body: text,
+          workflowStage: "ins_share",
+          mailFor: ["college"],
+          sentFor: ["chairman"],
+        });
+      }
     }
   }
 

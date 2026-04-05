@@ -3,6 +3,7 @@ import { appendWorkflowMessage } from "@/lib/inbox-store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { insertAuditLog } from "@/lib/server/audit-log";
+import { insertWorkflowInboxMessage } from "@/lib/server/workflow-inbox";
 import type { AccessScope } from "@/types/db";
 
 const ALLOWED: AccessScope[] = ["evaluator", "ins_forms", "gec_vacant_slots"];
@@ -115,6 +116,19 @@ export async function POST(req: Request) {
     entityType: "AccessRequest",
     entityId: inserted?.id ?? null,
     details: { scopes, note },
+  });
+
+  await insertWorkflowInboxMessage(supabase, {
+    senderId: user.id,
+    collegeId: row.collegeId,
+    fromLabel: row.role === "cas_admin" ? "CAS Admin" : "GEC Chairman",
+    toLabel: "College Admin",
+    subject: "Access request — Evaluator / INS / GEC slots",
+    body:
+      `${note ?? "Requesting scoped access."}\n\nScopes: ${scopes.join(", ")}.\nRequest id: ${inserted?.id ?? "—"}.`,
+    workflowStage: "access_request",
+    mailFor: ["college"],
+    sentFor: row.role === "cas_admin" ? ["cas"] : ["gec"],
   });
 
   appendWorkflowMessage({

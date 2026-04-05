@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo, useState } from "react";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,9 @@ import {
 import { shareInsView } from "@/lib/share-ins";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
+import { useInsCatalog } from "@/hooks/use-ins-catalog";
+import { buildInsSectionView, emptyInsSectionSchedule } from "@/lib/ins/build-ins-section-view";
+import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -23,7 +26,26 @@ export type INSFormSectionProps = {
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
+  viewerCollegeId?: string | null;
 };
+
+const DEMO_SCHEDULE: Record<
+  DayKey,
+  Array<{ time: string; course: string; instructor: string; room: string }>
+> = {
+  Monday: [{ time: "7:00-9:00", course: "IT 203", instructor: "Dr. Maria Santos", room: "Lab 301" }],
+  Tuesday: [{ time: "9:00-11:00", course: "IT 101", instructor: "Juan Dela Cruz", room: "Room 201" }],
+  Wednesday: [],
+  Thursday: [],
+  Friday: [],
+  Saturday: [],
+  Sunday: [],
+};
+
+const DEMO_COURSES = [
+  { students: 40, code: "IT 203", title: "Data Structures", degreeYrSec: "BSIT 2A" },
+  { students: 42, code: "IT 101", title: "Introduction to Computing", degreeYrSec: "BSIT 2B" },
+];
 
 export function INSFormSection({
   insBasePath = "/chairman/ins",
@@ -31,26 +53,53 @@ export function INSFormSection({
   chairmanProgramId = null,
   chairmanProgramCode = null,
   chairmanProgramName = null,
+  viewerCollegeId = null,
 }: INSFormSectionProps) {
   const pathname = usePathname();
+  const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
+  const useLiveData = Boolean(effectiveCollegeId);
 
-  const sectionOptions = ["BSIT 2A", "BSIT 2B", "BSIT 3A"];
-  const selectedSection = "BSIT 2A";
+  const catalog = useInsCatalog({
+    collegeId: effectiveCollegeId,
+    programId: chairmanProgramId,
+  });
 
-  const schedule: Record<DayKey, Array<{ time: string; course: string; instructor: string; room: string }>> = {
-    Monday: [{ time: "7:00-9:00", course: "IT 203", instructor: "Dr. Maria Santos", room: "Lab 301" }],
-    Tuesday: [{ time: "9:00-11:00", course: "IT 101", instructor: "Juan Dela Cruz", room: "Room 201" }],
-    Wednesday: [],
-    Thursday: [],
-    Friday: [],
-    Saturday: [],
-    Sunday: [],
-  };
+  const [selectedSectionId, setSelectedSectionId] = useState("");
 
-  const courses = [
-    { students: 40, code: "IT 203", title: "Data Structures", degreeYrSec: selectedSection },
-    { students: 42, code: "IT 101", title: "Introduction to Computing", degreeYrSec: "BSIT 2B" },
-  ];
+  const selectedSectionName =
+    catalog.sectionOptions.find((x) => x.id === selectedSectionId)?.name ?? "Section";
+
+  const { schedule, courses } = useMemo(() => {
+    if (!useLiveData) {
+      return { schedule: DEMO_SCHEDULE, courses: DEMO_COURSES };
+    }
+    if (!catalog.academicPeriodId || !selectedSectionId || catalog.loading) {
+      return { schedule: emptyInsSectionSchedule(), courses: [] };
+    }
+    return buildInsSectionView({
+      entries: catalog.scopedEntries,
+      academicPeriodId: catalog.academicPeriodId,
+      sectionId: selectedSectionId,
+      sectionById: catalog.sectionById,
+      subjectById: catalog.subjectById,
+      roomById: catalog.roomById,
+      userById: catalog.userById,
+    });
+  }, [
+    useLiveData,
+    catalog.scopedEntries,
+    catalog.academicPeriodId,
+    selectedSectionId,
+    catalog.loading,
+    catalog.sectionById,
+    catalog.subjectById,
+    catalog.roomById,
+    catalog.userById,
+  ]);
+
+  const displaySchedule = schedule;
+  const displayCourses = courses;
+  const displayAssignment = useLiveData ? selectedSectionName : "BSIT 2A (demo)";
 
   async function onShare() {
     try {
@@ -62,7 +111,7 @@ export function INSFormSection({
   }
 
   function handleDownload() {
-    const content = `INS Form 5B — PROGRAM BY SECTION\nCEBU TECHNOLOGICAL UNIVERSITY\nSection: ${selectedSection}\n`;
+    const content = `INS Form 5B — PROGRAM BY SECTION\nCEBU TECHNOLOGICAL UNIVERSITY\nSection: ${displayAssignment}\n`;
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -72,6 +121,19 @@ export function INSFormSection({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  function runInsConflict() {
+    if (!useLiveData) {
+      alert("Connect to Supabase with a college scope to run conflict checks on live data.");
+      return;
+    }
+    const lines = catalog.getInsConflictSummaries();
+    if (lines.length === 0) {
+      alert("No instructor / room / section time conflicts detected for this college and term.");
+    } else {
+      alert(`Conflicts:\n\n${lines.join("\n")}`);
+    }
   }
 
   return (
@@ -89,7 +151,10 @@ export function INSFormSection({
       <div className="max-w-[1200px] mx-auto space-y-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
-          <p className="text-gray-600 text-sm">Official INS forms — Program by Teacher (5A), Section (5B), Room (5C).</p>
+          <p className="text-gray-600 text-sm">
+            Program by section (5B). Search narrows sections with classes in the current term; when only one matches,
+            that section&apos;s schedule appears automatically.
+          </p>
         </div>
 
         <div className="flex gap-2 border-b border-gray-200 flex-wrap">
@@ -113,22 +178,34 @@ export function INSFormSection({
           })}
         </div>
 
+        {useLiveData && catalog.error ? (
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{catalog.error}</p>
+        ) : null}
+        {useLiveData && catalog.periodLabel ? (
+          <p className="text-xs text-gray-600">
+            Live term: <strong>{catalog.periodLabel}</strong>
+            {catalog.loading ? " · Loading…" : null}
+          </p>
+        ) : null}
+
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="w-full lg:max-w-xs">
-            <Input list="section-list" placeholder="Search Section" className="bg-white" aria-label="Search Section" />
-            <datalist id="section-list">
-              {sectionOptions.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
-          </div>
+          {useLiveData ? (
+            <InsScheduleEntitySearch
+              label="Section (search)"
+              placeholder="Type section name (e.g. BSIT-1A)"
+              options={catalog.sectionOptions}
+              selectedId={selectedSectionId}
+              onSelectedIdChange={setSelectedSectionId}
+              disabled={catalog.loading || catalog.sectionOptions.length === 0}
+              listId="ins-section-list"
+            />
+          ) : (
+            <p className="text-sm text-gray-500">Demo mode: set a college scope for live section data.</p>
+          )}
 
           <div className="flex flex-wrap items-center gap-3 justify-end">
-            <Button
-              className="bg-[#FF990A] hover:bg-[#e88909] text-white"
-              onClick={() => alert("Conflict detection (Section view) — connect to schedule rules when data is live.")}
-            >
-              Run Conflict
+            <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
+              Run Conflict Check
             </Button>
 
             <DropdownMenu>
@@ -150,13 +227,24 @@ export function INSFormSection({
                   <Printer className="w-4 h-4 mr-2" />
                   Print INS Form
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => alert("View schedules — wire to evaluator when integrated.")}>
-                  View Schedules
+                <DropdownMenuItem asChild>
+                  <Link
+                    href={
+                      insBasePath.includes("/college")
+                        ? "/admin/college/evaluator"
+                        : insBasePath.includes("/cas")
+                          ? "/admin/cas/evaluator"
+                          : "/chairman/evaluator"
+                    }
+                    className="cursor-pointer"
+                  >
+                    Open Evaluator
+                  </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="outline" className="bg-white" onClick={() => window.print()}>
+            <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
               Print / PDF
             </Button>
           </div>
@@ -164,11 +252,11 @@ export function INSFormSection({
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8 print-paper print:shadow-none">
           <OpticoreInsForm5B
-            degreeAndYear={selectedSection}
+            degreeAndYear={displayAssignment}
             adviser=""
             assignment=""
-            schedule={schedule}
-            courses={courses}
+            schedule={displaySchedule}
+            courses={displayCourses}
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { appendWorkflowMessage, type PortalId } from "@/lib/inbox-store";
 import { insertAuditLog } from "@/lib/server/audit-log";
+import { insertWorkflowInboxMessage } from "@/lib/server/workflow-inbox";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -50,6 +51,19 @@ export async function POST(req: Request) {
           subject: json.subject?.trim() ?? null,
         },
       });
+      if (row?.collegeId) {
+        await insertWorkflowInboxMessage(supabase, {
+          senderId: user.id,
+          collegeId: row.collegeId,
+          fromLabel: json.fromLabel?.trim() || "OptiCore User",
+          toLabel: json.toLabel?.trim() || "Recipient",
+          subject: json.subject?.trim() || "Schedule workflow message",
+          body: json.body?.trim() || "(No body)",
+          workflowStage: json.workflowStage,
+          mailFor: [json.mailFor],
+          sentFor: [json.sentFor],
+        });
+      }
     }
   }
 
