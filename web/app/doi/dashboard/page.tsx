@@ -21,7 +21,7 @@ export default async function DoiDashboardPage() {
               </li>
               <li className="flex gap-2">
                 <Scale className="w-4 h-4 mt-0.5 text-[var(--color-opticore-orange)] shrink-0" />
-                Review & approve / reject drafts; request justification when policies are violated
+                Review load-policy justifications and campus-wide schedules; chairs submit text when policies are violated
               </li>
             </ul>
           </DashboardCard>
