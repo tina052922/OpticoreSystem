@@ -25,7 +25,7 @@ export function ChairmanScopedPage({
   return (
     <div>
       <ChairmanPageHeader title={title} subtitle={subtitle} />
-      <div className="px-8 pb-2">
+      <div className="px-4 sm:px-6 lg:px-8 pb-2">
         <CampusScopeFilters
           variant="chairman"
           chairmanCollegeId={chairmanCollegeId}

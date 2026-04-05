@@ -188,7 +188,7 @@ export function InboxWorkspace({
     <div>
       <ChairmanPageHeader title={title} subtitle={subtitle ?? defaultSubtitle} />
 
-      <div className="px-6 pb-8 space-y-4">
+      <div className="px-4 sm:px-6 pb-6 sm:pb-8 space-y-4">
         {enableChairmanForward ? (
           <div className="rounded-lg border border-[#FF990A]/40 bg-[#FF990A]/10 px-4 py-3 flex flex-wrap items-center gap-3">
             <p className="text-sm text-gray-800 flex-1 min-w-[200px]">

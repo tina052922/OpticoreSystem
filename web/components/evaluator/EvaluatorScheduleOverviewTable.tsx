@@ -47,7 +47,10 @@ export function EvaluatorScheduleOverviewTable({
 
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
-      <div className="overflow-x-auto">
+      <p className="lg:hidden px-3 py-2 text-[11px] text-black/50 border-b border-black/5">
+        Swipe horizontally to see all columns.
+      </p>
+      <div className="overflow-x-auto overflow-x-touch-pan">
         <table className="w-full border-collapse min-w-[960px]">
           <thead>
             <tr className="bg-[#ff990a] text-white text-[11px]">

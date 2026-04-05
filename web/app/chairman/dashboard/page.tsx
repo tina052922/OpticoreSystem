@@ -14,7 +14,7 @@ export default async function ChairmanDashboardPage() {
     <div className="space-y-8 pb-8">
       <CiDashboard welcomeName={session.name} basePath="/chairman" variant="full" />
 
-      <div className="px-6 max-w-6xl mx-auto">
+      <div className="px-4 sm:px-6 max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <RecentActivityCard auditHref={null} />
 

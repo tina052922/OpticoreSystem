@@ -18,6 +18,14 @@ body {
   color: #000;
   font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Display", "SF Pro Text", Inter,
     Segoe UI, Roboto, Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Wider tables: horizontal pan on touch without accidental vertical scroll hijack */
+.overflow-x-touch-pan {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 @media print {

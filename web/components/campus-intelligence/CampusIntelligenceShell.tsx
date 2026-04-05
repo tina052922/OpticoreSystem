@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   CalendarPlus,
@@ -14,10 +15,12 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Menu,
   Scale,
   Send,
   User,
   UserCircle,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +35,7 @@ import { CTU_LOGO_PNG } from "@/lib/branding";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { AdminNavItem, NavIconKey } from "@/lib/admin-nav";
 import { isNavItemActive } from "@/lib/nav-active";
+import { cn } from "@/components/ui/utils";
 
 const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   LayoutDashboard,
@@ -77,6 +81,22 @@ export function CampusIntelligenceShell({
   const pathname = usePathname();
   const router = useRouter();
   const navHrefs = navItems.map((i) => i.href);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (mobileNavOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileNavOpen]);
 
   async function logout() {
     const supabase = createSupabaseBrowserClient();
@@ -93,8 +113,18 @@ export function CampusIntelligenceShell({
           background: "linear-gradient(90deg, #780301 0%, #DE0602 100%)",
         }}
       >
-        <div className="flex items-center gap-3 md:gap-4 min-w-0">
-          <div className="w-[64px] h-[64px] md:w-[70px] md:h-[70px] rounded-full overflow-hidden bg-white/10 flex items-center justify-center shrink-0 p-1">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0">
+          <button
+            type="button"
+            className="lg:hidden inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25"
+            aria-expanded={mobileNavOpen}
+            aria-controls="admin-sidebar-nav"
+            aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+            onClick={() => setMobileNavOpen((o) => !o)}
+          >
+            {mobileNavOpen ? <X className="h-6 w-6" aria-hidden /> : <Menu className="h-6 w-6" aria-hidden />}
+          </button>
+          <div className="w-[52px] h-[52px] sm:w-[64px] sm:h-[64px] md:w-[70px] md:h-[70px] rounded-full overflow-hidden bg-white/10 flex items-center justify-center shrink-0 p-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={CTU_LOGO_PNG}
@@ -150,8 +180,25 @@ export function CampusIntelligenceShell({
         </div>
       </header>
 
+      {mobileNavOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          aria-label="Close navigation"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      ) : null}
+
       <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-        <aside className="w-[min(100%,345px)] max-w-[345px] sm:w-[345px] bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] flex-none flex flex-col border-r border-black/5">
+        <aside
+          id="admin-sidebar-nav"
+          className={cn(
+            "fixed left-0 top-[99px] bottom-0 z-50 flex flex-col border-r border-black/5 bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]",
+            "w-[min(90vw,320px)] max-w-[320px] lg:static lg:top-auto lg:bottom-auto lg:z-auto lg:w-[345px] lg:max-w-[345px] lg:shrink-0",
+            "transform transition-transform duration-200 ease-out lg:translate-x-0",
+            mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          )}
+        >
           <div className="p-2 pt-4 no-print">
             {roleLabel ? (
               <p
@@ -178,7 +225,8 @@ export function CampusIntelligenceShell({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full text-left ${
+                  onClick={() => setMobileNavOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full text-left min-h-[44px] ${
                     active
                       ? "bg-[#FF990A] text-white shadow-[0px_4px_4px_0px_rgba(0,0,0,0.2)]"
                       : "text-gray-700 hover:bg-gray-200"
