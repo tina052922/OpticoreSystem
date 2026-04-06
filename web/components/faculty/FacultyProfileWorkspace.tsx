@@ -6,6 +6,12 @@ import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { FacultyProfile, User } from "@/types/db";
 
+/**
+ * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
+ * without Auth; the Evaluator then assigns `ScheduleEntry.instructorId` to that `User.id`. Self-registration with the
+ * same Employee ID links Auth and schedules (see `register-instructor` API).
+ */
+
 export type FacultyProfileWorkspaceProps = {
   chairmanCollegeId?: string | null;
   chairmanProgramCode?: string | null;

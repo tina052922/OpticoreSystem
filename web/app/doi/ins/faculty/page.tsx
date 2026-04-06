@@ -1,14 +1,14 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { INSFormFaculty } from "@/components/ins/INSFormFaculty";
+import { DoiInsFacultyInsView } from "./DoiInsFacultyInsView";
 
 export default function DoiInsFacultyPage() {
   return (
     <div>
       <ChairmanPageHeader
-        title="INS Form"
-        subtitle="Schedule view — campus-wide scope; narrow by college and department using the search bar above."
+        title="INS Form (Program by Teacher)"
+        subtitle="Campus-wide master schedule — run conflict checks, record VPAA digital approval, and publish final timetables. Term selection applies to both approval and the grid below."
       />
-      <INSFormFaculty insBasePath="/doi/ins" />
+      <DoiInsFacultyInsView />
     </div>
   );
 }

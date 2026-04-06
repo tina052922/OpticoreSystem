@@ -10,6 +10,7 @@ export default async function FacultyAnnouncementsPage() {
 
   const navItems = [
     { label: "Dashboard", href: "/faculty" },
+    { label: "INS Form (by faculty)", href: "/faculty/ins/faculty" },
     { label: "My schedule", href: "/faculty/schedule" },
     { label: "Request change", href: "/faculty/request-change" },
     { label: "Announcements", href: "/faculty/announcements" },

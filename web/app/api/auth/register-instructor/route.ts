@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient, getSupabaseAdminConfigError } from "@/lib/supabase/admin";
 import { generateInstructorTempPassword } from "@/lib/auth/instructor-registration";
+import { migrateInstructorPlaceholderToAuthUser } from "@/lib/server/instructor-placeholder-migrate";
 import { sendInstructorWelcomeEmail } from "@/lib/server/send-instructor-welcome-email";
 
 type Body = {
@@ -13,8 +14,17 @@ type Body = {
 const GMAIL_RE = /@gmail\.com$/i;
 
 /**
- * Self-service instructor registration: creates auth user with temp password, public.User + FacultyProfile.
- * Email with password is sent via Resend when RESEND_API_KEY is set; in development the response may include devOnlyPassword.
+ * Self-service instructor registration: creates Auth user + public.User + FacultyProfile.
+ *
+ * ## Chairman plots before the instructor registers (recommended approach)
+ * The Chairman should record the person in **Faculty Profile** with the official **Employee ID** first.
+ * That creates a placeholder `public.User` (no Auth login) and `FacultyProfile`. The Evaluator then plots
+ * `ScheduleEntry.instructorId` = that placeholder id — FKs stay valid. When the instructor self-registers with
+ * the **same Employee ID**, we detect the placeholder (no Auth user), create Auth, and **re-point** schedules
+ * and profile to `auth.users.id` via {@link migrateInstructorPlaceholderToAuthUser}.
+ *
+ * If the Chairman skips Faculty Profile and only types a name in the Evaluator, there is no stable Employee ID
+ * link — registration cannot attach plots automatically. The product rule is: **Employee ID is the join key.**
  */
 export async function POST(req: Request) {
   const admin = createSupabaseAdminClient();
@@ -27,7 +37,7 @@ export async function POST(req: Request) {
   const fullName = body?.fullName?.trim() ?? "";
   const email = body?.email?.trim().toLowerCase() ?? "";
   const employeeId = body?.employeeId?.trim() ?? "";
-  const collegeId = body?.collegeId?.trim() || null;
+  let collegeId = body?.collegeId?.trim() || null;
 
   if (!fullName || fullName.length < 2) {
     return NextResponse.json({ error: "Please enter your full name." }, { status: 400 });
@@ -52,9 +62,81 @@ export async function POST(req: Request) {
     }
   }
 
-  const { data: eidTaken } = await admin.from("User").select("id").eq("employeeId", employeeId).maybeSingle();
-  if (eidTaken) {
-    return NextResponse.json({ error: "That Employee ID is already registered." }, { status: 409 });
+  const { data: placeholder } = await admin
+    .from("User")
+    .select("id, collegeId")
+    .eq("employeeId", employeeId)
+    .maybeSingle();
+
+  if (placeholder) {
+    const { data: authLookup } = await admin.auth.admin.getUserById(placeholder.id);
+    if (authLookup?.user) {
+      return NextResponse.json(
+        { error: "This Employee ID is already linked to an account. Sign in with your email." },
+        { status: 409 },
+      );
+    }
+
+    if (!collegeId && placeholder.collegeId) {
+      collegeId = placeholder.collegeId;
+    }
+
+    const temporaryPassword = generateInstructorTempPassword();
+    const { data: created, error: authErr } = await admin.auth.admin.createUser({
+      email,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        must_change_password: true,
+        full_name: fullName,
+      },
+    });
+
+    if (authErr || !created?.user) {
+      const msg = authErr?.message ?? "Could not create account";
+      const status = msg.includes("already been registered") || msg.includes("already exists") ? 409 : 400;
+      return NextResponse.json({ error: msg }, { status });
+    }
+
+    const uid = created.user.id;
+    const mig = await migrateInstructorPlaceholderToAuthUser(admin, placeholder.id, uid, {
+      email,
+      name: fullName,
+      collegeId,
+      employeeId,
+    });
+
+    if (mig.error) {
+      await admin.auth.admin.deleteUser(uid);
+      return NextResponse.json({ error: `Could not link your account to existing records: ${mig.error}` }, { status: 500 });
+    }
+
+    const origin = new URL(req.url).origin;
+    const emailResult = await sendInstructorWelcomeEmail({
+      to: email,
+      name: fullName,
+      temporaryPassword,
+      appOrigin: origin,
+    });
+
+    const payload: Record<string, unknown> = {
+      ok: true,
+      linkedPlaceholder: true,
+      message: emailResult.sent
+        ? "Your account is linked to your plotted schedule. Check Gmail for your temporary password."
+        : process.env.RESEND_API_KEY
+          ? `Account linked, but email could not be sent (${emailResult.error ?? "unknown"}). Contact your college admin.`
+          : "Account linked. Configure RESEND_API_KEY to enable email delivery.",
+      emailSent: emailResult.sent,
+    };
+
+    if (process.env.NODE_ENV === "development" && !emailResult.sent) {
+      (payload as { devOnlyPassword?: string }).devOnlyPassword = temporaryPassword;
+      (payload as { devWarning?: string }).devWarning =
+        "Development only: temporary password included because email was not sent. Do not enable in production.";
+    }
+
+    return NextResponse.json(payload);
   }
 
   const temporaryPassword = generateInstructorTempPassword();

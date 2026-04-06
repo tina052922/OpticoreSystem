@@ -8,7 +8,7 @@ export default function DoiInsSectionPage() {
         title="INS Form"
         subtitle="Section schedule view — campus-wide; filter by college and department."
       />
-      <INSFormSection insBasePath="/doi/ins" />
+      <INSFormSection insBasePath="/doi/ins" campusWide />
     </div>
   );
 }

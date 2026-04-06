@@ -247,7 +247,9 @@ values
   ('sch-15', 'ap-2025-2', 'sub-bsit-gec-pc', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'lab-301', 'Friday', '09:00', '11:00', 'draft'),
   ('sch-16', 'ap-2025-2', 'sub-cc-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Friday', '13:00', '15:00', 'draft'),
   ('sch-17', 'ap-2025-2', 'sub-cc-112', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'lab-301', 'Saturday', '07:00', '09:00', 'draft'),
-  ('sch-18', 'ap-2025-2', 'sub-bsit-gec-pc', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Saturday', '09:00', '11:00', 'draft')
+  ('sch-18', 'ap-2025-2', 'sub-bsit-gec-pc', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Saturday', '09:00', '11:00', 'draft'),
+  -- Explicit QA row for Schedule Change Request flow (same instructor as seed; id matches migration sch-qa-schedule-change-demo)
+  ('sch-qa-schedule-change-demo', 'ap-2025-2', 'sub-cc-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-1a', 'room-it-lab-2', 'Tuesday', '14:00', '16:00', 'draft')
 on conflict (id) do nothing;
 
 insert into public."ScheduleLoadJustification" (id, "academicPeriodId", "collegeId", "authorUserId", "authorName", "authorEmail", justification, "violationsSnapshot")

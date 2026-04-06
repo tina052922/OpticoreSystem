@@ -17,6 +17,7 @@ import { OpticoreInsForm5C } from "@/components/ins/ins-layout/OpticoreInsDocume
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { buildInsRoomView, emptyInsRoomSchedule } from "@/lib/ins/build-ins-room-view";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
+import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -27,6 +28,7 @@ export type INSFormRoomProps = {
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
   viewerCollegeId?: string | null;
+  campusWide?: boolean;
 };
 
 const DEMO_SCHEDULE: Record<DayKey, Array<{ time: string; course: string; yearSec: string; room: string }>> = {
@@ -46,14 +48,16 @@ export function INSFormRoom({
   chairmanProgramCode = null,
   chairmanProgramName = null,
   viewerCollegeId = null,
+  campusWide = false,
 }: INSFormRoomProps) {
   const pathname = usePathname();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
-  const useLiveData = Boolean(effectiveCollegeId);
+  const useLiveData = Boolean(effectiveCollegeId || campusWide);
 
   const catalog = useInsCatalog({
     collegeId: effectiveCollegeId,
     programId: chairmanProgramId,
+    campusWide,
   });
 
   const [selectedRoomId, setSelectedRoomId] = useState("");
@@ -124,15 +128,23 @@ export function INSFormRoom({
 
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
-      <div className="mb-6 max-w-[1200px] mx-auto">
-        <CampusScopeFilters
-          variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
-          chairmanCollegeId={chairmanCollegeId ?? null}
-          chairmanProgramId={chairmanProgramId}
-          chairmanProgramCode={chairmanProgramCode}
-          chairmanProgramName={chairmanProgramName}
-        />
-      </div>
+      {!campusWide ? (
+        <div className="mb-6 max-w-[1200px] mx-auto">
+          <CampusScopeFilters
+            variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
+            chairmanCollegeId={chairmanCollegeId ?? null}
+            chairmanProgramId={chairmanProgramId}
+            chairmanProgramCode={chairmanProgramCode}
+            chairmanProgramName={chairmanProgramName}
+          />
+        </div>
+      ) : (
+        <div className="mb-4 max-w-[1200px] mx-auto">
+          <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
+            Campus-wide · all colleges
+          </span>
+        </div>
+      )}
 
       <div className="max-w-[1200px] mx-auto space-y-4">
         <div>
@@ -174,6 +186,10 @@ export function INSFormRoom({
           </p>
         ) : null}
 
+        {useLiveData && catalog.termPublishLocked && catalog.periodLabel ? (
+          <InsPublishedBanner periodLabel={catalog.periodLabel} />
+        ) : null}
+
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           {useLiveData ? (
             <InsScheduleEntitySearch
@@ -186,7 +202,9 @@ export function INSFormRoom({
               listId="ins-room-list"
             />
           ) : (
-            <p className="text-sm text-gray-500">Demo mode: set a college scope for live room data.</p>
+            <p className="text-sm text-gray-500">
+              Demo mode: set a college scope or open the DOI campus-wide INS for live room data.
+            </p>
           )}
 
           <div className="flex flex-wrap items-center gap-3 justify-end">

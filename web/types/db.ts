@@ -111,6 +111,8 @@ export interface ScheduleEntry {
   startTime: string;
   endTime: string;
   status: ScheduleStatus;
+  /** Set when VPAA publishes the term; plotted rows cannot be edited by chairman/college (RLS). */
+  lockedByDoiAt?: string | null;
 }
 
 /** Chairman documents why plotted loads exceed Faculty Manual caps; visible to DOI. */
@@ -160,6 +162,45 @@ export interface AccessRequestRow {
   reviewedById: string | null;
   reviewedAt: string | null;
   expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ScheduleChangeStatus = "pending" | "approved" | "rejected" | "approved_with_solution";
+
+export interface ScheduleChangeRequest {
+  id: string;
+  academicPeriodId: string;
+  scheduleEntryId: string;
+  instructorId: string;
+  collegeId: string;
+  requestedDay: string;
+  requestedStartTime: string;
+  requestedEndTime: string;
+  reason: string;
+  status: ScheduleChangeStatus;
+  conflictSeverity: "none" | "small" | "large" | null;
+  conflictDetails: unknown | null;
+  adminSuggestion: string | null;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** VPAA / DOI campus-wide approval of master schedules per term. */
+export interface DoiScheduleFinalization {
+  id: string;
+  academicPeriodId: string;
+  status: "pending" | "approved" | "rejected";
+  signedByName: string | null;
+  signedAt: string | null;
+  signedAcknowledged: boolean;
+  /** Set when approved: publication / go-live timestamp for the term master schedule. */
+  publishedAt: string | null;
+  decidedById: string | null;
+  decidedAt: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }

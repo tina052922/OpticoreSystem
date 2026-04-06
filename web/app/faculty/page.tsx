@@ -24,6 +24,7 @@ export default async function FacultyDashboardPage() {
 
   const navItems = [
     { label: "Dashboard", href: "/faculty" },
+    { label: "INS Form (by faculty)", href: "/faculty/ins/faculty" },
     { label: "My schedule", href: "/faculty/schedule" },
     { label: "Request change", href: "/faculty/request-change" },
     { label: "Announcements", href: "/faculty/announcements" },
@@ -100,6 +101,13 @@ export default async function FacultyDashboardPage() {
               </ul>
             )}
             <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href="/faculty/ins/faculty"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#780301] text-white px-4 py-2.5 text-sm font-semibold shadow-sm"
+              >
+                INS Form (by faculty)
+                <ChevronRight className="w-4 h-4" />
+              </Link>
               <Link
                 href="/faculty/schedule"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-2.5 text-sm font-semibold shadow-sm"

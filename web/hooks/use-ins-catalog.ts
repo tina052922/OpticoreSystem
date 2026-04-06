@@ -26,8 +26,9 @@ export type InsRoomOption = { id: string; name: string };
 
 /**
  * Shared Supabase load + realtime for INS views (faculty / section / room).
+ * When `campusWide` is true, loads all schedule rows (DOI / VPAA) without filtering by college.
  */
-export function useInsCatalog(args: { collegeId: string | null; programId: string | null }) {
+export function useInsCatalog(args: { collegeId: string | null; programId: string | null; campusWide?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
@@ -40,7 +41,7 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
   const [academicPeriodId, setAcademicPeriodId] = useState("");
 
   const load = useCallback(async () => {
-    if (!args.collegeId) {
+    if (!args.collegeId && !args.campusWide) {
       setLoading(false);
       setEntries([]);
       setError(null);
@@ -85,14 +86,14 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     setPrograms((prog ?? []) as Program[]);
     setUsers((fac ?? []) as User[]);
     setLoading(false);
-  }, [args.collegeId]);
+  }, [args.collegeId, args.campusWide]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    if (!args.collegeId) return;
+    if (!args.collegeId && !args.campusWide) return;
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
     const ch = supabase
@@ -106,7 +107,7 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [load, args.collegeId]);
+  }, [load, args.collegeId, args.campusWide]);
 
   useEffect(() => {
     if (periods.length === 0 || academicPeriodId) return;
@@ -145,6 +146,9 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
   }, [users]);
 
   const scopedEntries = useMemo(() => {
+    if (args.campusWide) {
+      return entries.filter((e) => sectionById.has(e.sectionId));
+    }
     if (!args.collegeId) return entries;
     return entries.filter((e) => {
       const sec = sectionById.get(e.sectionId);
@@ -155,7 +159,7 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
       if (args.programId && sec.programId !== args.programId) return false;
       return true;
     });
-  }, [entries, args.collegeId, args.programId, sectionById, programById]);
+  }, [entries, args.collegeId, args.programId, args.campusWide, sectionById, programById]);
 
   const termEntries = useMemo(
     () => scopedEntries.filter((e) => e.academicPeriodId === academicPeriodId),
@@ -213,6 +217,13 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     return scanAllScheduleConflicts(blocks).issueSummaries;
   }, [scopedEntries, academicPeriodId]);
 
+  /** True when VPAA has published this term: at least one scoped row carries lockedByDoiAt. */
+  const termPublishLocked = useMemo(() => {
+    return scopedEntries
+      .filter((e) => e.academicPeriodId === academicPeriodId)
+      .some((e) => Boolean(e.lockedByDoiAt));
+  }, [scopedEntries, academicPeriodId]);
+
   return {
     loading,
     error,
@@ -221,6 +232,7 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     academicPeriodId,
     setAcademicPeriodId,
     scopedEntries,
+    termPublishLocked,
     sectionById,
     subjectById,
     roomById,
