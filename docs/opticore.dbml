@@ -1,0 +1,228 @@
+// OptiCore: Campus Intelligence System — CTU Argao
+// Paste into https://dbdiagram.io (DBML)
+// Physical PostgreSQL uses quoted identifiers (e.g. public."User", public."ScheduleEntry").
+// Column names below use snake_case for readability; maps to camelCase in Supabase where quoted.
+
+Project OptiCore {
+  database_type: 'PostgreSQL'
+  Note: 'OptiCore Campus Intelligence (CTU Argao). Hub: ScheduleEntry. VPAA: DoiScheduleFinalization; lock: ScheduleEntry.locked_by_doi_at.'
+}
+
+Table AcademicPeriod {
+  id text [pk]
+  name text [not null]
+  semester text [not null]
+  academic_year text [not null]
+  is_current boolean [not null, default: false]
+  start_date date
+  end_date date
+}
+
+Table College {
+  id text [pk]
+  code text [not null, unique]
+  name text [not null]
+}
+
+Table Program {
+  id text [pk]
+  code text [not null, unique]
+  name text [not null]
+  college_id text [not null, ref: > College.id]
+}
+
+Table Section {
+  id text [pk]
+  program_id text [not null, ref: > Program.id]
+  name text [not null]
+  year_level int [not null]
+  student_count int [not null, default: 0]
+}
+
+// Physical PostgreSQL table name is "User" (quoted)
+Table Users {
+  id text [pk, note: 'auth.uid()::text']
+  employee_id text [unique]
+  email text [not null, unique]
+  name text [not null]
+  role text [not null, note: 'chairman_admin | college_admin | cas_admin | gec_chairman | doi_admin | instructor | student | visitor']
+  college_id text [ref: > College.id]
+  chairman_program_id text [ref: > Program.id]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table FacultyProfile {
+  id text [pk]
+  user_id text [not null, unique, ref: > Users.id]
+  full_name text [not null]
+  aka text
+  bs_degree text
+  ms_degree text
+  doctoral_degree text
+  major1 text
+  major2 text
+  major3 text
+  minor1 text
+  minor2 text
+  minor3 text
+  research text
+  extension text
+  production text
+  special_training text
+  status text
+  designation text
+  rate_per_hour float
+}
+
+Table Subject {
+  id text [pk]
+  code text [not null, unique]
+  subcode text
+  title text [not null]
+  lec_units float [not null, default: 0]
+  lec_hours float [not null, default: 0]
+  lab_units float [not null, default: 0]
+  lab_hours float [not null, default: 0]
+  program_id text [not null, ref: > Program.id]
+  year_level int [not null]
+}
+
+Table Room {
+  id text [pk]
+  code text [not null, unique]
+  building text
+  floor int
+  capacity int
+  type text
+  college_id text [ref: > College.id]
+}
+
+Table ScheduleEntry {
+  id text [pk]
+  academic_period_id text [not null, ref: > AcademicPeriod.id]
+  subject_id text [not null, ref: > Subject.id]
+  instructor_id text [not null, ref: > Users.id]
+  section_id text [not null, ref: > Section.id]
+  room_id text [not null, ref: > Room.id]
+  day text [not null]
+  start_time text [not null]
+  end_time text [not null]
+  status text [not null, note: 'draft | final | conflicted']
+  locked_by_doi_at timestamptz [note: 'VPAA publish lock']
+}
+
+Table Notification {
+  id text [pk]
+  user_id text [not null, ref: > Users.id]
+  message text [not null]
+  is_read boolean [not null, default: false]
+  created_at timestamptz [not null]
+}
+
+Table StudentProfile {
+  id text [pk]
+  user_id text [not null, unique, ref: > Users.id]
+  program_id text [not null, ref: > Program.id]
+  section_id text [not null, ref: > Section.id]
+  year_level int [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table ScheduleLoadJustification {
+  id text [pk]
+  academic_period_id text [not null, ref: > AcademicPeriod.id]
+  college_id text [not null, ref: > College.id]
+  author_user_id text [not null, ref: > Users.id]
+  author_name text [not null]
+  author_email text
+  justification text [not null]
+  violations_snapshot jsonb
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (academic_period_id, college_id) [unique, name: 'schedule_load_justif_period_college_uidx']
+  }
+}
+
+Table DoiScheduleFinalization {
+  id text [pk]
+  academic_period_id text [not null, unique, ref: - AcademicPeriod.id, note: 'one row per term (1:1)']
+  status text [not null, default: 'pending', note: 'pending | approved | rejected']
+  signed_by_name text
+  signed_at timestamptz
+  signed_acknowledged boolean [not null, default: false]
+  published_at timestamptz
+  decided_by_id text [ref: > Users.id]
+  decided_at timestamptz
+  notes text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table WorkflowInboxMessage {
+  id text [pk]
+  sender_id text [ref: > Users.id]
+  college_id text [not null, ref: > College.id]
+  from_label text [not null]
+  to_label text [not null]
+  subject text [not null]
+  body text [not null]
+  workflow_stage text
+  mail_for text[] [not null]
+  sent_for text[] [not null]
+  status text [not null, default: 'Unread', note: 'Unread | Read']
+  created_at timestamptz [not null]
+}
+
+Table AccessRequest {
+  id text [pk]
+  requester_id text [not null, ref: > Users.id]
+  college_id text [not null, ref: > College.id]
+  status text [not null, note: 'pending | approved | rejected']
+  scopes text[] [not null, note: 'evaluator | ins_forms | gec_vacant_slots']
+  note text
+  reviewed_by_id text [ref: > Users.id]
+  reviewed_at timestamptz
+  expires_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table AuditLog {
+  id text [pk]
+  actor_id text [not null, ref: > Users.id]
+  college_id text [ref: > College.id]
+  action text [not null]
+  entity_type text [not null]
+  entity_id text
+  details jsonb
+  created_at timestamptz [not null]
+}
+
+Table ScheduleChangeRequest {
+  id text [pk]
+  academic_period_id text [not null, ref: > AcademicPeriod.id]
+  schedule_entry_id text [not null, ref: > ScheduleEntry.id]
+  instructor_id text [not null, ref: > Users.id]
+  college_id text [not null, ref: > College.id]
+  requested_day text [not null]
+  requested_start_time text [not null]
+  requested_end_time text [not null]
+  reason text [not null]
+  status text [not null, default: 'pending', note: 'pending | approved | rejected | approved_with_solution']
+  conflict_severity text [note: 'none | small | large']
+  conflict_details jsonb
+  admin_suggestion text
+  reviewed_by_id text [ref: > Users.id]
+  reviewed_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// --- Relationship notes (optional refs already inline above) ---
+// ScheduleEntry: central timetable row for Evaluator + INS.
+// DoiScheduleFinalization 1:1 AcademicPeriod (unique academic_period_id).
+// ScheduleChangeRequest cascades from ScheduleEntry on delete.
