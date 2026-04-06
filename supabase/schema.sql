@@ -111,6 +111,11 @@ create table if not exists public."ScheduleEntry" (
   status text not null check (status in ('draft','final','conflicted'))
 );
 
+alter table public."ScheduleEntry" add column if not exists "lockedByDoiAt" timestamptz;
+
+comment on column public."ScheduleEntry"."lockedByDoiAt" is
+  'Set when DOI/VPAA publishes the master schedule for this academic period; RLS blocks chairman/college edits.';
+
 create table if not exists public."Notification" (
   id text primary key default gen_random_uuid()::text,
   "userId" text not null references public."User"(id) on delete cascade,
@@ -204,6 +209,36 @@ grant execute on function public.current_user_role() to authenticated;
 grant execute on function public.current_user_college_id() to authenticated;
 grant execute on function public.is_chairman_admin() to authenticated;
 grant execute on function public.current_user_chairman_program_id() to authenticated;
+
+create or replace function public.is_college_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select u.role = 'college_admin' from public."User" u where u.id = auth.uid()::text),
+    false
+  )
+$$;
+
+grant execute on function public.is_college_admin() to authenticated;
+
+create or replace function public.is_doi_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select u.role = 'doi_admin' from public."User" u where u.id = auth.uid()::text),
+    false
+  )
+$$;
+
+grant execute on function public.is_doi_admin() to authenticated;
 
 -- Enable RLS
 alter table public."AcademicPeriod" enable row level security;
@@ -446,10 +481,41 @@ for select
 to authenticated
 using (true);
 
--- ScheduleEntry: chairman can manage schedules if section belongs to their college / assigned program
+-- ScheduleEntry: chairman (split policies; locked rows visible but not mutable);
+-- college admin select/update; doi_admin campus-wide select/update; students/instructors read.
 drop policy if exists scheduleentry_crud on public."ScheduleEntry";
-create policy scheduleentry_crud on public."ScheduleEntry"
-for all
+
+drop policy if exists scheduleentry_select_college_admin on public."ScheduleEntry";
+create policy scheduleentry_select_college_admin on public."ScheduleEntry"
+for select
+to authenticated
+using (
+  public.is_college_admin()
+  and exists (
+    select 1
+    from public."Section" s
+    join public."Program" p on p.id = s."programId"
+    where s.id = "ScheduleEntry"."sectionId"
+      and p."collegeId" = public.current_user_college_id()
+  )
+);
+
+drop policy if exists scheduleentry_select_doi_admin on public."ScheduleEntry";
+create policy scheduleentry_select_doi_admin on public."ScheduleEntry"
+for select
+to authenticated
+using (public.is_doi_admin());
+
+drop policy if exists scheduleentry_update_doi_final on public."ScheduleEntry";
+create policy scheduleentry_update_doi_final on public."ScheduleEntry"
+for update
+to authenticated
+using (public.is_doi_admin())
+with check (public.is_doi_admin());
+
+drop policy if exists scheduleentry_select_chairman on public."ScheduleEntry";
+create policy scheduleentry_select_chairman on public."ScheduleEntry"
+for select
 to authenticated
 using (
   public.is_chairman_admin()
@@ -464,7 +530,12 @@ using (
         or p.id = public.current_user_chairman_program_id()
       )
   )
-)
+);
+
+drop policy if exists scheduleentry_insert_chairman on public."ScheduleEntry";
+create policy scheduleentry_insert_chairman on public."ScheduleEntry"
+for insert
+to authenticated
 with check (
   public.is_chairman_admin()
   and exists (
@@ -477,6 +548,88 @@ with check (
         public.current_user_chairman_program_id() is null
         or p.id = public.current_user_chairman_program_id()
       )
+  )
+);
+
+drop policy if exists scheduleentry_update_chairman on public."ScheduleEntry";
+create policy scheduleentry_update_chairman on public."ScheduleEntry"
+for update
+to authenticated
+using (
+  public.is_chairman_admin()
+  and "lockedByDoiAt" is null
+  and exists (
+    select 1
+    from public."Section" s
+    join public."Program" p on p.id = s."programId"
+    where s.id = "ScheduleEntry"."sectionId"
+      and p."collegeId" = public.current_user_college_id()
+      and (
+        public.current_user_chairman_program_id() is null
+        or p.id = public.current_user_chairman_program_id()
+      )
+  )
+)
+with check (
+  public.is_chairman_admin()
+  and "lockedByDoiAt" is null
+  and exists (
+    select 1
+    from public."Section" s
+    join public."Program" p on p.id = s."programId"
+    where s.id = "ScheduleEntry"."sectionId"
+      and p."collegeId" = public.current_user_college_id()
+      and (
+        public.current_user_chairman_program_id() is null
+        or p.id = public.current_user_chairman_program_id()
+      )
+  )
+);
+
+drop policy if exists scheduleentry_delete_chairman on public."ScheduleEntry";
+create policy scheduleentry_delete_chairman on public."ScheduleEntry"
+for delete
+to authenticated
+using (
+  public.is_chairman_admin()
+  and "lockedByDoiAt" is null
+  and exists (
+    select 1
+    from public."Section" s
+    join public."Program" p on p.id = s."programId"
+    where s.id = "ScheduleEntry"."sectionId"
+      and p."collegeId" = public.current_user_college_id()
+      and (
+        public.current_user_chairman_program_id() is null
+        or p.id = public.current_user_chairman_program_id()
+      )
+  )
+);
+
+drop policy if exists scheduleentry_update_college_admin on public."ScheduleEntry";
+create policy scheduleentry_update_college_admin on public."ScheduleEntry"
+for update
+to authenticated
+using (
+  public.is_college_admin()
+  and "lockedByDoiAt" is null
+  and exists (
+    select 1
+    from public."Section" s
+    join public."Program" p on p.id = s."programId"
+    where s.id = "ScheduleEntry"."sectionId"
+      and p."collegeId" = public.current_user_college_id()
+  )
+)
+with check (
+  public.is_college_admin()
+  and "lockedByDoiAt" is null
+  and exists (
+    select 1
+    from public."Section" s
+    join public."Program" p on p.id = s."programId"
+    where s.id = "ScheduleEntry"."sectionId"
+      and p."collegeId" = public.current_user_college_id()
   )
 );
 
@@ -613,21 +766,6 @@ for each row execute function public.set_updated_at();
 
 alter table public."ScheduleLoadJustification" enable row level security;
 
-create or replace function public.is_doi_admin()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce(
-    (select u.role = 'doi_admin' from public."User" u where u.id = auth.uid()::text),
-    false
-  )
-$$;
-
-grant execute on function public.is_doi_admin() to authenticated;
-
 drop policy if exists schedule_load_justif_select on public."ScheduleLoadJustification";
 create policy schedule_load_justif_select on public."ScheduleLoadJustification"
 for select
@@ -701,4 +839,51 @@ alter table public."User" add constraint "User_role_check" check (role in (
   'chairman_admin','college_admin','cas_admin','gec_chairman','doi_admin',
   'instructor','student','visitor'
 ));
+
+-- ---------------------------------------------------------------------------
+-- DOI / VPAA campus schedule finalization (see also migrations:
+--   20260411120000_scheduleentry_rls_and_doi_finalization.sql
+--   20260411200000_doi_schedule_published_at.sql
+--   20260412120000_scheduleentry_locked_by_doi.sql for ScheduleEntry.lockedByDoiAt + RLS lock rules)
+-- ---------------------------------------------------------------------------
+
+create table if not exists public."DoiScheduleFinalization" (
+  id text primary key default gen_random_uuid()::text,
+  "academicPeriodId" text not null references public."AcademicPeriod"(id) on delete restrict,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  "signedByName" text,
+  "signedAt" timestamptz,
+  "signedAcknowledged" boolean not null default false,
+  "decidedById" text references public."User"(id) on delete set null,
+  "decidedAt" timestamptz,
+  notes text,
+  "createdAt" timestamptz not null default now(),
+  "updatedAt" timestamptz not null default now(),
+  unique ("academicPeriodId")
+);
+
+alter table public."DoiScheduleFinalization" add column if not exists "publishedAt" timestamptz;
+
+comment on column public."DoiScheduleFinalization"."publishedAt" is
+  'Set when DOI approves: master timetable is published for the term; mirrors operational go-live after signature.';
+
+drop trigger if exists trg_doischedulefinalization_updated_at on public."DoiScheduleFinalization";
+create trigger trg_doischedulefinalization_updated_at
+before update on public."DoiScheduleFinalization"
+for each row execute function public.set_updated_at();
+
+alter table public."DoiScheduleFinalization" enable row level security;
+
+drop policy if exists doischedulefinalization_select on public."DoiScheduleFinalization";
+create policy doischedulefinalization_select on public."DoiScheduleFinalization"
+for select
+to authenticated
+using (public.is_doi_admin());
+
+drop policy if exists doischedulefinalization_all on public."DoiScheduleFinalization";
+create policy doischedulefinalization_all on public."DoiScheduleFinalization"
+for all
+to authenticated
+using (public.is_doi_admin())
+with check (public.is_doi_admin());
 
