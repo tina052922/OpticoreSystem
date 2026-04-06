@@ -121,6 +121,91 @@ The descriptions below follow the **left sidebar labels** in each role’s shell
 
 ---
 
+## Use case diagram (flow)
+
+The diagram below is a **text-renderable** view of the main use cases and how actors relate to the **OptiCore** boundary. UML **«include»** means the base use case always brings in the included behavior; **«extend»** is conditional. For full actor lists and UC IDs, see `docs/USE_CASE_DIAGRAM_GUIDE.md`.
+
+```mermaid
+flowchart TB
+  subgraph actors["Actors — outside system"]
+    CH[Chairman Admin]
+    COL[College Admin]
+    CAS[CAS Admin]
+    GEC[GEC Chairman]
+    DOI[DOI Admin / VPAA]
+    INS[Instructor]
+    STU[Student]
+  end
+
+  subgraph sys["System boundary: OptiCore + Supabase"]
+    UC_AUTH[Authenticate]
+    UC_EVAL[Plot & manage ScheduleEntry\nCentral Hub Evaluator]
+    UC_INS[View INS Faculty / Section / Room]
+    UC_CONF[Run conflict check\nscoped or campus-wide]
+    UC_JUST[Submit load-policy justification\nScheduleLoadJustification]
+    UC_INBOX[Send / receive workflow\nWorkflowInboxMessage]
+    UC_ACC[Approve or reject AccessRequest\nGEC/CAS scopes]
+    UC_SCHG[Review ScheduleChangeRequest\napprove / reject / mitigate]
+    UC_VPAA[VPAA formal approval\nDoiScheduleFinalization:\ncampus conflict scan, digital signature,\npublish term → final + lock]
+    UC_NOTIF[Receive Notification]
+    UC_GEC[Fill vacant GEC slots\nscoped edit + access]
+    UC_PORT[View portal schedule\nfaculty / student INS]
+  end
+
+  CH --> UC_AUTH
+  COL --> UC_AUTH
+  CAS --> UC_AUTH
+  GEC --> UC_AUTH
+  DOI --> UC_AUTH
+  INS --> UC_AUTH
+  STU --> UC_AUTH
+
+  CH --> UC_EVAL
+  CH --> UC_INS
+  CH --> UC_CONF
+  CH --> UC_JUST
+  CH --> UC_INBOX
+
+  COL --> UC_INS
+  COL --> UC_INBOX
+  COL --> UC_ACC
+  COL --> UC_SCHG
+
+  CAS --> UC_INS
+  CAS --> UC_INBOX
+
+  GEC --> UC_INS
+  GEC --> UC_GEC
+  GEC -.->|«extend» when scope needed| UC_ACC
+
+  DOI --> UC_INS
+  DOI --> UC_CONF
+  DOI --> UC_VPAA
+  DOI --> UC_JUST
+  DOI --> UC_INBOX
+
+  INS --> UC_INS
+  INS --> UC_SCHG
+  INS --> UC_PORT
+
+  STU --> UC_PORT
+
+  UC_EVAL -.->|«include»| UC_CONF
+  UC_VPAA -.->|«include»| UC_CONF
+  UC_SCHG -.->|«include» conflict analysis| UC_CONF
+  UC_VPAA -->|notifies stakeholders| UC_NOTIF
+  INS --> UC_NOTIF
+  STU --> UC_NOTIF
+  COL --> UC_NOTIF
+  CH --> UC_NOTIF
+  CAS --> UC_NOTIF
+  GEC --> UC_NOTIF
+```
+
+**Reading the flow:** **Chairman** authors **`ScheduleEntry`** and optional **justifications**, then coordinates via **Inbox**. **College Admin** may **approve schedule-change requests** from faculty (with conflict checks) until the term is **VPAA-locked**. **DOI/VPAA** runs a **campus-wide** conflict scan on the **INS** path, records **digital signature** in **`DoiScheduleFinalization`**, and **publishes** the term (**`final` + `lockedByDoiAt`**), which **blocks** further chairman/college edits and triggers **notifications** to instructors, college leadership, CAS, GEC, and students. **Instructor** and **Student** primarily **consume** published schedules through **INS** and portal routes.
+
+---
+
 ## Database schema: DOI approval and publication
 
 The following structures support VPAA-level decisions. **Migrations** (apply in order on Supabase): `20260411120000_scheduleentry_rls_and_doi_finalization.sql`, `20260411200000_doi_schedule_published_at.sql`, `20260412120000_scheduleentry_locked_by_doi.sql`. The consolidated reference DDL is in `supabase/schema.sql`.
