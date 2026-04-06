@@ -5,6 +5,7 @@ import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { insertAuditLog } from "@/lib/server/audit-log";
 import { insertWorkflowInboxMessage } from "@/lib/server/workflow-inbox";
 import type { AccessScope } from "@/types/db";
+import { GEC_DEFAULT_APPROVAL_COLLEGE_ID } from "@/lib/gec-routing";
 
 const ALLOWED: AccessScope[] = ["evaluator", "ins_forms", "gec_vacant_slots"];
 
@@ -73,8 +74,16 @@ export async function POST(req: Request) {
   if (!row || !["gec_chairman", "cas_admin"].includes(row.role)) {
     return NextResponse.json({ error: "Only GEC Chairman or CAS Admin can request access" }, { status: 403 });
   }
-  if (!row.collegeId) {
-    return NextResponse.json({ error: "Your profile must be linked to a college" }, { status: 400 });
+
+  /** GEC Chair is campus-wide (GEC core subjects); requests route to COTE College Admin for approval. CAS Admin uses their college. */
+  const targetCollegeId =
+    row.role === "cas_admin"
+      ? row.collegeId
+      : row.role === "gec_chairman"
+        ? row.collegeId ?? GEC_DEFAULT_APPROVAL_COLLEGE_ID
+        : null;
+  if (!targetCollegeId) {
+    return NextResponse.json({ error: "Your profile must be linked to a college (CAS Admin)." }, { status: 400 });
   }
 
   const body = (await req.json().catch(() => null)) as { scopes?: unknown; note?: string } | null;
@@ -92,7 +101,7 @@ export async function POST(req: Request) {
     .from("AccessRequest")
     .insert({
       requesterId: user.id,
-      collegeId: row.collegeId,
+      collegeId: targetCollegeId,
       status: "pending",
       scopes,
       note,
@@ -111,7 +120,7 @@ export async function POST(req: Request) {
 
   await insertAuditLog(supabase, {
     actorId: user.id,
-    collegeId: row.collegeId,
+    collegeId: targetCollegeId,
     action: "access_request.submitted",
     entityType: "AccessRequest",
     entityId: inserted?.id ?? null,
@@ -120,7 +129,7 @@ export async function POST(req: Request) {
 
   await insertWorkflowInboxMessage(supabase, {
     senderId: user.id,
-    collegeId: row.collegeId,
+    collegeId: targetCollegeId,
     fromLabel: row.role === "cas_admin" ? "CAS Admin" : "GEC Chairman",
     toLabel: "College Admin",
     subject: "Access request — Evaluator / INS / GEC slots",
