@@ -12,7 +12,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "create:gec-chairman-test": "node scripts/create-gec-chairman-test.mjs"
+    "create:gec-chairman-test": "node scripts/create-gec-chairman-test.mjs",
+    "verify:schedule-change": "node scripts/verify-faculty-schedule-change-setup.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.1.6",

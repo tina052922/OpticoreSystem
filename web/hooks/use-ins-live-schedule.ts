@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { buildInsFacultyView, type InsFacultySchedule } from "@/lib/ins/build-ins-faculty-view";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 
@@ -9,9 +9,22 @@ export type { InsInstructorOption } from "@/hooks/use-ins-catalog";
 /**
  * Live INS Form 5A: catalog data + faculty selection + built grid.
  */
-export function useInsLiveSchedule(args: { collegeId: string | null; programId: string | null }) {
+export function useInsLiveSchedule(args: {
+  collegeId: string | null;
+  programId: string | null;
+  /** When set, locks the grid to this instructor (faculty portal). */
+  lockedInstructorId?: string | null;
+  /** Load all colleges’ entries (DOI campus-wide INS). */
+  campusWide?: boolean;
+}) {
   const catalog = useInsCatalog(args);
-  const [selectedInstructorId, setSelectedInstructorId] = useState("");
+  const [selectedInstructorId, setSelectedInstructorId] = useState(args.lockedInstructorId ?? "");
+
+  useEffect(() => {
+    if (args.lockedInstructorId) {
+      setSelectedInstructorId(args.lockedInstructorId);
+    }
+  }, [args.lockedInstructorId]);
 
   const { schedule, courses } = useMemo(() => {
     if (!catalog.academicPeriodId || !selectedInstructorId) {
@@ -57,6 +70,7 @@ export function useInsLiveSchedule(args: { collegeId: string | null; programId: 
     courses,
     scopedEntries: catalog.scopedEntries,
     getInsConflictSummaries: catalog.getInsConflictSummaries,
+    termPublishLocked: catalog.termPublishLocked,
     reload: catalog.reload,
   };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
@@ -15,8 +16,18 @@ import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
+import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
+import type { AcademicPeriod } from "@/types/db";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+
+export type DoiInsApprovalSlotContext = {
+  periodId: string;
+  periods: AcademicPeriod[];
+  onPeriodIdChange: (id: string) => void;
+  /** Refresh INS catalog after VPAA publish so locked rows and banners update immediately. */
+  reloadCatalog?: () => void | Promise<void>;
+};
 
 const DEMO_SCHEDULE: Record<DayKey, Array<{ time: string; course: string; yearSec: string; room: string }>> = {
   Monday: [{ time: "7:00-9:00", course: "IT 203", yearSec: "BSIT 2A", room: "Lab 301" }],
@@ -41,6 +52,12 @@ export type INSFormFacultyProps = {
   chairmanProgramName?: string | null;
   /** When set (e.g. College Admin), live schedule uses this college even without chairman session props. */
   viewerCollegeId?: string | null;
+  /** Logged-in faculty: hide search and show only their plotted schedule. */
+  lockedInstructorId?: string | null;
+  /** DOI / VPAA: load all colleges’ schedule rows for INS Form 5A. */
+  campusWide?: boolean;
+  /** DOI: render VPAA approval + campus conflict check (shares term with this form). */
+  doiApprovalSlot?: (ctx: DoiInsApprovalSlotContext) => ReactNode;
 };
 
 export function INSFormFaculty({
@@ -50,15 +67,20 @@ export function INSFormFaculty({
   chairmanProgramCode = null,
   chairmanProgramName = null,
   viewerCollegeId = null,
+  lockedInstructorId = null,
+  campusWide = false,
+  doiApprovalSlot,
 }: INSFormFacultyProps) {
   const pathname = usePathname();
 
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
-  const useLiveData = Boolean(effectiveCollegeId);
+  const useLiveData = Boolean(effectiveCollegeId || campusWide);
 
   const live = useInsLiveSchedule({
     collegeId: effectiveCollegeId,
     programId: chairmanProgramId,
+    lockedInstructorId,
+    campusWide,
   });
 
   const selectedFacultyName =
@@ -105,15 +127,24 @@ export function INSFormFaculty({
 
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
-      <div className="mb-6 max-w-[1200px] mx-auto">
-        <CampusScopeFilters
-          variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
-          chairmanCollegeId={chairmanCollegeId ?? null}
-          chairmanProgramId={chairmanProgramId}
-          chairmanProgramCode={chairmanProgramCode}
-          chairmanProgramName={chairmanProgramName}
-        />
-      </div>
+      {!lockedInstructorId && !campusWide ? (
+        <div className="mb-6 max-w-[1200px] mx-auto">
+          <CampusScopeFilters
+            variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
+            chairmanCollegeId={chairmanCollegeId ?? null}
+            chairmanProgramId={chairmanProgramId}
+            chairmanProgramCode={chairmanProgramCode}
+            chairmanProgramName={chairmanProgramName}
+          />
+        </div>
+      ) : null}
+      {campusWide ? (
+        <div className="mb-4 max-w-[1200px] mx-auto">
+          <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
+            Campus-wide · all colleges
+          </span>
+        </div>
+      ) : null}
 
       <div className="max-w-[1200px] mx-auto space-y-4">
         <div>
@@ -124,6 +155,15 @@ export function INSFormFaculty({
             Realtime).
           </p>
         </div>
+
+        {doiApprovalSlot
+          ? doiApprovalSlot({
+              periodId: live.academicPeriodId,
+              periods: live.periods,
+              onPeriodIdChange: live.setAcademicPeriodId,
+              reloadCatalog: live.reload,
+            })
+          : null}
 
         <div className="flex gap-2 border-b border-gray-200 flex-wrap">
           {[
@@ -156,23 +196,34 @@ export function INSFormFaculty({
           </p>
         ) : null}
 
+        {useLiveData && live.termPublishLocked && live.periodLabel ? (
+          <InsPublishedBanner periodLabel={live.periodLabel} />
+        ) : null}
+
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="w-full lg:max-w-md space-y-1">
             {useLiveData ? (
-              <>
-                <InsScheduleEntitySearch
-                  label="Faculty / instructor (search)"
-                  placeholder="Type name — schedule updates when one match"
-                  options={live.instructorOptions}
-                  selectedId={live.selectedInstructorId}
-                  onSelectedIdChange={live.setSelectedInstructorId}
-                  disabled={live.loading || live.instructorOptions.length === 0}
-                  listId="ins-faculty-list"
-                />
-                {!live.loading && live.instructorOptions.length === 0 ? (
-                  <p className="text-xs text-amber-800">No faculty with classes this term yet — use Evaluator to plot.</p>
-                ) : null}
-              </>
+              lockedInstructorId ? (
+                <div className="rounded-lg border border-[var(--color-opticore-orange)]/30 bg-[var(--color-opticore-orange)]/10 px-3 py-2">
+                  <p className="text-xs font-semibold text-black/60 uppercase tracking-wide">Your teaching load</p>
+                  <p className="text-sm font-medium text-black">{displayFacultyName}</p>
+                </div>
+              ) : (
+                <>
+                  <InsScheduleEntitySearch
+                    label="Faculty / instructor (search)"
+                    placeholder="Type name — schedule updates when one match"
+                    options={live.instructorOptions}
+                    selectedId={live.selectedInstructorId}
+                    onSelectedIdChange={live.setSelectedInstructorId}
+                    disabled={live.loading || live.instructorOptions.length === 0}
+                    listId="ins-faculty-list"
+                  />
+                  {!live.loading && live.instructorOptions.length === 0 ? (
+                    <p className="text-xs text-amber-800">No faculty with classes this term yet — use Evaluator to plot.</p>
+                  ) : null}
+                </>
+              )
             ) : (
               <p className="text-sm text-gray-500">Demo mode: set a college scope (Chairman or College Admin) for live data.</p>
             )}
@@ -209,11 +260,15 @@ export function INSFormFaculty({
                         ? "/admin/college/evaluator"
                         : insBasePath.includes("/cas")
                           ? "/admin/cas/evaluator"
-                          : "/chairman/evaluator"
+                          : insBasePath.includes("/doi")
+                            ? "/doi/evaluator"
+                            : insBasePath.includes("/faculty")
+                              ? "/faculty"
+                              : "/chairman/evaluator"
                     }
                     className="cursor-pointer"
                   >
-                    Open Evaluator
+                    {insBasePath.includes("/faculty") ? "Faculty home" : "Open Evaluator"}
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>

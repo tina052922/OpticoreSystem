@@ -8,6 +8,7 @@ export default async function FacultyRequestChangePage() {
   const profile = await requireRoles(["instructor"]);
   const navItems = [
     { label: "Dashboard", href: "/faculty" },
+    { label: "INS Form (by faculty)", href: "/faculty/ins/faculty" },
     { label: "My schedule", href: "/faculty/schedule" },
     { label: "Request change", href: "/faculty/request-change" },
     { label: "Announcements", href: "/faculty/announcements" },
@@ -24,7 +25,8 @@ export default async function FacultyRequestChangePage() {
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-black">Request schedule change</h1>
           <p className="text-sm text-black/55">
-            Ask your program Chairman to review a proposed change to your teaching schedule (same college workflow).
+            Submit a proposed change to a class meeting from your current timetable. College Admin will review it, run a
+            conflict check, and notify you when it is approved or rejected.
           </p>
         </header>
         <div className="rounded-xl border border-black/10 bg-white p-6 shadow-[0px_4px_4px_rgba(0,0,0,0.06)]">

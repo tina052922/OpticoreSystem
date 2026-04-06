@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, ClipboardList, MapPin, Scale } from "lucide-react";
+import { CalendarPlus, ChevronRight, ClipboardList, MapPin, Scale } from "lucide-react";
 import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
@@ -28,8 +28,18 @@ export default async function DoiDashboardPage() {
 
           <DashboardCard title="Quick actions">
             <Link
+              href="/doi/ins/faculty"
+              className="flex items-center justify-between rounded-lg bg-[#780301] text-white px-4 py-3 text-sm font-semibold shadow-sm hover:opacity-95"
+            >
+              <span className="flex items-center gap-2">
+                <CalendarPlus className="w-4 h-4" />
+                INS Form — campus-wide schedules &amp; VPAA approval
+              </span>
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+            <Link
               href="/doi/reviews"
-              className="flex items-center justify-between rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-3 text-sm font-semibold shadow-sm hover:opacity-95"
+              className="mt-3 flex items-center justify-between rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-3 text-sm font-semibold shadow-sm hover:opacity-95"
             >
               Load policy reviews
               <ChevronRight className="w-4 h-4" />

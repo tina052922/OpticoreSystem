@@ -8,7 +8,7 @@ export default function DoiInsRoomPage() {
         title="INS Form"
         subtitle="Room schedule view — campus-wide; filter by college and department."
       />
-      <INSFormRoom insBasePath="/doi/ins" />
+      <INSFormRoom insBasePath="/doi/ins" campusWide />
     </div>
   );
 }
