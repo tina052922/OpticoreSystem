@@ -13,13 +13,20 @@ export default async function GecChairmanDashboardPage() {
 
       <div className="px-6 max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <DashboardCard title="GEC rules">
+          <DashboardCard title="GEC scope (CHED core / general education)">
             <ul className="space-y-2 text-sm text-black/75 list-disc pl-5">
-              <li>Receive distribution notice in <strong>Inbox → Mail</strong>.</li>
               <li>
-                Use <strong>Vacant GEC slots</strong> to assign instructor / room / time into empty cells only.
+                You coordinate <strong>GEC subjects</strong> required across programs — not a single department&apos;s
+                proprietary courses.
               </li>
-              <li>Optionally request temporary edit access from CAS / College (notification).</li>
+              <li>
+                Policy alignment is coordinated with <strong>CAS Admin</strong>; <strong>College Admin (COTE)</strong>{" "}
+                approves temporary edit access for vacant GEC slots.
+              </li>
+              <li>
+                Use <strong>Vacant GEC slots</strong> only after approval — assign instructor / room / time in empty GEC
+                cells.
+              </li>
             </ul>
           </DashboardCard>
           <DashboardCard title="Shortcuts">

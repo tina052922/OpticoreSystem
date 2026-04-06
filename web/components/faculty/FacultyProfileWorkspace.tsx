@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -12,6 +12,8 @@ export type FacultyProfileWorkspaceProps = {
   viewerCollegeId?: string | null;
   /** From `FacultyProfileWithScope` + CampusScopeFilters */
   scopeCollegeId?: string | null;
+  /** Chairman Faculty Profile page: edit status & designation on list rows (updates evaluator load rules). */
+  enableFacultyListEdit?: boolean;
 };
 
 type ListRow = {
@@ -24,6 +26,7 @@ export function FacultyProfileWorkspace({
   chairmanProgramCode = null,
   viewerCollegeId = null,
   scopeCollegeId = null,
+  enableFacultyListEdit = false,
 }: FacultyProfileWorkspaceProps) {
   const collegeId = chairmanCollegeId ?? viewerCollegeId ?? scopeCollegeId ?? null;
   const programLabel = chairmanProgramCode ?? "—";
@@ -51,6 +54,9 @@ export function FacultyProfileWorkspace({
   const [designation, setDesignation] = useState("");
 
   const [rows, setRows] = useState<ListRow[]>([]);
+  const [facultyListSearch, setFacultyListSearch] = useState("");
+  const [editState, setEditState] = useState<Record<string, { status: string; designation: string }>>({});
+  const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +106,79 @@ export function FacultyProfileWorkspace({
   useEffect(() => {
     void loadFaculty();
   }, [loadFaculty]);
+
+  useEffect(() => {
+    setEditState((prev) => {
+      const next = { ...prev };
+      for (const { user, profile } of rows) {
+        next[user.id] = {
+          status: profile?.status ?? "Organic",
+          designation: profile?.designation ?? "",
+        };
+      }
+      return next;
+    });
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    const q = facultyListSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(({ user, profile }) => {
+      const name = (profile?.fullName ?? user.name).toLowerCase();
+      const st = (profile?.status ?? "").toLowerCase();
+      const des = (profile?.designation ?? "").toLowerCase();
+      const eid = (user.employeeId ?? "").toLowerCase();
+      return name.includes(q) || st.includes(q) || des.includes(q) || eid.includes(q);
+    });
+  }, [rows, facultyListSearch]);
+
+  async function saveFacultyEdits(userId: string) {
+    setError(null);
+    setSuccess(null);
+    const draft = editState[userId];
+    if (!draft || !collegeId) return;
+    const row = rows.find((r) => r.user.id === userId);
+    if (!row) return;
+
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      setError("Supabase is not configured.");
+      return;
+    }
+
+    setSavingRowId(userId);
+    const name = row.profile?.fullName ?? row.user.name;
+    const statusVal = draft.status.trim() || null;
+    const designationVal = draft.designation.trim() || null;
+
+    if (row.profile) {
+      const { error: uErr } = await supabase
+        .from("FacultyProfile")
+        .update({ status: statusVal, designation: designationVal })
+        .eq("id", row.profile.id);
+      setSavingRowId(null);
+      if (uErr) {
+        setError(uErr.message);
+        return;
+      }
+    } else {
+      const { error: insErr } = await supabase.from("FacultyProfile").insert({
+        userId,
+        fullName: name,
+        status: statusVal,
+        designation: designationVal,
+        ratePerHour: null,
+      });
+      setSavingRowId(null);
+      if (insErr) {
+        setError(insErr.message);
+        return;
+      }
+    }
+
+    setSuccess("Faculty details updated.");
+    void loadFaculty();
+  }
 
   async function assertNoDuplicateFaculty(supabase: NonNullable<ReturnType<typeof createSupabaseBrowserClient>>) {
     const emailTrim = email.trim().toLowerCase();
@@ -277,6 +356,21 @@ export function FacultyProfileWorkspace({
         ) : null}
       </div>
 
+      {tab === "profile" || tab === "designation" ? (
+        <div className="bg-white rounded-xl border border-black/10 p-4 shadow-[0px_2px_4px_rgba(0,0,0,0.06)]">
+          <div className="w-full max-w-md space-y-1">
+            <div className="text-[11px] font-medium text-black/60">Search faculty</div>
+            <Input
+              placeholder="Name, status, designation, employee ID…"
+              value={facultyListSearch}
+              onChange={(e) => setFacultyListSearch(e.target.value)}
+              disabled={!collegeId}
+              className="h-9 text-sm border-black/20 focus-visible:ring-[#ff990a]/40"
+            />
+          </div>
+        </div>
+      ) : null}
+
       {tab === "profile" ? (
         <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-6">
           {!collegeId ? (
@@ -386,40 +480,120 @@ export function FacultyProfileWorkspace({
             </div>
           </div>
 
-          <div className="mt-8">
-            <div className="text-[16px] font-semibold mb-3">Faculty List {loadingList ? "· Loading…" : ""}</div>
+          <div className="mt-8 space-y-3">
+            <div className="text-[16px] font-semibold">Faculty List {loadingList ? "· Loading…" : ""}</div>
+            {enableFacultyListEdit ? (
+              <p className="text-[12px] text-black/55">
+                Status (Organic / Part-time) and designation drive teaching caps in the Evaluator policy engine (part-time
+                weekly limits and designation-based caps).
+              </p>
+            ) : null}
             <div className="overflow-auto rounded-xl border border-black/10">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-[#ff990a] text-white text-[11px]">
                     <th className="border border-black/10 px-2 py-2 text-left">Name</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Employee ID</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Status</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Designation</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Program</th>
+                    {enableFacultyListEdit ? (
+                      <th className="border border-black/10 px-2 py-2 text-left w-28">Save</th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody className="text-[12px]">
                   {!collegeId ? (
                     <tr>
-                      <td colSpan={4} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                      <td
+                        colSpan={enableFacultyListEdit ? 6 : 5}
+                        className="border border-black/10 px-2 py-6 text-center text-black/45"
+                      >
                         No college in scope.
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                      <td
+                        colSpan={enableFacultyListEdit ? 6 : 5}
+                        className="border border-black/10 px-2 py-6 text-center text-black/45"
+                      >
                         No instructors in the database for this college yet.
                       </td>
                     </tr>
+                  ) : filteredRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={enableFacultyListEdit ? 6 : 5}
+                        className="border border-black/10 px-2 py-6 text-center text-black/45"
+                      >
+                        No faculty match &quot;{facultyListSearch.trim()}&quot;.
+                      </td>
+                    </tr>
                   ) : (
-                    rows.map(({ user, profile }) => (
-                      <tr key={user.id}>
-                        <td className="border border-black/10 px-2 py-2">{profile?.fullName ?? user.name}</td>
-                        <td className="border border-black/10 px-2 py-2">{profile?.status ?? "—"}</td>
-                        <td className="border border-black/10 px-2 py-2">{profile?.designation ?? "—"}</td>
-                        <td className="border border-black/10 px-2 py-2">{programLabel}</td>
-                      </tr>
-                    ))
+                    filteredRows.map(({ user, profile }) => {
+                      const draft = editState[user.id] ?? {
+                        status: profile?.status ?? "Organic",
+                        designation: profile?.designation ?? "",
+                      };
+                      return (
+                        <tr key={user.id}>
+                          <td className="border border-black/10 px-2 py-2">{profile?.fullName ?? user.name}</td>
+                          <td className="border border-black/10 px-2 py-2 tabular-nums">{user.employeeId ?? "—"}</td>
+                          <td className="border border-black/10 px-2 py-2 align-top">
+                            {enableFacultyListEdit ? (
+                              <select
+                                className="w-full min-h-9 rounded-md border border-gray-300 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+                                value={draft.status}
+                                onChange={(e) =>
+                                  setEditState((s) => ({
+                                    ...s,
+                                    [user.id]: { ...draft, status: e.target.value },
+                                  }))
+                                }
+                              >
+                                <option value="Organic">Organic</option>
+                                <option value="Part-time">Part-time</option>
+                                <option value="Permanent">Permanent</option>
+                              </select>
+                            ) : (
+                              (profile?.status ?? "—")
+                            )}
+                          </td>
+                          <td className="border border-black/10 px-2 py-2 align-top">
+                            {enableFacultyListEdit ? (
+                              <Input
+                                className="h-9 text-[12px]"
+                                placeholder="e.g. Instructor I"
+                                value={draft.designation}
+                                onChange={(e) =>
+                                  setEditState((s) => ({
+                                    ...s,
+                                    [user.id]: { ...draft, designation: e.target.value },
+                                  }))
+                                }
+                              />
+                            ) : (
+                              (profile?.designation ?? "—")
+                            )}
+                          </td>
+                          <td className="border border-black/10 px-2 py-2">{programLabel}</td>
+                          {enableFacultyListEdit ? (
+                            <td className="border border-black/10 px-2 py-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-[#ff990a] text-white hover:bg-[#e68a09] h-8 text-[11px]"
+                                disabled={savingRowId === user.id}
+                                onClick={() => void saveFacultyEdits(user.id)}
+                              >
+                                {savingRowId === user.id ? "…" : "Save"}
+                              </Button>
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -441,14 +615,14 @@ export function FacultyProfileWorkspace({
                 </tr>
               </thead>
               <tbody className="text-[12px]">
-                {rows.length === 0 ? (
+                {filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="border border-black/10 px-2 py-6 text-center text-black/45">
-                      No data — add faculty on the Profile tab.
+                      {rows.length === 0 ? "No data — add faculty on the Profile tab." : "No rows match your search."}
                     </td>
                   </tr>
                 ) : (
-                  rows.map((r) => (
+                  filteredRows.map((r) => (
                     <tr key={r.user.id}>
                       <td className="border border-black/10 px-2 py-2">{r.profile?.fullName ?? r.user.name}</td>
                       <td className="border border-black/10 px-2 py-2">{r.profile?.designation ?? "—"}</td>

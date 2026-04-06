@@ -19,6 +19,7 @@ import {
 } from "@/lib/chairman/bsit-prospectus";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
+import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 
 const MAJOR_FIXED = "BSIT";
 
@@ -149,11 +150,14 @@ function formatTimeRangeFromSlots(effectiveStart: number, dur: number): { fullLi
 type BsitChairmanEvaluatorWorksheetProps = {
   chairmanCollegeId: string | null;
   chairmanProgramId: string | null;
+  /** Live load summary for the Evaluator &quot;Hrs-Units-Preps-Remarks&quot; tab. */
+  onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
 };
 
 export function BsitChairmanEvaluatorWorksheet({
   chairmanCollegeId,
   chairmanProgramId,
+  onPolicySnapshot,
 }: BsitChairmanEvaluatorWorksheetProps) {
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
   const [academicPeriodId, setAcademicPeriodId] = useState("");
@@ -353,6 +357,19 @@ export function BsitChairmanEvaluatorWorksheet({
       () => chairmanCollegeId,
     );
   }, [rows, academicPeriodId, chairmanCollegeId, programId, subjectById, userById, profileByUserId]);
+
+  useEffect(() => {
+    if (!onPolicySnapshot) return;
+    const rateByInstructorId: Record<string, number | null> = {};
+    for (const p of facultyProfiles) {
+      rateByInstructorId[p.userId] = p.ratePerHour;
+    }
+    onPolicySnapshot({
+      rows: policyRows.rows,
+      hasAnyViolation: policyRows.hasAnyViolation,
+      rateByInstructorId,
+    });
+  }, [policyRows, facultyProfiles, onPolicySnapshot]);
 
   const showJustification = policyRows.hasAnyViolation;
 

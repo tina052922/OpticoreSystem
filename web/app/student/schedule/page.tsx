@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { requireRoles } from "@/lib/auth/require-role";
 import { getCurrentAcademicPeriod, getStudentScheduleRows } from "@/lib/server/dashboard-data";
+import { buildPortalStudentIns5B } from "@/lib/portal/build-portal-ins-forms";
 
 export default async function StudentSchedulePage() {
   const profile = await requireRoles(["student"]);
@@ -10,6 +12,14 @@ export default async function StudentSchedulePage() {
   const { rows, section, program } = period
     ? await getStudentScheduleRows(profile.id, period.id)
     : { rows: [], section: null, program: null };
+
+  const { schedule, courses } = buildPortalStudentIns5B(rows);
+
+  const degreeAndYear =
+    program && section
+      ? `${program.name} · Year level ${section.yearLevel}`
+      : program?.name ?? "—";
+  const assignment = section?.name ?? "—";
 
   const navItems = [
     { label: "Dashboard", href: "/student" },
@@ -26,7 +36,7 @@ export default async function StudentSchedulePage() {
       navItems={navItems}
       periodLabel={period?.name ?? "Current semester"}
     >
-      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto space-y-4">
         <Link
           href="/student"
           className="inline-flex items-center gap-2 text-sm font-medium text-black/70 hover:text-black"
@@ -34,53 +44,32 @@ export default async function StudentSchedulePage() {
           <ArrowLeft className="w-4 h-4" />
           Back to dashboard
         </Link>
+
         <div>
-          <h1 className="text-2xl font-semibold text-black">Full schedule</h1>
-          <p className="text-sm text-black/60 mt-1">
-            {program?.name ?? ""} · {section?.name ?? ""} · {period?.name ?? ""}
+          <h1 className="text-2xl font-bold text-gray-800">My schedule</h1>
+          <p className="text-gray-600 text-sm mt-1">
+            INS Form 5B — Program by Section (your section only). Matches the official grid format used in Campus
+            Intelligence.
           </p>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-black/10 bg-white shadow-sm">
-          <table className="w-full text-sm min-w-[640px]">
-            <thead>
-              <tr className="border-b border-black/10 bg-black/[0.03] text-left text-xs font-semibold uppercase tracking-wide text-black/55">
-                <th className="px-4 py-3">Day</th>
-                <th className="px-4 py-3">Time</th>
-                <th className="px-4 py-3">Course</th>
-                <th className="px-4 py-3">Room</th>
-                <th className="px-4 py-3">Instructor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-black/50">
-                    No schedule rows for this term.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r) => (
-                  <tr key={r.entry.id} className="border-b border-black/5 hover:bg-black/[0.02]">
-                    <td className="px-4 py-3 font-medium">{r.entry.day}</td>
-                    <td className="px-4 py-3 tabular-nums text-black/80">
-                      {r.entry.startTime}–{r.entry.endTime}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="font-medium">{r.subject?.code}</span>
-                      <span className="text-black/65"> — {r.subject?.title}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1 text-black/75">
-                        <MapPin className="w-3.5 h-3.5" />
-                        {r.room?.code}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-black/80">{r.instructor?.name ?? "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+
+        {rows.length === 0 ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-950 px-4 py-3 text-sm">
+            No schedule entries are published for your section this term. Contact your program office if this is
+            unexpected.
+          </div>
+        ) : null}
+
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 sm:p-6">
+          <OpticoreInsForm5B
+            degreeAndYear={degreeAndYear}
+            adviser="—"
+            assignment={assignment}
+            schedule={schedule}
+            courses={courses}
+            readOnly
+            semesterLabel={period?.name ?? "—"}
+          />
         </div>
       </div>
     </PortalShell>

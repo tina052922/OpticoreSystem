@@ -56,11 +56,19 @@ export function LoginClient() {
       }
 
       const { error: signError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
       });
 
-      if (signError) throw signError;
+      if (signError) {
+        const m = signError.message;
+        if (/invalid login credentials|invalid email or password/i.test(m)) {
+          throw new Error(
+            "Invalid email or password. Instructor self-registration emails a system-generated temporary password—use that exact password, or click Forgot password below. Student accounts use the password you chose at registration.",
+          );
+        }
+        throw signError;
+      }
 
       const { data: rpc, error: rpcErr } = await supabase.rpc("auth_get_my_user_row");
       if (rpcErr) throw rpcErr;
@@ -206,15 +214,24 @@ export function LoginClient() {
             {loading ? "Signing in…" : "Sign in"}
           </Button>
 
-          <p className="text-center text-base">
+          <p className="text-center text-sm">
+            <Link href="/" className="text-[#5483b3] font-medium hover:underline">
+              ← Back to home
+            </Link>
+          </p>
+
+          <p className="text-center text-base leading-relaxed">
             <span className="text-[#595959]">Student? </span>
             <Link href="/register" className="text-[#5483b3] font-medium hover:underline">
               Create an account
             </Link>
-            <span className="text-[#595959]">
-              {" "}
-              · Faculty/staff: use the credentials your chair or college admin provided.
-            </span>
+            <br />
+            <span className="text-[#595959]">Instructor (Gmail)? </span>
+            <Link href="/register/instructor" className="text-[#5483b3] font-medium hover:underline">
+              Self-register
+            </Link>
+            <span className="text-[#595959]"> — temporary password emailed. </span>
+            <span className="text-[#595959]">Staff with admin-provided credentials: sign in above.</span>
           </p>
         </form>
       </div>

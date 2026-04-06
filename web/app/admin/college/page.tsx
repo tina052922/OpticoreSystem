@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, ChevronRight, ClipboardList, Inbox, Send } from "lucide-react";
+import { Building2, ChevronRight, ClipboardList, Inbox, KeyRound, Send } from "lucide-react";
 import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { RecentActivityCard } from "@/components/audit/RecentActivityCard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
@@ -25,6 +25,13 @@ export default async function CollegeAdminDashboardPage() {
 
           <DashboardCard title="Quick actions">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Link
+                href="/admin/college/access-requests"
+                className="flex items-center gap-2 rounded-lg border border-black/10 bg-white px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/60"
+              >
+                <KeyRound className="w-4 h-4 text-[var(--color-opticore-orange)]" />
+                Access requests (GEC / CAS)
+              </Link>
               <Link
                 href="/admin/college/inbox"
                 className="flex items-center gap-2 rounded-lg border border-black/10 bg-white px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/60"

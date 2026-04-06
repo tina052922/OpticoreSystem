@@ -36,6 +36,7 @@ export function SubjectCodesWorkspace({
   const [yearLevel, setYearLevel] = useState("1");
 
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
+  const [subjectSearch, setSubjectSearch] = useState("");
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +67,28 @@ export function SubjectCodesWorkspace({
   useEffect(() => {
     void loadSubjects();
   }, [loadSubjects]);
+
+  const filteredDbSubjects = useMemo(() => {
+    const q = subjectSearch.trim().toLowerCase();
+    if (!q) return dbSubjects;
+    return dbSubjects.filter(
+      (s) =>
+        s.code.toLowerCase().includes(q) ||
+        (s.title && s.title.toLowerCase().includes(q)) ||
+        (s.subcode && s.subcode.toLowerCase().includes(q)),
+    );
+  }, [dbSubjects, subjectSearch]);
+
+  const filteredProspectus = useMemo(() => {
+    const q = subjectSearch.trim().toLowerCase();
+    if (!q) return prospectusRows;
+    return prospectusRows.filter(
+      (s) =>
+        String(s.code).toLowerCase().includes(q) ||
+        s.title.toLowerCase().includes(q) ||
+        (s.subcode && String(s.subcode).toLowerCase().includes(q)),
+    );
+  }, [subjectSearch]);
 
   const duplicateLocal = useMemo(() => {
     const n = normalizeSubjectCodeForCompare(code.trim());
@@ -264,12 +287,24 @@ export function SubjectCodesWorkspace({
       </div>
 
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
-        <div className="p-4 border-b border-black/10">
-          <div className="text-[16px] font-semibold">Saved subject codes (database)</div>
-          <p className="text-[12px] text-black/55 mt-1">
-            {programId ? "Rows in Supabase for the selected program." : "Select a program to load saved subjects."}
-            {loadingList ? " Loading…" : ""}
-          </p>
+        <div className="p-4 border-b border-black/10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <div className="text-[16px] font-semibold">Saved subject codes (database)</div>
+            <p className="text-[12px] text-black/55 mt-1">
+              {programId ? "Rows in Supabase for the selected program." : "Select a program to load saved subjects."}
+              {loadingList ? " Loading…" : ""}
+            </p>
+          </div>
+          <div className="w-full sm:max-w-xs space-y-1">
+            <div className="text-[11px] font-medium text-black/60">Search by code or title</div>
+            <Input
+              placeholder="e.g. CC-111 or Programming"
+              value={subjectSearch}
+              onChange={(e) => setSubjectSearch(e.target.value)}
+              disabled={!programId}
+              className="h-9 text-sm border-black/20 focus-visible:ring-[#ff990a]/40"
+            />
+          </div>
         </div>
         <div className="overflow-auto">
           <table className="w-full border-collapse">
@@ -318,9 +353,12 @@ export function SubjectCodesWorkspace({
       </div>
 
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
-        <div className="p-4 border-b border-black/10">
-          <div className="text-[16px] font-semibold">BSIT prospectus (reference)</div>
-          <p className="text-[12px] text-black/55 mt-1">CMO No. 25 s. 2015 — effective A.Y. 2023–2024</p>
+        <div className="p-4 border-b border-black/10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <div className="text-[16px] font-semibold">BSIT prospectus (reference)</div>
+            <p className="text-[12px] text-black/55 mt-1">CMO No. 25 s. 2015 — effective A.Y. 2023–2024</p>
+          </div>
+          <p className="text-[11px] text-black/45 sm:text-right">Uses the same search box as saved subjects above.</p>
         </div>
         <div className="overflow-auto">
           <table className="w-full border-collapse">
@@ -337,7 +375,14 @@ export function SubjectCodesWorkspace({
               </tr>
             </thead>
             <tbody className="text-[12px]">
-              {prospectusRows.map((s) => (
+              {filteredProspectus.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                    No prospectus rows match &quot;{subjectSearch.trim()}&quot;.
+                  </td>
+                </tr>
+              ) : (
+                filteredProspectus.map((s) => (
                 <tr key={s.code}>
                   <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
                   <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
@@ -348,7 +393,8 @@ export function SubjectCodesWorkspace({
                   <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
                   <td className="border border-black/10 px-2 py-2">{s.labHours}</td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>

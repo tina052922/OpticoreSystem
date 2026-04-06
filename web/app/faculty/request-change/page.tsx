@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { FacultyScheduleChangeForm } from "@/components/faculty/FacultyScheduleChangeForm";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireRoles } from "@/lib/auth/require-role";
 
@@ -20,10 +21,14 @@ export default async function FacultyRequestChangePage() {
           <ArrowLeft className="w-4 h-4" />
           Back to dashboard
         </Link>
-        <h1 className="text-2xl font-semibold text-black">Request schedule change</h1>
-        <div className="rounded-xl border border-dashed border-black/20 bg-white p-6 text-sm text-black/65 leading-relaxed">
-          This workflow will route requests to the Chairman Admin for review (per OptiCore use case). Form integration
-          will be added here.
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold text-black">Request schedule change</h1>
+          <p className="text-sm text-black/55">
+            Ask your program Chairman to review a proposed change to your teaching schedule (same college workflow).
+          </p>
+        </header>
+        <div className="rounded-xl border border-black/10 bg-white p-6 shadow-[0px_4px_4px_rgba(0,0,0,0.06)]">
+          <FacultyScheduleChangeForm />
         </div>
       </div>
     </PortalShell>

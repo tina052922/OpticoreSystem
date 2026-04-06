@@ -113,9 +113,9 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
   return (
     <DashboardCard title="Request access">
       <p className="text-sm text-black/75 mb-4">
-        Choose what you need. <strong>College Admin</strong> approves temporary access (default{" "}
-        <strong>14 days</strong> when approved). Status updates here: <strong>Pending</strong> /{" "}
-        <strong>Approved</strong> / <strong>Rejected</strong>.
+        Choose what you need. For <strong>GEC Chairman</strong>, requests are routed to <strong>College Admin (COTE)</strong>{" "}
+        for vacant GEC slot editing. <strong>College Admin</strong> approves temporary access (default{" "}
+        <strong>14 days</strong>). Status: <strong>Pending</strong> / <strong>Approved</strong> / <strong>Rejected</strong>.
       </p>
 
       <div className="space-y-2 mb-4">

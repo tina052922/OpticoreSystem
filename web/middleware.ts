@@ -32,14 +32,6 @@ export async function middleware(request: NextRequest) {
 
     const path = request.nextUrl.pathname;
 
-    // Root URL always goes to login (do not auto-skip to a role dashboard here).
-    if (path === "/" || path === "") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      url.search = "";
-      return redirectWithSession(response, url);
-    }
-
     if (!configured || !supabase) {
       if (isProtectedPath(path)) {
         const url = request.nextUrl.clone();
@@ -76,6 +68,24 @@ export async function middleware(request: NextRequest) {
         url.pathname = "/login";
         url.searchParams.set("error", "forbidden_role");
         return redirectWithSession(response, url);
+      }
+
+      /** Instructor first-login: must set a new password before using the faculty portal. */
+      if (path.startsWith("/faculty") && profile.role === "instructor") {
+        const meta = user.user_metadata as { must_change_password?: boolean } | undefined;
+        const mustChange = meta?.must_change_password === true;
+        if (mustChange && !path.startsWith("/faculty/change-password")) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/faculty/change-password";
+          url.search = "";
+          return redirectWithSession(response, url);
+        }
+        if (!mustChange && path.startsWith("/faculty/change-password")) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/faculty/schedule";
+          url.search = "";
+          return redirectWithSession(response, url);
+        }
       }
     }
 

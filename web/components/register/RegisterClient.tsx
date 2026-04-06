@@ -10,7 +10,8 @@ import { CTU_LOGO_PNG } from "@/lib/branding";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getDefaultHomeForRole } from "@/lib/auth/role-home";
 
-type ProgramRow = { id: string; code: string; name: string };
+type CollegeRow = { id: string; code: string; name: string };
+type ProgramRow = { id: string; code: string; name: string; collegeId: string };
 type SectionRow = { id: string; name: string; programId: string; yearLevel: number };
 
 export function RegisterClient() {
@@ -19,11 +20,13 @@ export function RegisterClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [collegeId, setCollegeId] = useState("");
   const [programId, setProgramId] = useState("");
   const [yearLevel, setYearLevel] = useState<number>(1);
   const [sectionId, setSectionId] = useState("");
   const [studentId, setStudentId] = useState("");
 
+  const [colleges, setColleges] = useState<CollegeRow[]>([]);
   const [programs, setPrograms] = useState<ProgramRow[]>([]);
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
@@ -39,11 +42,13 @@ export function RegisterClient() {
         setLoadingCatalog(false);
         return;
       }
-      const [{ data: prog }, { data: sec }] = await Promise.all([
-        supabase.from("Program").select("id, code, name").order("code"),
+      const [{ data: col }, { data: prog }, { data: sec }] = await Promise.all([
+        supabase.from("College").select("id, code, name").order("code"),
+        supabase.from("Program").select("id, code, name, collegeId").order("code"),
         supabase.from("Section").select("id, name, programId, yearLevel").order("name"),
       ]);
       if (!cancelled) {
+        setColleges((col ?? []) as CollegeRow[]);
         setPrograms((prog ?? []) as ProgramRow[]);
         setSections((sec ?? []) as SectionRow[]);
         setLoadingCatalog(false);
@@ -54,10 +59,19 @@ export function RegisterClient() {
     };
   }, []);
 
+  const programsForCollege = useMemo(() => {
+    if (!collegeId) return [];
+    return programs.filter((p) => p.collegeId === collegeId);
+  }, [programs, collegeId]);
+
   const sectionOptions = useMemo(() => {
     if (!programId) return [];
     return sections.filter((s) => s.programId === programId && s.yearLevel === yearLevel);
   }, [sections, programId, yearLevel]);
+
+  useEffect(() => {
+    setProgramId("");
+  }, [collegeId]);
 
   useEffect(() => {
     setSectionId("");
@@ -75,6 +89,10 @@ export function RegisterClient() {
       setError("Passwords do not match.");
       return;
     }
+    if (!collegeId) {
+      setError("Select your college / department.");
+      return;
+    }
     if (!programId || !sectionId) {
       setError("Select program, year level, and section.");
       return;
@@ -85,34 +103,29 @@ export function RegisterClient() {
       const supabase = createSupabaseBrowserClient();
       if (!supabase) throw new Error("Missing Supabase environment variables.");
 
-      const { data: signData, error: signErr } = await supabase.auth.signUp({
-        email: email.trim(),
+      const regRes = await fetch("/api/auth/register-student", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          programId,
+          sectionId,
+          yearLevel,
+          studentId: studentId.trim() || null,
+        }),
+      });
+      const regJson = (await regRes.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!regRes.ok) {
+        throw new Error(regJson?.error ?? "Registration failed");
+      }
+
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
         password,
-        options: { data: { full_name: fullName.trim() } },
       });
-      if (signErr) throw signErr;
-      if (!signData.session) {
-        await supabase.auth.signOut();
-        throw new Error(
-          "No active session after sign-up. In Supabase → Authentication → Providers → Email: turn off \"Confirm email\" for instant student registration, or confirm your email first and try again.",
-        );
-      }
-
-      const { data: rpcData, error: rpcErr } = await supabase.rpc("complete_student_registration", {
-        p_full_name: fullName.trim(),
-        p_program_id: programId,
-        p_section_id: sectionId,
-        p_year_level: yearLevel,
-        p_student_id: studentId.trim() || null,
-      });
-
-      if (rpcErr) throw rpcErr;
-
-      const payload = rpcData as { ok?: boolean; error?: string } | null;
-      if (!payload?.ok) {
-        await supabase.auth.signOut();
-        throw new Error(payload?.error ?? "Could not complete registration.");
-      }
+      if (signInErr) throw signInErr;
 
       const { data: rpc, error: rpcReadErr } = await supabase.rpc("auth_get_my_user_row");
       if (rpcReadErr) throw rpcReadErr;
@@ -230,19 +243,40 @@ export function RegisterClient() {
           </div>
 
           <div className="space-y-2">
+            <label htmlFor="college" className="block text-lg font-medium text-[#181818]">
+              College / Department
+            </label>
+            <select
+              id="college"
+              value={collegeId}
+              onChange={(e) => setCollegeId(e.target.value)}
+              disabled={loadingCatalog}
+              className="flex h-14 w-full rounded-xl border border-black/25 bg-white px-3 text-base shadow-md outline-none focus-visible:ring-2 focus-visible:ring-[#FF990A]/40"
+              required
+            >
+              <option value="">Select college…</option>
+              {colleges.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
             <label htmlFor="program" className="block text-lg font-medium text-[#181818]">
-              Program / Course
+              Program
             </label>
             <select
               id="program"
               value={programId}
               onChange={(e) => setProgramId(e.target.value)}
-              disabled={loadingCatalog}
-              className="flex h-14 w-full rounded-xl border border-black/25 bg-white px-3 text-base shadow-md outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+              disabled={loadingCatalog || !collegeId}
+              className="flex h-14 w-full rounded-xl border border-black/25 bg-white px-3 text-base shadow-md outline-none focus-visible:ring-2 focus-visible:ring-[#FF990A]/40"
               required
             >
-              <option value="">Select program…</option>
-              {programs.map((p) => (
+              <option value="">{!collegeId ? "Select college first…" : "Select program…"}</option>
+              {programsForCollege.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.code} — {p.name}
                 </option>
@@ -326,11 +360,15 @@ export function RegisterClient() {
           </p>
 
           <p className="text-center text-xs text-black/45 leading-relaxed">
-            Faculty and staff: accounts are created by your chair or college admin—use{" "}
+            Instructors with Gmail can also{" "}
+            <Link href="/register/instructor" className="text-[#5483b3] hover:underline">
+              self-register
+            </Link>
+            . Staff with admin credentials:{" "}
             <Link href="/login" className="text-[#5483b3] hover:underline">
               Sign in
-            </Link>{" "}
-            with the credentials you were given.
+            </Link>
+            .
           </p>
         </form>
       </div>
