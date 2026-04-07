@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { RequestAccessPanel, hasActiveScopeGrant } from "@/components/access/RequestAccessPanel";
+import {
+  getGecVacantSlotApprovalUiState,
+  hasActiveScopeGrant,
+} from "@/components/access/RequestAccessPanel";
+import { GecVacantSlotsApprovalGate } from "@/components/access/GecVacantSlotsApprovalGate";
 import { GecAccessRequestModal } from "@/components/access/GecAccessRequestModal";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/portal/DashboardCard";
@@ -36,8 +40,9 @@ const DEMO_ROWS = [
 ];
 
 export function GecVacantSlotsClient() {
-  const { requests, reload } = useAccessRequests();
+  const { requests, loading, reload } = useAccessRequests();
   const canEditVacant = hasActiveScopeGrant(requests, "gec_vacant_slots");
+  const approvalState = getGecVacantSlotApprovalUiState(requests);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContext, setModalContext] = useState("");
   const [assignInfo, setAssignInfo] = useState<string | null>(null);
@@ -58,29 +63,32 @@ export function GecVacantSlotsClient() {
     );
   }
 
+  /** Read-only presentation until College Admin approves vacant-slot scope (editable mode only when `canEditVacant`). */
+  const tableShellClass = canEditVacant
+    ? "ring-1 ring-[#ff990a]/25"
+    : "opacity-[0.88] saturate-[0.85] pointer-events-auto";
+
   return (
     <div className="px-4 sm:px-8 pb-10 max-w-5xl space-y-6">
-      <RequestAccessPanel variant="compact" requestsOverride={requests} />
+      <GecVacantSlotsApprovalGate state={approvalState} loading={loading} />
 
       <DashboardCard title="Vacant GEC slots (CHED GEC — all programs)">
         <p className="text-sm text-black/75 mb-4">
-          GEC Chairman works on <strong>core / general education</strong> vacancies across colleges/programs. Only{" "}
-          <strong className="text-[#FF990A]">Vacant</strong> GEC rows may be assigned; <strong>Occupied</strong> slots are
-          read-only. Coordination follows <strong>CAS Admin</strong>; <strong>College Admin (COTE)</strong> approves edit
-          access via <strong>Access requests</strong>.
+          GEC Chairman coordinates <strong>vacant</strong> general-education cells across programs.{" "}
+          <strong className="text-[#FF990A]">Vacant</strong> rows may be assigned only after{" "}
+          <strong>College Admin</strong> approves your request; <strong>Occupied</strong> slots stay read-only and are
+          not editable here. CAS policy alignment is separate from this approval step.
         </p>
 
         {!canEditVacant ? (
-          <p className="text-sm text-amber-950 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4">
-            <strong>Read-only:</strong> You do not have an active <code className="bg-black/[0.06] px-1">gec_vacant_slots</code>{" "}
-            grant. Click <strong>Assign</strong> on a <strong>vacant</strong> row to submit an approval request, or use{" "}
-            <strong>Request access</strong> in the sidebar. <strong>College Admin</strong> approves in{" "}
-            <strong>Access requests</strong> (College dashboard).
+          <p className="text-sm text-black/65 bg-black/[0.04] border border-black/10 rounded-md px-3 py-2 mb-4">
+            <strong>View mode:</strong> The grid below is read-only for edits until your vacant-slot approval is active.
+            Use <strong>Request approval</strong> on a vacant row or the button above to contact College Admin.
           </p>
         ) : (
           <p className="text-sm text-emerald-950 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2 mb-4">
-            <strong>Edit access active</strong> for vacant GEC slots (temporary grant from College Admin). You can proceed
-            with vacant-slot actions below.
+            <strong>Edit mode (vacant only):</strong> You may use <strong>Assign</strong> on vacant rows. Occupied rows
+            remain locked.
           </p>
         )}
 
@@ -88,7 +96,7 @@ export function GecVacantSlotsClient() {
           <p className="text-sm text-blue-950 bg-blue-50 border border-blue-200 rounded-md px-3 py-2 mb-4">{assignInfo}</p>
         ) : null}
 
-        <div className="overflow-x-auto rounded-lg border border-black/10">
+        <div className={`overflow-x-auto rounded-lg border border-black/10 transition-all ${tableShellClass}`}>
           <table className="w-full text-left text-[12px]">
             <thead>
               <tr className="bg-[#ff990a] text-white">

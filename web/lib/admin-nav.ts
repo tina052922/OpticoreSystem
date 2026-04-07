@@ -60,10 +60,15 @@ export const CAS_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
-/** GEC Chairman: fill vacant GEC slots only; return to CAS. */
+/** GEC Chairman: Central Hub (view); vacant-slot edits are approval-gated via College Admin. */
 export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Dashboard", href: "/admin/gec", icon: "LayoutDashboard" },
-  { label: "Request access", href: "/admin/gec/request-access", icon: "KeyRound" },
+  { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
+  {
+    label: "Request approval (vacant slots)",
+    href: "/admin/gec/request-access",
+    icon: "KeyRound",
+  },
   { label: "Vacant GEC slots", href: "/admin/gec/vacant-slots", icon: "CalendarPlus" },
   { label: "Inbox", href: "/admin/gec/inbox", icon: "Inbox" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },

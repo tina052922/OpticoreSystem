@@ -10,17 +10,18 @@ import {
 } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 
 export type EvaluatorPageProps = {
-  /** Chairman: full plotter. College / CAS / DOI: Central Hub (college tiles + hub table). */
-  variant?: "chairman" | "college" | "cas" | "doi";
+  /** Chairman: full plotter. College / CAS / DOI / GEC: Central Hub (college tiles + hub table). */
+  variant?: "chairman" | "college" | "cas" | "doi" | "gec";
   /** Server-provided college scope for Chairman (no college picker; program filter only). */
   chairmanCollegeId?: string | null;
   /** Locked program for chairman (`getChairmanSession` defaults BSIT for CTE when DB column unset). */
   chairmanProgramId?: string | null;
 };
 
-function centralHubBasePath(variant: "college" | "cas" | "doi"): string {
+function centralHubBasePath(variant: "college" | "cas" | "doi" | "gec"): string {
   if (variant === "college") return "/admin/college/evaluator";
   if (variant === "cas") return "/admin/cas/evaluator";
+  if (variant === "gec") return "/admin/gec/evaluator";
   return "/doi/evaluator";
 }
 
@@ -29,7 +30,7 @@ export function EvaluatorPage({
   chairmanCollegeId = null,
   chairmanProgramId = null,
 }: EvaluatorPageProps) {
-  if (variant === "college" || variant === "cas" || variant === "doi") {
+  if (variant === "college" || variant === "cas" || variant === "doi" || variant === "gec") {
     return <CentralHubEvaluatorView basePath={centralHubBasePath(variant)} />;
   }
 

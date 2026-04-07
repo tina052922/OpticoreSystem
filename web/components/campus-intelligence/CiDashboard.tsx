@@ -129,6 +129,8 @@ export function CiDashboard({ welcomeName, basePath, variant = "full" }: CiDashb
   }
 
   const gecQuickLinks = [
+    { label: "Central Hub Evaluator", href: "/admin/gec/evaluator" },
+    { label: "Request approval (vacant slots)", href: "/admin/gec/request-access" },
     { label: "Vacant GEC slots", href: "/admin/gec/vacant-slots" },
     { label: "Inbox", href: "/admin/gec/inbox" },
     { label: "Campus navigation", href: "/campus-navigation" },
