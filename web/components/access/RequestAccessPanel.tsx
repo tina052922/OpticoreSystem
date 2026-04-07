@@ -36,6 +36,43 @@ export function hasActiveScopeGrant(
   );
 }
 
+/** UI state for GEC vacant-slot editing: approval from College Admin is required before edits. */
+export type GecVacantSlotApprovalUiState =
+  | { status: "approved" }
+  | { status: "pending" }
+  | { status: "rejected"; reviewedAt: string | null }
+  | { status: "idle" };
+
+/**
+ * Derives vacant-slot approval state from access requests (latest relevant row wins for pending/rejected).
+ * Active temporary grant for `gec_vacant_slots` → approved.
+ */
+export function getGecVacantSlotApprovalUiState(
+  requests: AccessRequestRow[],
+): GecVacantSlotApprovalUiState {
+  if (hasActiveScopeGrant(requests, "gec_vacant_slots")) {
+    return { status: "approved" };
+  }
+  const byRecency = [...requests].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  const pending = byRecency.find(
+    (r) =>
+      r.status === "pending" &&
+      Array.isArray(r.scopes) &&
+      r.scopes.includes("gec_vacant_slots"),
+  );
+  if (pending) return { status: "pending" };
+  const rejected = byRecency.find(
+    (r) =>
+      r.status === "rejected" &&
+      Array.isArray(r.scopes) &&
+      r.scopes.includes("gec_vacant_slots"),
+  );
+  if (rejected) return { status: "rejected", reviewedAt: rejected.reviewedAt };
+  return { status: "idle" };
+}
+
 type Props = {
   variant?: "full" | "compact";
   /** Pass from parent to avoid duplicate fetches (e.g. vacant-slots + compact card). */
@@ -80,9 +117,10 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
 
   if (variant === "compact") {
     return (
-      <DashboardCard title="Request access">
+      <DashboardCard title="Request approval for vacant slots">
         <p className="text-sm text-black/75 mb-3">
-          Need Evaluator, INS, or vacant GEC slot editing? Submit a scoped request for College Admin approval.
+          To <strong>edit vacant GEC slots</strong>, College Admin must approve a scoped request first. You can also
+          request Evaluator or INS access on the full form.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -92,7 +130,7 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
           >
             <Link href="/admin/gec/request-access">
               <KeyRound className="w-4 h-4 mr-2" />
-              Open Request Access
+              Open approval request
             </Link>
           </Button>
         </div>
@@ -111,11 +149,13 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
   }
 
   return (
-    <DashboardCard title="Request access">
+    <DashboardCard title="Request approval for vacant slots">
       <p className="text-sm text-black/75 mb-4">
-        Choose what you need. For <strong>GEC Chairman</strong>, requests are routed to <strong>College Admin (COTE)</strong>{" "}
-        for vacant GEC slot editing. <strong>College Admin</strong> approves temporary access (default{" "}
-        <strong>14 days</strong>). Status: <strong>Pending</strong> / <strong>Approved</strong> / <strong>Rejected</strong>.
+        <strong>GEC Chairman:</strong> to edit <strong>vacant GEC slots</strong>, submit a request here first —{" "}
+        <strong>College Admin</strong> must approve before edits are enabled. You may also request{" "}
+        <strong>Central Hub Evaluator</strong> or <strong>INS</strong> scope. Temporary grants default to{" "}
+        <strong>14 days</strong>. Status: <strong>Pending</strong> / <strong>Approved</strong> /{" "}
+        <strong>Rejected</strong>.
       </p>
 
       <div className="space-y-2 mb-4">

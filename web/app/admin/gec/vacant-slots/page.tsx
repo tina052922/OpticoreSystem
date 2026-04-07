@@ -6,7 +6,7 @@ export default function GecVacantSlotsPage() {
     <div>
       <ChairmanPageHeader
         title="Vacant GEC slots"
-        subtitle="Assign instructor, room, and time only into vacant GEC cells. Non-GEC rows are read-only."
+        subtitle="Read-only until College Admin approves your request — then edit only vacant GEC cells (never occupied slots or other programs’ schedules)."
       />
       <GecVacantSlotsClient />
     </div>
