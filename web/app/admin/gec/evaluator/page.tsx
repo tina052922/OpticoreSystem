@@ -1,18 +1,18 @@
 "use client";
 
 import { Suspense } from "react";
-import { EvaluatorPage } from "@/components/evaluator/EvaluatorPage";
+import { GecCentralHubEvaluatorClient } from "@/components/gec/GecCentralHubEvaluatorClient";
 
 /**
- * GEC Chairman: same Central Hub Evaluator view as CAS/College (campus-wide tiles + hub table).
- * Editing vacant GEC cells still requires College Admin approval on the Vacant GEC slots flow.
+ * GEC Chairman: college tiles → full per-college schedule; vacant GEC rows editable after one-time
+ * College Admin approval (`gec_vacant_slots`).
  */
 export default function GecChairmanEvaluatorPage() {
   return (
     <Suspense
       fallback={<div className="px-8 py-12 text-sm text-black/60">Loading Central Hub Evaluator…</div>}
     >
-      <EvaluatorPage variant="gec" />
+      <GecCentralHubEvaluatorClient />
     </Suspense>
   );
 }

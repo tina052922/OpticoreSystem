@@ -117,7 +117,7 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
 
   if (variant === "compact") {
     return (
-      <DashboardCard title="Request approval for vacant slots">
+      <DashboardCard title="Request Approval to Edit Vacant GEC Slots">
         <p className="text-sm text-black/75 mb-3">
           To <strong>edit vacant GEC slots</strong>, College Admin must approve a scoped request first. You can also
           request Evaluator or INS access on the full form.
@@ -130,7 +130,7 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
           >
             <Link href="/admin/gec/request-access">
               <KeyRound className="w-4 h-4 mr-2" />
-              Open approval request
+              Open request form
             </Link>
           </Button>
         </div>
@@ -149,7 +149,7 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
   }
 
   return (
-    <DashboardCard title="Request approval for vacant slots">
+    <DashboardCard title="Request Approval to Edit Vacant GEC Slots">
       <p className="text-sm text-black/75 mb-4">
         <strong>GEC Chairman:</strong> to edit <strong>vacant GEC slots</strong>, submit a request here first —{" "}
         <strong>College Admin</strong> must approve before edits are enabled. You may also request{" "}

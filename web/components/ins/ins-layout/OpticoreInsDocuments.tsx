@@ -1,7 +1,23 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { InsDay } from "./opticore-ins-constants";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
+
+/** GEC Chairman / campus-wide INS: make unfilled GEC/GEE placeholder slots obvious at a glance. */
+function VacantGecSlotHighlight(props: { title: string; children: ReactNode }) {
+  return (
+    <div
+      className="rounded-md border-[3px] border-[#FF990A] bg-amber-50/95 p-0.5 shadow-[inset_0_0_0_1px_rgba(180,83,9,0.22)]"
+      title={props.title}
+    >
+      <div className="text-[6px] font-black uppercase tracking-widest text-center text-[#a35600] leading-none mb-0.5">
+        Vacant GEC
+      </div>
+      {props.children}
+    </div>
+  );
+}
 
 const formDate = () =>
   new Intl.DateTimeFormat("en-PH", { month: "long", day: "numeric", year: "numeric" }).format(new Date());
@@ -11,10 +27,8 @@ function matchSlot<T extends { time: string }>(daySchedule: T[], slot: string): 
   return daySchedule.find((c) => c.time.includes(start));
 }
 
-type FacultySchedule = Record<
-  InsDay,
-  Array<{ time: string; course: string; yearSec: string; room: string }>
->;
+type FacultyScheduleCell = { time: string; course: string; yearSec: string; room: string; vacantGec?: boolean };
+type FacultySchedule = Record<InsDay, FacultyScheduleCell[]>;
 
 export type OpticoreInsForm5AProps = {
   facultyName: string;
@@ -32,13 +46,21 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
     const classAtTime = matchSlot(schedule[day], time);
     const isPlaceholder = day === "Monday" && time === "7:00-8:00" && !classAtTime;
     if (classAtTime) {
-      return (
+      const inner = (
         <div className="leading-tight text-[9px]">
           <div className="font-semibold">{classAtTime.course}</div>
           <div>{classAtTime.yearSec}</div>
           <div>{classAtTime.room}</div>
         </div>
       );
+      if (classAtTime.vacantGec) {
+        return (
+          <VacantGecSlotHighlight title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
+            {inner}
+          </VacantGecSlotHighlight>
+        );
+      }
+      return inner;
     }
     if (isPlaceholder) {
       return (
@@ -237,7 +259,14 @@ function SigBlock({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-type SectionSchedule = Record<InsDay, Array<{ time: string; course: string; instructor: string; room: string }>>;
+type SectionScheduleCell = {
+  time: string;
+  course: string;
+  instructor: string;
+  room: string;
+  vacantGec?: boolean;
+};
+type SectionSchedule = Record<InsDay, SectionScheduleCell[]>;
 
 export type OpticoreInsForm5BProps = {
   degreeAndYear: string;
@@ -262,13 +291,21 @@ export function OpticoreInsForm5B({
   function renderCell(time: string, day: InsDay) {
     const row = schedule[day].find((c) => c.time.includes(time.split("-")[0]));
     if (row) {
-      return (
+      const inner = (
         <div className="leading-tight text-[9px]">
           <div className="font-semibold">{row.course}</div>
           <div>{row.instructor}</div>
           <div>{row.room}</div>
         </div>
       );
+      if (row.vacantGec) {
+        return (
+          <VacantGecSlotHighlight title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
+            {inner}
+          </VacantGecSlotHighlight>
+        );
+      }
+      return inner;
     }
     if (day === "Monday" && time === "7:00-8:00") {
       return (
@@ -393,13 +430,21 @@ export function OpticoreInsForm5C({ roomAssignment, schedule }: OpticoreInsForm5
   function renderCell(time: string, day: InsDay) {
     const classAtTime = matchSlot(schedule[day], time);
     if (classAtTime) {
-      return (
+      const inner = (
         <div className="leading-tight text-[9px]">
           <div className="font-semibold">{classAtTime.course}</div>
           <div>{classAtTime.yearSec}</div>
           <div>{classAtTime.room}</div>
         </div>
       );
+      if (classAtTime.vacantGec) {
+        return (
+          <VacantGecSlotHighlight title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
+            {inner}
+          </VacantGecSlotHighlight>
+        );
+      }
+      return inner;
     }
     if (day === "Monday" && time === "7:00-8:00") {
       return (

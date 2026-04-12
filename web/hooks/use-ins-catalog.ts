@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
 import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
 import type { AcademicPeriod, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
@@ -107,6 +108,14 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     return () => {
       void supabase.removeChannel(ch);
     };
+  }, [load, args.collegeId, args.campusWide]);
+
+  /** Same-tab refresh when Chairman Evaluator saves (Realtime may be off in some projects). */
+  useEffect(() => {
+    if (!args.collegeId && !args.campusWide) return;
+    const handler = () => void load();
+    window.addEventListener(INS_CATALOG_RELOAD_EVENT, handler);
+    return () => window.removeEventListener(INS_CATALOG_RELOAD_EVENT, handler);
   }, [load, args.collegeId, args.campusWide]);
 
   useEffect(() => {

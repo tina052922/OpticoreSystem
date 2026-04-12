@@ -5,8 +5,8 @@ export default function GecRequestAccessPage() {
   return (
     <div>
       <ChairmanPageHeader
-        title="Request approval for vacant slots"
-        subtitle="GEC Chairman: College Admin must approve before you can edit vacant GEC slots. You may also request Central Hub Evaluator or INS scope — all routed to College Admin for review."
+        title="Request Approval to Edit Vacant GEC Slots"
+        subtitle="GEC Chairman: College Admin approves once per grant window. After approval you can edit every vacant GEC slot from the Central Hub Evaluator without requesting per row. Optional scopes (Evaluator, INS) route to the same approver."
       />
       <div className="px-8 pb-10 max-w-3xl">
         <RequestAccessPanel variant="full" />

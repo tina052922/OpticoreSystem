@@ -1,7 +1,9 @@
 import { INS_DAYS, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
+import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import type { Room, ScheduleEntry, Section, Subject } from "@/types/db";
 
-export type InsFacultyCell = { time: string; course: string; yearSec: string; room: string };
+/** `vacantGec` is set when the live row is a CHED GEC/GEE slot still on the TBD placeholder instructor. */
+export type InsFacultyCell = { time: string; course: string; yearSec: string; room: string; vacantGec?: boolean };
 
 export type InsFacultySchedule = Record<InsDay, InsFacultyCell[]>;
 
@@ -54,6 +56,7 @@ export function buildInsFacultyView(args: {
       course: sub?.code ?? "—",
       yearSec: sec?.name ?? "—",
       room: room?.code ?? "TBA",
+      vacantGec: isGecVacantScheduleEntry(e, args.subjectById),
     });
   }
 

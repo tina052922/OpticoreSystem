@@ -45,6 +45,8 @@ export type ScheduleEvaluatorTableRow = {
   day: string;
   facultyConflict: string;
   sectionConflict: string;
+  /** Same overlap logic as faculty/section: two entries in the same room at overlapping times. */
+  roomConflict: string;
 };
 
 /**
@@ -97,6 +99,7 @@ export function buildScheduleEvaluatorTableRows(args: {
     const hits = detectConflictsForEntry(toBlock(e), universe);
     const fac = hits.some((h) => h.type === "faculty");
     const secConflict = hits.some((h) => h.type === "section");
+    const roomConflict = hits.some((h) => h.type === "room");
     return {
       id: e.id,
       college: pr ? collegeNameById.get(pr.collegeId) ?? pr.collegeId : "",
@@ -110,6 +113,7 @@ export function buildScheduleEvaluatorTableRows(args: {
       day: dayAbbrev(e.day),
       facultyConflict: fac ? "Yes" : "",
       sectionConflict: secConflict ? "Yes" : "",
+      roomConflict: roomConflict ? "Yes" : "",
     };
   });
 }

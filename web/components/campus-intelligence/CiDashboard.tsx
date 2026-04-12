@@ -130,8 +130,10 @@ export function CiDashboard({ welcomeName, basePath, variant = "full" }: CiDashb
 
   const gecQuickLinks = [
     { label: "Central Hub Evaluator", href: "/admin/gec/evaluator" },
-    { label: "Request approval (vacant slots)", href: "/admin/gec/request-access" },
-    { label: "Vacant GEC slots", href: "/admin/gec/vacant-slots" },
+    { label: "INS · Faculty (5A)", href: "/admin/gec/ins/faculty" },
+    { label: "INS · Section (5B)", href: "/admin/gec/ins/section" },
+    { label: "INS · Room (5C)", href: "/admin/gec/ins/room" },
+    { label: "Request Approval to Edit Vacant GEC Slots", href: "/admin/gec/request-access" },
     { label: "Inbox", href: "/admin/gec/inbox" },
     { label: "Campus navigation", href: "/campus-navigation" },
   ];

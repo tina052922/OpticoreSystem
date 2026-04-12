@@ -1,8 +1,15 @@
 import { INS_DAYS, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
+import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import type { Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { scheduleEntryTimeLabel } from "./build-ins-faculty-view";
 
-export type InsSectionCell = { time: string; course: string; instructor: string; room: string };
+export type InsSectionCell = {
+  time: string;
+  course: string;
+  instructor: string;
+  room: string;
+  vacantGec?: boolean;
+};
 
 export type InsSectionSchedule = Record<InsDay, InsSectionCell[]>;
 
@@ -46,6 +53,7 @@ export function buildInsSectionView(args: {
       course: sub?.code ?? "—",
       instructor: inst?.name ?? "—",
       room: room?.code ?? "TBA",
+      vacantGec: isGecVacantScheduleEntry(e, args.subjectById),
     });
   }
 
