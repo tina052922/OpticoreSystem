@@ -39,10 +39,15 @@ export function GecVacantSlotsApprovalGate({ state, loading }: Props) {
           Approved — you can now edit vacant GEC slots
         </p>
         <p className="text-sm text-emerald-900/90 mt-2">
-          Your temporary <code className="rounded bg-black/[0.06] px-1 text-[13px]">gec_vacant_slots</code> grant is
-          active. Only <strong>vacant</strong> rows are editable; occupied slots and other programs&apos; schedules stay
-          read-only.
+          Your <code className="rounded bg-black/[0.06] px-1 text-[13px]">gec_vacant_slots</code> grant is active. Open{" "}
+          <strong>Central Hub Evaluator</strong>, choose a college, and edit vacant GEC rows there — major subjects stay
+          locked. You do not need to request approval per slot.
         </p>
+        <div className="mt-4">
+          <Button type="button" asChild variant="outline" className="border-emerald-300 bg-white">
+            <Link href="/admin/gec/evaluator">Open Central Hub Evaluator</Link>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -91,7 +96,7 @@ export function GecVacantSlotsApprovalGate({ state, loading }: Props) {
           <Button type="button" asChild className="bg-[#780301] hover:bg-[#5a0201]">
             <Link href="/admin/gec/request-access">
               <KeyRound className="w-4 h-4 mr-2" />
-              Request approval again
+              Request Approval Again
             </Link>
           </Button>
         </div>
@@ -109,17 +114,22 @@ export function GecVacantSlotsApprovalGate({ state, loading }: Props) {
             Read-only — approval required to edit vacant slots
           </p>
           <p className="text-sm text-black/70 mt-2 max-w-2xl">
-            GEC Chairman cannot edit schedules directly without College Admin approval. Submit a{" "}
-            <strong>Request approval for vacant slots</strong> first; after approval, only <strong>vacant</strong> GEC
-            cells become editable (never occupied slots or other programs).
+            Submit <strong>one</strong> access request for <code className="rounded bg-black/[0.06] px-1">gec_vacant_slots</code>.
+            After College Admin approves it, you can edit every vacant GEC slot from the Central Hub Evaluator without
+            asking again (until the grant expires). Major subjects and non-vacant rows stay read-only.
           </p>
         </div>
-        <Button type="button" asChild className="shrink-0 bg-[#FF990A] hover:bg-[#e88909] text-white font-semibold">
-          <Link href="/admin/gec/request-access">
-            <KeyRound className="w-4 h-4 mr-2" />
-            Request approval for vacant slots
-          </Link>
-        </Button>
+        <div className="flex flex-col sm:items-end gap-2 shrink-0">
+          <Button type="button" asChild className="bg-[#FF990A] hover:bg-[#e88909] text-white font-semibold">
+            <Link href="/admin/gec/request-access">
+              <KeyRound className="w-4 h-4 mr-2" />
+              Request Approval to Edit Vacant GEC Slots
+            </Link>
+          </Button>
+          <Button type="button" asChild variant="outline" className="border-black/20">
+            <Link href="/admin/gec/evaluator">Central Hub Evaluator</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

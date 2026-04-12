@@ -60,16 +60,13 @@ export const CAS_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
-/** GEC Chairman: Central Hub (view); vacant-slot edits are approval-gated via College Admin. */
+/** GEC Chairman: Central Hub + campus-wide INS (5A–5C); one-time vacant-slot approval CTA is on the evaluator landing + gate. */
 export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Dashboard", href: "/admin/gec", icon: "LayoutDashboard" },
   { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
-  {
-    label: "Request approval (vacant slots)",
-    href: "/admin/gec/request-access",
-    icon: "KeyRound",
-  },
-  { label: "Vacant GEC slots", href: "/admin/gec/vacant-slots", icon: "CalendarPlus" },
+  { label: "INS · Faculty (5A)", href: "/admin/gec/ins/faculty", icon: "BookOpen" },
+  { label: "INS · Section (5B)", href: "/admin/gec/ins/section", icon: "Layers" },
+  { label: "INS · Room (5C)", href: "/admin/gec/ins/room", icon: "CalendarPlus" },
   { label: "Inbox", href: "/admin/gec/inbox", icon: "Inbox" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];

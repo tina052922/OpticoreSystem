@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarPlus, ClipboardList, Inbox, KeyRound, MapPin, Shield } from "lucide-react";
+import { BookOpen, ClipboardList, Inbox, KeyRound, MapPin, Shield } from "lucide-react";
 import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
@@ -20,12 +20,15 @@ export default async function GecChairmanDashboardPage() {
                 admins; GEC-specific edits are still limited by policy below).
               </li>
               <li>
-                To <strong>edit vacant GEC slots</strong>, submit <strong>Request approval for vacant slots</strong> to{" "}
-                <strong>College Admin</strong> first. Direct editing is blocked until approved.
+                To <strong>edit vacant GEC slots</strong>, use the single{" "}
+                <strong>Request approval to edit vacant GEC slots</strong> action on the evaluator hub (or{" "}
+                <Link href="/admin/gec/request-access" className="text-[#780301] font-semibold underline">
+                  request-access
+                </Link>
+                ). College Admin approves once; you then edit all vacant GEC rows from the hub, not per slot.
               </li>
               <li>
-                After approval, use <strong>Vacant GEC slots</strong> — only <strong>vacant</strong> cells are editable;
-                occupied slots and other programs&apos; schedules stay read-only.
+                Use <strong>INS Form</strong> for faculty / section / room views; vacant GEC times are outlined in orange.
               </li>
             </ol>
             <p className="text-xs text-black/50 mt-4 flex items-start gap-2">
@@ -47,14 +50,14 @@ export default async function GecChairmanDashboardPage() {
                 className="flex items-center gap-2 rounded-lg border border-black/10 px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/50"
               >
                 <KeyRound className="w-4 h-4 text-[var(--color-opticore-orange)]" />
-                Request approval for vacant slots
+                Request Approval to Edit Vacant GEC Slots
               </Link>
               <Link
-                href="/admin/gec/vacant-slots"
+                href="/admin/gec/ins/faculty"
                 className="flex items-center gap-2 rounded-lg border border-black/10 px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/50"
               >
-                <CalendarPlus className="w-4 h-4 text-[var(--color-opticore-orange)]" />
-                Vacant GEC slots
+                <BookOpen className="w-4 h-4 text-[var(--color-opticore-orange)]" />
+                INS Form (Schedule View)
               </Link>
               <Link
                 href="/admin/gec/inbox"

@@ -6,6 +6,10 @@ export type EvaluatorScheduleOverviewTableProps = {
   showCollegeColumn?: boolean;
   /** Row ids with resource/time conflicts (from “Run full conflict check”). */
   highlightRowIds?: Set<string>;
+  /** GEC Central Hub: rows that are vacant GEC/GEE placeholders (editable when approved). */
+  vacantGecRowIds?: Set<string>;
+  /** When true, non-`vacantGecRowIds` rows render muted to emphasize locked major schedules. */
+  dimNonVacantRows?: boolean;
 };
 
 /**
@@ -15,6 +19,8 @@ export function EvaluatorScheduleOverviewTable({
   rows,
   showCollegeColumn,
   highlightRowIds,
+  vacantGecRowIds,
+  dimNonVacantRows,
 }: EvaluatorScheduleOverviewTableProps) {
   const headers = showCollegeColumn
     ? [
@@ -29,6 +35,7 @@ export function EvaluatorScheduleOverviewTable({
         "Day",
         "Faculty Conflict",
         "Section Conflict",
+        "Room Conflict",
       ]
     : [
         "Major",
@@ -41,9 +48,10 @@ export function EvaluatorScheduleOverviewTable({
         "Day",
         "Faculty Conflict",
         "Section Conflict",
+        "Room Conflict",
       ];
 
-  const colSpan = showCollegeColumn ? 11 : 10;
+  const colSpan = showCollegeColumn ? 12 : 11;
 
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
@@ -71,11 +79,15 @@ export function EvaluatorScheduleOverviewTable({
             ) : (
               rows.map((row, i) => {
                 const conflictRow = highlightRowIds?.has(row.id);
+                const isVacantGec = vacantGecRowIds?.has(row.id) ?? false;
+                const dimLocked = Boolean(dimNonVacantRows && vacantGecRowIds && !isVacantGec);
                 return (
                 <tr
                   key={row.id}
                   className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"} ${
                     conflictRow ? "bg-red-100 ring-2 ring-inset ring-red-400/80" : ""
+                  } ${isVacantGec ? "border-l-[5px] border-l-[#FF990A] bg-amber-50/40" : ""} ${
+                    dimLocked ? "opacity-[0.52]" : ""
                   }`}
                 >
                   {showCollegeColumn ? (
@@ -93,6 +105,7 @@ export function EvaluatorScheduleOverviewTable({
                   <td className="border border-black/10 px-2 py-2">{row.day}</td>
                   <td className="border border-black/10 px-2 py-2 text-red-700">{row.facultyConflict}</td>
                   <td className="border border-black/10 px-2 py-2 text-red-700">{row.sectionConflict}</td>
+                  <td className="border border-black/10 px-2 py-2 text-red-700">{row.roomConflict}</td>
                 </tr>
                 );
               })
