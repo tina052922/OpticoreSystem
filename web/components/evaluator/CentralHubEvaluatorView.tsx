@@ -12,7 +12,8 @@ import {
   hubCollegeBySlug,
   hubSlugForCollegeId,
 } from "@/lib/evaluator-central-hub";
-import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
+import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
+import { buildConflictGridHints, type CampusConflictScanApiPayload } from "@/lib/scheduling/conflict-enrichment";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import type { AcademicPeriod, College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
@@ -21,48 +22,10 @@ import {
   clearPendingCentralHubBundle,
   readPendingCentralHubBundle,
 } from "@/lib/workflow-schedule-bundle";
-
-function HubEvaluatorTabs({
-  basePath,
-  collegeSlug,
-  panel,
-}: {
-  basePath: string;
-  collegeSlug: string | null;
-  panel: "timetabling" | "hrs";
-}) {
-  const isLanding = !collegeSlug;
-  const collegesActive = isLanding;
-  const timetablingActive = !isLanding && panel === "timetabling";
-  const hrsActive = !isLanding && panel === "hrs";
-
-  const timetablingHref = isLanding
-    ? `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}`
-    : `${basePath}?college=${encodeURIComponent(collegeSlug!)}`;
-
-  const hrsHref = isLanding
-    ? `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}&panel=hrs`
-    : `${basePath}?college=${encodeURIComponent(collegeSlug!)}&panel=hrs`;
-
-  const tabClass = (active: boolean) =>
-    `px-6 py-3 font-medium transition-colors rounded-t-lg ${
-      active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
-    }`;
-
-  return (
-    <div className="flex gap-2 border-b border-gray-200 mb-6 flex-wrap">
-      <Link href={basePath} className={tabClass(collegesActive)}>
-        Colleges
-      </Link>
-      <Link href={timetablingHref} className={tabClass(timetablingActive)}>
-        Timetabling & Optimization
-      </Link>
-      <Link href={hrsHref} className={tabClass(hrsActive)}>
-        Hrs-Units-Preps-Remarks
-      </Link>
-    </div>
-  );
-}
+import { HubEvaluatorTabs } from "@/components/evaluator/HubEvaluatorTabs";
+import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
+import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
+import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEntryQuickEditDialog";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -78,62 +41,14 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
   };
 }
 
-type LoadRow = {
-  faculty: string;
-  hours: number;
-  preps: number;
-  units: number;
-  designation: string;
-  status: string;
-  rate: number;
-  remark: "Underloaded" | "Maximum" | "Overloaded";
-};
-
-const sampleLoadRows: LoadRow[] = [
-  {
-    faculty: "Juan Dela Cruz",
-    hours: 10,
-    preps: 3,
-    units: 15,
-    designation: "Instructor I",
-    status: "Organic",
-    rate: 250,
-    remark: "Underloaded",
-  },
-  {
-    faculty: "Ana Reyes",
-    hours: 18,
-    preps: 6,
-    units: 24,
-    designation: "Instructor (PT)",
-    status: "Part-Time",
-    rate: 200,
-    remark: "Maximum",
-  },
-  {
-    faculty: "Dr. Maria Santos",
-    hours: 22,
-    preps: 7,
-    units: 30,
-    designation: "Chair / Instructor",
-    status: "Permanent",
-    rate: 300,
-    remark: "Overloaded",
-  },
-];
-
-function remarkClass(r: LoadRow["remark"]) {
-  if (r === "Underloaded") return "bg-green-100 text-green-900";
-  if (r === "Maximum") return "bg-yellow-100 text-yellow-900";
-  return "bg-red-100 text-red-900";
-}
-
 export type CentralHubEvaluatorViewProps = {
   /** e.g. `/admin/college/evaluator` — used for hub tile links and back link */
   basePath: string;
+  /** DOI Central Hub: campus-wide conflict scan + VPAA approval of the master schedule (all entries including GEC). */
+  showDoiGovernance?: boolean;
 };
 
-export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewProps) {
+export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }: CentralHubEvaluatorViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const collegeSlug = searchParams.get("college");
@@ -157,6 +72,11 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
   const [altOpen, setAltOpen] = useState(false);
   const [altSuggestions, setAltSuggestions] = useState<GASuggestion[]>([]);
   const [altBusy, setAltBusy] = useState(false);
+
+  const [campusConflictScan, setCampusConflictScan] = useState<CampusConflictScanApiPayload | null>(null);
+  const [focusEntryId, setFocusEntryId] = useState<string | null>(null);
+  const [editEntryId, setEditEntryId] = useState<string | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
 
   const lastAppliedBundleAtRef = useRef<string | null>(null);
   const [hubBundleNotice, setHubBundleNotice] = useState<string | null>(null);
@@ -268,6 +188,17 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
     if (cur) setAcademicPeriodId(cur.id);
   }, [periods, academicPeriodId]);
 
+  useEffect(() => {
+    setCampusConflictScan(null);
+    setFocusEntryId(null);
+  }, [academicPeriodId]);
+
+  useEffect(() => {
+    if (!focusEntryId) return;
+    const el = document.getElementById(`central-eval-row-${focusEntryId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusEntryId]);
+
   /** null = all colleges (campus-wide); string = one college in DB */
   const scopeCollegeId = isCampusWide ? null : hub?.collegeId ?? null;
 
@@ -307,6 +238,69 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
   }, [programs]);
 
   const universe = useMemo(() => entries.map(toBlock), [entries]);
+
+  const suggestAlternativesForEntry = useCallback(
+    (entryId: string) => {
+      const entry = entries.find((e) => e.id === entryId);
+      if (!entry || entry.academicPeriodId !== academicPeriodId) return [];
+      const sec = sectionById.get(entry.sectionId);
+      const pr = sec ? programById.get(sec.programId) : null;
+      const cid = pr?.collegeId;
+      if (!cid) return [];
+      const roomIds = rooms.filter((r) => !r.collegeId || r.collegeId === cid).map((r) => r.id);
+      const instructorIds = users
+        .filter((u) => u.collegeId === cid && (u.role === "instructor" || u.role === "chairman_admin"))
+        .map((u) => u.id);
+      if (roomIds.length === 0 || instructorIds.length === 0) return [];
+      return runRuleBasedGeneticAlgorithm({
+        universe,
+        sectionId: entry.sectionId,
+        subjectId: entry.subjectId,
+        academicPeriodId: entry.academicPeriodId,
+        excludeEntryId: entry.id,
+        roomIds,
+        instructorIds,
+        generations: 40,
+        populationSize: 56,
+      });
+    },
+    [entries, academicPeriodId, sectionById, programById, rooms, users, universe],
+  );
+
+  const campusConflictHighlightIds = useMemo(() => {
+    if (!campusConflictScan || campusConflictScan.entryCount === 0) return undefined;
+    return new Set(campusConflictScan.conflictingEntryIds);
+  }, [campusConflictScan]);
+
+  const conflictDetailsByRowId = useMemo(() => {
+    if (!campusConflictScan?.enrichedIssues?.length) return undefined;
+    return buildConflictGridHints(campusConflictScan.enrichedIssues);
+  }, [campusConflictScan]);
+
+  const editEntry = useMemo(
+    () => (editEntryId ? entries.find((e) => e.id === editEntryId) ?? null : null),
+    [editEntryId, entries],
+  );
+
+  const editCollegeId = useMemo(() => {
+    if (!editEntry) return null;
+    const sec = sectionById.get(editEntry.sectionId);
+    const pr = sec ? programById.get(sec.programId) : null;
+    return pr?.collegeId ?? null;
+  }, [editEntry, sectionById, programById]);
+
+  const roomsForEdit = useMemo(() => {
+    if (!editCollegeId) return rooms;
+    return rooms.filter((r) => !r.collegeId || r.collegeId === editCollegeId);
+  }, [rooms, editCollegeId]);
+
+  const instructorsForEdit = useMemo(() => {
+    if (!editCollegeId) return users.filter((u) => u.role === "instructor" || u.role === "chairman_admin");
+    return users.filter(
+      (u) =>
+        u.collegeId === editCollegeId && (u.role === "instructor" || u.role === "chairman_admin"),
+    );
+  }, [users, editCollegeId]);
 
   const collegeNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -513,6 +507,52 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
 
         {panel === "timetabling" ? (
           <>
+            {showDoiGovernance ? (
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-[13px] text-gray-900">
+                <strong className="text-gray-950">View campus-wide schedule (including GEC subjects):</strong> set{" "}
+                <em>College</em> to <strong>All colleges (campus-wide)</strong> in the dropdown below. The grid lists
+                every <code className="text-xs bg-white/80 px-1 rounded">ScheduleEntry</code> for the selected term
+                across programs. Use the VPAA panel to run a full conflict scan and approve the entire schedule for the
+                term.
+              </div>
+            ) : null}
+
+            {showDoiGovernance && academicPeriodId ? (
+              <DoiInsFormalApprovalPanel
+                periodId={academicPeriodId}
+                periods={periods}
+                onPeriodIdChange={setAcademicPeriodId}
+                reloadCatalog={() => void load()}
+                onConflictScanComplete={setCampusConflictScan}
+                gridIntegration={{
+                  onFocusEntry: (id) => setFocusEntryId(id),
+                  suggestAlternativesForEntry,
+                  applySchedulePatch: async (id, patch) => {
+                    const supabase = createSupabaseBrowserClient();
+                    if (!supabase) throw new Error("Supabase not configured");
+                    const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", id);
+                    if (error) throw new Error(error.message);
+                    setCampusConflictScan(null);
+                    setFocusEntryId(null);
+                    await load();
+                  },
+                  formatGaSuggestion: (s, anchorEntryId) => {
+                    const e = entries.find((x) => x.id === anchorEntryId);
+                    const sec = e ? sectionById.get(e.sectionId) : undefined;
+                    const sub = e ? subjectById.get(e.subjectId) : undefined;
+                    const room = roomById.get(s.roomId);
+                    const fac = userById.get(s.instructorId);
+                    return {
+                      what: `${sub?.code ?? "—"} · ${sec?.name ?? "—"}`,
+                      when: `${s.day} ${formatTimeRange(s.startTime, s.endTime)}`,
+                      where: room?.code ?? s.roomId,
+                      who: fac?.name ?? "—",
+                    };
+                  },
+                }}
+              />
+            ) : null}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
               <label className="block min-w-[200px]">
                 <span className="text-[13px] font-semibold text-black/70">College</span>
@@ -559,20 +599,22 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
 
             <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
               <div className="flex flex-wrap gap-3 items-center">
-                <label className="text-[13px] font-semibold text-black/70">
-                  Term
-                  <select
-                    className="ml-2 h-11 rounded-lg border border-black/25 bg-white px-3 text-sm"
-                    value={academicPeriodId}
-                    onChange={(e) => setAcademicPeriodId(e.target.value)}
-                  >
-                    {periods.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {!showDoiGovernance ? (
+                  <label className="text-[13px] font-semibold text-black/70">
+                    Term
+                    <select
+                      className="ml-2 h-11 rounded-lg border border-black/25 bg-white px-3 text-sm"
+                      value={academicPeriodId}
+                      onChange={(e) => setAcademicPeriodId(e.target.value)}
+                    >
+                      {periods.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
                 <Button
                   type="button"
                   className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
@@ -589,8 +631,53 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
             ) : loading ? (
               <div className="text-sm text-black/60 py-8">Loading schedule…</div>
             ) : (
-              <EvaluatorScheduleOverviewTable rows={tableRows} showCollegeColumn={isCampusWide} />
+              <>
+                {showDoiGovernance ? (
+                  <p className="text-[12px] text-black/60 mb-2">
+                    After a campus-wide scan, conflicting rows are highlighted in red; use &quot;Show row in grid&quot;
+                    from the VPAA panel to focus a row (blue ring). Click any row to edit day, time, room, or instructor.
+                  </p>
+                ) : null}
+                <EvaluatorScheduleOverviewTable
+                  rows={tableRows}
+                  showCollegeColumn={isCampusWide}
+                  highlightRowIds={showDoiGovernance ? campusConflictHighlightIds : undefined}
+                  focusRowId={showDoiGovernance ? focusEntryId : null}
+                  conflictDetailsByRowId={showDoiGovernance ? conflictDetailsByRowId : undefined}
+                  rowDomIdPrefix="central-eval-row"
+                  onRowClick={showDoiGovernance ? (id) => setEditEntryId(id) : undefined}
+                />
+              </>
             )}
+
+            {showDoiGovernance ? (
+              <DoiScheduleEntryQuickEditDialog
+                open={Boolean(editEntryId)}
+                onOpenChange={(o) => {
+                  if (!o) setEditEntryId(null);
+                }}
+                entry={editEntry}
+                rooms={roomsForEdit}
+                instructors={instructorsForEdit}
+                busy={editBusy}
+                onSave={async (patch) => {
+                  if (!editEntryId) return;
+                  setEditBusy(true);
+                  try {
+                    const supabase = createSupabaseBrowserClient();
+                    if (!supabase) throw new Error("Supabase not configured");
+                    const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", editEntryId);
+                    if (error) throw new Error(error.message);
+                    setEditEntryId(null);
+                    setCampusConflictScan(null);
+                    setFocusEntryId(null);
+                    await load();
+                  } finally {
+                    setEditBusy(false);
+                  }
+                }}
+              />
+            ) : null}
 
             {altOpen ? (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
@@ -625,44 +712,7 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
             ) : null}
           </>
         ) : panel === "hrs" ? (
-          <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
-            <div className="p-4 border-b border-black/10">
-              <div className="text-[16px] font-semibold">Hrs · Units · Preps · Remarks</div>
-              <div className="text-[12px] text-black/60 mt-1">Institutional load policy summary (sample rows).</div>
-            </div>
-            <div className="overflow-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-[#ff990a] text-white text-[11px]">
-                    <th className="border border-black/10 px-2 py-2 text-left">Faculty Name</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Hours/Week</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Preps</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Units</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Designation</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Status</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Rate per Hour</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Remarks</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sampleLoadRows.map((r) => (
-                    <tr key={r.faculty} className="text-[11px]">
-                      <td className="border border-black/10 px-2 py-2 font-semibold">{r.faculty}</td>
-                      <td className="border border-black/10 px-2 py-2">{r.hours}</td>
-                      <td className="border border-black/10 px-2 py-2">{r.preps}</td>
-                      <td className="border border-black/10 px-2 py-2">{r.units}</td>
-                      <td className="border border-black/10 px-2 py-2">{r.designation}</td>
-                      <td className="border border-black/10 px-2 py-2">{r.status}</td>
-                      <td className="border border-black/10 px-2 py-2">₱{r.rate}</td>
-                      <td className="border border-black/10 px-2 py-2">
-                        <span className={`px-2 py-1 rounded-md font-semibold ${remarkClass(r.remark)}`}>{r.remark}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <HrsUnitsPrepsRemarksTable />
         ) : null}
       </div>
     </div>

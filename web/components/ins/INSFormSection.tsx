@@ -16,9 +16,11 @@ import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
+import { buildInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
 import { buildInsSectionView, emptyInsSectionSchedule } from "@/lib/ins/build-ins-section-view";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
+import { InsEntityGroupingStrip } from "@/components/ins/InsEntityGroupingStrip";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -106,6 +108,29 @@ export function INSFormSection({
   const displaySchedule = schedule;
   const displayCourses = courses;
   const displayAssignment = useLiveData ? selectedSectionName : "BSIT 2A (demo)";
+
+  const insSignatureSlots = useMemo(() => {
+    if (!useLiveData || !selectedSectionId) return null;
+    const sec = catalog.sectionById.get(selectedSectionId);
+    const pr = sec ? catalog.programById.get(sec.programId) : null;
+    const collegeRow = pr ? catalog.colleges.find((c) => c.id === pr.collegeId) ?? null : null;
+    return buildInsSignatureSlots({
+      college: collegeRow,
+      programId: sec?.programId ?? null,
+      users: catalog.users,
+      userById: catalog.userById,
+      scheduleApproved: catalog.termPublishLocked,
+    });
+  }, [
+    useLiveData,
+    selectedSectionId,
+    catalog.sectionById,
+    catalog.programById,
+    catalog.colleges,
+    catalog.users,
+    catalog.userById,
+    catalog.termPublishLocked,
+  ]);
 
   async function onShare() {
     try {
@@ -220,6 +245,15 @@ export function INSFormSection({
           })}
         </div>
 
+        {useLiveData && insBasePath ? (
+          <InsEntityGroupingStrip
+            insBasePath={insBasePath}
+            facultyCount={catalog.instructorOptions.length}
+            sectionCount={catalog.sectionOptions.length}
+            roomCount={catalog.roomOptions.length}
+          />
+        ) : null}
+
         {useLiveData && catalog.error ? (
           <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{catalog.error}</p>
         ) : null}
@@ -309,6 +343,10 @@ export function INSFormSection({
             assignment=""
             schedule={displaySchedule}
             courses={displayCourses}
+            readOnly={useLiveData && catalog.termPublishLocked}
+            semesterLabel={catalog.periodLabel}
+            scheduleApproved={useLiveData && catalog.termPublishLocked}
+            insSignatureSlots={useLiveData ? insSignatureSlots : null}
           />
         </div>
       </div>

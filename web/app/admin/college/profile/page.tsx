@@ -1,5 +1,6 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { AdminProfileCard } from "@/components/admin/AdminProfileCard";
+import { ProfileSignatureSectionGate } from "@/components/profile/ProfileSignatureSectionGate";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
 import { collegeDisplayName } from "@/lib/college-labels";
 import { adminRoleLabel } from "@/lib/role-labels";
@@ -19,6 +20,7 @@ export default async function CollegeAdminProfilePage() {
           email={profile.email}
           subheading={`${adminRoleLabel(profile.role)} • ${collegeDisplayName(profile.collegeId)}`}
         />
+        <ProfileSignatureSectionGate role={profile.role} initialSignatureUrl={profile.signatureImageUrl} />
       </div>
     </div>
   );

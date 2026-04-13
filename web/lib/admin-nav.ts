@@ -60,13 +60,16 @@ export const CAS_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
-/** GEC Chairman: Central Hub + campus-wide INS (5A–5C); one-time vacant-slot approval CTA is on the evaluator landing + gate. */
+/**
+ * GEC Chairman — same shell as College Admin: Campus Intelligence + INS (faculty / section / room) + Central Hub.
+ * INS pages reuse `INSForm*` with `campusWide` (all colleges); vacant GEC cells are highlighted in the grids.
+ */
 export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
-  { label: "Dashboard", href: "/admin/gec", icon: "LayoutDashboard" },
+  { label: "Campus Intelligence", href: "/admin/gec", icon: "LayoutDashboard" },
+  { label: "INS Form (Schedule View)", href: "/admin/gec/ins/faculty", icon: "BookOpen" },
+  { label: "INS Form — Section", href: "/admin/gec/ins/section", icon: "Layers" },
+  { label: "INS Form — Room", href: "/admin/gec/ins/room", icon: "CalendarPlus" },
   { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
-  { label: "INS · Faculty (5A)", href: "/admin/gec/ins/faculty", icon: "BookOpen" },
-  { label: "INS · Section (5B)", href: "/admin/gec/ins/section", icon: "Layers" },
-  { label: "INS · Room (5C)", href: "/admin/gec/ins/room", icon: "CalendarPlus" },
   { label: "Inbox", href: "/admin/gec/inbox", icon: "Inbox" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];

@@ -18,6 +18,7 @@ import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocume
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
+import { InsEntityGroupingStrip } from "@/components/ins/InsEntityGroupingStrip";
 import type { AcademicPeriod } from "@/types/db";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
@@ -215,6 +216,15 @@ export function INSFormFaculty({
           })}
         </div>
 
+        {useLiveData && !lockedInstructorId && insBasePath ? (
+          <InsEntityGroupingStrip
+            insBasePath={insBasePath}
+            facultyCount={live.instructorOptions.length}
+            sectionCount={live.sectionOptions.length}
+            roomCount={live.roomOptions.length}
+          />
+        ) : null}
+
         {useLiveData && live.error ? (
           <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{live.error}</p>
         ) : null}
@@ -312,7 +322,16 @@ export function INSFormFaculty({
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8 print-paper print:shadow-none">
-          <OpticoreInsForm5A facultyName={displayFacultyName} schedule={displaySchedule} courses={displayCourses} />
+          <OpticoreInsForm5A
+            facultyName={displayFacultyName}
+            schedule={displaySchedule}
+            courses={displayCourses}
+            readOnly={Boolean(useLiveData && live.termPublishLocked)}
+            semesterLabel={useLiveData ? live.periodLabel : undefined}
+            scheduleApproved={Boolean(useLiveData && live.termPublishLocked)}
+            insSignatureSlots={useLiveData ? live.insSignatureSlots : null}
+            facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
+          />
         </div>
       </div>
     </div>

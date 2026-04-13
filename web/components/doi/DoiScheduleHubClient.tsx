@@ -60,9 +60,10 @@ export function DoiScheduleHubClient() {
   }, []);
 
   const loadFinalization = useCallback(async () => {
-    if (!periodId) return;
+    const id = periodId.trim();
+    if (!id) return;
     try {
-      const res = await fetch(`/api/doi/schedule-finalization?periodId=${encodeURIComponent(periodId)}`, {
+      const res = await fetch(`/api/doi/schedule-finalization?periodId=${encodeURIComponent(id)}`, {
         credentials: "include",
       });
       const data = (await res.json()) as { finalization?: DoiScheduleFinalization | null };

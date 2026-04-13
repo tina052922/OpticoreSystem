@@ -2,14 +2,34 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { AcademicPeriod, DoiScheduleFinalization } from "@/types/db";
+import type { CampusConflictScanApiPayload } from "@/lib/scheduling/conflict-enrichment";
+import type { GASuggestion } from "@/lib/scheduling/types";
+import type { AcademicPeriod, DoiScheduleFinalization, ScheduleEntry } from "@/types/db";
 
 type ConflictPayload = {
   entryCount?: number;
   conflictingEntryIds?: string[];
   issueSummaries?: string[];
   issues?: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
+  enrichedIssues?: CampusConflictScanApiPayload["enrichedIssues"];
   error?: string;
+};
+
+/** Optional: Central Hub connects conflict list to the orange grid + GA suggestions + direct edits. */
+export type DoiConflictGridIntegration = {
+  onFocusEntry?: (entryId: string) => void;
+  suggestAlternativesForEntry?: (entryId: string) => GASuggestion[];
+  applySchedulePatch?: (
+    entryId: string,
+    patch: Partial<Pick<ScheduleEntry, "day" | "startTime" | "endTime" | "roomId" | "instructorId">>,
+  ) => Promise<void>;
+  /** Turn a GA gene into labeled What / When / Where / Who for display. */
+  formatGaSuggestion?: (suggestion: GASuggestion, anchorEntryId: string) => {
+    what: string;
+    when: string;
+    where: string;
+    who: string;
+  };
 };
 
 export type DoiInsFormalApprovalPanelProps = {
@@ -19,6 +39,10 @@ export type DoiInsFormalApprovalPanelProps = {
   onPeriodIdChange: (id: string) => void;
   /** After successful publish, refresh INS data (locks + banners) without waiting on Realtime. */
   reloadCatalog?: () => void | Promise<void>;
+  /** When set (Central Hub), conflict scan wires focus + suggestions into the evaluator grid. */
+  gridIntegration?: DoiConflictGridIntegration;
+  /** Called after a successful campus-wide scan (for grid highlights + hints). */
+  onConflictScanComplete?: (payload: CampusConflictScanApiPayload) => void;
 };
 
 /**
@@ -30,10 +54,16 @@ export function DoiInsFormalApprovalPanel({
   periods,
   onPeriodIdChange,
   reloadCatalog,
+  gridIntegration,
+  onConflictScanComplete,
 }: DoiInsFormalApprovalPanelProps) {
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflict, setConflict] = useState<ConflictPayload | null>(null);
   const [conflictError, setConflictError] = useState<string | null>(null);
+  const [gaOpen, setGaOpen] = useState(false);
+  const [gaEntryId, setGaEntryId] = useState<string | null>(null);
+  const [gaList, setGaList] = useState<GASuggestion[]>([]);
+  const [gaApplyBusy, setGaApplyBusy] = useState(false);
 
   const [finalization, setFinalization] = useState<DoiScheduleFinalization | null>(null);
   const [signedByName, setSignedByName] = useState("");
@@ -43,9 +73,10 @@ export function DoiInsFormalApprovalPanel({
   const [decisionError, setDecisionError] = useState<string | null>(null);
 
   const loadFinalization = useCallback(async () => {
-    if (!periodId) return;
+    const id = periodId.trim();
+    if (!id) return;
     try {
-      const res = await fetch(`/api/doi/schedule-finalization?periodId=${encodeURIComponent(periodId)}`, {
+      const res = await fetch(`/api/doi/schedule-finalization?periodId=${encodeURIComponent(id)}`, {
         credentials: "include",
       });
       const data = (await res.json()) as { finalization?: DoiScheduleFinalization | null };
@@ -71,6 +102,13 @@ export function DoiInsFormalApprovalPanel({
       const data = (await res.json()) as ConflictPayload;
       if (!res.ok) throw new Error(data.error || "Check failed");
       setConflict(data);
+      if (
+        typeof data.entryCount === "number" &&
+        Array.isArray(data.conflictingEntryIds) &&
+        Array.isArray(data.enrichedIssues)
+      ) {
+        onConflictScanComplete?.(data as CampusConflictScanApiPayload);
+      }
     } catch (e) {
       setConflictError(e instanceof Error ? e.message : "Check failed");
     } finally {
@@ -174,16 +212,116 @@ export function DoiInsFormalApprovalPanel({
                 : "Remaining conflicts — review details before approving (room, faculty, and section overlaps)."}
             </p>
             <p className="text-gray-700 mt-1">Schedule rows scanned: {conflict.entryCount ?? 0}</p>
-            {!noProblemsAcrossCampus && conflict.issueSummaries && conflict.issueSummaries.length > 0 ? (
+            {!noProblemsAcrossCampus && conflict.enrichedIssues && conflict.enrichedIssues.length > 0 ? (
+              <ul className="mt-3 space-y-3 text-gray-900">
+                {conflict.enrichedIssues.map((iss) => (
+                  <li
+                    key={iss.key}
+                    className="rounded-lg border border-amber-300/80 bg-white/90 px-3 py-3 text-[13px] leading-snug shadow-sm"
+                  >
+                    <p className="font-semibold text-gray-950">{iss.rootCause}</p>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
+                      <div className="rounded border border-gray-200 bg-gray-50/80 p-2">
+                        <p className="font-bold text-gray-800 mb-1">Row A</p>
+                        <p>
+                          <span className="text-gray-500">What:</span> {iss.rowA.what}
+                        </p>
+                        <p>
+                          <span className="text-gray-500">When:</span> {iss.rowA.when}
+                        </p>
+                        <p>
+                          <span className="text-gray-500">Where:</span> {iss.rowA.where}
+                        </p>
+                        <p>
+                          <span className="text-gray-500">Who:</span> {iss.rowA.who}
+                        </p>
+                      </div>
+                      <div className="rounded border border-gray-200 bg-gray-50/80 p-2">
+                        <p className="font-bold text-gray-800 mb-1">Row B</p>
+                        <p>
+                          <span className="text-gray-500">What:</span> {iss.rowB.what}
+                        </p>
+                        <p>
+                          <span className="text-gray-500">When:</span> {iss.rowB.when}
+                        </p>
+                        <p>
+                          <span className="text-gray-500">Where:</span> {iss.rowB.where}
+                        </p>
+                        <p>
+                          <span className="text-gray-500">Who:</span> {iss.rowB.who}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {gridIntegration?.onFocusEntry ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-[12px] h-8"
+                            onClick={() => gridIntegration.onFocusEntry?.(iss.rowA.entryId)}
+                          >
+                            Show row A in grid
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-[12px] h-8"
+                            onClick={() => gridIntegration.onFocusEntry?.(iss.rowB.entryId)}
+                          >
+                            Show row B in grid
+                          </Button>
+                        </>
+                      ) : null}
+                      {gridIntegration?.suggestAlternativesForEntry && gridIntegration.applySchedulePatch ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="text-[12px] h-8 bg-[#ff990a] hover:bg-[#e88909] text-white"
+                            onClick={() => {
+                              const id = iss.rowA.entryId;
+                              setGaEntryId(id);
+                              setGaList(gridIntegration.suggestAlternativesForEntry!(id));
+                              setGaOpen(true);
+                            }}
+                          >
+                            Suggest fix (row A)
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="text-[12px] h-8 bg-[#ff990a] hover:bg-[#e88909] text-white"
+                            onClick={() => {
+                              const id = iss.rowB.entryId;
+                              setGaEntryId(id);
+                              setGaList(gridIntegration.suggestAlternativesForEntry!(id));
+                              setGaOpen(true);
+                            }}
+                          >
+                            Suggest fix (row B)
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : !noProblemsAcrossCampus && conflict.issueSummaries && conflict.issueSummaries.length > 0 ? (
               <ul className="mt-2 list-disc pl-5 text-gray-800 space-y-1">
                 {conflict.issueSummaries.map((s) => (
                   <li key={s}>{s}</li>
                 ))}
               </ul>
             ) : null}
-            {!noProblemsAcrossCampus && conflict.issues && conflict.issues.length > 0 ? (
+            {!noProblemsAcrossCampus &&
+            (!conflict.enrichedIssues || conflict.enrichedIssues.length === 0) &&
+            conflict.issues &&
+            conflict.issues.length > 0 ? (
               <details className="mt-2 text-xs text-gray-700">
-                <summary className="cursor-pointer font-medium">Detailed issues ({conflict.issues.length})</summary>
+                <summary className="cursor-pointer font-medium">Raw pairwise issues ({conflict.issues.length})</summary>
                 <ul className="mt-1 space-y-0.5 pl-2 max-h-40 overflow-y-auto">
                   {conflict.issues.slice(0, 40).map((i, idx) => (
                     <li key={`${i.entryId}-${idx}`}>
@@ -193,6 +331,84 @@ export function DoiInsFormalApprovalPanel({
                 </ul>
               </details>
             ) : null}
+          </div>
+        ) : null}
+
+        {gaOpen && gaEntryId ? (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/45 p-4">
+            <div
+              className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl border border-black/10 max-h-[90vh] overflow-y-auto"
+              role="dialog"
+              aria-modal="true"
+            >
+              <h3 className="text-base font-bold text-gray-900 mb-1">Alternative slots (rule-based search)</h3>
+              <p className="text-xs text-gray-600 mb-3">
+                Each option lists What · When · Where · Who. Applying updates that schedule row in the database.
+              </p>
+              {gaList.length === 0 ? (
+                <p className="text-sm text-gray-600">No conflict-free alternatives found in the search space.</p>
+              ) : (
+                <ul className="space-y-3 text-sm">
+                  {gaList.map((s, idx) => {
+                    const fmt = gridIntegration?.formatGaSuggestion?.(s, gaEntryId);
+                    return (
+                      <li key={idx} className="border border-gray-200 rounded-lg p-3 bg-gray-50/80">
+                        {fmt ? (
+                          <div className="space-y-1 text-[13px]">
+                            <p>
+                              <span className="font-semibold text-gray-700">What:</span> {fmt.what}
+                            </p>
+                            <p>
+                              <span className="font-semibold text-gray-700">When:</span> {fmt.when}
+                            </p>
+                            <p>
+                              <span className="font-semibold text-gray-700">Where:</span> {fmt.where}
+                            </p>
+                            <p>
+                              <span className="font-semibold text-gray-700">Who:</span> {fmt.who}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-[13px]">{s.label}</p>
+                        )}
+                        {gridIntegration?.applySchedulePatch ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="mt-2 bg-[#780301] hover:bg-[#5a0201] text-white"
+                            disabled={gaApplyBusy}
+                            onClick={async () => {
+                              if (!gaEntryId) return;
+                              setGaApplyBusy(true);
+                              try {
+                                await gridIntegration.applySchedulePatch!(gaEntryId, {
+                                  day: s.day,
+                                  startTime: s.startTime,
+                                  endTime: s.endTime,
+                                  roomId: s.roomId,
+                                  instructorId: s.instructorId,
+                                });
+                                await reloadCatalog?.();
+                                setGaOpen(false);
+                              } finally {
+                                setGaApplyBusy(false);
+                              }
+                            }}
+                          >
+                            Apply this option
+                          </Button>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <div className="flex justify-end mt-4">
+                <Button type="button" variant="outline" onClick={() => setGaOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
           </div>
         ) : null}
 

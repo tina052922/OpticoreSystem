@@ -24,6 +24,10 @@ export interface College {
   id: string;
   code: string;
   name: string;
+  /** Optional INS signer (Campus Director line). */
+  campusDirectorUserId?: string | null;
+  /** Optional INS signer (Contract line). */
+  contractSignerUserId?: string | null;
 }
 
 export interface Program {
@@ -50,6 +54,8 @@ export interface User {
   collegeId: string | null;
   /** Set for chairman_admin: the one program they manage. */
   chairmanProgramId?: string | null;
+  /** Public URL for INS / formal forms (uploaded in Profile). */
+  signatureImageUrl?: string | null;
   createdAt: string; // timestamptz
   updatedAt: string; // timestamptz
 }

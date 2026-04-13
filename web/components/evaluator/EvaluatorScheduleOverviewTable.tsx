@@ -6,6 +6,16 @@ export type EvaluatorScheduleOverviewTableProps = {
   showCollegeColumn?: boolean;
   /** Row ids with resource/time conflicts (from “Run full conflict check”). */
   highlightRowIds?: Set<string>;
+  /** Strong focus ring + scroll target after “Show row in grid” from VPAA conflict list. */
+  focusRowId?: string | null;
+  /** Optional click handler (e.g. DOI opens quick-edit for that ScheduleEntry row). */
+  onRowClick?: (rowId: string) => void;
+  /**
+   * Per-row hints for conflict columns (replaces generic “Yes”) after a campus-wide enriched scan.
+   */
+  conflictDetailsByRowId?: Map<string, { faculty?: string; section?: string; room?: string }>;
+  /** Prefix for `id` on each `<tr>` (scrollIntoView from conflict tools). */
+  rowDomIdPrefix?: string;
   /** GEC Central Hub: rows that are vacant GEC/GEE placeholders (editable when approved). */
   vacantGecRowIds?: Set<string>;
   /** When true, non-`vacantGecRowIds` rows render muted to emphasize locked major schedules. */
@@ -19,6 +29,10 @@ export function EvaluatorScheduleOverviewTable({
   rows,
   showCollegeColumn,
   highlightRowIds,
+  focusRowId,
+  onRowClick,
+  conflictDetailsByRowId,
+  rowDomIdPrefix = "eval-sched-row",
   vacantGecRowIds,
   dimNonVacantRows,
 }: EvaluatorScheduleOverviewTableProps) {
@@ -79,16 +93,35 @@ export function EvaluatorScheduleOverviewTable({
             ) : (
               rows.map((row, i) => {
                 const conflictRow = highlightRowIds?.has(row.id);
+                const focused = focusRowId === row.id;
                 const isVacantGec = vacantGecRowIds?.has(row.id) ?? false;
                 const dimLocked = Boolean(dimNonVacantRows && vacantGecRowIds && !isVacantGec);
+                const det = conflictDetailsByRowId?.get(row.id);
+                const facCell = det?.faculty ?? row.facultyConflict;
+                const secCell = det?.section ?? row.sectionConflict;
+                const roomCell = det?.room ?? row.roomConflict;
+                const rowRing = focused
+                  ? "ring-2 ring-inset ring-blue-600 z-[1] relative bg-blue-50/90"
+                  : conflictRow
+                    ? "bg-red-100 ring-2 ring-inset ring-red-400/80"
+                    : "";
                 return (
                 <tr
                   key={row.id}
-                  className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"} ${
-                    conflictRow ? "bg-red-100 ring-2 ring-inset ring-red-400/80" : ""
-                  } ${isVacantGec ? "border-l-[5px] border-l-[#FF990A] bg-amber-50/40" : ""} ${
+                  id={`${rowDomIdPrefix}-${row.id}`}
+                  className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"} ${rowRing} ${
+                    isVacantGec
+                      ? "border-l-[5px] border-l-emerald-500 bg-emerald-50/90 ring-1 ring-inset ring-emerald-300/60"
+                      : ""
+                  } ${
                     dimLocked ? "opacity-[0.52]" : ""
-                  }`}
+                  } ${onRowClick ? "cursor-pointer hover:bg-black/[0.04]" : ""}`}
+                  onClick={onRowClick ? () => onRowClick(row.id) : undefined}
+                  title={
+                    conflictRow
+                      ? "Conflicting row — click to edit (DOI) or use VPAA conflict list to suggest a fix."
+                      : undefined
+                  }
                 >
                   {showCollegeColumn ? (
                     <td className="border border-black/10 px-2 py-2 max-w-[140px] truncate" title={row.college}>
@@ -103,9 +136,15 @@ export function EvaluatorScheduleOverviewTable({
                   <td className="border border-black/10 px-2 py-2">{row.room}</td>
                   <td className="border border-black/10 px-2 py-2 tabular-nums whitespace-nowrap">{row.time}</td>
                   <td className="border border-black/10 px-2 py-2">{row.day}</td>
-                  <td className="border border-black/10 px-2 py-2 text-red-700">{row.facultyConflict}</td>
-                  <td className="border border-black/10 px-2 py-2 text-red-700">{row.sectionConflict}</td>
-                  <td className="border border-black/10 px-2 py-2 text-red-700">{row.roomConflict}</td>
+                  <td className="border border-black/10 px-2 py-2 text-red-700 max-w-[140px]" title={facCell || undefined}>
+                    {facCell ? <span className="font-medium">{facCell}</span> : ""}
+                  </td>
+                  <td className="border border-black/10 px-2 py-2 text-red-700 max-w-[140px]" title={secCell || undefined}>
+                    {secCell ? <span className="font-medium">{secCell}</span> : ""}
+                  </td>
+                  <td className="border border-black/10 px-2 py-2 text-red-700 max-w-[140px]" title={roomCell || undefined}>
+                    {roomCell ? <span className="font-medium">{roomCell}</span> : ""}
+                  </td>
                 </tr>
                 );
               })

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ChunkLoadRecovery } from "@/components/ChunkLoadRecovery";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +17,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <ChunkLoadRecovery />
+        {children}
+      </body>
     </html>
   );
 }

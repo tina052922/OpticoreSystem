@@ -9,6 +9,7 @@ export type AuthProfileRow = {
   name: string;
   role: string;
   collegeId: string | null;
+  signatureImageUrl?: string | null;
 };
 
 /** Session row when route layout already enforced role (avoid duplicate requireRoles in page). */

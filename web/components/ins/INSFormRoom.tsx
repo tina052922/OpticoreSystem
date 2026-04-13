@@ -16,9 +16,12 @@ import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { OpticoreInsForm5C } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
+import { buildInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
 import { buildInsRoomView, emptyInsRoomSchedule } from "@/lib/ins/build-ins-room-view";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
+import { InsEntityGroupingStrip } from "@/components/ins/InsEntityGroupingStrip";
+import type { College } from "@/types/db";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -91,6 +94,45 @@ export function INSFormRoom({
 
   const displaySchedule = schedule;
   const displayRoom = !useLiveData ? "Room 201 (Building A)" : selectedRoomId ? roomLabel : "—";
+
+  const insSignatureSlots = useMemo(() => {
+    if (!useLiveData || !selectedRoomId || !catalog.academicPeriodId) return null;
+    const termRows = catalog.scopedEntries.filter(
+      (e) => e.academicPeriodId === catalog.academicPeriodId && e.roomId === selectedRoomId,
+    );
+    let collegeRow: College | null = null;
+    let programId: string | null = chairmanProgramId;
+    if (termRows.length > 0) {
+      const sec = catalog.sectionById.get(termRows[0]!.sectionId);
+      const pr = sec ? catalog.programById.get(sec.programId) : null;
+      collegeRow = pr ? catalog.colleges.find((c) => c.id === pr.collegeId) ?? null : null;
+      programId = sec?.programId ?? chairmanProgramId;
+    } else {
+      const r = catalog.roomById.get(selectedRoomId);
+      const cid = r?.collegeId ?? null;
+      collegeRow = cid ? catalog.colleges.find((c) => c.id === cid) ?? null : null;
+    }
+    return buildInsSignatureSlots({
+      college: collegeRow,
+      programId,
+      users: catalog.users,
+      userById: catalog.userById,
+      scheduleApproved: catalog.termPublishLocked,
+    });
+  }, [
+    useLiveData,
+    selectedRoomId,
+    catalog.academicPeriodId,
+    catalog.scopedEntries,
+    catalog.sectionById,
+    catalog.programById,
+    catalog.colleges,
+    catalog.roomById,
+    catalog.users,
+    catalog.userById,
+    catalog.termPublishLocked,
+    chairmanProgramId,
+  ]);
 
   async function onShare() {
     try {
@@ -205,6 +247,15 @@ export function INSFormRoom({
           })}
         </div>
 
+        {useLiveData && insBasePath ? (
+          <InsEntityGroupingStrip
+            insBasePath={insBasePath}
+            facultyCount={catalog.instructorOptions.length}
+            sectionCount={catalog.sectionOptions.length}
+            roomCount={catalog.roomOptions.length}
+          />
+        ) : null}
+
         {useLiveData && catalog.error ? (
           <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{catalog.error}</p>
         ) : null}
@@ -288,7 +339,12 @@ export function INSFormRoom({
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8 print-paper print:shadow-none">
-          <OpticoreInsForm5C roomAssignment={displayRoom} schedule={displaySchedule} />
+          <OpticoreInsForm5C
+            roomAssignment={displayRoom}
+            schedule={displaySchedule}
+            scheduleApproved={useLiveData && catalog.termPublishLocked}
+            insSignatureSlots={useLiveData ? insSignatureSlots : null}
+          />
         </div>
       </div>
     </div>
