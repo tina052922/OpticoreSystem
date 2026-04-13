@@ -26,6 +26,8 @@ export interface College {
   name: string;
   /** Optional INS signer (Campus Director line). */
   campusDirectorUserId?: string | null;
+  /** DOI-uploaded signature image for Campus Director (INS By Section); overrides User signature when set. */
+  campusDirectorSignatureImageUrl?: string | null;
   /** Optional INS signer (Contract line). */
   contractSignerUserId?: string | null;
 }

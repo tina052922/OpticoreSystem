@@ -53,6 +53,7 @@ export function buildPortalFacultyIns5A(
 ): {
   schedule: ReturnType<typeof buildInsFacultyView>["schedule"];
   courses: ReturnType<typeof buildInsFacultyView>["courses"];
+  teachingMetrics: ReturnType<typeof buildInsFacultyView>["teachingMetrics"];
 } {
   if (rows.length === 0) {
     const empty: ReturnType<typeof buildInsFacultyView>["schedule"] = {
@@ -64,7 +65,12 @@ export function buildPortalFacultyIns5A(
       Saturday: [],
       Sunday: [],
     };
-    return { schedule: empty, courses: [] };
+    const z: ReturnType<typeof buildInsFacultyView>["teachingMetrics"] = {
+      preparations: 0,
+      totalUnits: 0,
+      hoursPerWeek: 0,
+    };
+    return { schedule: empty, courses: [], teachingMetrics: z };
   }
 
   const entries: ScheduleEntry[] = rows.map((r) => r.entry);

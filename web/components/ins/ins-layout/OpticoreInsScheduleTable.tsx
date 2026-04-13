@@ -16,8 +16,8 @@ type Props = {
   signatureSlots?: InsSignatureSlot[] | null;
   /** True when schedule rows are locked by VPAA publication */
   scheduleApproved?: boolean;
-  /** Form 5C (paper layout): grid only; signatures appear in the document footer instead */
-  signatureStrip?: "full" | "none";
+  /** Form 5C: grid only (signatures in footer). Form 5B: Campus Director column only. */
+  signatureStrip?: "full" | "none" | "campusOnly";
 };
 
 /**
@@ -71,8 +71,12 @@ export function OpticoreInsScheduleTableWithSignatures({
           </tbody>
         </table>
 
-        {signatureStrip === "full" ? (
-          <InsSignatureStrip signatureSlots={signatureSlots} scheduleApproved={scheduleApproved} />
+        {signatureStrip === "full" || signatureStrip === "campusOnly" ? (
+          <InsSignatureStrip
+            signatureSlots={signatureSlots}
+            scheduleApproved={scheduleApproved}
+            variant={signatureStrip === "campusOnly" ? "campusOnly" : "full"}
+          />
         ) : null}
       </div>
     </div>
@@ -87,21 +91,29 @@ const FALLBACK_SLOTS: InsSignatureSlot[] = [
   { key: "prepared", lineTitle: "Prepared by", lineSubtitle: "College Admin", signerName: "—", imageUrl: null },
 ];
 
+const FALLBACK_CAMPUS_ONLY: InsSignatureSlot[] = [
+  { key: "campus", lineTitle: "Approved", lineSubtitle: "Campus Director", signerName: "—", imageUrl: null },
+];
+
 function InsSignatureStrip({
   signatureSlots,
   scheduleApproved,
+  variant = "full",
 }: {
   signatureSlots?: InsSignatureSlot[] | null;
   scheduleApproved: boolean;
+  variant?: "full" | "campusOnly";
 }) {
-  const slots = signatureSlots ?? FALLBACK_SLOTS;
+  const fallback = variant === "campusOnly" ? FALLBACK_CAMPUS_ONLY : FALLBACK_SLOTS;
+  const slots = signatureSlots ?? fallback;
+  const colWidth = variant === "campusOnly" ? "w-[7rem]" : "w-[5.75rem]";
 
   return (
     <div className="hidden md:flex shrink-0 gap-0">
       {slots.map((s) => (
         <div
           key={s.key}
-          className="flex w-[5.75rem] flex-col items-stretch border border-neutral-900 border-l-0 bg-white first:border-l"
+          className={`flex ${colWidth} flex-col items-stretch border border-neutral-900 border-l-0 bg-white first:border-l`}
         >
           <div className="flex min-h-[11rem] flex-col items-center justify-between gap-2 bg-neutral-50 px-1 py-3">
             <div className="text-[9px] font-semibold leading-tight text-neutral-900" style={vLabel}>

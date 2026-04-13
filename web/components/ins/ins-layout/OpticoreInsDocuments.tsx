@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsDay } from "./opticore-ins-constants";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
@@ -62,6 +63,8 @@ export type OpticoreInsForm5AProps = {
     minor?: string | null;
     specialTraining?: string | null;
   } | null;
+  /** Populated from schedule totals + Faculty Profile when live data is available. */
+  facultyFormSummary?: InsFacultyFormSummary | null;
 };
 
 /** INS FORM 5A — Program by Teacher (Opticore-CampusIntelligence layout + editable fields). */
@@ -74,6 +77,7 @@ export function OpticoreInsForm5A({
   scheduleApproved = false,
   insSignatureSlots = null,
   facultyCredentials = null,
+  facultyFormSummary = null,
 }: OpticoreInsForm5AProps) {
   function renderCell(time: string, day: InsDay) {
     const classAtTime = matchSlot(schedule[day], time);
@@ -305,41 +309,84 @@ export function OpticoreInsForm5A({
               </div>
             ))}
         </div>
+
+        <div className="mt-8 border-t border-neutral-900 pt-6">
+          <div className="grid grid-cols-1 gap-x-10 gap-y-4 text-sm md:grid-cols-2">
+            <div className="space-y-4">
+              {readOnly ? (
+                <>
+                  <CredLine
+                    label="No. of Preparations"
+                    value={facultyFormSummary != null ? String(facultyFormSummary.preparations) : null}
+                  />
+                  <CredLine
+                    label="No. of Units"
+                    value={facultyFormSummary != null ? String(facultyFormSummary.totalUnits) : null}
+                  />
+                  <CredLine
+                    label="No. of Hours/Week"
+                    value={facultyFormSummary != null ? String(facultyFormSummary.hoursPerWeek) : null}
+                  />
+                </>
+              ) : (
+                <>
+                  <FieldLine
+                    label="No. of Preparations"
+                    defaultValue={facultyFormSummary != null ? String(facultyFormSummary.preparations) : ""}
+                  />
+                  <FieldLine
+                    label="No. of Units"
+                    defaultValue={facultyFormSummary != null ? String(facultyFormSummary.totalUnits) : ""}
+                  />
+                  <FieldLine
+                    label="No. of Hours/Week"
+                    defaultValue={facultyFormSummary != null ? String(facultyFormSummary.hoursPerWeek) : ""}
+                  />
+                </>
+              )}
+            </div>
+            <div className="space-y-4">
+              {readOnly ? (
+                <>
+                  <CredLine label="Administrative Designation" value={facultyFormSummary?.administrativeDesignation} />
+                  <CredLine label="Production" value={facultyFormSummary?.production} />
+                  <CredLine label="Extension" value={facultyFormSummary?.extension} />
+                  <CredLine label="Research" value={facultyFormSummary?.research} />
+                </>
+              ) : (
+                <>
+                  <FieldLine
+                    label="Administrative Designation"
+                    defaultValue={facultyFormSummary?.administrativeDesignation ?? ""}
+                  />
+                  <FieldLine label="Production" defaultValue={facultyFormSummary?.production ?? ""} />
+                  <FieldLine label="Extension" defaultValue={facultyFormSummary?.extension ?? ""} />
+                  <FieldLine label="Research" defaultValue={facultyFormSummary?.research ?? ""} />
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {!readOnly ? (
-        <>
-          <div className="grid grid-cols-1 gap-x-12 gap-y-4 text-sm md:grid-cols-2">
-            <div className="space-y-5">
-              <FieldLine label="No. of Preparations" />
-              <FieldLine label="No. of Units" />
-              <FieldLine label="No. of Hours/Week" />
-            </div>
-            <div className="space-y-5">
-              <FieldLine label="Administrative Designation" />
-              <FieldLine label="Production" />
-              <FieldLine label="Extension" />
-              <FieldLine label="Research" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-8 border-t border-neutral-200 pt-8 text-xs sm:grid-cols-3 md:hidden">
-            <SigBlock title="Prepared by:" subtitle="Program Coordinator/Chair" />
-            <SigBlock title="Reviewed, Certified True and Correct:" subtitle="Director/Dean" />
-            <SigBlock title="Approved:" subtitle="Campus Director" />
-          </div>
-        </>
+        <div className="grid grid-cols-1 gap-8 border-t border-neutral-200 pt-8 text-xs sm:grid-cols-3 md:hidden">
+          <SigBlock title="Prepared by:" subtitle="Program Coordinator/Chair" />
+          <SigBlock title="Reviewed, Certified True and Correct:" subtitle="Director/Dean" />
+          <SigBlock title="Approved:" subtitle="Campus Director" />
+        </div>
       ) : null}
     </div>
   );
 }
 
-function FieldLine({ label }: { label: string }) {
+function FieldLine({ label, defaultValue = "" }: { label: string; defaultValue?: string }) {
   return (
     <div className="flex items-end gap-3">
       <span className="shrink-0 text-sm">{label}:</span>
       <input
         type="text"
+        defaultValue={defaultValue}
         className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
       />
     </div>
@@ -529,6 +576,7 @@ export function OpticoreInsForm5B({
         renderCell={renderCell}
         signatureSlots={insSignatureSlots}
         scheduleApproved={scheduleApproved}
+        signatureStrip="campusOnly"
       />
 
       <div className="min-h-[14rem] border border-neutral-900 p-4 md:p-6">
@@ -578,12 +626,27 @@ export function OpticoreInsForm5B({
         </div>
       </div>
 
-      {!readOnly ? (
-        <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
-          <div className="mx-auto mb-3 inline-block w-56 border-b border-neutral-900" />
-          <div className="text-sm font-semibold text-neutral-900">Approved: Campus Director</div>
+      <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
+        <div className="text-sm font-semibold text-neutral-900">Approved</div>
+        <div className="mx-auto mt-3 flex min-h-[4rem] max-w-xs items-end justify-center border-b-2 border-neutral-900 pb-2">
+          {scheduleApproved && insSignatureSlots?.[0]?.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Supabase public URL
+            <img
+              src={insSignatureSlots[0].imageUrl}
+              alt=""
+              className="max-h-16 max-w-full object-contain"
+            />
+          ) : null}
         </div>
-      ) : null}
+        <div className="mt-2 text-sm text-neutral-800">Campus Director</div>
+        {scheduleApproved && insSignatureSlots?.[0]?.signerName ? (
+          <div className="mt-1 text-xs font-medium text-neutral-900">{insSignatureSlots[0].signerName}</div>
+        ) : !scheduleApproved ? (
+          <div className="mt-1 text-[11px] text-neutral-500">Pending publication</div>
+        ) : (
+          <div className="mt-1 text-[11px] text-amber-900">No signature on file — DOI admin uploads under DOI Profile</div>
+        )}
+      </div>
     </div>
   );
 }
