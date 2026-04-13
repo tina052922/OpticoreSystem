@@ -8,6 +8,7 @@ export default function CollegeInboxPage() {
       portal="college"
       title="Inbox"
       subtitle="Mail: drafts from Chairman. Sent: items forwarded to CAS Admin."
+      enableCollegeForwardToCas
     />
   );
 }

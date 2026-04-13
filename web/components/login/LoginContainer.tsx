@@ -11,7 +11,7 @@ type LoginContainerProps = {
 export function LoginContainer({ children }: LoginContainerProps) {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-white">
-      {/* Left: campus imagery + maroon overlay (~55–60% on large screens) */}
+      {/* Left: campus imagery (provided photo) + maroon overlay (~55–60% on large screens) */}
       <div
         className="hidden lg:flex lg:w-[55%] xl:w-[58%] relative min-h-[280px] lg:min-h-screen overflow-hidden rounded-br-[24px] shrink-0"
         aria-hidden
@@ -19,7 +19,7 @@ export function LoginContainer({ children }: LoginContainerProps) {
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element -- static asset from public/ */}
           <img
-            src="/login/campus-bg.svg"
+            src="/login/campus-photo.png"
             alt=""
             className="absolute inset-0 w-full h-full object-cover"
           />
@@ -41,7 +41,7 @@ export function LoginContainer({ children }: LoginContainerProps) {
           aria-hidden
         >
           <div
-            className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-[140%] max-w-4xl h-56 opacity-[0.07] bg-[url('/login/campus-bg.svg')] bg-cover bg-center bg-no-repeat"
+            className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-[140%] max-w-4xl h-56 opacity-[0.07] bg-[url('/login/campus-photo.png')] bg-cover bg-center bg-no-repeat"
           />
         </div>
         <div className="relative z-10 w-full max-w-md">{children}</div>

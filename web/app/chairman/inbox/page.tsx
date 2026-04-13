@@ -1,7 +1,16 @@
-"use client";
+import { ChairmanInboxClient } from "@/app/chairman/inbox/ChairmanInboxClient";
+import { getChairmanSession } from "@/lib/auth/chairman-session";
+import { redirect } from "next/navigation";
 
-import { InboxWorkspace } from "@/components/inbox/InboxWorkspace";
+export default async function ChairmanInboxPage() {
+  const session = await getChairmanSession();
+  if (!session) redirect("/login");
 
-export default function ChairmanInboxPage() {
-  return <InboxWorkspace portal="chairman" title="Inbox" enableChairmanForward />;
+  return (
+    <ChairmanInboxClient
+      chairmanCollegeId={session.collegeId}
+      chairmanProgramId={session.programId}
+      chairmanProgramCode={session.programCode}
+    />
+  );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   Circle,
@@ -14,6 +15,11 @@ import {
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 import type { InboxMessage, PortalId } from "@/lib/inbox-store";
+import { buildChairmanInboxForwardBundle } from "@/lib/share-ins";
+import {
+  isWorkflowScheduleBundleV1,
+  storePendingCentralHubBundle,
+} from "@/lib/workflow-schedule-bundle";
 
 type Props = {
   portal: PortalId;
@@ -21,6 +27,12 @@ type Props = {
   subtitle?: string;
   /** Chairman: show “Forward to College Admin” (persists when WorkflowInboxMessage exists). */
   enableChairmanForward?: boolean;
+  /** Server session scope for building a full workflow bundle on forward. */
+  chairmanScope?: { collegeId: string | null; programId: string | null; programCode?: string | null } | null;
+  /** College Admin: forward selected mail (with payload) to CAS Admin. */
+  enableCollegeForwardToCas?: boolean;
+  /** After downloading a bundle, navigate here so Central Hub can auto-import. */
+  collegeCentralHubHref?: string;
 };
 
 /** Opticore-CampusIntelligence Inbox layout: Mail | Sent, search, 2+3 grid, orange list header, preview + actions. */
@@ -29,7 +41,11 @@ export function InboxWorkspace({
   title = "Inbox",
   subtitle,
   enableChairmanForward = false,
+  chairmanScope = null,
+  enableCollegeForwardToCas = false,
+  collegeCentralHubHref = "/admin/college/evaluator",
 }: Props) {
+  const router = useRouter();
   const [tab, setTab] = useState<"mail" | "sent">("mail");
   const [query, setQuery] = useState("");
   const [mail, setMail] = useState<InboxMessage[]>([]);
@@ -97,6 +113,19 @@ export function InboxWorkspace({
 
   async function forwardDraftToCollege() {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
+    let payload: unknown = undefined;
+    if (chairmanScope?.collegeId) {
+      const bundle = await buildChairmanInboxForwardBundle({
+        collegeId: chairmanScope.collegeId,
+        programId: chairmanScope.programId,
+        programCode: chairmanScope.programCode ?? null,
+      });
+      if (bundle) payload = bundle;
+    }
+
+    const rowCount =
+      payload && isWorkflowScheduleBundleV1(payload) ? payload.scheduleEntries.length : 0;
+
     const res = await fetch("/api/inbox/forward", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,14 +134,17 @@ export function InboxWorkspace({
         sentFor: "chairman",
         fromLabel: "Chairman (OptiCore)",
         toLabel: "College Admin",
-        subject: "Draft schedule — INS Form + Evaluator",
+        subject: "Draft schedule — INS Form + Evaluator (linked bundle)",
         body:
           `Forwarded from OptiCore Chairman Inbox.\n\n` +
-          `Please review:\n` +
-          `• INS Form (Schedule View): ${origin}/chairman/ins/faculty\n` +
+          (rowCount > 0
+            ? `Attached workflow bundle: ${rowCount} schedule row(s) linked to INS 5A/5B/5C and the Chairman Evaluator.\n\n`
+            : `No bundle rows were assembled (check college scope and Supabase). Links for review:\n\n`) +
+          `• INS Form: ${origin}/chairman/ins/faculty\n` +
           `• Evaluator: ${origin}/chairman/evaluator\n\n` +
-          `College Admin will see this under Mail after refresh (and in persisted inbox when the DB migration is applied).`,
+          `College Admin: use Download on this message to export JSON, then Central Hub Evaluator loads the bundle automatically.`,
         workflowStage: "chairman_to_college",
+        payload,
       }),
     });
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -121,7 +153,43 @@ export function InboxWorkspace({
       return;
     }
     await refresh();
-    alert("Forwarded to College Admin. They can open Inbox → Mail to read it.");
+    alert(
+      rowCount > 0
+        ? `Forwarded to College Admin with ${rowCount} linked schedule row(s). They can download the bundle from Mail.`
+        : "Forwarded to College Admin. They can open Inbox → Mail to read it.",
+    );
+  }
+
+  async function forwardCollegeMailToCas() {
+    if (!selected) {
+      alert("Select a message to forward.");
+      return;
+    }
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const payload = selected.payload;
+    const res = await fetch("/api/inbox/forward", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mailFor: "cas",
+        sentFor: "college",
+        fromLabel: "College Admin (OptiCore)",
+        toLabel: "CAS Admin",
+        subject: `Fwd: ${selected.subject}`,
+        body:
+          `${selected.body}\n\n---\nForwarded by College Admin from OptiCore Inbox.\n` +
+          `Evaluator hub: ${origin}${collegeCentralHubHref}`,
+        workflowStage: "college_to_cas",
+        payload,
+      }),
+    });
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (!res.ok) {
+      alert(data?.error || "Forward failed");
+      return;
+    }
+    await refresh();
+    alert("Forwarded to CAS Admin with the same schedule bundle (when present).");
   }
 
   const filtered = useMemo(() => {
@@ -171,6 +239,20 @@ export function InboxWorkspace({
 
   function downloadMessage() {
     if (!selected) return;
+    const pl = selected.payload;
+    if (portal === "college" && pl && isWorkflowScheduleBundleV1(pl)) {
+      storePendingCentralHubBundle(pl);
+      const blob = new Blob([JSON.stringify(pl, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `opticore-workflow-bundle-${selected.id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setShowPreviewMenu(false);
+      router.push(collegeCentralHubHref);
+      return;
+    }
     const blob = new Blob(
       [`${selected.subject}\n\nFrom: ${selected.from}\nTo: ${selected.to}\n\n${selected.body}`],
       { type: "text/plain" },
@@ -370,7 +452,33 @@ export function InboxWorkspace({
 
                 <div className="prose prose-sm max-w-none flex-1">
                   <p className="text-gray-700 whitespace-pre-line leading-relaxed">{selected.body}</p>
+                  {selected.payload && isWorkflowScheduleBundleV1(selected.payload) ? (
+                    <p className="text-xs text-gray-600 mt-3 border-t border-gray-100 pt-3">
+                      <strong>Linked data:</strong> {selected.payload.scheduleEntries.length} schedule row(s) · INS view:{" "}
+                      {selected.payload.insShareView} · Academic period: {selected.payload.academicPeriodId}
+                      {portal === "college" ? (
+                        <>
+                          <br />
+                          <span className="text-[#780301] font-semibold">
+                            Download (JSON) opens Central Hub Evaluator with this bundle loaded.
+                          </span>
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
                 </div>
+
+                {tab === "mail" && portal === "college" && enableCollegeForwardToCas ? (
+                  <div className="mt-4">
+                    <Button
+                      type="button"
+                      className="bg-[#780301] hover:bg-[#5a0201] text-white"
+                      onClick={() => void forwardCollegeMailToCas()}
+                    >
+                      Forward to CAS Admin (keep schedule bundle)
+                    </Button>
+                  </div>
+                ) : null}
 
                 {tab === "mail" ? (
                   <div className="mt-6 flex flex-wrap gap-3">
