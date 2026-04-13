@@ -15,8 +15,12 @@ export function ChunkLoadRecovery() {
     }, 10_000);
 
     function isChunkFailure(msg: string) {
-      return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed/i.test(
-        msg,
+      return (
+        /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed/i.test(
+          msg,
+        ) ||
+        // Stale dev graph / HMR: webpack slot no longer matches the running bundle
+        /__webpack_modules__\s*\[[^\]]+\]\s+is not a function/i.test(msg)
       );
     }
 
