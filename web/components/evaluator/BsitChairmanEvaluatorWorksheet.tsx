@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/chairman/bsit-prospectus";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
+import { writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 
 const MAJOR_FIXED = "BSIT";
@@ -163,12 +164,16 @@ export function BsitChairmanEvaluatorWorksheet({
   const [academicPeriodId, setAcademicPeriodId] = useState("");
   const [sections, setSections] = useState<Section[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [dbInstructors, setDbInstructors] = useState<User[]>([]);
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [rows, setRows] = useState<PlotRow[]>([]);
   const [justificationText, setJustificationText] = useState("");
+  const [selectedSectionId, setSelectedSectionId] = useState<string>("");
+  const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
+  const didHydrateFromDbRef = useRef(false);
 
   const programId = chairmanProgramId ?? "prog-bsit";
 
@@ -179,15 +184,17 @@ export function BsitChairmanEvaluatorWorksheet({
       return;
     }
     setLoadError(null);
-    const [{ data: ap }, { data: sec }, { data: rm }, { data: users }, { data: fp }] = await Promise.all([
+    const [{ data: ap }, { data: sec }, { data: sub }, { data: rm }, { data: users }, { data: fp }] = await Promise.all([
       supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false }),
       supabase.from("Section").select("*").order("name"),
+      supabase.from("Subject").select("*").order("code"),
       supabase.from("Room").select("*").order("code"),
       supabase.from("User").select("id,email,name,role,collegeId"),
       supabase.from("FacultyProfile").select("*"),
     ]);
     setPeriods((ap ?? []) as AcademicPeriod[]);
     setSections((sec ?? []) as Section[]);
+    setSubjects((sub ?? []) as Subject[]);
     setRooms((rm ?? []) as Room[]);
     const fac = (users ?? []).filter(
       (u) =>
@@ -216,6 +223,23 @@ export function BsitChairmanEvaluatorWorksheet({
       return names.has(n);
     });
   }, [sections, chairmanProgramId]);
+
+  const subjectIdByCode = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of subjects) {
+      if (chairmanProgramId && s.programId !== chairmanProgramId) continue;
+      m.set(normalizeProspectusCode(s.code), s.id);
+    }
+    return m;
+  }, [subjects, chairmanProgramId]);
+
+  const subjectCodeById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of subjects) {
+      m.set(s.id, s.code);
+    }
+    return m;
+  }, [subjects]);
 
   /** IT LAB 1–4 only; synthetic rows if DB has no matching rooms so the dropdown is never empty. */
   const itLabsWithFallback = useMemo((): Room[] => {
@@ -397,6 +421,134 @@ export function BsitChairmanEvaluatorWorksheet({
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
+  const loadRowsFromSupabase = useCallback(async () => {
+    if (!academicPeriodId) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    setLoadError(null);
+
+    const sectionIds = new Set(bsitSections.map((s) => s.id));
+    if (sectionIds.size === 0) return;
+
+    const { data: sch, error } = await supabase
+      .from("ScheduleEntry")
+      .select("*")
+      .eq("academicPeriodId", academicPeriodId);
+    if (error) {
+      setLoadError(error.message);
+      return;
+    }
+    const entries = (sch ?? []) as ScheduleEntry[];
+    const relevant = entries.filter((e) => sectionIds.has(e.sectionId));
+
+    const slotIndexByStartTime = new Map<string, number>();
+    for (let i = 0; i < BSIT_EVALUATOR_TIME_SLOTS.length; i++) {
+      const t = BSIT_EVALUATOR_TIME_SLOTS[i];
+      if (t) slotIndexByStartTime.set(t.startTime, i);
+    }
+
+    const nextRows: PlotRow[] = relevant.map((e) => ({
+      id: e.id,
+      sectionId: e.sectionId,
+      students: "",
+      subjectCode: subjectCodeById.get(e.subjectId) ?? "",
+      instructorId: e.instructorId,
+      roomId: e.roomId,
+      startSlotIndex: slotIndexByStartTime.get(e.startTime) ?? 0,
+      day: (BSIT_EVALUATOR_WEEKDAYS.includes(e.day as BsitEvaluatorWeekday) ? (e.day as BsitEvaluatorWeekday) : "Monday"),
+    }));
+
+    didHydrateFromDbRef.current = true;
+    lastSyncedRowIdsRef.current = new Set(nextRows.map((r) => r.id));
+    setRows(nextRows);
+  }, [academicPeriodId, bsitSections, subjectCodeById]);
+
+  useEffect(() => {
+    void loadRowsFromSupabase();
+  }, [loadRowsFromSupabase]);
+
+  useEffect(() => {
+    if (!academicPeriodId || !chairmanCollegeId) return;
+    writeEvaluatorSessionSnapshot({
+      version: 1,
+      academicPeriodId,
+      collegeId: chairmanCollegeId,
+      programId: chairmanProgramId,
+      rows: rows.map((r) => ({
+        id: r.id,
+        sectionId: r.sectionId,
+        students: r.students,
+        subjectCode: r.subjectCode,
+        instructorId: r.instructorId,
+        roomId: r.roomId,
+        startSlotIndex: r.startSlotIndex,
+        day: r.day,
+      })),
+      updatedAt: new Date().toISOString(),
+    });
+  }, [rows, academicPeriodId, chairmanCollegeId, chairmanProgramId]);
+
+  useEffect(() => {
+    if (!academicPeriodId) return;
+    if (!didHydrateFromDbRef.current) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const t = setTimeout(() => {
+      void (async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const upserts: ScheduleEntry[] = [];
+        for (const row of rows) {
+          if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) continue;
+          const subjectId = subjectIdByCode.get(normalizeProspectusCode(row.subjectCode));
+          if (!subjectId) continue;
+          const tb = rowTimeBounds(row);
+          if (!tb) continue;
+          upserts.push({
+            id: row.id,
+            academicPeriodId,
+            subjectId,
+            instructorId: row.instructorId,
+            sectionId: row.sectionId,
+            roomId: row.roomId,
+            day: row.day,
+            startTime: tb.start.startTime,
+            endTime: tb.endSlot.endTime,
+            status: "draft",
+          });
+        }
+
+        const currentIds = new Set(rows.map((r) => r.id));
+        const prevIds = lastSyncedRowIdsRef.current;
+        const removedIds = Array.from(prevIds).filter((id) => !currentIds.has(id));
+
+        if (removedIds.length > 0) {
+          const { error: delErr } = await supabase.from("ScheduleEntry").delete().in("id", removedIds);
+          if (delErr) {
+            setLoadError(delErr.message);
+            return;
+          }
+        }
+
+        if (upserts.length > 0) {
+          const { error: upErr } = await supabase.from("ScheduleEntry").upsert(upserts, { onConflict: "id" });
+          if (upErr) {
+            setLoadError(upErr.message);
+            return;
+          }
+        }
+
+        lastSyncedRowIdsRef.current = new Set(rows.map((r) => r.id));
+      })();
+    }, 600);
+
+    return () => clearTimeout(t);
+  }, [rows, academicPeriodId, subjectIdByCode]);
+
   if (loadError) {
     return <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>;
   }
@@ -404,21 +556,21 @@ export function BsitChairmanEvaluatorWorksheet({
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="text-[13px] font-semibold text-black/75">
-          Term
+        <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
+          <span>Section</span>
           <select
-            className="ml-2 mt-1 h-10 min-w-[240px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
-            value={academicPeriodId}
-            onChange={(e) => setAcademicPeriodId(e.target.value)}
+            className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+            value={selectedSectionId}
+            onChange={(e) => setSelectedSectionId(e.target.value)}
           >
-            <option value="">Select academic period…</option>
-            {periods.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.semester} · {p.academicYear})
+            <option value="">All sections</option>
+            {Array.from(sectionNameById.entries()).map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
               </option>
             ))}
           </select>
-        </label>
+        </div>
         <Button type="button" className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold" onClick={addRow}>
           + Add schedule row
         </Button>
@@ -658,7 +810,13 @@ export function BsitChairmanEvaluatorWorksheet({
         </div>
       </div>
 
-      <BsitWeekPreview rows={rows} sectionNameById={sectionNameById} roomCodeById={roomCodeById} instructorNameById={instructorNameById} />
+      <BsitWeekPreview
+        rows={rows}
+        sectionNameById={sectionNameById}
+        roomCodeById={roomCodeById}
+        instructorNameById={instructorNameById}
+        selectedSectionId={selectedSectionId}
+      />
 
       {showJustification ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 space-y-2">
@@ -684,16 +842,22 @@ function BsitWeekPreview({
   sectionNameById,
   roomCodeById,
   instructorNameById,
+  selectedSectionId,
 }: {
   rows: PlotRow[];
   sectionNameById: Map<string, string>;
   roomCodeById: Map<string, string>;
   instructorNameById: Map<string, string>;
+  selectedSectionId: string;
 }) {
   const slots = BSIT_EVALUATOR_TIME_SLOTS;
+  const filteredRows = useMemo(
+    () => (selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : rows),
+    [rows, selectedSectionId],
+  );
   const skipSlot = useMemo(() => {
     const m = new Set<string>();
-    for (const row of rows) {
+    for (const row of filteredRows) {
       const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
       if (!row.sectionId || !row.subjectCode || !p) continue;
       const dur = scheduleDurationSlots(p);
@@ -704,7 +868,7 @@ function BsitWeekPreview({
       }
     }
     return m;
-  }, [rows]);
+  }, [filteredRows]);
 
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
@@ -728,7 +892,7 @@ function BsitWeekPreview({
                 <td className="border border-black px-1 py-1.5 text-center whitespace-nowrap text-black">{slot.label}</td>
                 {BSIT_EVALUATOR_WEEKDAYS.map((day) => {
                   if (skipSlot.has(`${day}-${slotIdx}`)) return null;
-                  const atHere = rows.filter((r) => {
+                  const atHere = filteredRows.filter((r) => {
                     const p = r.subjectCode ? prospectusByCode(r.subjectCode) : undefined;
                     if (!r.sectionId || !r.subjectCode || !p) return false;
                     const dur = scheduleDurationSlots(p);

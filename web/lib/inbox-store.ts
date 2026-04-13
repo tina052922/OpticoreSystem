@@ -19,6 +19,8 @@ export type InboxMessage = {
   mailFor: PortalId[];
   /** Portals that see this message under the Sent tab. */
   sentFor: PortalId[];
+  /** INS + Evaluator schedule bundle when persisted (mirrors WorkflowInboxMessage.payload). */
+  payload?: unknown;
 };
 
 type GlobalStore = {
@@ -142,6 +144,7 @@ export function appendWorkflowMessage(input: {
   sentFor: PortalId[];
   workflowStage?: string;
   status?: "Unread" | "Read";
+  payload?: unknown;
 }) {
   const msg: InboxMessage = {
     id: `m_${Math.random().toString(16).slice(2)}`,
@@ -154,6 +157,7 @@ export function appendWorkflowMessage(input: {
     body: input.body,
     mailFor: input.mailFor,
     sentFor: input.sentFor,
+    payload: input.payload,
   };
   getStore().unshift(msg);
   return msg;
