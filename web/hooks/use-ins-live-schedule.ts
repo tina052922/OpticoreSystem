@@ -69,6 +69,7 @@ export function useInsLiveSchedule(args: {
     schedule,
     courses,
     scopedEntries: catalog.scopedEntries,
+    subjectIdByCode: catalog.subjectIdByCode,
     getInsConflictSummaries: catalog.getInsConflictSummaries,
     termPublishLocked: catalog.termPublishLocked,
     reload: catalog.reload,

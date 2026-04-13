@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,10 @@ import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import type { AcademicPeriod, College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
+import {
+  clearPendingCentralHubBundle,
+  readPendingCentralHubBundle,
+} from "@/lib/workflow-schedule-bundle";
 
 function HubEvaluatorTabs({
   basePath,
@@ -154,6 +158,9 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
   const [altSuggestions, setAltSuggestions] = useState<GASuggestion[]>([]);
   const [altBusy, setAltBusy] = useState(false);
 
+  const lastAppliedBundleAtRef = useRef<string | null>(null);
+  const [hubBundleNotice, setHubBundleNotice] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -202,6 +209,58 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (loading) return;
+    const pending = readPendingCentralHubBundle();
+    if (!pending || collegeSlug) return;
+    const slug = hubSlugForCollegeId(pending.collegeId) ?? CAMPUS_WIDE_COLLEGE_SLUG;
+    router.replace(`${basePath}?college=${encodeURIComponent(slug)}`);
+  }, [loading, collegeSlug, router, basePath]);
+
+  useEffect(() => {
+    if (loading || !collegeSlug) return;
+    const pending = readPendingCentralHubBundle();
+    if (!pending) return;
+    if (pending.createdAt === lastAppliedBundleAtRef.current) return;
+
+    const isWide = collegeSlug.toLowerCase() === CAMPUS_WIDE_COLLEGE_SLUG;
+    const hub = hubCollegeBySlug(collegeSlug);
+    if (!isWide && hub?.collegeId && hub.collegeId !== pending.collegeId) {
+      setHubBundleNotice(
+        `Workflow bundle is for college “${pending.collegeId}”. Open that hub tile or campus-wide to merge INS-linked schedule rows.`,
+      );
+      return;
+    }
+
+    lastAppliedBundleAtRef.current = pending.createdAt;
+    clearPendingCentralHubBundle();
+
+    if (periods.some((p) => p.id === pending.academicPeriodId)) {
+      setAcademicPeriodId(pending.academicPeriodId);
+    }
+    if (pending.programId && programs.some((p) => p.id === pending.programId)) {
+      setProgramId(pending.programId);
+    }
+
+    setEntries((prev) => {
+      const m = new Map(prev.map((e) => [e.id, e]));
+      for (const e of pending.scheduleEntries) {
+        m.set(e.id, { ...e });
+      }
+      return Array.from(m.values());
+    });
+
+    const progName =
+      pending.programId && programs.length > 0
+        ? (programs.find((p) => p.id === pending.programId)?.name ?? pending.programId)
+        : "all programs in scope";
+
+    setHubBundleNotice(
+      `Imported ${pending.scheduleEntries.length} schedule row(s) from the Chairman workflow bundle (INS + Evaluator). ` +
+        `Organized under college scope “${isWide ? "All colleges" : hub?.name ?? collegeSlug}” · Department filter: ${progName}.`,
+    );
+  }, [loading, collegeSlug, periods, programs]);
 
   useEffect(() => {
     if (periods.length === 0 || academicPeriodId) return;
@@ -428,6 +487,18 @@ export function CentralHubEvaluatorView({ basePath }: CentralHubEvaluatorViewPro
 
       <div className="px-4 md:px-8 pb-8">
         <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
+        {hubBundleNotice ? (
+          <div className="mb-4 rounded-lg border border-[#FF990A]/50 bg-[#FF990A]/10 px-4 py-3 text-[13px] text-gray-900">
+            {hubBundleNotice}
+            <button
+              type="button"
+              className="ml-3 text-[#780301] font-semibold underline"
+              onClick={() => setHubBundleNotice(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← College hub

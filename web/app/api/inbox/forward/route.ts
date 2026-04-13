@@ -17,6 +17,8 @@ type Body = {
   /** Portal that will see this in Sent tab */
   sentFor?: PortalId;
   workflowStage?: string;
+  /** Carry INS + Evaluator bundle through College Admin → CAS (and similar forwards). */
+  payload?: unknown;
 };
 
 /**
@@ -49,6 +51,7 @@ export async function POST(req: Request) {
           sentFor: json.sentFor,
           workflowStage: json.workflowStage ?? null,
           subject: json.subject?.trim() ?? null,
+          hasPayload: Boolean(json.payload),
         },
       });
       if (row?.collegeId) {
@@ -62,6 +65,7 @@ export async function POST(req: Request) {
           workflowStage: json.workflowStage,
           mailFor: [json.mailFor],
           sentFor: [json.sentFor],
+          payload: json.payload ?? null,
         });
       }
     }
@@ -76,6 +80,7 @@ export async function POST(req: Request) {
     sentFor: [json.sentFor],
     workflowStage: json.workflowStage,
     status: "Unread",
+    payload: json.payload,
   });
 
   return NextResponse.json({ ok: true, message: msg });

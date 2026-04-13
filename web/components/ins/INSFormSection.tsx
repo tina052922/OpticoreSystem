@@ -11,7 +11,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { shareInsView } from "@/lib/share-ins";
+import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
+import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
@@ -108,8 +109,30 @@ export function INSFormSection({
 
   async function onShare() {
     try {
-      await shareInsView("section");
-      alert("Shared to College Admin inbox (simulated).");
+      if (campusWide || !effectiveCollegeId || !catalog.academicPeriodId) {
+        await shareInsView("section");
+        alert(
+          campusWide
+            ? "Shared notice (campus-wide: no single-college bundle attached)."
+            : "Shared notice. Set a college scope to attach the full INS + Evaluator schedule bundle.",
+        );
+        return;
+      }
+      const termScoped = catalog.scopedEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
+      const bundle = buildWorkflowScheduleBundle({
+        academicPeriodId: catalog.academicPeriodId,
+        collegeId: effectiveCollegeId,
+        programId: chairmanProgramId,
+        programCode: chairmanProgramCode,
+        insShareView: "section",
+        termScopedEntries: termScoped,
+        insContext: { selectedSectionId: selectedSectionId || undefined },
+        subjectIdByCode: catalog.subjectIdByCode,
+      });
+      await shareInsWorkflowBundle(bundle);
+      alert(
+        `Shared to College Admin with ${bundle.scheduleEntries.length} linked schedule row(s) (INS + Evaluator drafts).`,
+      );
     } catch (e) {
       alert(e instanceof Error ? e.message : "Share failed");
     }
