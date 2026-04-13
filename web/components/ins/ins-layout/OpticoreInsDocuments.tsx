@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsDay } from "./opticore-ins-constants";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
 
@@ -22,6 +23,17 @@ function VacantGecSlotHighlight(props: { title: string; children: ReactNode }) {
 const formDate = () =>
   new Intl.DateTimeFormat("en-PH", { month: "long", day: "numeric", year: "numeric" }).format(new Date());
 
+function CredLine({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="flex gap-2 items-end text-sm">
+      <span className="shrink-0 text-gray-700">{label}:</span>
+      <span className="flex-1 border-b border-gray-400 min-h-[1.25rem] text-gray-900 break-words">
+        {value?.trim() ? value : "—"}
+      </span>
+    </div>
+  );
+}
+
 function matchSlot<T extends { time: string }>(daySchedule: T[], slot: string): T | undefined {
   const start = slot.split("-")[0];
   return daySchedule.find((c) => c.time.includes(start));
@@ -38,10 +50,31 @@ export type OpticoreInsForm5AProps = {
   readOnly?: boolean;
   /** Shown in the semester line when `readOnly` is true. */
   semesterLabel?: string;
+  /** VPAA-published term: show signature column images + resolved signers. */
+  scheduleApproved?: boolean;
+  insSignatureSlots?: InsSignatureSlot[] | null;
+  /** When read-only, fill degree lines from Faculty Profile when available. */
+  facultyCredentials?: {
+    bachelors?: string | null;
+    master?: string | null;
+    doctorate?: string | null;
+    major?: string | null;
+    minor?: string | null;
+    specialTraining?: string | null;
+  } | null;
 };
 
 /** INS FORM 5A — Program by Teacher (Opticore-CampusIntelligence layout + editable fields). */
-export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = false, semesterLabel }: OpticoreInsForm5AProps) {
+export function OpticoreInsForm5A({
+  facultyName,
+  schedule,
+  courses,
+  readOnly = false,
+  semesterLabel,
+  scheduleApproved = false,
+  insSignatureSlots = null,
+  facultyCredentials = null,
+}: OpticoreInsForm5AProps) {
   function renderCell(time: string, day: InsDay) {
     const classAtTime = matchSlot(schedule[day], time);
     const isPlaceholder = day === "Monday" && time === "7:00-8:00" && !classAtTime;
@@ -156,6 +189,15 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
               <input type="text" className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none text-sm" />
             </div>
           </>
+        ) : facultyCredentials ? (
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+            <CredLine label={"Bachelor's Degree"} value={facultyCredentials.bachelors} />
+            <CredLine label="Major" value={facultyCredentials.major} />
+            <CredLine label="Master&apos;s Degree" value={facultyCredentials.master} />
+            <CredLine label="Minor" value={facultyCredentials.minor} />
+            <CredLine label="Doctorate Degree" value={facultyCredentials.doctorate} />
+            <CredLine label="Special Training" value={facultyCredentials.specialTraining} />
+          </div>
         ) : (
           <p className="md:col-span-2 text-xs text-gray-600">
             Full faculty credentials are maintained in <strong>Faculty Profile</strong> (Campus Intelligence). This view shows your official teaching schedule for the term.
@@ -163,7 +205,11 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
         )}
       </div>
 
-      <OpticoreInsScheduleTableWithSignatures renderCell={renderCell} />
+      <OpticoreInsScheduleTableWithSignatures
+        renderCell={renderCell}
+        signatureSlots={insSignatureSlots}
+        scheduleApproved={scheduleApproved}
+      />
 
       <div className="border border-gray-400 rounded-sm p-3">
         <div className="text-center font-bold text-sm mb-2">SUMMARY OF COURSES</div>
@@ -174,33 +220,43 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
           <span>Degree/Yr/Sec</span>
         </div>
         <div className="space-y-1">
-          {courses.map((c, idx) => (
-            <div key={idx} className="grid grid-cols-4 gap-1 text-[10px]">
-              {readOnly ? (
-                <>
-                  <span className="border border-gray-300 rounded px-1 py-0.5 bg-white">{c.students}</span>
-                  <span className="border border-gray-300 rounded px-1 py-0.5 bg-white">{c.code}</span>
-                  <span className="border border-gray-300 rounded px-1 py-0.5 bg-white">{c.title}</span>
-                  <span className="border border-gray-300 rounded px-1 py-0.5 bg-white">{c.degreeYrSec}</span>
-                </>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    defaultValue={String(c.students)}
-                    className="border border-gray-300 rounded px-1 py-0.5 bg-white"
-                  />
-                  <input type="text" defaultValue={c.code} className="border border-gray-300 rounded px-1 py-0.5 bg-white" />
-                  <input type="text" defaultValue={c.title} className="border border-gray-300 rounded px-1 py-0.5 bg-white" />
-                  <input
-                    type="text"
-                    defaultValue={c.degreeYrSec}
-                    className="border border-gray-300 rounded px-1 py-0.5 bg-white"
-                  />
-                </>
-              )}
+          {courses.length === 0 && readOnly ? (
+            <div className="grid grid-cols-4 gap-1 text-[10px] text-gray-800">
+              <span className="border border-gray-300 rounded px-1 py-0.5 bg-gray-50">—</span>
+              <span className="border border-gray-300 rounded px-1 py-0.5 bg-gray-50">—</span>
+              <span className="border border-gray-300 rounded px-1 py-0.5 bg-gray-50 col-span-2 text-left">
+                No courses plotted for this faculty in the selected term. Use Evaluator to add schedule rows.
+              </span>
             </div>
-          ))}
+          ) : (
+            courses.map((c, idx) => (
+              <div key={idx} className="grid grid-cols-4 gap-1 text-[10px]">
+                {readOnly ? (
+                  <>
+                    <span className="border border-gray-300 rounded px-1 py-0.5 bg-white">{c.students}</span>
+                    <span className="border border-gray-300 rounded px-1 py-0.5 bg-white">{c.code}</span>
+                    <span className="border border-gray-300 rounded px-1 py-0.5 bg-white">{c.title}</span>
+                    <span className="border border-gray-300 rounded px-1 py-0.5 bg-white">{c.degreeYrSec}</span>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      defaultValue={String(c.students)}
+                      className="border border-gray-300 rounded px-1 py-0.5 bg-white"
+                    />
+                    <input type="text" defaultValue={c.code} className="border border-gray-300 rounded px-1 py-0.5 bg-white" />
+                    <input type="text" defaultValue={c.title} className="border border-gray-300 rounded px-1 py-0.5 bg-white" />
+                    <input
+                      type="text"
+                      defaultValue={c.degreeYrSec}
+                      className="border border-gray-300 rounded px-1 py-0.5 bg-white"
+                    />
+                  </>
+                )}
+              </div>
+            ))
+          )}
           {!readOnly &&
             Array.from({ length: Math.max(0, 4 - courses.length) }).map((_, i) => (
               <div key={`e-${i}`} className="grid grid-cols-4 gap-1 text-[10px]">
@@ -276,6 +332,8 @@ export type OpticoreInsForm5BProps = {
   courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }>;
   readOnly?: boolean;
   semesterLabel?: string;
+  scheduleApproved?: boolean;
+  insSignatureSlots?: InsSignatureSlot[] | null;
 };
 
 /** INS FORM 5B — Program by Section */
@@ -287,6 +345,8 @@ export function OpticoreInsForm5B({
   courses,
   readOnly = false,
   semesterLabel,
+  scheduleApproved = false,
+  insSignatureSlots = null,
 }: OpticoreInsForm5BProps) {
   function renderCell(time: string, day: InsDay) {
     const row = schedule[day].find((c) => c.time.includes(time.split("-")[0]));
@@ -377,7 +437,11 @@ export function OpticoreInsForm5B({
         </div>
       </div>
 
-      <OpticoreInsScheduleTableWithSignatures renderCell={renderCell} />
+      <OpticoreInsScheduleTableWithSignatures
+        renderCell={renderCell}
+        signatureSlots={insSignatureSlots}
+        scheduleApproved={scheduleApproved}
+      />
 
       <div className="border border-gray-400 rounded-sm p-3">
         <div className="text-center font-bold text-sm mb-2">SUMMARY OF COURSES</div>
@@ -423,10 +487,17 @@ export function OpticoreInsForm5B({
 export type OpticoreInsForm5CProps = {
   roomAssignment: string;
   schedule: FacultySchedule;
+  scheduleApproved?: boolean;
+  insSignatureSlots?: InsSignatureSlot[] | null;
 };
 
 /** INS FORM 5C — Room utilization */
-export function OpticoreInsForm5C({ roomAssignment, schedule }: OpticoreInsForm5CProps) {
+export function OpticoreInsForm5C({
+  roomAssignment,
+  schedule,
+  scheduleApproved = false,
+  insSignatureSlots = null,
+}: OpticoreInsForm5CProps) {
   function renderCell(time: string, day: InsDay) {
     const classAtTime = matchSlot(schedule[day], time);
     if (classAtTime) {
@@ -486,7 +557,11 @@ export function OpticoreInsForm5C({ roomAssignment, schedule }: OpticoreInsForm5
         />
       </div>
 
-      <OpticoreInsScheduleTableWithSignatures renderCell={renderCell} />
+      <OpticoreInsScheduleTableWithSignatures
+        renderCell={renderCell}
+        signatureSlots={insSignatureSlots}
+        scheduleApproved={scheduleApproved}
+      />
 
       <div className="space-y-8 text-xs pt-4">
         <FooterSig label="Prepared by:" role="Program Coordinator/Chair" />

@@ -10,6 +10,7 @@ export type AuthUserProfile = {
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
+  signatureImageUrl?: string | null;
 };
 
 /** Prefer RPC (SECURITY DEFINER); fallback to table + lowercase id. */
@@ -25,7 +26,7 @@ export async function fetchMyUserRowForAuth(
   const uid = userId.toLowerCase();
   const { data: row, error: rowErr } = await supabase
     .from("User")
-    .select("id,email,name,role,collegeId,chairmanProgramId")
+    .select("id,email,name,role,collegeId,chairmanProgramId,signatureImageUrl")
     .eq("id", uid)
     .maybeSingle<AuthUserProfile>();
 

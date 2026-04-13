@@ -30,7 +30,12 @@ export function EvaluatorPage({
   chairmanProgramId = null,
 }: EvaluatorPageProps) {
   if (variant === "college" || variant === "cas" || variant === "doi") {
-    return <CentralHubEvaluatorView basePath={centralHubBasePath(variant)} />;
+    return (
+      <CentralHubEvaluatorView
+        basePath={centralHubBasePath(variant)}
+        showDoiGovernance={variant === "doi"}
+      />
+    );
   }
 
   const [tab, setTab] = useState<"timetabling" | "load">("timetabling");

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Save } from "lucide-react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
@@ -22,8 +22,17 @@ import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/Evaluator
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
 import { GecSectionPlottingTable, type GecPlotEditPatch } from "@/components/gec/GecSectionPlottingTable";
 import { GecSectionSchedulePreview } from "@/components/gec/GecSectionSchedulePreview";
-import { isGecCurriculumSubjectCode, isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
+import { BSIT_EVALUATOR_TIME_SLOTS } from "@/lib/chairman/bsit-evaluator-constants";
+import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
+import {
+  GEC_VACANT_INSTRUCTOR_USER_ID,
+  isGecCurriculumSubjectCode,
+  isGecVacantScheduleEntry,
+} from "@/lib/gec/gec-vacant";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
+import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
+import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -43,13 +52,16 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  * GEC Chairman Central Hub:
  * 1) College tiles → college workspace.
  * 2) Department + Section — same `ScheduleEntry` data College Admin sees in the hub.
- * 3) Layout: BSIT prospectus summary (top) → chairman-style plotting grid (middle, vacant slots in light green) →
- *    INS weekly preview (bottom), updating live from merged edits.
+ * 3) Layout (matches College Admin hub): prospectus summary by year level (top) → chairman-style plotting grid
+ *    (vacant GEC in light green) → live INS weekly preview (bottom).
  * Vacant GEC placeholders are editable only after one-time `gec_vacant_slots` approval.
  */
 export function GecCentralHubEvaluatorClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const collegeIdParam = searchParams.get("college")?.trim() ?? "";
+  const collegeParam = searchParams.get("college")?.trim() ?? "";
+  const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
+  const isCampusWide = collegeParam === CAMPUS_WIDE_COLLEGE_SLUG;
 
   const { requests, loading: accessLoading, reload: reloadAccess } = useAccessRequests();
   const canEditVacant = hasActiveScopeGrant(requests, "gec_vacant_slots");
@@ -75,6 +87,8 @@ export function GecCentralHubEvaluatorClient() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [conflictIds, setConflictIds] = useState<Set<string>>(new Set());
   const [conflictSummary, setConflictSummary] = useState<string[]>([]);
+  /** Local rows not yet in Supabase — same “Add schedule row” flow as Program Chairman (`BsitChairmanEvaluatorWorksheet`). */
+  const [extraEntries, setExtraEntries] = useState<ScheduleEntry[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,7 +147,7 @@ export function GecCentralHubEvaluatorClient() {
 
   useEffect(() => {
     setSectionIdFilter("");
-  }, [collegeIdParam]);
+  }, [collegeParam]);
 
   useEffect(() => {
     setEdits({});
@@ -141,7 +155,8 @@ export function GecCentralHubEvaluatorClient() {
     setConflictSummary([]);
     setSaveMsg(null);
     setPickedSummaryCode(null);
-  }, [collegeIdParam, academicPeriodId, programId, sectionIdFilter]);
+    setExtraEntries([]);
+  }, [collegeParam, academicPeriodId, programId, sectionIdFilter]);
 
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
@@ -179,31 +194,57 @@ export function GecCentralHubEvaluatorClient() {
     return m;
   }, [colleges]);
 
+  const allEntries = useMemo(() => [...entries, ...extraEntries], [entries, extraEntries]);
+
+  const pendingNewEntryIds = useMemo(
+    () => new Set(extraEntries.map((e) => e.id)),
+    [extraEntries],
+  );
+
   const mergedEntries = useMemo((): ScheduleEntry[] => {
-    return entries.map((e) => {
+    return allEntries.map((e) => {
       const p = edits[e.id];
       if (!p) return e;
       return { ...e, ...p };
     });
-  }, [entries, edits]);
+  }, [allEntries, edits]);
 
-  /** Original DB rows that are vacant GEC placeholders in scope (eligible for chairman-style plotting). */
+  const selectedDbCollege = useMemo(
+    () => (collegeParam && !isCampusWide ? colleges.find((c) => c.id === collegeParam) : undefined),
+    [colleges, collegeParam, isCampusWide],
+  );
+
+  const invalidCollege = Boolean(
+    collegeParam && !isCampusWide && !loading && colleges.length > 0 && !selectedDbCollege,
+  );
+
+  /** `null` = all colleges (campus-wide), same as College Admin hub. */
+  const scopeCollegeIdForRows = useMemo((): string | null => {
+    if (!collegeParam || isCampusWide) return null;
+    return collegeParam;
+  }, [collegeParam, isCampusWide]);
+
+  /** Rows that are vacant GEC placeholders (DB + newly added local rows). */
   const vacantGecSourceIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const e of entries) {
+    for (const e of allEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
       const sec = sectionById.get(e.sectionId);
       const pr = sec ? programById.get(sec.programId) : null;
-      if (!collegeIdParam || !pr || pr.collegeId !== collegeIdParam) continue;
+      if (!pr) continue;
+      if (!isCampusWide) {
+        if (!collegeParam || pr.collegeId !== collegeParam) continue;
+      }
       if (programId && sec?.programId !== programId) continue;
       if (sectionIdFilter && e.sectionId !== sectionIdFilter) continue;
       if (isGecVacantScheduleEntry(e, subjectById)) ids.add(e.id);
     }
     return ids;
   }, [
-    entries,
+    allEntries,
     academicPeriodId,
-    collegeIdParam,
+    collegeParam,
+    isCampusWide,
     programId,
     sectionIdFilter,
     sectionById,
@@ -212,21 +253,23 @@ export function GecCentralHubEvaluatorClient() {
   ]);
 
   const programsInCollege = useMemo(() => {
-    if (!collegeIdParam) return [];
-    return programs.filter((p) => p.collegeId === collegeIdParam);
-  }, [programs, collegeIdParam]);
+    if (!collegeParam) return [];
+    if (isCampusWide) return programs;
+    return programs.filter((p) => p.collegeId === collegeParam);
+  }, [programs, collegeParam, isCampusWide]);
 
   const sectionsForCollegeFiltered = useMemo(() => {
-    if (!collegeIdParam) return [];
+    if (!collegeParam) return [];
     return sections
       .filter((s) => {
         const pr = programById.get(s.programId);
-        if (!pr || pr.collegeId !== collegeIdParam) return false;
+        if (!pr) return false;
+        if (!isCampusWide && pr.collegeId !== collegeParam) return false;
         if (programId && s.programId !== programId) return false;
         return true;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [sections, programById, collegeIdParam, programId]);
+  }, [sections, programById, collegeParam, programId, isCampusWide]);
 
   useEffect(() => {
     if (!sectionIdFilter) return;
@@ -253,11 +296,11 @@ export function GecCentralHubEvaluatorClient() {
   }, [pickedSummaryCode, sectionIdFilter, sectionById, subjects]);
 
   const tableRows = useMemo(() => {
-    if (!academicPeriodId || !collegeIdParam) return [];
+    if (!academicPeriodId || !collegeParam) return [];
     return buildScheduleEvaluatorTableRows({
       entries: mergedEntries,
       academicPeriodId,
-      scopeCollegeId: collegeIdParam,
+      scopeCollegeId: scopeCollegeIdForRows,
       programId,
       sectionById,
       programById,
@@ -269,7 +312,8 @@ export function GecCentralHubEvaluatorClient() {
   }, [
     mergedEntries,
     academicPeriodId,
-    collegeIdParam,
+    collegeParam,
+    scopeCollegeIdForRows,
     programId,
     sectionById,
     programById,
@@ -279,18 +323,26 @@ export function GecCentralHubEvaluatorClient() {
     collegeNameById,
   ]);
 
-  const instructorsForCollege = useMemo(
-    () =>
-      users.filter(
-        (u) => u.collegeId === collegeIdParam && (u.role === "instructor" || u.role === "chairman_admin"),
-      ),
-    [users, collegeIdParam],
-  );
+  /** College id for the section being plotted (required for conflict checks vs campus-wide URL). */
+  const plotCollegeId = useMemo(() => {
+    if (!sectionIdFilter) return null;
+    const sec = sectionById.get(sectionIdFilter);
+    const pr = sec ? programById.get(sec.programId) : null;
+    return pr?.collegeId ?? null;
+  }, [sectionIdFilter, sectionById, programById]);
 
-  const roomsForCollegeList = useMemo(
-    () => rooms.filter((r) => !r.collegeId || r.collegeId === collegeIdParam),
-    [rooms, collegeIdParam],
-  );
+  const instructorsForPlotting = useMemo(() => {
+    if (!plotCollegeId) return [];
+    return users.filter(
+      (u) =>
+        u.collegeId === plotCollegeId && (u.role === "instructor" || u.role === "chairman_admin"),
+    );
+  }, [users, plotCollegeId]);
+
+  const roomsForPlotting = useMemo(() => {
+    if (!plotCollegeId) return [];
+    return rooms.filter((r) => !r.collegeId || r.collegeId === plotCollegeId);
+  }, [rooms, plotCollegeId]);
 
   function patchEdit(entryId: string, patch: GecPlotEditPatch) {
     setEdits((prev) => ({
@@ -303,10 +355,13 @@ export function GecCentralHubEvaluatorClient() {
     const blocks = mergedEntries
       .filter((e) => {
         if (e.academicPeriodId !== academicPeriodId) return false;
-        if (!collegeIdParam) return false;
+        if (!collegeParam) return false;
         const sec = sectionById.get(e.sectionId);
         const pr = sec ? programById.get(sec.programId) : null;
-        return pr?.collegeId === collegeIdParam;
+        if (!pr) return false;
+        if (!isCampusWide && pr.collegeId !== collegeParam) return false;
+        if (programId && sec?.programId !== programId) return false;
+        return true;
       })
       .map(toBlock);
     const scan = scanAllScheduleConflicts(blocks);
@@ -320,7 +375,7 @@ export function GecCentralHubEvaluatorClient() {
   }
 
   async function saveVacantEdits() {
-    if (!canEditVacant || !collegeIdParam || !academicPeriodId) return;
+    if (!canEditVacant || !collegeParam || !academicPeriodId) return;
     setSaveBusy(true);
     setSaveMsg(null);
     const supabase = createSupabaseBrowserClient();
@@ -331,11 +386,15 @@ export function GecCentralHubEvaluatorClient() {
     }
     try {
       const toSave: ScheduleEntry[] = [];
-      for (const e of entries) {
+      for (const e of allEntries) {
         if (!vacantGecSourceIds.has(e.id)) continue;
+        const merged = { ...e, ...edits[e.id] };
+        const isNew = pendingNewEntryIds.has(e.id);
         const patch = edits[e.id];
-        if (!patch || Object.keys(patch).length === 0) continue;
-        toSave.push({ ...e, ...patch });
+        const hasPatch = patch && Object.keys(patch).length > 0;
+        if (isNew || hasPatch) {
+          toSave.push(merged);
+        }
       }
       if (toSave.length === 0) {
         setSaveMsg("No vacant GEC edits to save.");
@@ -347,11 +406,28 @@ export function GecCentralHubEvaluatorClient() {
         return;
       }
       setEdits({});
+      setExtraEntries([]);
       await load();
       await reloadAccess();
       dispatchInsCatalogReload();
       setSaveMsg(`Saved ${toSave.length} vacant GEC row(s).`);
       runConflictCheck();
+
+      const sec = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
+      if (plotCollegeId && sectionIdFilter) {
+        void fetch("/api/gec/schedule-save-notify", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            collegeId: plotCollegeId,
+            academicPeriodId,
+            sectionId: sectionIdFilter,
+            sectionName: sec?.name ?? "",
+            rowCount: toSave.length,
+          }),
+        }).catch(() => {});
+      }
     } finally {
       setSaveBusy(false);
     }
@@ -364,24 +440,106 @@ export function GecCentralHubEvaluatorClient() {
     if (s) setProgramId(s.programId);
   }
 
+  function removePendingEntry(entryId: string) {
+    setExtraEntries((prev) => prev.filter((e) => e.id !== entryId));
+    setEdits((prev) => {
+      const next = { ...prev };
+      delete next[entryId];
+      return next;
+    });
+  }
+
+  function addGecScheduleRow() {
+    if (!canEditVacant || !sectionIdFilter || !academicPeriodId || !plotCollegeId) {
+      setSaveMsg("Select a section and ensure vacant-slot access is approved before adding rows.");
+      return;
+    }
+    const sec = sectionById.get(sectionIdFilter);
+    if (!sec) return;
+    const prog = programById.get(sec.programId);
+    const programCode = prog?.code ?? "";
+    const gecList = subjects
+      .filter((s) => s.programId === sec.programId && isGecCurriculumSubjectCode(s.code))
+      .sort((a, b) => a.code.localeCompare(b.code));
+    const firstSub = gecList[0];
+    if (!firstSub) {
+      setSaveMsg("No GEC/GEE subjects found for this program. Add curriculum subjects in the database first.");
+      return;
+    }
+    const dur = scheduleSlotDurationForSubject(programCode, firstSub);
+    const maxIdx = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+    const startIdx = 0;
+    const startSlot = BSIT_EVALUATOR_TIME_SLOTS[startIdx];
+    const endSlot = BSIT_EVALUATOR_TIME_SLOTS[startIdx + dur - 1];
+    if (!startSlot || !endSlot) return;
+    const roomPick = roomsForPlotting[0]?.id ?? "";
+    if (!roomPick) {
+      setSaveMsg("No room available for this college — add rooms in the database first.");
+      return;
+    }
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `gec-${Date.now()}-${Math.random()}`;
+    const padTime = (t: string) => (t.length <= 5 ? `${t}:00` : t);
+    const row: ScheduleEntry = {
+      id,
+      academicPeriodId,
+      subjectId: firstSub.id,
+      instructorId: GEC_VACANT_INSTRUCTOR_USER_ID,
+      sectionId: sectionIdFilter,
+      roomId: roomPick,
+      day: "Monday",
+      startTime: padTime(startSlot.startTime),
+      endTime: padTime(endSlot.endTime),
+      status: "draft",
+    };
+    setExtraEntries((prev) => [...prev, row]);
+    setSaveMsg(null);
+  }
+
   if (loadError) {
     return <div className="px-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4 m-4">{loadError}</div>;
   }
 
-  if (!collegeIdParam) {
+  if (invalidCollege) {
+    return (
+      <div>
+        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Invalid college selection." />
+        <div className="px-4 md:px-8 pb-8">
+          <Link href="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
+            ← Back to college hub
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  /** Landing: college tiles — same structure as College Admin Central Hub (`CentralHubEvaluatorView`). */
+  if (!collegeParam) {
     return (
       <div>
         <ChairmanPageHeader
-          title="Central Hub Evaluator (GEC)"
-          subtitle="Select a college to view its full schedule. Only vacant GEC slots can be edited after College Admin approves your access."
+          title="Central Hub Evaluator"
+          subtitle="High-level view of today's academic activity and room usage. GEC edits apply only to vacant GEC slots after College Admin approval."
         />
-        <div className="px-4 md:px-8 pb-12 max-w-5xl mx-auto space-y-6">
+        <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
+          <GecHubEvaluatorTabs collegeParam="" panel="timetabling" />
           <GecVacantSlotsApprovalGate state={approvalState} loading={accessLoading} />
-
+          <p className="text-[14px] text-black/70 mb-8 text-center">
+            Campus-wide scope — open the full timetable or select one college, then pick a section to plot GEC subjects
+            into highlighted vacant slots.
+          </p>
+          <div className="mb-4 flex justify-center">
+            <Link
+              href={`/admin/gec/evaluator?college=${CAMPUS_WIDE_COLLEGE_SLUG}`}
+              className="inline-flex items-center justify-center min-h-[56px] rounded-[20px] bg-[#780301] text-white font-bold text-[14px] px-8 py-3 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-110 transition-[filter]"
+            >
+              All colleges (campus-wide timetable)
+            </Link>
+          </div>
           {loading ? (
-            <p className="text-sm text-black/55">Loading colleges…</p>
+            <p className="text-sm text-black/55 text-center">Loading colleges…</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {colleges.map((c) => (
                 <Link
                   key={c.id}
@@ -393,33 +551,108 @@ export function GecCentralHubEvaluatorClient() {
               ))}
             </div>
           )}
+          <p className="text-[12px] text-black/45 mt-8 text-center">
+            Same Campus Intelligence shell and hub pattern as College Admin; major subjects stay locked — only vacant GEC
+            rows are editable when approved.
+          </p>
         </div>
       </div>
     );
   }
 
-  const selectedCollege = colleges.find((c) => c.id === collegeIdParam);
+  const selectedCollege = isCampusWide ? null : selectedDbCollege;
   const selectedSection = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
+  const sectionProgram = selectedSection ? programById.get(selectedSection.programId) : undefined;
+
+  /** Hours / load tab — mirrors College Admin hub sample panel. */
+  if (panel === "hrs") {
+    return (
+      <div>
+        <ChairmanPageHeader
+          title="Central Hub Evaluator"
+          subtitle="Campus-wide data — narrow by college and department (program)."
+        />
+        <div className="px-4 md:px-8 pb-8 max-w-[1400px] mx-auto">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <Link href="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
+              ← College hub
+            </Link>
+            <span className="text-[13px] text-black/55">
+              Scope:{" "}
+              <strong className="text-black/80">
+                {isCampusWide ? "All colleges (campus-wide)" : selectedCollege?.name ?? "—"}
+              </strong>
+            </span>
+          </div>
+          <GecHubEvaluatorTabs collegeParam={collegeParam} panel="hrs" />
+          <HrsUnitsPrepsRemarksTable />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <ChairmanPageHeader
-        title="Central Hub Evaluator (GEC)"
-        subtitle={
-          selectedCollege
-            ? `${selectedCollege.name} — same ScheduleEntry hub as College Admin; vacant GEC slots plot like Program Chairman after approval.`
-            : "College schedule"
-        }
+        title="Central Hub Evaluator"
+        subtitle="Campus-wide data — narrow by college and department (program). Vacant GEC slots are highlighted; plotting matches the Program Chairman worksheet."
       />
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
-            ← All colleges
+            ← College hub
           </Link>
+          <span className="text-[13px] text-black/55">
+            Scope:{" "}
+            <strong className="text-black/80">
+              {isCampusWide ? "All colleges (campus-wide)" : selectedCollege?.name ?? "—"}
+            </strong>
+          </span>
         </div>
 
+        <GecHubEvaluatorTabs collegeParam={collegeParam} panel="timetabling" />
+
         <GecVacantSlotsApprovalGate state={approvalState} loading={accessLoading} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <label className="block min-w-[200px]">
+            <span className="text-[13px] font-semibold text-black/70">College</span>
+            <select
+              className="mt-1 w-full h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm"
+              value={isCampusWide ? CAMPUS_WIDE_COLLEGE_SLUG : collegeParam}
+              onChange={(e) => {
+                const v = e.target.value;
+                router.replace(`/admin/gec/evaluator?college=${encodeURIComponent(v)}`);
+              }}
+            >
+              <option value={CAMPUS_WIDE_COLLEGE_SLUG}>All colleges (campus-wide)</option>
+              {colleges.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block min-w-[200px]">
+            <span className="text-[13px] font-semibold text-black/70">Department (program)</span>
+            <select
+              className="mt-1 w-full h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm"
+              value={programId}
+              onChange={(e) => {
+                setProgramId(e.target.value);
+                setSectionIdFilter("");
+              }}
+            >
+              <option value="">All departments</option>
+              {programsInCollege.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code} — {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         <div className="flex flex-wrap gap-3 items-end">
           <label className="text-[13px] font-semibold text-black/70">
@@ -432,24 +665,6 @@ export function GecCentralHubEvaluatorClient() {
               {periods.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-[13px] font-semibold text-black/70">
-            Department (program)
-            <select
-              className="ml-2 h-11 rounded-lg border border-black/25 bg-white px-3 text-sm block mt-1 min-w-[200px]"
-              value={programId}
-              onChange={(e) => {
-                setProgramId(e.target.value);
-                setSectionIdFilter("");
-              }}
-            >
-              <option value="">All programs</option>
-              {programsInCollege.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code} — {p.name}
                 </option>
               ))}
             </select>
@@ -525,6 +740,7 @@ export function GecCentralHubEvaluatorClient() {
                 </p>
                 <EvaluatorScheduleOverviewTable
                   rows={tableRows}
+                  showCollegeColumn={isCampusWide}
                   highlightRowIds={conflictIds}
                   vacantGecRowIds={vacantGecSourceIds}
                   dimNonVacantRows
@@ -532,28 +748,42 @@ export function GecCentralHubEvaluatorClient() {
               </>
             ) : (
               <div className="space-y-6">
-                {/* Top: predefined BSIT prospectus summary */}
-                <BsitProspectusSummaryTable onSelectSubjectCode={setPickedSummaryCode} />
-
-                {/* Middle: main plotting grid (Chairman-like; vacant slots highlighted) */}
-                <GecSectionPlottingTable
-                  collegeId={collegeIdParam}
-                  academicPeriodId={academicPeriodId}
-                  sectionId={sectionIdFilter}
-                  mergedEntries={mergedEntries}
-                  entries={entries}
-                  subjectById={subjectById}
-                  sectionById={sectionById}
-                  programById={programById}
-                  instructors={instructorsForCollege}
-                  userById={userById}
-                  rooms={roomsForCollegeList}
-                  edits={edits}
-                  patchEdit={patchEdit}
-                  canEditVacant={canEditVacant}
-                  pickedSummaryCode={pickedSummaryCode}
-                  pickedSubjectId={pickedSubjectId}
+                {/* Top: static prospectus for this section’s program (registry in prospectus-registry.ts) */}
+                <BsitProspectusSummaryTable
+                  programCode={sectionProgram?.code ?? ""}
+                  programName={sectionProgram?.name}
+                  onSelectSubjectCode={setPickedSummaryCode}
                 />
+
+                {/* Main plotting grid — same timetabling model as Program Chairman; only vacant GEC rows accept edits. */}
+                {plotCollegeId ? (
+                  <GecSectionPlottingTable
+                    collegeId={plotCollegeId}
+                    academicPeriodId={academicPeriodId}
+                    sectionId={sectionIdFilter}
+                    mergedEntries={mergedEntries}
+                    entries={allEntries}
+                    subjectById={subjectById}
+                    sectionById={sectionById}
+                    programById={programById}
+                    instructors={instructorsForPlotting}
+                    userById={userById}
+                    rooms={roomsForPlotting}
+                    edits={edits}
+                    patchEdit={patchEdit}
+                    canEditVacant={canEditVacant}
+                    pickedSummaryCode={pickedSummaryCode}
+                    pickedSubjectId={pickedSubjectId}
+                    onAddScheduleRow={addGecScheduleRow}
+                    showAddScheduleButton={canEditVacant}
+                    pendingNewEntryIds={pendingNewEntryIds}
+                    onRemovePendingEntry={removePendingEntry}
+                  />
+                ) : (
+                  <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                    Could not resolve this section&apos;s college — check program linkage in the database.
+                  </p>
+                )}
 
                 {!canEditVacant ? (
                   <p className="text-sm text-black/55">
@@ -564,6 +794,7 @@ export function GecCentralHubEvaluatorClient() {
 
                 {/* Bottom: INS-style schedule preview — reflects merged local edits immediately */}
                 <GecSectionSchedulePreview
+                  programCode={sectionProgram?.code ?? ""}
                   entries={mergedEntries}
                   academicPeriodId={academicPeriodId}
                   sectionId={sectionIdFilter}

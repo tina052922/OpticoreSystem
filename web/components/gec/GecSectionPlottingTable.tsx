@@ -7,7 +7,7 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { prospectusByCode, scheduleDurationSlots } from "@/lib/chairman/bsit-prospectus";
+import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
 import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecCurriculumSubjectCode, isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
@@ -41,18 +41,16 @@ type Props = {
   /** From prospectus summary click — optional quick-apply to vacant rows. */
   pickedSummaryCode: string | null;
   pickedSubjectId: string | null;
+  /** Program Chairman parity: add a new vacant GEC row for this section. */
+  onAddScheduleRow?: () => void;
+  showAddScheduleButton?: boolean;
+  /** Locally added rows (not yet persisted) — show remove until saved. */
+  pendingNewEntryIds?: Set<string>;
+  onRemovePendingEntry?: (entryId: string) => void;
 };
 
 function hhmm(t: string): string {
   return t.trim().length > 5 ? t.trim().slice(0, 5) : t.trim();
-}
-
-function durationForSubjectId(subjectId: string, subjectById: Map<string, Subject>): number {
-  const sub = subjectById.get(subjectId);
-  if (!sub?.code) return 1;
-  const p = prospectusByCode(sub.code);
-  if (p) return scheduleDurationSlots(p);
-  return Math.max(1, Math.min(10, Math.round((sub.lecHours ?? 1) / 1)));
 }
 
 function startSlotIndexFromEntry(e: ScheduleEntry): number {
@@ -95,6 +93,10 @@ export function GecSectionPlottingTable({
   canEditVacant,
   pickedSummaryCode,
   pickedSubjectId,
+  onAddScheduleRow,
+  showAddScheduleButton = false,
+  pendingNewEntryIds = new Set(),
+  onRemovePendingEntry,
 }: Props) {
   const vacantSourceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -134,6 +136,8 @@ export function GecSectionPlottingTable({
   const sec = sectionById.get(sectionId);
   const program = sec ? programById.get(sec.programId) : null;
   const pid = sec?.programId ?? "";
+  /** Matches `Program.code` in Supabase — drives which static prospectus drives slot spans. */
+  const programCode = program?.code ?? "";
 
   const gecSubjects = useMemo(() => {
     if (!pid) return [];
@@ -157,7 +161,7 @@ export function GecSectionPlottingTable({
   }
 
   function applySlotRange(entryId: string, subjectId: string, startIdx: number) {
-    const dur = durationForSubjectId(subjectId, subjectById);
+    const dur = scheduleSlotDurationForSubject(programCode, subjectById.get(subjectId));
     const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
     const idx = Math.min(Math.max(0, startIdx), maxS);
     const start = BSIT_EVALUATOR_TIME_SLOTS[idx];
@@ -166,14 +170,28 @@ export function GecSectionPlottingTable({
     patchEdit(entryId, { startTime: start.startTime, endTime: end.endTime });
   }
 
+  /** Actions column only when there are unsaved added rows (avoid an empty column). */
+  const showActionsCol = Boolean(onRemovePendingEntry && pendingNewEntryIds.size > 0);
+
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10">
-      <div className="px-4 py-2 border-b border-black/10 bg-black/[0.02]">
-        <h3 className="text-sm font-bold text-black/90">Main evaluator grid (section scope)</h3>
-        <p className="text-[11px] text-black/55 mt-0.5">
-          Locked rows: major subjects (read-only). Highlighted vacant GEC slots: plot subject, instructor, room, day,
-          and start time — same fields as Program Chairman.
-        </p>
+      <div className="px-4 py-2 border-b border-black/10 bg-black/[0.02] flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-black/90">Main evaluator grid (section scope)</h3>
+          <p className="text-[11px] text-black/55 mt-0.5">
+            Locked rows: major subjects (read-only). Highlighted vacant GEC slots: plot subject, instructor, room, day,
+            and start time — same fields as Program Chairman.
+          </p>
+        </div>
+        {showAddScheduleButton && onAddScheduleRow ? (
+          <Button
+            type="button"
+            className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold shrink-0"
+            onClick={onAddScheduleRow}
+          >
+            + Add schedule row
+          </Button>
+        ) : null}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse min-w-[1180px]">
@@ -190,13 +208,20 @@ export function GecSectionPlottingTable({
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Faculty conflict</th>
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Room conflict</th>
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Section conflict</th>
+              {showActionsCol ? (
+                <th className="border border-black/10 px-2 py-2.5 text-left font-bold w-16"> </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
             {sectionRows.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-[13px] text-black/50">
-                  No schedule rows for this section and term.
+                <td
+                  colSpan={showActionsCol ? 12 : 11}
+                  className="px-4 py-10 text-center text-[13px] text-black/50"
+                >
+                  No schedule rows for this section and term. Use &quot;+ Add schedule row&quot; to plot a GEC class
+                  (same as Program Chairman).
                 </td>
               </tr>
             ) : (
@@ -206,7 +231,7 @@ export function GecSectionPlottingTable({
                 const isVacantSlot = vacantSourceIds.has(e.id);
                 const editable = canEditVacant && isVacantSlot;
                 const cf = conflictForEntry(merged);
-                const dur = durationForSubjectId(merged.subjectId, subjectById);
+                const dur = scheduleSlotDurationForSubject(programCode, subjectById.get(merged.subjectId));
                 const startIdx = startSlotIndexFromEntry(merged);
                 const maxStart = Math.max(0, BSIT_EVALUATOR_TIME_SLOTS.length - dur);
                 const effStart = startIdx >= 0 ? Math.min(startIdx, maxStart) : 0;
@@ -352,6 +377,21 @@ export function GecSectionPlottingTable({
                     >
                       {cf.section}
                     </td>
+                    {showActionsCol ? (
+                      <td className="border border-black/10 px-1 py-1 align-middle">
+                        {pendingNewEntryIds.has(e.id) && onRemovePendingEntry ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-[10px] px-2"
+                            onClick={() => onRemovePendingEntry(e.id)}
+                          >
+                            Remove
+                          </Button>
+                        ) : null}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })

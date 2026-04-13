@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { AdminProfileCard } from "@/components/admin/AdminProfileCard";
+import { ProfileSignatureSectionGate } from "@/components/profile/ProfileSignatureSectionGate";
 import { getChairmanSession } from "@/lib/auth/chairman-session";
 import { collegeDisplayName } from "@/lib/college-labels";
 import { adminRoleLabel } from "@/lib/role-labels";
@@ -31,6 +32,7 @@ export default async function ChairmanProfilePage() {
           extraRows={extraRows}
           subheading={`${adminRoleLabel(session.role)} • ${collegeDisplayName(session.collegeId)}`}
         />
+        <ProfileSignatureSectionGate role={session.role} initialSignatureUrl={session.signatureImageUrl} />
       </div>
     </div>
   );

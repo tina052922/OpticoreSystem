@@ -6,7 +6,8 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { prospectusByCode, scheduleDurationSlots } from "@/lib/chairman/bsit-prospectus";
+import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
+import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import type { Room, ScheduleEntry, Subject, User } from "@/types/db";
 
 function hhmm(t: string): string {
@@ -28,15 +29,17 @@ function startSlotIndexFromEntry(e: ScheduleEntry): number {
   return BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === h);
 }
 
-function durationForEntry(e: ScheduleEntry, subjectById: Map<string, Subject>): number {
-  const sub = subjectById.get(e.subjectId);
-  if (!sub?.code) return 1;
-  const p = prospectusByCode(sub.code);
-  if (p) return scheduleDurationSlots(p);
-  return Math.max(1, Math.min(10, Math.round((sub.lecHours ?? 1) / 1)));
+function durationForEntry(
+  e: ScheduleEntry,
+  programCode: string,
+  subjectById: Map<string, Subject>,
+): number {
+  return scheduleSlotDurationForSubject(programCode, subjectById.get(e.subjectId));
 }
 
 type Props = {
+  /** Same as section’s `Program.code` — selects which static prospectus defines lab/lec slot spans. */
+  programCode: string;
   entries: ScheduleEntry[];
   academicPeriodId: string;
   sectionId: string;
@@ -51,6 +54,7 @@ type Props = {
  * but reads live `ScheduleEntry` rows (including locked majors + filled GEC).
  */
 export function GecSectionSchedulePreview({
+  programCode,
   entries,
   academicPeriodId,
   sectionId,
@@ -68,7 +72,7 @@ export function GecSectionSchedulePreview({
   const skipSlot = useMemo(() => {
     const m = new Set<string>();
     for (const e of list) {
-      const d = durationForEntry(e, subjectById);
+      const d = durationForEntry(e, programCode, subjectById);
       const start = startSlotIndexFromEntry(e);
       if (start < 0) continue;
       const maxS = slots.length - d;
@@ -80,7 +84,7 @@ export function GecSectionSchedulePreview({
       }
     }
     return m;
-  }, [list, subjectById]);
+  }, [list, programCode, subjectById]);
 
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
@@ -108,7 +112,7 @@ export function GecSectionSchedulePreview({
                   if (skipSlot.has(`${day}-${slotIdx}`)) return null;
                   const atHere = list.filter((e) => {
                     if (e.day !== day) return false;
-                    const d = durationForEntry(e, subjectById);
+                    const d = durationForEntry(e, programCode, subjectById);
                     const start = startSlotIndexFromEntry(e);
                     if (start < 0) return false;
                     const maxS = slots.length - d;
@@ -124,7 +128,7 @@ export function GecSectionSchedulePreview({
                   }
                   const rowspan = Math.max(
                     ...atHere.map((e) => {
-                      const d = durationForEntry(e, subjectById);
+                      const d = durationForEntry(e, programCode, subjectById);
                       const start = startSlotIndexFromEntry(e);
                       const maxS = slots.length - d;
                       const eff = Math.min(start, Math.max(0, maxS));
@@ -138,12 +142,18 @@ export function GecSectionSchedulePreview({
                           const sub = subjectById.get(e.subjectId);
                           const room = roomById.get(e.roomId);
                           const inst = userById.get(e.instructorId);
-                          const d = durationForEntry(e, subjectById);
+                          const d = durationForEntry(e, programCode, subjectById);
                           const start = startSlotIndexFromEntry(e);
                           const maxS = slots.length - d;
                           const eff = Math.min(start, Math.max(0, maxS));
+                          const vacant = isGecVacantScheduleEntry(e, subjectById);
                           return (
-                            <li key={e.id} className="leading-tight">
+                            <li
+                              key={e.id}
+                              className={`leading-tight rounded-sm px-0.5 -mx-0.5 ${
+                                vacant ? "bg-emerald-100/95 ring-1 ring-emerald-400/80" : ""
+                              }`}
+                            >
                               <span className="font-semibold">{sub?.code ?? "—"}</span>
                               <span className="block text-[9px] text-black/60 font-medium">
                                 {formatTimeRangeFromSlots(eff, d)}
