@@ -321,7 +321,7 @@ export function INSFormFaculty({
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8 print-paper print:shadow-none">
+        <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm md:p-10 print-paper print:shadow-none">
           <OpticoreInsForm5A
             facultyName={displayFacultyName}
             schedule={displaySchedule}

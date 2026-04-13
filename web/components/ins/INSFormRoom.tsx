@@ -338,12 +338,14 @@ export function INSFormRoom({
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8 print-paper print:shadow-none">
+        <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm md:p-10 print-paper print:shadow-none">
           <OpticoreInsForm5C
             roomAssignment={displayRoom}
             schedule={displaySchedule}
             scheduleApproved={useLiveData && catalog.termPublishLocked}
             insSignatureSlots={useLiveData ? insSignatureSlots : null}
+            readOnly={Boolean(useLiveData && catalog.termPublishLocked)}
+            semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
           />
         </div>
       </div>

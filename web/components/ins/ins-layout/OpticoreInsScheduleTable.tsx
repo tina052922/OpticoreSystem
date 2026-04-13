@@ -7,6 +7,8 @@ const vLabel = {
   transform: "rotate(180deg)",
 };
 
+const insTableBorder = "border border-neutral-900";
+
 type Props = {
   /** Render cell content for each time row and day column */
   renderCell: (time: string, day: (typeof INS_DAYS)[number]) => ReactNode;
@@ -14,6 +16,8 @@ type Props = {
   signatureSlots?: InsSignatureSlot[] | null;
   /** True when schedule rows are locked by VPAA publication */
   scheduleApproved?: boolean;
+  /** Form 5C (paper layout): grid only; signatures appear in the document footer instead */
+  signatureStrip?: "full" | "none";
 };
 
 /**
@@ -24,16 +28,24 @@ export function OpticoreInsScheduleTableWithSignatures({
   renderCell,
   signatureSlots,
   scheduleApproved = false,
+  signatureStrip = "full",
 }: Props) {
   return (
-    <div className="overflow-x-auto">
-      <div className="flex gap-1 min-w-0">
-        <table className="flex-1 min-w-0 border-collapse border border-gray-400">
+    <div className="overflow-x-touch-pan">
+      <div className={`flex min-w-0 ${signatureStrip === "none" ? "" : "gap-1"}`}>
+        <table className={`flex-1 min-w-0 w-full table-fixed border-collapse ${insTableBorder}`}>
           <thead>
-            <tr className="bg-gray-50">
-              <th className="border border-gray-400 px-1 py-2 text-[10px] font-semibold text-gray-900">TIME</th>
+            <tr className="bg-neutral-50">
+              <th
+                className={`${insTableBorder} w-[6.75rem] px-2 py-3 text-left text-xs font-bold uppercase tracking-wide text-neutral-900`}
+              >
+                TIME
+              </th>
               {INS_DAYS.map((day) => (
-                <th key={day} className="border border-gray-400 px-1 py-2 text-[10px] font-semibold text-gray-900">
+                <th
+                  key={day}
+                  className={`${insTableBorder} px-2 py-3 text-center text-xs font-bold text-neutral-900`}
+                >
                   {day}
                 </th>
               ))}
@@ -42,15 +54,16 @@ export function OpticoreInsScheduleTableWithSignatures({
           <tbody>
             {INS_TIME_SLOTS.map((time) => (
               <tr key={time}>
-                <td className="border border-gray-400 px-1 py-2 text-[10px] font-medium text-gray-900 whitespace-nowrap">
+                <td
+                  className={`${insTableBorder} px-2 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap align-middle`}
+                >
                   {time}
                 </td>
                 {INS_DAYS.map((day) => (
-                  <td
-                    key={`${time}-${day}`}
-                    className="border border-gray-400 px-1 py-2 text-[10px] text-gray-900 align-top min-h-[52px]"
-                  >
-                    {renderCell(time, day)}
+                  <td key={`${time}-${day}`} className={`${insTableBorder} p-0 align-middle`}>
+                    <div className="flex min-h-[5rem] flex-col items-center justify-center gap-0.5 px-2 py-3 text-center text-xs leading-snug text-neutral-900">
+                      {renderCell(time, day)}
+                    </div>
                   </td>
                 ))}
               </tr>
@@ -58,7 +71,9 @@ export function OpticoreInsScheduleTableWithSignatures({
           </tbody>
         </table>
 
-        <InsSignatureStrip signatureSlots={signatureSlots} scheduleApproved={scheduleApproved} />
+        {signatureStrip === "full" ? (
+          <InsSignatureStrip signatureSlots={signatureSlots} scheduleApproved={scheduleApproved} />
+        ) : null}
       </div>
     </div>
   );
@@ -82,29 +97,31 @@ function InsSignatureStrip({
   const slots = signatureSlots ?? FALLBACK_SLOTS;
 
   return (
-    <div className="hidden md:flex shrink-0 gap-1">
+    <div className="hidden md:flex shrink-0 gap-0">
       {slots.map((s) => (
         <div
           key={s.key}
-          className="flex flex-col items-stretch w-[72px] border border-gray-400 border-l-0 bg-white first:border-l first:rounded-l-sm last:rounded-r-sm overflow-hidden"
+          className="flex w-[5.75rem] flex-col items-stretch border border-neutral-900 border-l-0 bg-white first:border-l"
         >
-          <div className="bg-gray-50 px-0.5 py-2 min-h-[120px] flex flex-col items-center justify-between gap-1">
-            <div className="text-[8px] font-semibold text-gray-800 text-center leading-tight" style={vLabel}>
+          <div className="flex min-h-[11rem] flex-col items-center justify-between gap-2 bg-neutral-50 px-1 py-3">
+            <div className="text-[9px] font-semibold leading-tight text-neutral-900" style={vLabel}>
               {s.lineTitle}
             </div>
             {scheduleApproved && s.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
-              <img src={s.imageUrl} alt="" className="max-h-14 w-full object-contain object-bottom" />
+              <img src={s.imageUrl} alt="" className="max-h-16 w-full object-contain object-bottom" />
             ) : (
               <div
-                className="h-12 w-full border border-dashed border-gray-300 rounded bg-gray-50/80"
+                className="h-14 w-full rounded-sm border border-dashed border-neutral-400 bg-white"
                 title={scheduleApproved ? "No signature on file — upload in Profile" : "Pending publication"}
               />
             )}
           </div>
-          <div className="border-t border-gray-200 px-0.5 py-1 bg-white">
-            <div className="text-[7px] text-gray-500 text-center leading-none mb-0.5">{s.lineSubtitle}</div>
-            <div className="text-[8px] font-medium text-gray-900 text-center leading-tight line-clamp-3">{s.signerName}</div>
+          <div className="border-t border-neutral-200 bg-white px-1 py-2">
+            <div className="mb-1 text-center text-[8px] leading-tight text-neutral-600">{s.lineSubtitle}</div>
+            <div className="line-clamp-3 text-center text-[9px] font-medium leading-tight text-neutral-900">
+              {s.signerName}
+            </div>
           </div>
         </div>
       ))}
