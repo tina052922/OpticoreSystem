@@ -10,13 +10,23 @@ export type InsSignatureSlot = {
   imageUrl: string | null;
 };
 
+export type InsSignatureSlotMode = "full" | "sectionCampusOnly";
+
+function campusDirectorSignatureUrl(college: College | null, campusDirectorUser: User | null): string | null {
+  const doiUploaded = college?.campusDirectorSignatureImageUrl?.trim();
+  if (doiUploaded) return doiUploaded;
+  return campusDirectorUser?.signatureImageUrl?.trim() || null;
+}
+
 /**
- * INS vertical signature strip — order:
+ * INS vertical signature strip — order (full mode):
  * 1 Approved by (DOI)
  * 2 Campus Director
  * 3 Reviewed & Certified (Program / GEC Chairman)
  * 4 Contract
  * 5 Prepared by (College Admin)
+ *
+ * `sectionCampusOnly`: single column — Campus Director approval (Form 5B).
  */
 export function buildInsSignatureSlots(args: {
   college: College | null;
@@ -24,18 +34,33 @@ export function buildInsSignatureSlots(args: {
   users: User[];
   userById: Map<string, User>;
   scheduleApproved: boolean;
+  mode?: InsSignatureSlotMode;
 }): InsSignatureSlot[] | null {
   if (!args.scheduleApproved) return null;
 
-  const { college, programId, users, userById } = args;
+  const { college, programId, users, userById, mode = "full" } = args;
   const collegeId = college?.id ?? null;
+
+  const campusDirectorUser = college?.campusDirectorUserId
+    ? userById.get(college.campusDirectorUserId) ?? null
+    : null;
+
+  const campusImg = campusDirectorSignatureUrl(college, campusDirectorUser);
+
+  if (mode === "sectionCampusOnly") {
+    return [
+      {
+        key: "campus",
+        lineTitle: "Approved",
+        lineSubtitle: "Campus Director",
+        signerName: campusDirectorUser?.name?.trim() || "Campus Director",
+        imageUrl: campusImg,
+      },
+    ];
+  }
 
   const doi =
     users.filter((u) => u.role === "doi_admin").sort((a, b) => a.name.localeCompare(b.name))[0] ?? null;
-
-  const campusDirector = college?.campusDirectorUserId
-    ? userById.get(college.campusDirectorUserId) ?? null
-    : null;
 
   const chairman =
     collegeId != null
@@ -65,17 +90,18 @@ export function buildInsSignatureSlots(args: {
     lineTitle: string,
     lineSubtitle: string,
     u: User | null,
+    imageOverride?: string | null,
   ): InsSignatureSlot => ({
     key,
     lineTitle,
     lineSubtitle,
     signerName: u?.name ?? "—",
-    imageUrl: u?.signatureImageUrl?.trim() || null,
+    imageUrl: imageOverride ?? u?.signatureImageUrl?.trim() ?? null,
   });
 
   return [
     slot("approved", "Approved by", "Director of Instruction / VPAA", doi),
-    slot("campus", "Campus Director", "Campus", campusDirector),
+    slot("campus", "Campus Director", "Campus", campusDirectorUser, campusImg),
     slot("review", "Reviewed & Certified by", "Program / GEC Chairman", chairman),
     slot("contract", "Contract", "Authorized signatory", contractSigner),
     slot("prepared", "Prepared by", "College Admin", collegeAdmin),

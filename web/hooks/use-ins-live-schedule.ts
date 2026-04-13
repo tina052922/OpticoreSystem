@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { buildInsFacultyView, type InsFacultySchedule } from "@/lib/ins/build-ins-faculty-view";
+import {
+  buildInsFacultyView,
+  type InsFacultyFormSummary,
+  type InsFacultySchedule,
+} from "@/lib/ins/build-ins-faculty-view";
 import { buildInsSignatureSlots, type InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import type { FacultyProfile } from "@/types/db";
@@ -115,7 +119,7 @@ export function useInsLiveSchedule(args: {
     };
   }, [facultyProfile]);
 
-  const { schedule, courses } = useMemo(() => {
+  const { schedule, courses, teachingMetrics } = useMemo(() => {
     if (!catalog.academicPeriodId || !selectedInstructorId) {
       const empty: InsFacultySchedule = {
         Monday: [],
@@ -126,7 +130,12 @@ export function useInsLiveSchedule(args: {
         Saturday: [],
         Sunday: [],
       };
-      return { schedule: empty, courses: [] as ReturnType<typeof buildInsFacultyView>["courses"] };
+      const z = { preparations: 0, totalUnits: 0, hoursPerWeek: 0 };
+      return {
+        schedule: empty,
+        courses: [] as ReturnType<typeof buildInsFacultyView>["courses"],
+        teachingMetrics: z,
+      };
     }
     return buildInsFacultyView({
       entries: catalog.scopedEntries,
@@ -144,6 +153,17 @@ export function useInsLiveSchedule(args: {
     catalog.subjectById,
     catalog.roomById,
   ]);
+
+  const facultyFormSummary: InsFacultyFormSummary | null = useMemo(() => {
+    if (!catalog.academicPeriodId || !selectedInstructorId) return null;
+    return {
+      ...teachingMetrics,
+      administrativeDesignation: facultyProfile?.designation?.trim() || null,
+      production: facultyProfile?.production?.trim() || null,
+      extension: facultyProfile?.extension?.trim() || null,
+      research: facultyProfile?.research?.trim() || null,
+    };
+  }, [catalog.academicPeriodId, selectedInstructorId, teachingMetrics, facultyProfile]);
 
   return {
     loading: catalog.loading,
@@ -165,6 +185,7 @@ export function useInsLiveSchedule(args: {
     termPublishLocked: catalog.termPublishLocked,
     insSignatureSlots,
     facultyCredentials,
+    facultyFormSummary,
     reload: catalog.reload,
   };
 }

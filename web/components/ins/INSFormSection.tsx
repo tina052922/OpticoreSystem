@@ -120,6 +120,7 @@ export function INSFormSection({
       users: catalog.users,
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
+      mode: "sectionCampusOnly",
     });
   }, [
     useLiveData,

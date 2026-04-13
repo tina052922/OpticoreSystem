@@ -331,6 +331,7 @@ export function INSFormFaculty({
             scheduleApproved={Boolean(useLiveData && live.termPublishLocked)}
             insSignatureSlots={useLiveData ? live.insSignatureSlots : null}
             facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
+            facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
           />
         </div>
       </div>

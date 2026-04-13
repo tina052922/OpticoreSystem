@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocuments";
+import type { InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
 import { requireRoles } from "@/lib/auth/require-role";
 import { getCurrentAcademicPeriod, getInstructorScheduleRows } from "@/lib/server/dashboard-data";
 import { buildPortalFacultyIns5A } from "@/lib/portal/build-portal-ins-forms";
@@ -11,7 +12,14 @@ export default async function FacultySchedulePage() {
   const period = await getCurrentAcademicPeriod();
   const { rows } = period ? await getInstructorScheduleRows(profile.id, period.id) : { rows: [] };
 
-  const { schedule, courses } = buildPortalFacultyIns5A(rows, period?.id ?? "", profile.id);
+  const { schedule, courses, teachingMetrics } = buildPortalFacultyIns5A(rows, period?.id ?? "", profile.id);
+  const facultyFormSummary: InsFacultyFormSummary = {
+    ...teachingMetrics,
+    administrativeDesignation: null,
+    production: null,
+    extension: null,
+    research: null,
+  };
 
   const navItems = [
     { label: "Dashboard", href: "/faculty" },
@@ -61,6 +69,7 @@ export default async function FacultySchedulePage() {
             courses={courses}
             readOnly
             semesterLabel={period?.name ?? "—"}
+            facultyFormSummary={facultyFormSummary}
           />
         </div>
       </div>

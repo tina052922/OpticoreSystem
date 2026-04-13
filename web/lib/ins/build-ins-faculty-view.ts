@@ -7,6 +7,34 @@ export type InsFacultyCell = { time: string; course: string; yearSec: string; ro
 
 export type InsFacultySchedule = Record<InsDay, InsFacultyCell[]>;
 
+export type InsFacultyTeachingMetrics = {
+  /** Distinct subjects taught this term (preparations). */
+  preparations: number;
+  /** Sum of (lec + lab) units for each unique subject–section pairing. */
+  totalUnits: number;
+  /** Total scheduled hours per week (sum of slot lengths). */
+  hoursPerWeek: number;
+};
+
+/** INS Form 5A — Summary of Courses footer metrics (schedule + Faculty Profile). */
+export type InsFacultyFormSummary = InsFacultyTeachingMetrics & {
+  administrativeDesignation: string | null;
+  production: string | null;
+  extension: string | null;
+  research: string | null;
+};
+
+function parseTimeToMinutes(t: string): number {
+  const parts = t.split(":");
+  const h = parseInt(parts[0] ?? "0", 10);
+  const m = parseInt(parts[1] ?? "0", 10);
+  return h * 60 + m;
+}
+
+function hoursBetweenStartEnd(startTime: string, endTime: string): number {
+  return (parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime)) / 60;
+}
+
 function fmtHm(t: string) {
   const [h, m] = t.split(":");
   return `${parseInt(h!, 10)}:${(m ?? "00").padStart(2, "0")}`;
@@ -39,11 +67,33 @@ export function buildInsFacultyView(args: {
   sectionById: Map<string, Section>;
   subjectById: Map<string, Subject>;
   roomById: Map<string, Room>;
-}): { schedule: InsFacultySchedule; courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }> } {
+}): {
+  schedule: InsFacultySchedule;
+  courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }>;
+  teachingMetrics: InsFacultyTeachingMetrics;
+} {
   const schedule = emptySchedule();
   const list = args.entries.filter(
     (e) => e.academicPeriodId === args.academicPeriodId && e.instructorId === args.instructorId,
   );
+
+  let hoursPerWeek = 0;
+  for (const e of list) {
+    hoursPerWeek += hoursBetweenStartEnd(e.startTime, e.endTime);
+  }
+
+  const distinctSubjects = new Set(list.map((e) => e.subjectId));
+  const preparations = distinctSubjects.size;
+
+  const seenPair = new Set<string>();
+  let totalUnits = 0;
+  for (const e of list) {
+    const k = `${e.subjectId}:${e.sectionId}`;
+    if (seenPair.has(k)) continue;
+    seenPair.add(k);
+    const sub = args.subjectById.get(e.subjectId);
+    if (sub) totalUnits += sub.lecUnits + sub.labUnits;
+  }
 
   for (const e of list) {
     const insDay = toInsDay(e.day);
@@ -61,11 +111,11 @@ export function buildInsFacultyView(args: {
   }
 
   const courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }> = [];
-  const seenPair = new Set<string>();
+  const seenCoursePair = new Set<string>();
   for (const e of list) {
     const k = `${e.subjectId}:${e.sectionId}`;
-    if (seenPair.has(k)) continue;
-    seenPair.add(k);
+    if (seenCoursePair.has(k)) continue;
+    seenCoursePair.add(k);
     const sub = args.subjectById.get(e.subjectId);
     const sec = args.sectionById.get(e.sectionId);
     if (!sub || !sec) continue;
@@ -77,5 +127,11 @@ export function buildInsFacultyView(args: {
     });
   }
 
-  return { schedule, courses };
+  const teachingMetrics: InsFacultyTeachingMetrics = {
+    preparations,
+    totalUnits,
+    hoursPerWeek: Math.round(hoursPerWeek * 100) / 100,
+  };
+
+  return { schedule, courses, teachingMetrics };
 }
