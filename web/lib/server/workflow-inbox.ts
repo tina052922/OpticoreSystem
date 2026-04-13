@@ -14,6 +14,7 @@ export type WorkflowInboxDbRow = {
   sentFor: string[];
   status: string;
   createdAt: string;
+  payload?: unknown | null;
 };
 
 export function workflowRowToMessage(row: WorkflowInboxDbRow): InboxMessage {
@@ -28,6 +29,7 @@ export function workflowRowToMessage(row: WorkflowInboxDbRow): InboxMessage {
     workflowStage: row.workflowStage ?? undefined,
     mailFor: row.mailFor as PortalId[],
     sentFor: row.sentFor as PortalId[],
+    payload: row.payload ?? undefined,
   };
 }
 
@@ -43,6 +45,8 @@ export async function insertWorkflowInboxMessage(
     workflowStage?: string;
     mailFor: PortalId[];
     sentFor: PortalId[];
+    /** Structured INS + Evaluator bundle for College Admin / Central Hub. */
+    payload?: unknown;
   },
 ): Promise<{ error: string | null }> {
   const { error } = await supabase.from("WorkflowInboxMessage").insert({
@@ -56,6 +60,7 @@ export async function insertWorkflowInboxMessage(
     mailFor: args.mailFor,
     sentFor: args.sentFor,
     status: "Unread",
+    payload: args.payload ?? null,
   });
   return { error: error?.message ?? null };
 }

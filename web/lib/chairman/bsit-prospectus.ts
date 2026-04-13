@@ -111,6 +111,12 @@ export function normalizeProspectusCode(code: string): string {
   return code.replace(/\s+/g, "").toUpperCase();
 }
 
+/** Resolve a plotted or DB subject code to the static BSIT prospectus row, if any. */
+export function prospectusByCode(code: string): ProspectusSubjectRow | undefined {
+  const n = normalizeProspectusCode(code);
+  return BSIT_PROSPECTUS_SUBJECTS.find((s) => normalizeProspectusCode(s.code) === n);
+}
+
 export function isBsitChairmanProgram(programCode: string | null | undefined): boolean {
   return (programCode ?? "").toUpperCase() === BSIT_PROGRAM_CODE;
 }

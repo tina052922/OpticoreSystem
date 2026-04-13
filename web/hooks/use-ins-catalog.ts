@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
 import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
@@ -175,6 +176,16 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     [scopedEntries, academicPeriodId],
   );
 
+  /** For workflow bundles: map normalized subject code → id (Chairman program scope). */
+  const subjectIdByCode = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of subjects) {
+      if (args.programId && s.programId !== args.programId) continue;
+      m.set(normalizeProspectusCode(s.code), s.id);
+    }
+    return m;
+  }, [subjects, args.programId]);
+
   const instructorOptions: InsInstructorOption[] = useMemo(() => {
     const ids = new Set<string>();
     for (const e of termEntries) {
@@ -241,6 +252,7 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     academicPeriodId,
     setAcademicPeriodId,
     scopedEntries,
+    subjectIdByCode,
     termPublishLocked,
     sectionById,
     subjectById,
