@@ -12,8 +12,12 @@ export type InsSignatureSlot = {
 
 export type InsSignatureSlotMode = "full" | "sectionCampusOnly";
 
-function campusDirectorSignatureUrl(college: College | null, campusDirectorUser: User | null): string | null {
-  const doiUploaded = college?.campusDirectorSignatureImageUrl?.trim();
+/** DOI-uploaded campus-wide image, then linked Campus Director user profile. */
+function campusDirectorSignatureUrl(
+  campusWideDirectorSignatureUrl: string | null | undefined,
+  campusDirectorUser: User | null,
+): string | null {
+  const doiUploaded = campusWideDirectorSignatureUrl?.trim();
   if (doiUploaded) return doiUploaded;
   return campusDirectorUser?.signatureImageUrl?.trim() || null;
 }
@@ -35,17 +39,19 @@ export function buildInsSignatureSlots(args: {
   userById: Map<string, User>;
   scheduleApproved: boolean;
   mode?: InsSignatureSlotMode;
+  /** Singleton from `CampusInsSettings` — same image for every college. */
+  campusWideDirectorSignatureUrl?: string | null;
 }): InsSignatureSlot[] | null {
   if (!args.scheduleApproved) return null;
 
-  const { college, programId, users, userById, mode = "full" } = args;
+  const { college, programId, users, userById, mode = "full", campusWideDirectorSignatureUrl } = args;
   const collegeId = college?.id ?? null;
 
   const campusDirectorUser = college?.campusDirectorUserId
     ? userById.get(college.campusDirectorUserId) ?? null
     : null;
 
-  const campusImg = campusDirectorSignatureUrl(college, campusDirectorUser);
+  const campusImg = campusDirectorSignatureUrl(campusWideDirectorSignatureUrl, campusDirectorUser);
 
   if (mode === "sectionCampusOnly") {
     return [

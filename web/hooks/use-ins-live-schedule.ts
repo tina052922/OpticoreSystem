@@ -98,6 +98,7 @@ export function useInsLiveSchedule(args: {
       users: catalog.users,
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
+      campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
     });
   }, [
     resolvedCollegeAndProgram.collegeRow,
@@ -105,6 +106,7 @@ export function useInsLiveSchedule(args: {
     catalog.users,
     catalog.userById,
     catalog.termPublishLocked,
+    catalog.campusWideDirectorSignatureUrl,
   ]);
 
   const facultyCredentials = useMemo(() => {
