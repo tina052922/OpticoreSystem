@@ -118,6 +118,7 @@ export function INSFormRoom({
       users: catalog.users,
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
+      campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
     });
   }, [
     useLiveData,
@@ -131,6 +132,7 @@ export function INSFormRoom({
     catalog.users,
     catalog.userById,
     catalog.termPublishLocked,
+    catalog.campusWideDirectorSignatureUrl,
     chairmanProgramId,
   ]);
 

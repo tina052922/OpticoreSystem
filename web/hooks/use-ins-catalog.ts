@@ -6,7 +6,17 @@ import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
 import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
-import type { AcademicPeriod, College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import type {
+  AcademicPeriod,
+  CampusInsSettings,
+  College,
+  Program,
+  Room,
+  ScheduleEntry,
+  Section,
+  Subject,
+  User,
+} from "@/types/db";
 
 function toScheduleBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -41,12 +51,14 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
   const [programs, setPrograms] = useState<Program[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
   const [academicPeriodId, setAcademicPeriodId] = useState("");
 
   const load = useCallback(async () => {
     if (!args.collegeId && !args.campusWide) {
       setLoading(false);
       setEntries([]);
+      setCampusInsSettings(null);
       setError(null);
       return;
     }
@@ -67,6 +79,7 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
       { data: prog, error: e6 },
       { data: col, error: e8 },
       { data: fac, error: e7 },
+      { data: ins, error: e9 },
     ] = await Promise.all([
       supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false }),
       supabase.from("ScheduleEntry").select("*"),
@@ -78,8 +91,9 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
       supabase.from("User").select(
         "id,email,name,role,collegeId,chairmanProgramId,signatureImageUrl",
       ),
+      supabase.from("CampusInsSettings").select("*").eq("id", "default").maybeSingle(),
     ]);
-    const err = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8;
+    const err = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9;
     if (err) {
       setError(err.message);
       setLoading(false);
@@ -93,6 +107,7 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     setPrograms((prog ?? []) as Program[]);
     setColleges((col ?? []) as College[]);
     setUsers((fac ?? []) as User[]);
+    setCampusInsSettings((ins as CampusInsSettings | null) ?? null);
     setLoading(false);
   }, [args.collegeId, args.campusWide]);
 
@@ -109,6 +124,11 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ScheduleEntry" },
+        () => void load(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "CampusInsSettings" },
         () => void load(),
       )
       .subscribe();
@@ -250,6 +270,8 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
       .some((e) => Boolean(e.lockedByDoiAt));
   }, [scopedEntries, academicPeriodId]);
 
+  const campusWideDirectorSignatureUrl = campusInsSettings?.campusDirectorSignatureImageUrl?.trim() || null;
+
   return {
     loading,
     error,
@@ -272,5 +294,7 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     roomOptions,
     getInsConflictSummaries,
     reload: load,
+    campusInsSettings,
+    campusWideDirectorSignatureUrl,
   };
 }

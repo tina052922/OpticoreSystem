@@ -26,10 +26,15 @@ export interface College {
   name: string;
   /** Optional INS signer (Campus Director line). */
   campusDirectorUserId?: string | null;
-  /** DOI-uploaded signature image for Campus Director (INS By Section); overrides User signature when set. */
-  campusDirectorSignatureImageUrl?: string | null;
   /** Optional INS signer (Contract line). */
   contractSignerUserId?: string | null;
+}
+
+/** Singleton (id = default): campus-wide INS settings — not per college. */
+export interface CampusInsSettings {
+  id: string;
+  campusDirectorSignatureImageUrl?: string | null;
+  updatedAt: string;
 }
 
 export interface Program {

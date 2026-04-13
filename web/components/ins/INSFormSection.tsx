@@ -121,6 +121,7 @@ export function INSFormSection({
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
       mode: "sectionCampusOnly",
+      campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
     });
   }, [
     useLiveData,
@@ -131,6 +132,7 @@ export function INSFormSection({
     catalog.users,
     catalog.userById,
     catalog.termPublishLocked,
+    catalog.campusWideDirectorSignatureUrl,
   ]);
 
   async function onShare() {

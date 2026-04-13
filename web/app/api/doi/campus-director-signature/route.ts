@@ -3,9 +3,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 
+const SETTINGS_ID = "default";
+
 /**
- * DOI admin only: upload or replace the Campus Director signature image for a college (INS Form 5B).
- * Storage path: `signatures/college/{collegeId}/campus-director-{ts}.{ext}`
+ * DOI admin only: upload or replace the campus-wide Campus Director signature (INS Form 5B and full strip).
+ * Storage path: `signatures/campus/campus-director-{ts}.{ext}` → `CampusInsSettings.campusDirectorSignatureImageUrl`
  */
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
@@ -31,10 +33,9 @@ export async function POST(req: Request) {
   }
 
   const form = await req.formData().catch(() => null);
-  const collegeId = String(form?.get("collegeId") ?? "").trim();
   const file = form?.get("file");
-  if (!collegeId || !(file instanceof File) || file.size < 1) {
-    return NextResponse.json({ error: "collegeId and a non-empty file are required" }, { status: 400 });
+  if (!(file instanceof File) || file.size < 1) {
+    return NextResponse.json({ error: "A non-empty file is required" }, { status: 400 });
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase() || "png";
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Use PNG, JPEG, WebP, or GIF" }, { status: 400 });
   }
 
-  const path = `college/${collegeId}/campus-director-${Date.now()}.${ext}`;
+  const path = `campus/campus-director-${Date.now()}.${ext}`;
   const buf = Buffer.from(await file.arrayBuffer());
   const contentType = file.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
 
@@ -57,10 +58,13 @@ export async function POST(req: Request) {
   const { data: pub } = admin.storage.from("signatures").getPublicUrl(path);
   const publicUrl = pub.publicUrl;
 
-  const { error: dbErr } = await admin
-    .from("College")
-    .update({ campusDirectorSignatureImageUrl: publicUrl })
-    .eq("id", collegeId);
+  const { error: dbErr } = await admin.from("CampusInsSettings").upsert(
+    {
+      id: SETTINGS_ID,
+      campusDirectorSignatureImageUrl: publicUrl,
+    },
+    { onConflict: "id" },
+  );
 
   if (dbErr) {
     return NextResponse.json({ error: dbErr.message }, { status: 400 });
@@ -69,8 +73,8 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, url: publicUrl });
 }
 
-/** Clear DOI-managed Campus Director signature for a college. */
-export async function DELETE(req: Request) {
+/** Clear campus-wide Campus Director signature. */
+export async function DELETE() {
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
     return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
@@ -93,15 +97,10 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Server configuration" }, { status: 503 });
   }
 
-  const collegeId = new URL(req.url).searchParams.get("collegeId")?.trim();
-  if (!collegeId) {
-    return NextResponse.json({ error: "collegeId query required" }, { status: 400 });
-  }
-
   const { error: dbErr } = await admin
-    .from("College")
+    .from("CampusInsSettings")
     .update({ campusDirectorSignatureImageUrl: null })
-    .eq("id", collegeId);
+    .eq("id", SETTINGS_ID);
 
   if (dbErr) {
     return NextResponse.json({ error: dbErr.message }, { status: 400 });
