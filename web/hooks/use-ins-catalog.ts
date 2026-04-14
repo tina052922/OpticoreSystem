@@ -164,7 +164,8 @@ export function useInsCatalog(args: {
 
   const scheduleDebouncedReload = useCallback(() => {
     if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
-    realtimeDebounceRef.current = setTimeout(() => void load(), 320);
+    /** Keep INS previews feeling near-real-time while still coalescing bursty DB events. */
+    realtimeDebounceRef.current = setTimeout(() => void load(), 140);
   }, [load]);
 
   useEffect(() => {
