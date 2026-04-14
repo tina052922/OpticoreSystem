@@ -14,7 +14,8 @@ export type NavIconKey =
   | "Scale"
   | "CalendarPlus"
   | "KeyRound"
-  | "History";
+  | "History"
+  | "Megaphone";
 
 export type AdminNavItem = {
   label: string;
@@ -35,7 +36,7 @@ export const CHAIRMAN_NAV: AdminNavItem[] = [
 /** College Admin — same shell as Chairman; campus-wide scope with college/department filters. */
 export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/college", icon: "LayoutDashboard" },
-  { label: "INS Form (Schedule View)", href: "/admin/college/ins/faculty", icon: "BookOpen" },
+  { label: "INS Form (Schedule View)", href: "/admin/college/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/college/evaluator", icon: "ClipboardList" },
   { label: "Schedule change requests", href: "/admin/college/schedule-change-requests", icon: "ClipboardList" },
   { label: "Access requests", href: "/admin/college/access-requests", icon: "KeyRound" },
@@ -66,6 +67,15 @@ export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/gec", icon: "LayoutDashboard" },
   { label: "INS Forms Schedule View", href: "/admin/gec/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
+  { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
+];
+
+/** Instructor (faculty portal) — Campus Intelligence shell + semester filter. */
+export const INSTRUCTOR_NAV: AdminNavItem[] = [
+  { label: "Campus Intelligence", href: "/faculty", icon: "LayoutDashboard" },
+  { label: "INS Forms Schedule View", href: "/faculty/ins", icon: "BookOpen" },
+  { label: "My Schedule", href: "/faculty/schedule", icon: "CalendarPlus" },
+  { label: "Announcements", href: "/faculty/announcements", icon: "Megaphone" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +33,9 @@ export type INSFormSectionProps = {
   viewerCollegeId?: string | null;
   /** DOI / VPAA: load all colleges’ schedule rows (same as INS Form faculty campus-wide). */
   campusWide?: boolean;
+  /** Faculty portal: narrow catalog to sections this instructor teaches. */
+  instructorPortalUserId?: string | null;
+  hideInnerInsTabs?: boolean;
 };
 
 const DEMO_SCHEDULE: Record<
@@ -61,6 +64,8 @@ export function INSFormSection({
   chairmanProgramName = null,
   viewerCollegeId = null,
   campusWide = false,
+  instructorPortalUserId = null,
+  hideInnerInsTabs = false,
 }: INSFormSectionProps) {
   const pathname = usePathname();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
@@ -70,9 +75,19 @@ export function INSFormSection({
     collegeId: effectiveCollegeId,
     programId: chairmanProgramId,
     campusWide,
+    instructorPortalUserId,
   });
 
   const [selectedSectionId, setSelectedSectionId] = useState("");
+
+  /** Stable primitive — `sectionOptions` is a new array each render and must not be a hook dependency. */
+  const firstSectionId = catalog.sectionOptions[0]?.id ?? "";
+
+  useEffect(() => {
+    if (!instructorPortalUserId) return;
+    if (selectedSectionId) return;
+    if (firstSectionId) setSelectedSectionId(firstSectionId);
+  }, [instructorPortalUserId, selectedSectionId, firstSectionId]);
 
   const selectedSectionName =
     catalog.sectionOptions.find((x) => x.id === selectedSectionId)?.name ?? "Section";
@@ -227,26 +242,28 @@ export function INSFormSection({
           </p>
         </div>
 
-        <div className="flex gap-2 border-b border-gray-200 flex-wrap">
-          {[
-            { label: "INS Faculty", href: `${insBasePath}/faculty` },
-            { label: "INS Section", href: `${insBasePath}/section` },
-            { label: "INS Room", href: `${insBasePath}/room` },
-          ].map((t) => {
-            const active = pathname === t.href;
-            return (
-              <Link
-                key={t.href}
-                href={t.href}
-                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
-                  active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
-                }`}
-              >
-                {t.label}
-              </Link>
-            );
-          })}
-        </div>
+        {!hideInnerInsTabs ? (
+          <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+            {[
+              { label: "INS Faculty", href: `${insBasePath}/faculty` },
+              { label: "INS Section", href: `${insBasePath}/section` },
+              { label: "INS Room", href: `${insBasePath}/room` },
+            ].map((t) => {
+              const active = pathname === t.href;
+              return (
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
+                    active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                  }`}
+                >
+                  {t.label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
 
         {useLiveData && insBasePath ? (
           <InsEntityGroupingStrip

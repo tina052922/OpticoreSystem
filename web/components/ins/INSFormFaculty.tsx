@@ -60,6 +60,8 @@ export type INSFormFacultyProps = {
   campusWide?: boolean;
   /** DOI: render VPAA approval + campus conflict check (shares term with this form). */
   doiApprovalSlot?: (ctx: DoiInsApprovalSlotContext) => ReactNode;
+  /** Combined INS page (e.g. faculty portal): hide Faculty/Section/Room sub-tabs — parent provides tabs. */
+  hideInnerInsTabs?: boolean;
 };
 
 export function INSFormFaculty({
@@ -72,17 +74,21 @@ export function INSFormFaculty({
   lockedInstructorId = null,
   campusWide = false,
   doiApprovalSlot,
+  hideInnerInsTabs = false,
 }: INSFormFacultyProps) {
   const pathname = usePathname();
 
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
+  const facultyPortalIns = insBasePath.includes("/faculty");
 
   const live = useInsLiveSchedule({
     collegeId: effectiveCollegeId,
     programId: chairmanProgramId,
     lockedInstructorId,
     campusWide,
+    instructorPortalUserId:
+      facultyPortalIns && lockedInstructorId ? lockedInstructorId : null,
   });
 
   const selectedFacultyName =
@@ -195,26 +201,28 @@ export function INSFormFaculty({
             })
           : null}
 
-        <div className="flex gap-2 border-b border-gray-200 flex-wrap">
-          {[
-            { label: "INS Faculty", href: `${insBasePath}/faculty` },
-            { label: "INS Section", href: `${insBasePath}/section` },
-            { label: "INS Room", href: `${insBasePath}/room` },
-          ].map((t) => {
-            const active = pathname === t.href;
-            return (
-              <Link
-                key={t.href}
-                href={t.href}
-                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
-                  active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
-                }`}
-              >
-                {t.label}
-              </Link>
-            );
-          })}
-        </div>
+        {!hideInnerInsTabs ? (
+          <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+            {[
+              { label: "INS Faculty", href: `${insBasePath}/faculty` },
+              { label: "INS Section", href: `${insBasePath}/section` },
+              { label: "INS Room", href: `${insBasePath}/room` },
+            ].map((t) => {
+              const active = pathname === t.href;
+              return (
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
+                    active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                  }`}
+                >
+                  {t.label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
 
         {useLiveData && !lockedInstructorId && insBasePath ? (
           <InsEntityGroupingStrip
@@ -326,7 +334,10 @@ export function INSFormFaculty({
             facultyName={displayFacultyName}
             schedule={displaySchedule}
             courses={displayCourses}
-            readOnly={Boolean(useLiveData && live.termPublishLocked)}
+            readOnly={
+              Boolean(lockedInstructorId && facultyPortalIns) ||
+              Boolean(useLiveData && live.termPublishLocked)
+            }
             semesterLabel={useLiveData ? live.periodLabel : undefined}
             scheduleApproved={Boolean(useLiveData && live.termPublishLocked)}
             insSignatureSlots={useLiveData ? live.insSignatureSlots : null}

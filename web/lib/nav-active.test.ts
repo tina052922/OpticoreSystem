@@ -6,7 +6,7 @@ describe("isNavItemActive", () => {
     "/admin/college",
     "/admin/college/evaluator",
     "/admin/college/audit-log",
-    "/admin/college/ins/faculty",
+    "/admin/college/ins",
   ];
 
   it("activates exact match when no child route is more specific", () => {

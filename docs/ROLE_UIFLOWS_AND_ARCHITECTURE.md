@@ -6,7 +6,7 @@ This document describes the primary user interfaces and typical workflows for ea
 
 ## Role interfaces: sidebar navigation (each item explained)
 
-The descriptions below follow the **left sidebar labels** in each role’s shell (`CampusIntelligenceShell` for hub roles, `PortalShell` for faculty and students). Where the **INS Form** appears, the sidebar opens **Program by Teacher** (`…/ins/faculty`); **Section** and **Room** INS layouts are reached via **in-page tabs** on that INS screen (same route family: `…/ins/section`, `…/ins/room`).
+The descriptions below follow the **left sidebar labels** in each role’s shell (`CampusIntelligenceShell` for hub roles, `PortalShell` for faculty and students). Where the **INS Form** appears, use the combined route **`…/ins`** with **Faculty / Section / Room** tabs (Chairman may still deep-link `…/ins/faculty`, etc.). College Admin matches the same tabbed layout at **`/admin/college/ins`**.
 
 ### Chairman Admin
 
@@ -31,10 +31,9 @@ The descriptions below follow the **left sidebar labels** in each role’s shell
 | Sidebar label | Route | Purpose |
 |---------------|-------|---------|
 | Campus Intelligence | `/admin/college` | College admin dashboard and workflow orientation. |
-| INS Form (Schedule View) | `/admin/college/ins/faculty` | INS views (Faculty / Section / Room via tabs) for review; live schedule data for the college in scope. |
+| INS Form (Schedule View) | `/admin/college/ins` | Combined INS page (Faculty / Section / Room tabs), same structure as Program Chairman INS forms; college-scoped live `ScheduleEntry` data for review. |
 | Central Hub Evaluator | `/admin/college/evaluator` | Read/review the same evaluator context as the hub (scope-limited in production). |
-| Inbox | `/admin/college/inbox` | Inbound workflow items (e.g., forwarded schedules, cross-role messages). |
-| Schedule change requests | `/admin/college/schedule-change-requests` | Queue of instructor requests: run conflict checker, approve, reject, or approve with mitigation; notifies faculty. |
+| Schedule change requests | `/admin/college/schedule-change-requests` | Instructor proposals to move a class: **campus-wide conflict check** (all programs/sections for the term), optional suggested room mitigation, approve/reject with notes; **notifications** to College Admin on submit and to instructor on decision; approved rows update **`ScheduleEntry`** immediately (realtime + INS catalog reload). |
 | Access requests | `/admin/college/access-requests` | Approve or reject access scopes (e.g., GEC/CAS-related requests) per institutional rules. |
 | Audit log | `/admin/college/audit-log` | Recent auditable actions for accountability. |
 | Faculty Profile | `/admin/college/faculty-profile` | Faculty roster and profile data at college scope. |

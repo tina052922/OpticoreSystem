@@ -24,6 +24,8 @@ export function useInsLiveSchedule(args: {
   lockedInstructorId?: string | null;
   /** Load all colleges’ entries (DOI campus-wide INS). */
   campusWide?: boolean;
+  /** Faculty portal: narrow INS catalog to this instructor’s sections/programs. */
+  instructorPortalUserId?: string | null;
 }) {
   const catalog = useInsCatalog(args);
   const [selectedInstructorId, setSelectedInstructorId] = useState(args.lockedInstructorId ?? "");

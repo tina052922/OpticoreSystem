@@ -136,10 +136,10 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
           )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
-              href="/faculty/ins/faculty"
+              href="/faculty/ins"
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#780301] text-white px-4 py-2.5 text-sm font-semibold shadow-sm"
             >
-              INS Form (by faculty)
+              INS Forms Schedule View
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
@@ -150,7 +150,7 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/faculty/request-change"
+              href="/faculty/schedule"
               className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-4 py-2.5 text-sm font-semibold"
             >
               Request schedule change

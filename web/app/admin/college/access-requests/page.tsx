@@ -6,7 +6,7 @@ export default function CollegeAccessRequestsPage() {
     <div>
       <ChairmanPageHeader
         title="Access requests"
-        subtitle="Review scoped requests from GEC Chairman and CAS Admin. Approve to grant temporary access to Evaluator, INS views, or vacant GEC slot editing."
+        subtitle="Review scoped requests from GEC Chairman. Approve to grant access to Evaluator, INS views, or vacant GEC slot editing."
       />
       <div className="px-8 pb-10 max-w-6xl">
         <AccessRequestsReview />

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
+import type { InsFacultyCell, InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsDay } from "./opticore-ins-constants";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
@@ -35,13 +35,12 @@ function CredLine({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function matchSlot<T extends { time: string }>(daySchedule: T[], slot: string): T | undefined {
+function matchSlot(daySchedule: InsFacultyCell[], slot: string): InsFacultyCell | undefined {
   const start = slot.split("-")[0];
   return daySchedule.find((c) => c.time.includes(start));
 }
 
-type FacultyScheduleCell = { time: string; course: string; yearSec: string; room: string; vacantGec?: boolean };
-type FacultySchedule = Record<InsDay, FacultyScheduleCell[]>;
+type FacultySchedule = Record<InsDay, InsFacultyCell[]>;
 
 export type OpticoreInsForm5AProps = {
   facultyName: string;
@@ -65,6 +64,9 @@ export type OpticoreInsForm5AProps = {
   } | null;
   /** Populated from schedule totals + Faculty Profile when live data is available. */
   facultyFormSummary?: InsFacultyFormSummary | null;
+  /** My Schedule (faculty portal): cells with `scheduleEntryId` become buttons to request a change. */
+  clickableScheduleEntryCells?: boolean;
+  onScheduleEntryClick?: (scheduleEntryId: string) => void;
 };
 
 /** INS FORM 5A — Program by Teacher (Opticore-CampusIntelligence layout + editable fields). */
@@ -78,6 +80,8 @@ export function OpticoreInsForm5A({
   insSignatureSlots = null,
   facultyCredentials = null,
   facultyFormSummary = null,
+  clickableScheduleEntryCells = false,
+  onScheduleEntryClick,
 }: OpticoreInsForm5AProps) {
   function renderCell(time: string, day: InsDay) {
     const classAtTime = matchSlot(schedule[day], time);
@@ -90,6 +94,25 @@ export function OpticoreInsForm5A({
           <div>{classAtTime.room}</div>
         </div>
       );
+      const entryId = classAtTime.scheduleEntryId;
+      const canRequest =
+        readOnly &&
+        clickableScheduleEntryCells &&
+        typeof onScheduleEntryClick === "function" &&
+        Boolean(entryId) &&
+        !classAtTime.vacantGec;
+      const body = canRequest ? (
+        <button
+          type="button"
+          className="w-full text-left rounded-md p-0.5 -m-0.5 transition-[box-shadow,background] hover:bg-[#ff990a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50 cursor-pointer"
+          title="Request schedule change for this class"
+          onClick={() => entryId && onScheduleEntryClick(entryId)}
+        >
+          {inner}
+        </button>
+      ) : (
+        inner
+      );
       if (classAtTime.vacantGec) {
         return (
           <VacantGecSlotHighlight title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
@@ -97,7 +120,7 @@ export function OpticoreInsForm5A({
           </VacantGecSlotHighlight>
         );
       }
-      return inner;
+      return body;
     }
     if (isPlaceholder) {
       return (

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { appendWorkflowMessage } from "@/lib/inbox-store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
-import { insertWorkflowInboxMessage } from "@/lib/server/workflow-inbox";
 import { Q } from "@/lib/supabase/catalog-columns";
 
 type Body = {
@@ -17,7 +15,7 @@ const INVALID_SCHEDULE_MSG = "Invalid request – No schedule found for this fac
 
 /**
  * Validates that the schedule entry exists and belongs to the instructor, then creates
- * ScheduleChangeRequest + College Admin inbox notice.
+ * `ScheduleChangeRequest` + in-app notifications for College Admin and the instructor (no workflow inbox).
  */
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
@@ -93,46 +91,26 @@ export async function POST(req: Request) {
   const secName = (sec as { name: string } | null)?.name ?? "—";
 
   const title = `Schedule change — ${code} (${secName})`;
-  const text = [
-    `Request id: ${inserted.id}`,
-    `Instructor: ${profile.name}`,
-    `Subject / section: ${code} · ${secName}`,
-    `Current: ${(entry as { day: string }).day} ${(entry as { startTime: string }).startTime}–${(entry as { endTime: string }).endTime}`,
-    `Requested: ${requestedDay} ${requestedStartTime}–${requestedEndTime}`,
-    ``,
-    `Reason:`,
-    reason,
-    ``,
-    `Open Schedule change requests in the College Admin portal to review, run conflict check, and approve or reject.`,
-  ].join("\n");
 
-  const { error: wfErr } = await insertWorkflowInboxMessage(supabase, {
-    senderId: user.id,
-    collegeId: profile.collegeId,
-    fromLabel: profile.name,
-    toLabel: "College Admin",
-    subject: title,
-    body: text,
-    workflowStage: "schedule_change_request",
-    mailFor: ["college"],
-    sentFor: ["college"],
-  });
-
-  if (wfErr) {
-    await supabase.from("ScheduleChangeRequest").delete().eq("id", inserted.id);
-    return NextResponse.json({ error: wfErr }, { status: 400 });
+  const { data: admins } = await supabase
+    .from("User")
+    .select("id")
+    .eq("role", "college_admin")
+    .eq("collegeId", profile.collegeId);
+  if (admins?.length) {
+    await supabase.from("Notification").insert(
+      admins.map((a) => ({
+        userId: a.id,
+        message: `${title}. ${profile.name} submitted a change request — open Schedule change requests to review.`,
+      })),
+    );
   }
 
-  appendWorkflowMessage({
-    from: profile.name,
-    to: "College Admin",
-    subject: title,
-    body: text,
-    workflowStage: "schedule_change_request",
-    mailFor: ["college"],
-    sentFor: ["college"],
-    status: "Unread",
+  await supabase.from("Notification").insert({
+    userId: user.id,
+    message: `Your schedule change request for ${code} (${secName}) was sent to College Admin. You will be notified when it is decided.`,
   });
 
   return NextResponse.json({ ok: true, id: inserted.id });
 }
+

@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Megaphone,
   Menu,
   Scale,
   Send,
@@ -51,6 +52,7 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   CalendarPlus,
   KeyRound,
   History,
+  Megaphone,
 };
 
 export type CampusIntelligenceShellProps = {
