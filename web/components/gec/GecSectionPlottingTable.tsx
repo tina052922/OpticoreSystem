@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
+import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   BSIT_EVALUATOR_TIME_SLOTS,
@@ -49,6 +50,14 @@ type Props = {
   /** Locally added rows (not yet persisted) — show remove until saved. */
   pendingNewEntryIds?: Set<string>;
   onRemovePendingEntry?: (entryId: string) => void;
+  /** Same row as College Admin / DOI hub: actions beside “Add schedule row”. */
+  onRunConflictCheck?: () => void;
+  runConflictCheckDisabled?: boolean;
+  onSaveVacantEdits?: () => void;
+  saveVacantEditsDisabled?: boolean;
+  saveVacantBusy?: boolean;
+  /** Shown immediately to the right of “Run conflict check” when conflicts exist (enriched + GA). */
+  conflictAlternativesSlot?: ReactNode;
 };
 
 function hhmm(t: string): string {
@@ -100,6 +109,12 @@ export function GecSectionPlottingTable({
   showAddScheduleButton = false,
   pendingNewEntryIds = new Set(),
   onRemovePendingEntry,
+  onRunConflictCheck,
+  runConflictCheckDisabled = false,
+  onSaveVacantEdits,
+  saveVacantEditsDisabled = false,
+  saveVacantBusy = false,
+  conflictAlternativesSlot,
 }: Props) {
   const vacantSourceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -182,22 +197,51 @@ export function GecSectionPlottingTable({
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10">
       <div className="px-4 py-2 border-b border-black/10 bg-black/[0.02] flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-bold text-black/90">Main evaluator grid (section scope)</h3>
           <p className="text-[11px] text-black/55 mt-0.5">
             Locked rows: major subjects (read-only). Highlighted vacant GEC slots: plot subject, instructor, room, day,
             and start time — same fields as Program Chairman.
           </p>
         </div>
-        {showAddScheduleButton && onAddScheduleRow ? (
-          <Button
-            type="button"
-            className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold shrink-0"
-            onClick={onAddScheduleRow}
-          >
-            + Add schedule row
-          </Button>
-        ) : null}
+        {/* Order: Add schedule → Run conflict check → alternatives (when any) → Save vacant edits (DOI-style GA beside Run). */}
+        <div className="flex flex-wrap items-center gap-2 justify-end shrink-0 max-w-full">
+          {showAddScheduleButton && onAddScheduleRow ? (
+            <Button
+              type="button"
+              className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold shrink-0"
+              onClick={onAddScheduleRow}
+            >
+              + Add schedule row
+            </Button>
+          ) : null}
+          {onRunConflictCheck ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="border-amber-300 bg-white font-bold shrink-0 h-9 text-xs"
+              disabled={runConflictCheckDisabled}
+              onClick={onRunConflictCheck}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
+              Run conflict check
+            </Button>
+          ) : null}
+          {conflictAlternativesSlot ? (
+            <div className="min-w-[200px] max-w-[min(100%,520px)] flex-1 basis-[280px]">{conflictAlternativesSlot}</div>
+          ) : null}
+          {onSaveVacantEdits ? (
+            <Button
+              type="button"
+              className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold shrink-0 h-9 text-xs disabled:opacity-50"
+              disabled={saveVacantEditsDisabled || saveVacantBusy}
+              onClick={onSaveVacantEdits}
+            >
+              <Save className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
+              {saveVacantBusy ? "Saving…" : "Save Vacant Edits"}
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse min-w-[1180px]">

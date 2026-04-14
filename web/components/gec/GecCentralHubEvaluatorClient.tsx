@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
 import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
-import type { ScheduleBlock } from "@/lib/scheduling/types";
+import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
+import { enrichCampusConflictIssues, type EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
+import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import type { AcademicPeriod, College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { useAccessRequests } from "@/hooks/use-access-requests";
@@ -91,6 +93,9 @@ export function GecCentralHubEvaluatorClient() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [conflictIds, setConflictIds] = useState<Set<string>>(new Set());
   const [conflictSummary, setConflictSummary] = useState<string[]>([]);
+  /** DOI-style enriched pairwise issues + GA alternatives (same engine as Central Hub / VPAA panel). */
+  const [gecEnrichedConflicts, setGecEnrichedConflicts] = useState<EnrichedCampusIssue[]>([]);
+  const [gecGaByIssueKey, setGecGaByIssueKey] = useState<Record<string, GASuggestion[]>>({});
   /** Local rows not yet in Supabase — same “Add schedule row” flow as Program Chairman (`BsitChairmanEvaluatorWorksheet`). */
   const [extraEntries, setExtraEntries] = useState<ScheduleEntry[]>([]);
   const skipPeriodEntryFetchRef = useRef(true);
@@ -192,6 +197,8 @@ export function GecCentralHubEvaluatorClient() {
     setEdits({});
     setConflictIds(new Set());
     setConflictSummary([]);
+    setGecEnrichedConflicts([]);
+    setGecGaByIssueKey({});
     setSaveMsg(null);
     setPickedSummaryCode(null);
     setExtraEntries([]);
@@ -390,6 +397,19 @@ export function GecCentralHubEvaluatorClient() {
     }));
   }
 
+  /** Apply a GA suggestion to a vacant GEC row only (major rows stay locked). */
+  function applyGecGaSuggestion(entryId: string, s: GASuggestion) {
+    if (!vacantGecSourceIds.has(entryId)) return;
+    const pad = (t: string) => (t.trim().length <= 5 ? `${t.trim()}:00` : t.trim());
+    patchEdit(entryId, {
+      day: s.day,
+      startTime: pad(s.startTime),
+      endTime: pad(s.endTime),
+      roomId: s.roomId,
+      instructorId: s.instructorId,
+    });
+  }
+
   function runConflictCheck() {
     const blocks = mergedEntries
       .filter((e) => {
@@ -406,8 +426,53 @@ export function GecCentralHubEvaluatorClient() {
     const scan = scanAllScheduleConflicts(blocks);
     setConflictIds(scan.conflictingEntryIds);
     setConflictSummary(scan.issueSummaries);
+
+    const entryById = new Map(mergedEntries.map((e) => [e.id, e]));
+    const enriched = enrichCampusConflictIssues(
+      scan.issues,
+      entryById,
+      subjectById,
+      sectionById,
+      roomById,
+      userById,
+      programById,
+      collegeNameById,
+    );
+    setGecEnrichedConflicts(enriched);
+
+    const universe = blocks;
+    const gaMap: Record<string, GASuggestion[]> = {};
+    for (const iss of enriched) {
+      const entry = mergedEntries.find((e) => e.id === iss.rowA.entryId);
+      if (!entry) continue;
+      const sec = sectionById.get(entry.sectionId);
+      const pr = sec ? programById.get(sec.programId) : null;
+      const cid = pr?.collegeId;
+      if (!cid) continue;
+      const roomIds = rooms.filter((r) => !r.collegeId || r.collegeId === cid).map((r) => r.id);
+      const instructorIds = users
+        .filter((u) => u.collegeId === cid && (u.role === "instructor" || u.role === "chairman_admin"))
+        .map((u) => u.id);
+      if (roomIds.length === 0 || instructorIds.length === 0) continue;
+      const sug = runRuleBasedGeneticAlgorithm({
+        universe,
+        sectionId: entry.sectionId,
+        subjectId: entry.subjectId,
+        academicPeriodId: entry.academicPeriodId,
+        excludeEntryId: entry.id,
+        roomIds,
+        instructorIds,
+        generations: 40,
+        populationSize: 56,
+      });
+      gaMap[iss.key] = sug.slice(0, 5);
+    }
+    setGecGaByIssueKey(gaMap);
+
     if (scan.issueSummaries.length === 0) {
       setSaveMsg("No faculty, room, or section time conflicts detected for the current term.");
+      setGecEnrichedConflicts([]);
+      setGecGaByIssueKey({});
     } else {
       setSaveMsg(null);
     }
@@ -587,6 +652,57 @@ export function GecCentralHubEvaluatorClient() {
     return ids;
   }, [subjects, selectedSection, allowedProspectusCodes]);
 
+  /** Scrollable strip beside “Run conflict check”: conflict parties + GA alternatives (same engine as DOI / College Hub). */
+  const gecAlternativesBesideRunButton =
+    gecEnrichedConflicts.length === 0 ? null : (
+      <div className="rounded-lg border border-amber-300 bg-amber-50/95 px-2 py-1.5 text-[10px] leading-snug text-black/90 max-h-40 overflow-y-auto shadow-sm min-w-[220px]">
+        <p className="font-bold text-amber-950 mb-1">Alternative solutions</p>
+        {gecEnrichedConflicts.map((iss) => (
+          <div key={iss.key} className="mb-2 last:mb-0 border-b border-amber-200/80 pb-2 last:border-0 last:pb-0">
+            <p className="font-semibold text-red-900 capitalize">{iss.type} conflict</p>
+            <div className="mt-0.5 space-y-0.5">
+              <p>
+                <span className="font-semibold text-black/80">A · </span>
+                {iss.rowA.what} · {iss.rowA.when} · room {iss.rowA.where} · faculty {iss.rowA.who}
+              </p>
+              <p>
+                <span className="font-semibold text-black/80">B · </span>
+                {iss.rowB.what} · {iss.rowB.when} · room {iss.rowB.where} · faculty {iss.rowB.who}
+              </p>
+            </div>
+            <ul className="mt-1 space-y-1">
+              {(gecGaByIssueKey[iss.key] ?? []).map((s, idx) => {
+                const rm = roomById.get(s.roomId)?.code ?? s.roomId;
+                const fac = userById.get(s.instructorId)?.name ?? s.instructorId;
+                return (
+                  <li key={`${iss.key}-${idx}`} className="rounded bg-white/80 px-1.5 py-1 border border-amber-200/60">
+                    <span className="text-black/85">
+                      Suggested: <strong>{s.day}</strong> {s.startTime}–{s.endTime} · room <strong>{rm}</strong> ·
+                      instructor <strong>{fac}</strong>
+                    </span>
+                    {canEditVacant && vacantGecSourceIds.has(iss.rowA.entryId) ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="ml-2 h-6 text-[9px] px-1.5 align-middle"
+                        onClick={() => applyGecGaSuggestion(iss.rowA.entryId, s)}
+                      >
+                        Apply
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+            {(!gecGaByIssueKey[iss.key] || gecGaByIssueKey[iss.key].length === 0) ? (
+              <p className="text-[9px] text-amber-900/80 mt-0.5">No feasible alternative found in the search space — adjust manually.</p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+
   if (loadError) {
     return <div className="px-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4 m-4">{loadError}</div>;
   }
@@ -760,27 +876,34 @@ export function GecCentralHubEvaluatorClient() {
               ))}
             </select>
           </label>
-          <Button
-            type="button"
-            className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
-            disabled={loading}
-            onClick={() => runConflictCheck()}
-          >
-            <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
-            Run conflict check
-          </Button>
-          <Button
-            type="button"
-            className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-11 px-5 disabled:opacity-50"
-            disabled={saveBusy || !canEditVacant}
-            onClick={() => void saveVacantEdits()}
-          >
-            <Save className="w-4 h-4 mr-2 inline" aria-hidden />
-            {saveBusy ? "Saving…" : "Save vacant GEC edits"}
-          </Button>
+          {/* When a section workspace is open, Run / Save / alternatives live beside “Add schedule row” in the grid. */}
+          {!sectionIdFilter ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-amber-300 bg-white font-bold h-11 px-5"
+                disabled={loading}
+                onClick={() => runConflictCheck()}
+              >
+                <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
+                Run conflict check
+              </Button>
+              {gecAlternativesBesideRunButton}
+              <Button
+                type="button"
+                className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-11 px-5 disabled:opacity-50"
+                disabled={saveBusy || !canEditVacant}
+                onClick={() => void saveVacantEdits()}
+              >
+                <Save className="w-4 h-4 mr-2 inline" aria-hidden />
+                {saveBusy ? "Saving…" : "Save Vacant Edits"}
+              </Button>
+            </>
+          ) : null}
         </div>
 
-        {conflictSummary.length > 0 ? (
+        {conflictSummary.length > 0 && !sectionIdFilter ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
             <strong>Conflicts ({conflictSummary.length} type(s)):</strong>
             <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -857,6 +980,12 @@ export function GecCentralHubEvaluatorClient() {
                     showAddScheduleButton={canEditVacant}
                     pendingNewEntryIds={pendingNewEntryIds}
                     onRemovePendingEntry={removePendingEntry}
+                    onRunConflictCheck={() => runConflictCheck()}
+                    runConflictCheckDisabled={loading}
+                    onSaveVacantEdits={() => void saveVacantEdits()}
+                    saveVacantEditsDisabled={!canEditVacant}
+                    saveVacantBusy={saveBusy}
+                    conflictAlternativesSlot={gecAlternativesBesideRunButton}
                   />
                 ) : (
                   <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
