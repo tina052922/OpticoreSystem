@@ -140,6 +140,11 @@ export interface ScheduleLoadJustification {
   violationsSnapshot: unknown | null;
   createdAt: string;
   updatedAt: string;
+  /** VPAA/DOI: null = not reviewed yet. */
+  doiDecision?: "accepted" | "rejected" | "pending" | null;
+  doiReviewedAt?: string | null;
+  doiReviewedById?: string | null;
+  doiReviewNote?: string | null;
 }
 
 export interface Notification {

@@ -89,14 +89,14 @@ export function CiDashboard({ welcomeName, basePath, variant = "full" }: CiDashb
     { label: "Conflicts Detected Today", value: "3", icon: AlertTriangle, color: "#F44336" },
   ];
 
-  /** Program Chairman + College Admin use centralized `ScheduleEntry` (no workflow Inbox quick link). CAS / DOI keep Inbox. */
+  /** Program Chairman + College Admin + DOI: centralized `ScheduleEntry` (no workflow Inbox quick link). CAS keeps Inbox. */
   const fullQuickLinks: { label: string; href: string }[] = [
     { label: "Evaluator", href: `${basePath}/evaluator` },
     { label: "INS Form (Schedule View)", href: `${basePath}/ins/faculty` },
     { label: "Subject Codes", href: `${basePath}/subject-codes` },
     { label: "Faculty Profile", href: `${basePath}/faculty-profile` },
   ];
-  if (basePath !== "/chairman" && basePath !== "/admin/college") {
+  if (basePath !== "/chairman" && basePath !== "/admin/college" && basePath !== "/doi") {
     fullQuickLinks.push({ label: "Inbox", href: `${basePath}/inbox` });
   }
 

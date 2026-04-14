@@ -158,8 +158,8 @@ Authentication is **role-gated**: each layout calls the appropriate session help
 
 1. **`/doi/dashboard`** — dashboard + responsibility cards + link to **Policy reviews**.
 2. **Central Hub** / **INS** — review schedules across colleges.
-3. **Policy reviews** — read overload justifications; no separate “approve” button in schema.
-4. **Inbox** / **Audit** as needed.
+3. **Policy reviews** — read overload justifications; record **accept** or **reject** (persists VPAA decision on `ScheduleLoadJustification`; notifies the chair).
+4. **Audit** as needed. Legacy `/doi/inbox` redirects to the dashboard (no DOI workflow inbox).
 
 ### Screenshot list
 
@@ -170,7 +170,7 @@ Authentication is **role-gated**: each layout calls the appropriate session help
 | 3 | Central Hub | `/doi/evaluator` |
 | 4 | INS schedule view | `/doi/ins/faculty` |
 | 5 | Audit log | `/doi/audit-log` |
-| 6 | Inbox | `/doi/inbox` |
+| 6 | Faculty profile / subject codes (as needed) | `/doi/faculty-profile`, `/doi/subject-codes` |
 
 ---
 

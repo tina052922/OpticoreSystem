@@ -4,6 +4,22 @@ This document describes the primary user interfaces and typical workflows for ea
 
 ---
 
+## List of modules (current system)
+
+Schedules are **centralized**: **`ScheduleEntry`** is written from the Evaluator (and related flows) and is visible in **INS Form (Schedule View)** and **Central Hub** for every authorized role. There is **no workflow Inbox** for Program Chairman, College Admin, GEC Chairman, or DOI Admin. **CAS Admin** keeps an Inbox for CAS-specific coordination. **Notifications** remain in use (for example schedule change requests and VPAA publication).
+
+| Role | Modules (summary) |
+|------|---------------------|
+| **Program Chairman** | Campus Intelligence · INS Form (Faculty / Section / Room tabs) · Evaluator (plot **ScheduleEntry**, conflicts, **policy justification** when load rules are exceeded — BSIT worksheet + Central Hub Evaluator) · Faculty Profile · Subject Codes · Campus navigation · **Audit** (via College Admin patterns where applicable) |
+| **College Admin** | Campus Intelligence · INS Form · Central Hub Evaluator · **Schedule change requests** (notifications) · Access requests · **Audit log** · Faculty Profile · Subject Codes · Campus navigation |
+| **CAS Admin** | Campus Intelligence · INS Form · Central Hub Evaluator · GEC distribution · **Inbox (workflow)** · Audit log · Faculty Profile · Subject Codes · Campus navigation |
+| **GEC Chairman** | Campus Intelligence · **INS Forms Schedule View** (tabs) · **Central Hub Evaluator** · Campus navigation (simplified shell; access / vacant-slot flows live on dashboard links where configured) |
+| **DOI / VPAA** | Campus Intelligence · INS Form (campus-wide + VPAA signature / publish) · Central Hub Evaluator · **Policy reviews** (view / accept / reject **ScheduleLoadJustification**) · Audit log · Faculty Profile · Subject Codes · Campus navigation |
+| **Instructor** | Portal dashboard · INS schedule views · My schedule · Schedule change request · Announcements · Campus navigation · Notifications |
+| **Student** | Portal dashboard · My schedule · Announcements · Campus navigation · Notifications |
+
+---
+
 ## Role interfaces: sidebar navigation (each item explained)
 
 The descriptions below follow the **left sidebar labels** in each role’s shell (`CampusIntelligenceShell` for hub roles, `PortalShell` for faculty and students). Where the **INS Form** appears, use the combined route **`…/ins`** with **Faculty / Section / Room** tabs (Chairman may still deep-link `…/ins/faculty`, etc.). College Admin matches the same tabbed layout at **`/admin/college/ins`**.
@@ -16,8 +32,7 @@ The descriptions below follow the **left sidebar labels** in each role’s shell
 |---------------|-------|---------|
 | Campus Intelligence | `/chairman/dashboard` | Landing dashboard: workload summaries, quick links, and orientation to the chairman’s scheduling scope. |
 | INS Form (Schedule View) | `/chairman/ins/faculty` | Official INS **Program by Teacher** grid; use tabs on the page for **INS Section** and **INS Room** views. Live data when a college (and program, if restricted) is in scope. |
-| Evaluator | `/chairman/evaluator` | Central Hub timetabling: plot or edit **ScheduleEntry** rows, run conflict checks, and align offerings to the repository. |
-| Inbox | `/chairman/inbox` | Workflow messages (forwarding drafts, coordination with college/CAS/DOI as implemented). |
+| Evaluator | `/chairman/evaluator` | Central Hub timetabling: plot or edit **ScheduleEntry** rows (saved to the shared hub), run conflict checks, and align offerings to the repository. When faculty **load policy** is violated, submit written justification (Evaluator save path or **Submit justification for VPAA** on the BSIT worksheet); stored in **`ScheduleLoadJustification`** for DOI **Policy reviews**. |
 | Faculty Profile | `/chairman/faculty-profile` | Maintain faculty roster and **Employee ID** for linkage to plotted schedules and future instructor self-registration. |
 | Subject Codes | `/chairman/subject-codes` | Browse and manage subject catalog entries relevant to the chairman’s scope. |
 | Campus navigation | `/campus-navigation` | Physical campus wayfinding and map-style navigation. |
@@ -66,10 +81,9 @@ The descriptions below follow the **left sidebar labels** in each role’s shell
 
 | Sidebar label | Route | Purpose |
 |---------------|-------|---------|
-| Dashboard | `/admin/gec` | GEC chairman home: entry points to vacant slots and access flows. |
-| Request access | `/admin/gec/request-access` | Request elevated or scoped access when required to perform GEC duties. |
-| Vacant GEC slots | `/admin/gec/vacant-slots` | Identify and fill vacant GEC offerings for the term. |
-| Inbox | `/admin/gec/inbox` | Messages with CAS/College regarding GEC assignments and returns. |
+| Campus Intelligence | `/admin/gec` | GEC dashboard: orientation, quick links (e.g. access or vacant-slot flows when enabled). |
+| INS Forms Schedule View | `/admin/gec/ins` | Combined INS (**Faculty / Section / Room** tabs); campus-wide read of **ScheduleEntry** for GEC scope. |
+| Central Hub Evaluator | `/admin/gec/evaluator` | GEC evaluator context (prospectus-filtered plotting per product rules). |
 | Campus navigation | `/campus-navigation` | Physical campus navigation. |
 
 ---
@@ -83,8 +97,7 @@ The descriptions below follow the **left sidebar labels** in each role’s shell
 | Campus Intelligence | `/doi/dashboard` | DOI/VPAA dashboard: policy and schedule oversight entry points. |
 | INS Form (Schedule View) | `/doi/ins/faculty` | **Program by Teacher** INS view for **all colleges**; embeds **formal approval** (campus-wide conflict check for room/faculty/section, digital signature, approve/reject, publish/lock). Section/Room INS via **in-page tabs** (`/doi/ins/section`, `/doi/ins/room`). Legacy `/doi/schedule-hub` redirects here. |
 | Central Hub Evaluator | `/doi/evaluator` | Campus-wide read of evaluator/timetable context for oversight. |
-| Policy reviews | `/doi/reviews` | Load-policy and related review surfaces (VPAA). |
-| Inbox | `/doi/inbox` | DOI workflow inbox. |
+| Policy reviews | `/doi/reviews` | Lists **`ScheduleLoadJustification`** rows (chair overload explanations). VPAA may **accept** or **reject** with an optional note; the author is **notified**. Schedules are not forwarded via Inbox—`/doi/inbox` redirects to the dashboard. |
 | Audit log | `/doi/audit-log` | Audit trail for DOI-scoped actions. |
 | Faculty Profile | `/doi/faculty-profile` | Oversight-oriented faculty listing (scope as implemented). |
 | Subject Codes | `/doi/subject-codes` | Subject catalog oversight. |
@@ -142,7 +155,7 @@ flowchart TB
     UC_INS[View INS Faculty / Section / Room]
     UC_CONF[Run conflict check\nscoped or campus-wide]
     UC_JUST[Submit load-policy justification\nScheduleLoadJustification]
-    UC_INBOX[Send / receive workflow\nWorkflowInboxMessage]
+    UC_INBOX[CAS workflow inbox\nWorkflowInboxMessage]
     UC_ACC[Approve or reject AccessRequest\nGEC/CAS scopes]
     UC_SCHG[Review ScheduleChangeRequest\napprove / reject / mitigate]
     UC_VPAA[VPAA formal approval\nDoiScheduleFinalization:\ncampus conflict scan, digital signature,\npublish term → final + lock]
@@ -163,10 +176,8 @@ flowchart TB
   CH --> UC_INS
   CH --> UC_CONF
   CH --> UC_JUST
-  CH --> UC_INBOX
 
   COL --> UC_INS
-  COL --> UC_INBOX
   COL --> UC_ACC
   COL --> UC_SCHG
 
@@ -181,7 +192,6 @@ flowchart TB
   DOI --> UC_CONF
   DOI --> UC_VPAA
   DOI --> UC_JUST
-  DOI --> UC_INBOX
 
   INS --> UC_INS
   INS --> UC_SCHG
@@ -201,19 +211,20 @@ flowchart TB
   GEC --> UC_NOTIF
 ```
 
-**Reading the flow:** **Chairman** authors **`ScheduleEntry`** and optional **justifications**, then coordinates via **Inbox**. **College Admin** may **approve schedule-change requests** from faculty (with conflict checks) until the term is **VPAA-locked**. **DOI/VPAA** runs a **campus-wide** conflict scan on the **INS** path, records **digital signature** in **`DoiScheduleFinalization`**, and **publishes** the term (**`final` + `lockedByDoiAt`**), which **blocks** further chairman/college edits and triggers **notifications** to instructors, college leadership, CAS, GEC, and students. **Instructor** and **Student** primarily **consume** published schedules through **INS** and portal routes.
+**Reading the flow:** **Chairman** (and other hub roles) author **`ScheduleEntry`** directly; changes are visible in **INS** and the **Evaluator** without inbox forwarding. Optional **`ScheduleLoadJustification`** text is submitted when **load policy** is violated; **DOI/VPAA** reviews it under **Policy reviews**. **College Admin** may **approve schedule-change requests** from faculty (with conflict checks) until the term is **VPAA-locked**. **CAS** may still use the **workflow Inbox** for CAS-specific mail. **DOI/VPAA** runs a **campus-wide** conflict scan on the **INS** path, records **digital signature** in **`DoiScheduleFinalization`**, and **publishes** the term (**`final` + `lockedByDoiAt`**), which **blocks** further chairman/college edits and triggers **notifications** to instructors, college leadership, CAS, GEC, and students. **Instructor** and **Student** primarily **consume** published schedules through **INS** and portal routes.
 
 ---
 
 ## Database schema: DOI approval and publication
 
-The following structures support VPAA-level decisions. **Migrations** (apply in order on Supabase): `20260411120000_scheduleentry_rls_and_doi_finalization.sql`, `20260411200000_doi_schedule_published_at.sql`, `20260412120000_scheduleentry_locked_by_doi.sql`. The consolidated reference DDL is in `supabase/schema.sql`.
+The following structures support VPAA-level decisions. **Migrations** (apply in order on Supabase): `20260411120000_scheduleentry_rls_and_doi_finalization.sql`, `20260411200000_doi_schedule_published_at.sql`, `20260412120000_scheduleentry_locked_by_doi.sql`, `20260415180000_schedule_load_justification_doi_review.sql` (VPAA accept/reject columns on **`ScheduleLoadJustification`**). The consolidated reference DDL is in `supabase/schema.sql`.
 
 | Artifact | Purpose |
 |----------|---------|
 | `DoiScheduleFinalization` | One row per `AcademicPeriod`: `status` (pending / approved / rejected), `signedByName`, `signedAt`, `signedAcknowledged`, `publishedAt` (go-live), `decidedById`, `decidedAt`, `notes`. |
 | `ScheduleEntry.status` | Set to `final` when DOI approves, indicating a published master timetable row for that term. |
 | `ScheduleEntry.lockedByDoiAt` | Timestamp set (with `status = final`) when VPAA publishes; **RLS** blocks **chairman** insert/update/delete and **college admin** update on locked rows while still allowing **SELECT** so INS views show the final grid. |
+| `ScheduleLoadJustification` | One row per **`academicPeriodId` + `collegeId`**: chair-authored **justification** and **violationsSnapshot**; optional **`doiDecision`**, **`doiReviewedAt`**, **`doiReviewedById`**, **`doiReviewNote`** after VPAA review. |
 | RLS | `doi_admin` may `SELECT` all schedule rows and `UPDATE` for finalization/lock; chairman policies are split (select vs insert/update/delete) with `lockedByDoiAt IS NULL` required for mutations; college admin may `SELECT`/`UPDATE` in-college rows only when not locked; `DoiScheduleFinalization` is readable/writable only by `doi_admin`. |
 
 After approval, **Notification** rows are inserted via the **service role** for **instructors** in the term, **chairman_admin** / **college_admin** in affected colleges, **cas_admin**, **gec_chairman**, and **students** (via `StudentProfile` rows whose `sectionId` appears in that term’s plot), with role-appropriate INS portal paths in the message body.
@@ -277,6 +288,13 @@ classDiagram
       +string status
     }
 
+    class ScheduleLoadJustification {
+      +string academicPeriodId
+      +string collegeId
+      +string justification
+      +string doiDecision
+    }
+
     class StudentProfile {
       +string userId
       +string sectionId
@@ -292,6 +310,7 @@ classDiagram
     User "1" --> "0..1" StudentProfile : userId
     AcademicPeriod "1" --> "*" ScheduleEntry
     AcademicPeriod "1" --> "0..1" DoiScheduleFinalization
+    AcademicPeriod "1" --> "*" ScheduleLoadJustification
     Program "1" --> "*" Section
     Section "1" --> "*" ScheduleEntry
     Section "1" --> "*" StudentProfile : sectionId
@@ -305,7 +324,7 @@ classDiagram
 
 ### Narrative
 
-The **centralized hub** model concentrates operational objects—**ScheduleEntry** rows keyed by **AcademicPeriod**, **Section**, **Room**, and **User** (instructor)—so that Chairman, College Admin, CAS, GEC, and DOI roles can share the same underlying timetable. **WorkflowInboxMessage** and **Notification** (not drawn above for brevity) provide cross-role handoffs.
+The **centralized hub** model concentrates operational objects—**ScheduleEntry** rows keyed by **AcademicPeriod**, **Section**, **Room**, and **User** (instructor)—so that Chairman, College Admin, CAS, GEC, and DOI roles can share the same underlying timetable. **`ScheduleLoadJustification`** (per term and college) captures chair overload explanations for VPAA. **WorkflowInboxMessage** (CAS Inbox) and **Notification** (not drawn above for brevity) provide cross-role handoffs where still applicable.
 
 **Instructor schedule changes** reference a concrete **ScheduleEntry**; **College Admin** runs automated conflict detection and may approve with or without mitigation, updating the row and notifying the instructor. Once **VPAA has published** that term (`lockedByDoiAt` set), the API **rejects** further schedule-change approvals that would mutate the locked row.
 

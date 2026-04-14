@@ -85,7 +85,6 @@ export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "INS Form (Schedule View)", href: "/doi/ins/faculty", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/doi/evaluator", icon: "ClipboardList" },
   { label: "Policy reviews", href: "/doi/reviews", icon: "Scale" },
-  { label: "Inbox", href: "/doi/inbox", icon: "Inbox" },
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },

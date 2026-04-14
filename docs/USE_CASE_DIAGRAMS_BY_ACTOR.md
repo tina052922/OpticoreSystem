@@ -168,9 +168,9 @@ flowchart LR
 | ID | Use case | Primary route | Description |
 |----|----------|---------------|-------------|
 | UC-DOI01 | Authenticate | *(session)* | Sign in; role is `doi_admin`. |
-| UC-DOI02 | Receive forwarded schedule | `/doi/inbox` | Receives the schedule workflow after GEC insertion. |
+| UC-DOI02 | View centralized schedules | `/doi/ins/faculty`, `/doi/evaluator` | Reads live **ScheduleEntry** across colleges (no DOI inbox forwarding). |
 | UC-DOI03 | Campus-wide conflict check (INS view) | `/doi/ins/faculty` | Full-campus scan of room/faculty/section conflicts for the selected term. |
-| UC-DOI04 | Review load justifications | `/doi/reviews` | Reviews **ScheduleLoadJustification** rows submitted by chairmen. |
+| UC-DOI04 | Review load justifications | `/doi/reviews` | Reviews **ScheduleLoadJustification** rows; **accept** or **reject** with optional note (notifies author). |
 | UC-DOI05 | Approve/reject with digital signature | `/doi/ins/faculty` | Records decision in **DoiScheduleFinalization** with signature metadata. |
 | UC-DOI06 | Publish and lock schedules | *(on approve)* | Sets **ScheduleEntry** to **final** and **lockedByDoiAt** (no more editing). |
 | UC-DOI07 | Send notifications | *(on publish)* | Notifies all relevant users once published. |
@@ -186,7 +186,7 @@ flowchart LR
 
   subgraph OptiCore["OptiCore System"]
     D01[UC-DOI01 Authenticate]
-    D02[UC-DOI02 Inbox: receive forward]
+    D02[UC-DOI02 Central hub: INS + Evaluator]
     D03[UC-DOI03 Campus-wide conflict check]
     D04[UC-DOI04 Review justifications]
     D05[UC-DOI05 Approve / reject (signature)]
