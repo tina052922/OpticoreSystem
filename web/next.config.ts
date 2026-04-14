@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  experimental: {},
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
   transpilePackages: ["recharts"],
 };
 

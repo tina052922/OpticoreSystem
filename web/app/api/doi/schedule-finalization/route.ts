@@ -1,8 +1,14 @@
+/**
+ * DOI schedule finalization — **only** this route (PATCH, authenticated `doi_admin`) may set
+ * `ScheduleEntry.lockedByDoiAt` and `status: final` for a term. No inbox, college, or GEC code path
+ * calls it; there are no triggers or cron jobs. Keep it that way so pre–VPAA testing stays on drafts.
+ */
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { notifyStakeholdersAfterDoiPublication } from "@/lib/server/doi-approval-notifications";
+import { Q } from "@/lib/supabase/catalog-columns";
 
 type PatchBody = {
   academicPeriodId?: string;
@@ -38,7 +44,7 @@ export async function GET(req: Request) {
 
   const { data: row, error } = await supabase
     .from("DoiScheduleFinalization")
-    .select("*")
+    .select(Q.doiScheduleFinalization)
     .eq("academicPeriodId", periodId)
     .maybeSingle();
 
@@ -49,7 +55,10 @@ export async function GET(req: Request) {
   return NextResponse.json({ finalization: row });
 }
 
-/** Approve/reject campus-wide schedule finalization; optional signature fields. On approve, marks entries final. */
+/**
+ * Approve/reject campus-wide schedule finalization. **Invoked only from DOI UI** (explicit button +
+ * signature fields). On approve: locks all `ScheduleEntry` rows for the term via service role.
+ */
 export async function PATCH(req: Request) {
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
@@ -107,7 +116,7 @@ export async function PATCH(req: Request) {
   const { data: saved, error: upErr } = await supabase
     .from("DoiScheduleFinalization")
     .upsert(upsertPayload, { onConflict: "academicPeriodId" })
-    .select("*")
+    .select(Q.doiScheduleFinalization)
     .maybeSingle();
 
   if (upErr) {

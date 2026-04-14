@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { checkConflictForProposedMove } from "@/lib/schedule-change/conflict-check";
 import { suggestMitigationForScheduleChange } from "@/lib/schedule-change/suggested-mitigation";
+import { Q } from "@/lib/supabase/catalog-columns";
 import { getRoomsForCollege, getScheduleEntriesForCollegePeriod } from "@/lib/server/schedule-change-queries";
 import type { ScheduleEntry } from "@/types/db";
 
@@ -33,7 +34,7 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   const { data: reqRow, error: fetchErr } = await supabase
     .from("ScheduleChangeRequest")
-    .select("*")
+    .select(Q.scheduleChangeRequest)
     .eq("id", id)
     .eq("collegeId", profile.collegeId)
     .maybeSingle();
@@ -48,7 +49,7 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   const { data: entry, error: eErr } = await supabase
     .from("ScheduleEntry")
-    .select("*")
+    .select(Q.scheduleEntry)
     .eq("id", (reqRow as { scheduleEntryId: string }).scheduleEntryId)
     .maybeSingle();
 

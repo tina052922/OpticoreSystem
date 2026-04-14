@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { Q } from "@/lib/supabase/catalog-columns";
 import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
 import type { CampusInsSettings } from "@/types/db";
 
@@ -20,7 +21,11 @@ export function DoiCampusDirectorSignatureCard() {
   const load = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
-    const { data, error } = await supabase.from("CampusInsSettings").select("*").eq("id", "default").maybeSingle();
+    const { data, error } = await supabase
+      .from("CampusInsSettings")
+      .select(Q.campusInsSettings)
+      .eq("id", "default")
+      .maybeSingle();
     if (error) {
       setErr(error.message);
       return;

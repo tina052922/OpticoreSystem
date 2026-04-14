@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import {
   BookOpen,
   CalendarPlus,
-  ChevronDown,
   ClipboardList,
   History,
   Inbox,
@@ -36,6 +35,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { AdminNavItem, NavIconKey } from "@/lib/admin-nav";
 import { isNavItemActive } from "@/lib/nav-active";
 import { cn } from "@/components/ui/utils";
+import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
+import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 
 const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   LayoutDashboard,
@@ -60,7 +61,6 @@ export type CampusIntelligenceShellProps = {
   navItems: AdminNavItem[];
   /** Shown above the semester chip (e.g. "College admin · CTE"). */
   roleLabel?: string;
-  semesterLabel?: string;
   profileHref: string;
   /** Kept for layouts that pass it; inbox is only in the sidebar, not the avatar menu. */
   inboxHref?: string;
@@ -75,7 +75,6 @@ export function CampusIntelligenceShell({
   userEmail,
   navItems,
   roleLabel,
-  semesterLabel = "2nd Semester S.Y. 2025-2026",
   profileHref,
 }: CampusIntelligenceShellProps) {
   const pathname = usePathname();
@@ -106,7 +105,8 @@ export function CampusIntelligenceShell({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-opticore-bg)] overflow-hidden">
+    <SemesterFilterProvider>
+      <div className="flex min-h-screen flex-col bg-[var(--color-opticore-bg)] overflow-hidden">
       <header
         className="w-full h-[99px] flex-none flex items-center justify-between px-4 md:px-8 no-print shrink-0 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
         style={{
@@ -140,7 +140,11 @@ export function CampusIntelligenceShell({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 md:gap-4 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0 min-w-0">
+          {/* Large sidebars show the orange pill; small screens use the bar below the header. */}
+          <div className="hidden lg:block min-w-0 max-w-[200px] xl:max-w-[280px]">
+            <SemesterNavDropdown variant="header" />
+          </div>
           <Link
             href="/campus-navigation"
             className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 md:px-3 text-xs md:text-sm font-semibold text-white/95 hover:bg-white/10 transition-colors max-w-[min(100vw-12rem,200px)]"
@@ -180,6 +184,11 @@ export function CampusIntelligenceShell({
         </div>
       </header>
 
+      {/* Below lg width: compact semester strip (sidebar pill is off-canvas until opened). */}
+      <div className="lg:hidden px-3 py-2 bg-[#6d0201] border-b border-black/20 no-print">
+        <SemesterNavDropdown variant="header" className="!text-[13px] !py-2.5" />
+      </div>
+
       {mobileNavOpen ? (
         <button
           type="button"
@@ -193,7 +202,7 @@ export function CampusIntelligenceShell({
         <aside
           id="admin-sidebar-nav"
           className={cn(
-            "fixed left-0 top-[99px] bottom-0 z-50 flex flex-col border-r border-black/5 bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]",
+            "fixed left-0 top-[147px] lg:top-[99px] bottom-0 z-50 flex flex-col border-r border-black/5 bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]",
             "w-[min(90vw,320px)] max-w-[320px] lg:static lg:top-auto lg:bottom-auto lg:z-auto lg:w-[345px] lg:max-w-[345px] lg:shrink-0",
             "transform transition-transform duration-200 ease-out lg:translate-x-0",
             mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
@@ -208,13 +217,7 @@ export function CampusIntelligenceShell({
                 {roleLabel}
               </p>
             ) : null}
-            <button
-              type="button"
-              className="w-full bg-[#FF990A] text-white rounded-full px-4 py-3 font-medium flex items-center justify-between hover:bg-[#e88909] transition-colors shadow-[0px_4px_4px_0px_rgba(0,0,0,0.15)]"
-            >
-              <span className="truncate text-left text-[15px]">{semesterLabel}</span>
-              <ChevronDown className="w-5 h-5 shrink-0" />
-            </button>
+            <SemesterNavDropdown variant="sidebar" />
           </div>
 
           <nav className="flex-1 px-2 pb-2 space-y-1 no-print overflow-y-auto">
@@ -249,6 +252,7 @@ export function CampusIntelligenceShell({
 
         <main className="flex-1 overflow-auto min-w-0 bg-[#F8F8F8]">{children}</main>
       </div>
-    </div>
+      </div>
+    </SemesterFilterProvider>
   );
 }

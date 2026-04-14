@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { Q } from "@/lib/supabase/catalog-columns";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import type { ScheduleChangeRequest } from "@/types/db";
 
@@ -42,7 +43,7 @@ export async function GET() {
 
   const { data: rows, error } = await supabase
     .from("ScheduleChangeRequest")
-    .select("*")
+    .select(Q.scheduleChangeRequest)
     .eq("collegeId", profile.collegeId)
     .order("createdAt", { ascending: false });
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { checkConflictForProposedMove } from "@/lib/schedule-change/conflict-check";
+import { Q } from "@/lib/supabase/catalog-columns";
 import { getScheduleEntriesForCollegePeriod } from "@/lib/server/schedule-change-queries";
 import type { ScheduleChangeStatus } from "@/types/db";
 import type { ScheduleEntry } from "@/types/db";
@@ -48,7 +49,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const { data: reqRow, error: fetchErr } = await supabase
     .from("ScheduleChangeRequest")
-    .select("*")
+    .select(Q.scheduleChangeRequest)
     .eq("id", id)
     .eq("collegeId", profile.collegeId)
     .maybeSingle();
@@ -91,7 +92,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ ok: true, status: "rejected" });
   }
 
-  const { data: entry, error: entErr } = await supabase.from("ScheduleEntry").select("*").eq("id", row.scheduleEntryId).maybeSingle();
+  const { data: entry, error: entErr } = await supabase
+    .from("ScheduleEntry")
+    .select(Q.scheduleEntry)
+    .eq("id", row.scheduleEntryId)
+    .maybeSingle();
   if (entErr || !entry) {
     return NextResponse.json({ error: "Schedule entry no longer exists" }, { status: 400 });
   }

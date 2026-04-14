@@ -26,6 +26,13 @@ This guide walks testers through the **full scheduling and INS workflow**, inclu
 
 4. **Test schedule:** Plot at least **one section** with **multiple `ScheduleEntry` rows** (different days/times) so INS grids and summaries are non-empty.
 
+### DOI / VPAA approval is manual only (no auto-publish)
+
+- **Chairman, College Admin, and GEC Chairman steps do not** call the VPAA publish API or set `ScheduleEntry.lockedByDoiAt`. Rows stay **`draft`** (or `conflicted` where applicable) until a **DOI Admin** explicitly submits **Approve & publish schedule** on the VPAA panel (`PATCH /api/doi/schedule-finalization`).
+- Inbox forwards, GEC save notifications, and college hub review are **workflow only** — they never lock the master schedule.
+- **Instructor** features (**My schedule**, **Request schedule change**) work against **draft** rows; change requests remain **`pending`** until College Admin acts.
+- If your database was published during an earlier test, run [`supabase/scripts/clear_doi_publication_for_manual_retest.sql`](../supabase/scripts/clear_doi_publication_for_manual_retest.sql) (edit the academic period id) to clear locks and `DoiScheduleFinalization` for that term before a full dry run.
+
 ---
 
 ## 1. Accounts (roles)

@@ -9,6 +9,7 @@ import {
 } from "@/lib/ins/build-ins-faculty-view";
 import { buildInsSignatureSlots, type InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { FacultyProfile } from "@/types/db";
 
 export type { InsInstructorOption } from "@/hooks/use-ins-catalog";
@@ -44,7 +45,7 @@ export function useInsLiveSchedule(args: {
     let cancelled = false;
     void supabase
       .from("FacultyProfile")
-      .select("*")
+      .select(Q.facultyProfileIns)
       .eq("userId", selectedInstructorId)
       .maybeSingle()
       .then(({ data }) => {

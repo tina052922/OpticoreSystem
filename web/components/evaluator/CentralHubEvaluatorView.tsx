@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { HubEvaluatorTabs } from "@/components/evaluator/HubEvaluatorTabs";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEntryQuickEditDialog";
+import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -49,6 +51,7 @@ export type CentralHubEvaluatorViewProps = {
 };
 
 export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }: CentralHubEvaluatorViewProps) {
+  const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
   const collegeSlug = searchParams.get("college");
@@ -66,7 +69,6 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
 
-  const [academicPeriodId, setAcademicPeriodId] = useState("");
   const [programId, setProgramId] = useState("");
 
   const [altOpen, setAltOpen] = useState(false);
@@ -79,6 +81,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   const [editBusy, setEditBusy] = useState(false);
 
   const lastAppliedBundleAtRef = useRef<string | null>(null);
+  const skipPeriodEntryFetchRef = useRef(true);
   const [hubBundleNotice, setHubBundleNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -90,8 +93,23 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
       setLoading(false);
       return;
     }
+    skipPeriodEntryFetchRef.current = true;
+    const { data: ap, error: e1 } = await supabase
+      .from("AcademicPeriod")
+      .select(Q.academicPeriod)
+      .order("startDate", { ascending: false });
+    if (e1) {
+      setLoadError(e1.message);
+      setLoading(false);
+      return;
+    }
+    const periodList = (ap ?? []) as AcademicPeriod[];
+    const periodId = academicPeriodId || defaultAcademicPeriodId(periodList);
+    const schPromise = periodId
+      ? supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
+      : Promise.resolve({ data: [] as ScheduleEntry[], error: null });
+
     const [
-      { data: ap, error: e1 },
       { data: prog, error: e2 },
       { data: sec, error: e3 },
       { data: sub, error: e4 },
@@ -100,22 +118,21 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
       { data: sch, error: e7 },
       { data: col, error: e8 },
     ] = await Promise.all([
-      supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false }),
-      supabase.from("Program").select("*").order("name"),
-      supabase.from("Section").select("*").order("name"),
-      supabase.from("Subject").select("*").order("code"),
-      supabase.from("Room").select("*").order("code"),
+      supabase.from("Program").select(Q.program).order("name"),
+      supabase.from("Section").select(Q.section).order("name"),
+      supabase.from("Subject").select(Q.subject).order("code"),
+      supabase.from("Room").select(Q.room).order("code"),
       supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
-      supabase.from("ScheduleEntry").select("*"),
-      supabase.from("College").select("*").order("name"),
+      schPromise,
+      supabase.from("College").select(Q.college).order("name"),
     ]);
-    const err = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8;
+    const err = e2 || e3 || e4 || e5 || e6 || e7 || e8;
     if (err) {
       setLoadError(err.message);
       setLoading(false);
       return;
     }
-    setPeriods((ap ?? []) as AcademicPeriod[]);
+    setPeriods(periodList);
     setPrograms((prog ?? []) as Program[]);
     setSections((sec ?? []) as Section[]);
     setSubjects((sub ?? []) as Subject[]);
@@ -124,11 +141,37 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     setEntries((sch ?? []) as ScheduleEntry[]);
     setColleges((col ?? []) as College[]);
     setLoading(false);
-  }, []);
+  }, [academicPeriodId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!academicPeriodId) return;
+    if (skipPeriodEntryFetchRef.current) {
+      skipPeriodEntryFetchRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from("ScheduleEntry")
+        .select(Q.scheduleEntry)
+        .eq("academicPeriodId", academicPeriodId);
+      if (cancelled) return;
+      if (error) {
+        setLoadError(error.message);
+        return;
+      }
+      setEntries((data ?? []) as ScheduleEntry[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [academicPeriodId]);
 
   useEffect(() => {
     if (loading) return;
@@ -157,6 +200,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     clearPendingCentralHubBundle();
 
     if (periods.some((p) => p.id === pending.academicPeriodId)) {
+      skipPeriodEntryFetchRef.current = true;
       setAcademicPeriodId(pending.academicPeriodId);
     }
     if (pending.programId && programs.some((p) => p.id === pending.programId)) {
@@ -181,12 +225,6 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
         `Organized under college scope “${isWide ? "All colleges" : hub?.name ?? collegeSlug}” · Department filter: ${progName}.`,
     );
   }, [loading, collegeSlug, periods, programs]);
-
-  useEffect(() => {
-    if (periods.length === 0 || academicPeriodId) return;
-    const cur = periods.find((x) => x.isCurrent) ?? periods[0];
-    if (cur) setAcademicPeriodId(cur.id);
-  }, [periods, academicPeriodId]);
 
   useEffect(() => {
     setCampusConflictScan(null);
@@ -599,22 +637,9 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
 
             <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
               <div className="flex flex-wrap gap-3 items-center">
-                {!showDoiGovernance ? (
-                  <label className="text-[13px] font-semibold text-black/70">
-                    Term
-                    <select
-                      className="ml-2 h-11 rounded-lg border border-black/25 bg-white px-3 text-sm"
-                      value={academicPeriodId}
-                      onChange={(e) => setAcademicPeriodId(e.target.value)}
-                    >
-                      {periods.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
+                <p className="text-[12px] text-black/55 max-w-md">
+                  Academic term is selected in the sidebar / header. Change it there to filter this grid.
+                </p>
                 <Button
                   type="button"
                   className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"

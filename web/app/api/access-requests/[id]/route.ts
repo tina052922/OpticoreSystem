@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { insertAuditLog } from "@/lib/server/audit-log";
+import { Q } from "@/lib/supabase/catalog-columns";
 
 const APPROVAL_DAYS = 14;
 
@@ -48,7 +49,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       expiresAt,
     })
     .eq("id", id)
-    .select("*")
+    .select(Q.accessRequest)
     .maybeSingle();
 
   if (error) {

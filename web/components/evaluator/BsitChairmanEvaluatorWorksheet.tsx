@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { Q } from "@/lib/supabase/catalog-columns";
 import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
-import type { AcademicPeriod, FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import type { FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { Button } from "@/components/ui/button";
 import {
   BSIT_PROSPECTUS_SUBJECTS,
@@ -14,10 +15,13 @@ import {
   BSIT_SECTION_NAMES,
   normalizeProspectusCode,
   prospectusByCode,
+  prospectusSubjectsForYearAndSemester,
   prospectusSubjectsForYearLevel,
   scheduleDurationSlots,
   yearLevelFromBsitSectionName,
 } from "@/lib/chairman/bsit-prospectus";
+import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
+import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
@@ -46,6 +50,8 @@ export type PlotRow = {
   /** First 1-hour slot index (0 = 7:00–8:00 AM … 9 = 4:00–5:00 PM). */
   startSlotIndex: number;
   day: BsitEvaluatorWeekday;
+  /** When set, VPAA published this row; RLS blocks chairman writes — do not upsert/delete. */
+  lockedByDoiAt?: string | null;
 };
 
 function newRowId(): string {
@@ -62,6 +68,7 @@ function emptyRow(): PlotRow {
     roomId: "",
     startSlotIndex: 0,
     day: "Monday",
+    lockedByDoiAt: null,
   };
 }
 
@@ -156,8 +163,7 @@ export function BsitChairmanEvaluatorWorksheet({
   chairmanProgramId,
   onPolicySnapshot,
 }: BsitChairmanEvaluatorWorksheetProps) {
-  const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
-  const [academicPeriodId, setAcademicPeriodId] = useState("");
+  const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const [sections, setSections] = useState<Section[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -169,6 +175,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const [justificationText, setJustificationText] = useState("");
   const [selectedSectionId, setSelectedSectionId] = useState<string>("");
   const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
+  /** IDs loaded with `lockedByDoiAt` — never send DELETE for these if they disappear from state (e.g. scope change). */
+  const lockedEntryIdsRef = useRef<Set<string>>(new Set());
   const didHydrateFromDbRef = useRef(false);
 
   const programId = chairmanProgramId ?? "prog-bsit";
@@ -180,15 +188,12 @@ export function BsitChairmanEvaluatorWorksheet({
       return;
     }
     setLoadError(null);
-    const [{ data: ap }, { data: sec }, { data: sub }, { data: rm }, { data: users }, { data: fp }] = await Promise.all([
-      supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false }),
-      supabase.from("Section").select("*").order("name"),
-      supabase.from("Subject").select("*").order("code"),
-      supabase.from("Room").select("*").order("code"),
-      supabase.from("User").select("id,email,name,role,collegeId"),
-      supabase.from("FacultyProfile").select("*"),
+    const [{ data: sec }, { data: sub }, { data: rm }, { data: users }] = await Promise.all([
+      supabase.from("Section").select(Q.section).order("name"),
+      supabase.from("Subject").select(Q.subject).order("code"),
+      supabase.from("Room").select(Q.room).order("code"),
+      supabase.from("User").select(Q.userChairmanScope),
     ]);
-    setPeriods((ap ?? []) as AcademicPeriod[]);
     setSections((sec ?? []) as Section[]);
     setSubjects((sub ?? []) as Subject[]);
     setRooms((rm ?? []) as Room[]);
@@ -198,18 +203,17 @@ export function BsitChairmanEvaluatorWorksheet({
         (!chairmanCollegeId || u.collegeId === chairmanCollegeId),
     ) as User[];
     setDbInstructors(fac);
+    const instructorIds = fac.map((u) => u.id);
+    const { data: fp } =
+      instructorIds.length > 0
+        ? await supabase.from("FacultyProfile").select(Q.facultyProfilePolicy).in("userId", instructorIds)
+        : { data: [] as FacultyProfile[] };
     setFacultyProfiles((fp ?? []) as FacultyProfile[]);
   }, [chairmanCollegeId]);
 
   useEffect(() => {
     void loadCatalog();
   }, [loadCatalog]);
-
-  useEffect(() => {
-    if (periods.length === 0 || academicPeriodId) return;
-    const cur = periods.find((x) => x.isCurrent) ?? periods[0];
-    if (cur) setAcademicPeriodId(cur.id);
-  }, [periods, academicPeriodId]);
 
   const bsitSections = useMemo(() => {
     const names = new Set(BSIT_SECTION_NAMES.map((n) => n.replace(/\s+/g, "-").toUpperCase()));
@@ -294,6 +298,15 @@ export function BsitChairmanEvaluatorWorksheet({
     bsitSections.forEach((s) => m.set(s.id, s.name));
     return m;
   }, [bsitSections]);
+
+  /** Align plotted subjects with the global term: prospectus semester 1 vs 2 from `AcademicPeriod` naming. */
+  const termProspectusSemester = useMemo(
+    () => prospectusSemesterFromAcademicPeriod(selectedPeriod),
+    [selectedPeriod],
+  );
+
+  /** Any row published for this term — RLS blocks chairman mutations; worksheet stays read-only. */
+  const schedulePublished = useMemo(() => rows.some((r) => Boolean(r.lockedByDoiAt)), [rows]);
 
   const roomCodeById = useMemo(() => {
     const m = new Map<string, string>();
@@ -397,6 +410,7 @@ export function BsitChairmanEvaluatorWorksheet({
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
+        if (r.lockedByDoiAt) return r;
         const next = { ...r, ...patch };
         const p = next.subjectCode ? prospectusByCode(next.subjectCode) : undefined;
         if (p) {
@@ -410,11 +424,17 @@ export function BsitChairmanEvaluatorWorksheet({
   }
 
   function addRow() {
-    setRows((prev) => [...prev, emptyRow()]);
+    setRows((prev) => {
+      if (prev.some((r) => Boolean(r.lockedByDoiAt))) return prev;
+      return [...prev, emptyRow()];
+    });
   }
 
   function removeRow(id: string) {
-    setRows((prev) => prev.filter((r) => r.id !== id));
+    setRows((prev) => {
+      if (prev.some((r) => r.id === id && r.lockedByDoiAt)) return prev;
+      return prev.filter((r) => r.id !== id);
+    });
   }
 
   const loadRowsFromSupabase = useCallback(async () => {
@@ -428,7 +448,9 @@ export function BsitChairmanEvaluatorWorksheet({
 
     const { data: sch, error } = await supabase
       .from("ScheduleEntry")
-      .select("*")
+      .select(
+        "id,academicPeriodId,subjectId,instructorId,sectionId,roomId,day,startTime,endTime,status,lockedByDoiAt",
+      )
       .eq("academicPeriodId", academicPeriodId);
     if (error) {
       setLoadError(error.message);
@@ -436,6 +458,10 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     const entries = (sch ?? []) as ScheduleEntry[];
     const relevant = entries.filter((e) => sectionIds.has(e.sectionId));
+
+    lockedEntryIdsRef.current = new Set(
+      relevant.filter((e) => Boolean(e.lockedByDoiAt)).map((e) => e.id),
+    );
 
     const slotIndexByStartTime = new Map<string, number>();
     for (let i = 0; i < BSIT_EVALUATOR_TIME_SLOTS.length; i++) {
@@ -452,6 +478,7 @@ export function BsitChairmanEvaluatorWorksheet({
       roomId: e.roomId,
       startSlotIndex: slotIndexByStartTime.get(e.startTime) ?? 0,
       day: (BSIT_EVALUATOR_WEEKDAYS.includes(e.day as BsitEvaluatorWeekday) ? (e.day as BsitEvaluatorWeekday) : "Monday"),
+      lockedByDoiAt: e.lockedByDoiAt ?? null,
     }));
 
     didHydrateFromDbRef.current = true;
@@ -499,6 +526,7 @@ export function BsitChairmanEvaluatorWorksheet({
 
         const upserts: ScheduleEntry[] = [];
         for (const row of rows) {
+          if (row.lockedByDoiAt) continue;
           if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) continue;
           const subjectId = subjectIdByCode.get(normalizeProspectusCode(row.subjectCode));
           if (!subjectId) continue;
@@ -520,7 +548,9 @@ export function BsitChairmanEvaluatorWorksheet({
 
         const currentIds = new Set(rows.map((r) => r.id));
         const prevIds = lastSyncedRowIdsRef.current;
-        const removedIds = Array.from(prevIds).filter((id) => !currentIds.has(id));
+        const removedIds = Array.from(prevIds).filter(
+          (id) => !currentIds.has(id) && !lockedEntryIdsRef.current.has(id),
+        );
 
         if (removedIds.length > 0) {
           const { error: delErr } = await supabase.from("ScheduleEntry").delete().in("id", removedIds);
@@ -551,12 +581,24 @@ export function BsitChairmanEvaluatorWorksheet({
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
+      {schedulePublished ? (
+        <div
+          className="rounded-xl border border-sky-200 bg-sky-50/90 px-4 py-3 text-[13px] text-sky-950 leading-relaxed"
+          role="status"
+        >
+          <span className="font-semibold">Published schedule (read-only).</span> DOI/VPAA has published this term&apos;s
+          master schedule. Plotted slots cannot be edited here; changes require a schedule change request workflow if
+          your campus uses one.
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
           <span>Section</span>
           <select
-            className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+            className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
             value={selectedSectionId}
+            disabled={schedulePublished}
             onChange={(e) => setSelectedSectionId(e.target.value)}
           >
             <option value="">All sections</option>
@@ -567,7 +609,12 @@ export function BsitChairmanEvaluatorWorksheet({
             ))}
           </select>
         </div>
-        <Button type="button" className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold" onClick={addRow}>
+        <Button
+          type="button"
+          className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold disabled:opacity-50 disabled:pointer-events-none"
+          disabled={schedulePublished}
+          onClick={addRow}
+        >
           + Add schedule row
         </Button>
       </div>
@@ -608,9 +655,15 @@ export function BsitChairmanEvaluatorWorksheet({
                   const effectiveStart = Math.min(row.startSlotIndex, maxStart);
                   const sectionName = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "";
                   const yearLevel = sectionName ? yearLevelFromBsitSectionName(sectionName) : null;
-                  const subjectOptions = yearLevel != null ? prospectusSubjectsForYearLevel(yearLevel) : [];
+                  const subjectOptions =
+                    yearLevel == null
+                      ? []
+                      : termProspectusSemester != null
+                        ? prospectusSubjectsForYearAndSemester(yearLevel, termProspectusSemester)
+                        : prospectusSubjectsForYearLevel(yearLevel);
                   const cf = conflictForRow(row);
                   const timeFmt = formatTimeRangeFromSlots(effectiveStart, dur);
+                  const rowReadOnly = schedulePublished || Boolean(row.lockedByDoiAt);
                   return (
                     <tr key={row.id} className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}`}>
                       <td className="border border-black/10 px-2 py-1.5 font-semibold text-black/80">{MAJOR_FIXED}</td>
@@ -618,6 +671,7 @@ export function BsitChairmanEvaluatorWorksheet({
                         <select
                           className={selectClass}
                           value={row.sectionId}
+                          disabled={rowReadOnly}
                           onChange={(e) => {
                             const sectionId = e.target.value;
                             const name = bsitSections.find((s) => s.id === sectionId)?.name ?? "";
@@ -625,7 +679,9 @@ export function BsitChairmanEvaluatorWorksheet({
                             let subjectCode = row.subjectCode;
                             if (subjectCode && yl != null) {
                               const s = prospectusByCode(subjectCode);
+                              const sem = termProspectusSemester;
                               if (!s || s.yearLevel !== yl) subjectCode = "";
+                              else if (sem != null && s.semester !== sem) subjectCode = "";
                             }
                             updateRow(row.id, { sectionId, subjectCode });
                           }}
@@ -643,6 +699,7 @@ export function BsitChairmanEvaluatorWorksheet({
                           type="number"
                           min={0}
                           className={`${selectClass} tabular-nums`}
+                          disabled={rowReadOnly}
                           value={row.students === "" ? "" : row.students}
                           onChange={(e) => {
                             const v = e.target.value;
@@ -655,7 +712,7 @@ export function BsitChairmanEvaluatorWorksheet({
                         <select
                           className={selectClass}
                           value={row.subjectCode}
-                          disabled={!row.sectionId || yearLevel == null}
+                          disabled={rowReadOnly || !row.sectionId || yearLevel == null}
                           onChange={(e) => {
                             const subjectCode = e.target.value;
                             const p = subjectCode ? prospectusByCode(subjectCode) : undefined;
@@ -686,6 +743,7 @@ export function BsitChairmanEvaluatorWorksheet({
                         <select
                           className={selectClass}
                           value={row.instructorId}
+                          disabled={rowReadOnly}
                           onChange={(e) => updateRow(row.id, { instructorId: e.target.value })}
                         >
                           <option value="">Select…</option>
@@ -700,6 +758,7 @@ export function BsitChairmanEvaluatorWorksheet({
                         <select
                           className={selectClass}
                           value={row.roomId}
+                          disabled={rowReadOnly}
                           onChange={(e) => updateRow(row.id, { roomId: e.target.value })}
                         >
                           <option value="">Select…</option>
@@ -729,6 +788,7 @@ export function BsitChairmanEvaluatorWorksheet({
                             className={selectClass}
                             aria-label="First hour start slot"
                             value={effectiveStart}
+                            disabled={rowReadOnly}
                             onChange={(e) => updateRow(row.id, { startSlotIndex: parseInt(e.target.value, 10) })}
                           >
                             {BSIT_EVALUATOR_TIME_SLOTS.slice(0, maxStart + 1).map((t, idx) => (
@@ -750,6 +810,7 @@ export function BsitChairmanEvaluatorWorksheet({
                         <select
                           className={selectClass}
                           value={row.day}
+                          disabled={rowReadOnly}
                           onChange={(e) => updateRow(row.id, { day: e.target.value as BsitEvaluatorWeekday })}
                         >
                           {BSIT_EVALUATOR_WEEKDAYS.map((d) => (
@@ -793,7 +854,14 @@ export function BsitChairmanEvaluatorWorksheet({
                         {cf.section}
                       </td>
                       <td className="border border-black/10 px-1 py-1">
-                        <Button type="button" variant="outline" size="sm" className="h-8 text-[10px]" onClick={() => removeRow(row.id)}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-[10px]"
+                          disabled={rowReadOnly}
+                          onClick={() => removeRow(row.id)}
+                        >
                           Remove
                         </Button>
                       </td>
@@ -822,8 +890,9 @@ export function BsitChairmanEvaluatorWorksheet({
             hrs/wk reference). Enter a reason below; it will be available to DOI Admin for inspection and approval.
           </p>
           <textarea
-            className="w-full min-h-[100px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
+            className="w-full min-h-[100px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
             value={justificationText}
+            disabled={schedulePublished}
             onChange={(e) => setJustificationText(e.target.value)}
             placeholder="e.g. Approved overload; temporary faculty shortage; consolidated sections…"
           />

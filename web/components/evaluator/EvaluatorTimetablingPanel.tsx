@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, TIME_SLOT_OPTIONS, WEEKDAYS } from "@/lib/scheduling/constants";
 import { detectConflictsForEntry, scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
@@ -32,6 +33,8 @@ import {
   prospectusSubjectsForYearAndSemester,
   yearLevelFromBsitSectionName,
 } from "@/lib/chairman/bsit-prospectus";
+import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
+import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -62,6 +65,7 @@ export function EvaluatorTimetablingPanel({
   chairmanProgramCode = null,
   chairmanProgramName = null,
 }: EvaluatorTimetablingPanelProps) {
+  const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -77,7 +81,6 @@ export function EvaluatorTimetablingPanel({
   const [dbEntries, setDbEntries] = useState<ScheduleEntry[]>([]);
   const [localDrafts, setLocalDrafts] = useState<ScheduleBlock[]>([]);
 
-  const [academicPeriodId, setAcademicPeriodId] = useState("");
   const [collegeId, setCollegeId] = useState("");
   const [programId, setProgramId] = useState("");
   const [major, setMajor] = useState("");
@@ -105,6 +108,7 @@ export function EvaluatorTimetablingPanel({
     { entryId: string; type: string; message: string; relatedEntryId?: string }[]
   >([]);
   const [fullCheckRan, setFullCheckRan] = useState(false);
+  const skipPeriodEntryFetchRef = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,9 +119,27 @@ export function EvaluatorTimetablingPanel({
       setLoading(false);
       return;
     }
+    skipPeriodEntryFetchRef.current = true;
+
+    const { data: ap, error: e1 } = await supabase
+      .from("AcademicPeriod")
+      .select(Q.academicPeriod)
+      .order("startDate", { ascending: false });
+    if (e1) {
+      setLoadError(e1.message);
+      setLoading(false);
+      return;
+    }
+    const periodList = (ap ?? []) as AcademicPeriod[];
+    const periodId = academicPeriodId || defaultAcademicPeriodId(periodList);
+    const schPromise = periodId
+      ? supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
+      : Promise.resolve({ data: [] as ScheduleEntry[], error: null });
+    const ljPromise = periodId
+      ? supabase.from("ScheduleLoadJustification").select(Q.scheduleLoadJustification).eq("academicPeriodId", periodId)
+      : Promise.resolve({ data: [] as ScheduleLoadJustification[], error: null });
 
     const [
-      { data: ap, error: e1 },
       { data: col, error: e2 },
       { data: prog, error: e3 },
       { data: sec, error: e4 },
@@ -125,45 +147,84 @@ export function EvaluatorTimetablingPanel({
       { data: rm, error: e6 },
       { data: fac, error: e7 },
       { data: sch, error: e8 },
-      { data: fp, error: e9 },
       { data: lj, error: e10 },
     ] = await Promise.all([
-      supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false }),
-      supabase.from("College").select("*").order("name"),
-      supabase.from("Program").select("*").order("name"),
-      supabase.from("Section").select("*").order("name"),
-      supabase.from("Subject").select("*").order("code"),
-      supabase.from("Room").select("*").order("code"),
+      supabase.from("College").select(Q.college).order("name"),
+      supabase.from("Program").select(Q.program).order("name"),
+      supabase.from("Section").select(Q.section).order("name"),
+      supabase.from("Subject").select(Q.subject).order("code"),
+      supabase.from("Room").select(Q.room).order("code"),
       supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
-      supabase.from("ScheduleEntry").select("*"),
-      supabase.from("FacultyProfile").select("*"),
-      supabase.from("ScheduleLoadJustification").select("*"),
+      schPromise,
+      ljPromise,
     ]);
 
-    const err = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10;
+    const err = e2 || e3 || e4 || e5 || e6 || e7 || e8 || e10;
     if (err) {
       setLoadError(err.message);
       setLoading(false);
       return;
     }
 
-    setPeriods((ap ?? []) as AcademicPeriod[]);
+    const allUsers = (fac ?? []) as User[];
+    const profileCandidateIds = allUsers
+      .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+      .map((u) => u.id);
+    const { data: fp, error: e9 } =
+      profileCandidateIds.length > 0
+        ? await supabase.from("FacultyProfile").select(Q.facultyProfilePolicy).in("userId", profileCandidateIds)
+        : { data: [] as FacultyProfile[], error: null };
+
+    if (e9) {
+      setLoadError(e9.message);
+      setLoading(false);
+      return;
+    }
+
+    setPeriods(periodList);
     setColleges((col ?? []) as College[]);
     setPrograms((prog ?? []) as Program[]);
     setSections((sec ?? []) as Section[]);
     setSubjects((sub ?? []) as Subject[]);
     setRooms((rm ?? []) as Room[]);
-    setCollegeUsers((fac ?? []) as User[]);
+    setCollegeUsers(allUsers);
     setFacultyProfiles((fp ?? []) as FacultyProfile[]);
     setLoadJustifications((lj ?? []) as ScheduleLoadJustification[]);
     setDbEntries((sch ?? []) as ScheduleEntry[]);
 
     setLoading(false);
-  }, []);
+  }, [academicPeriodId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!academicPeriodId) return;
+    if (skipPeriodEntryFetchRef.current) {
+      skipPeriodEntryFetchRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      const [{ data: sch, error: e1 }, { data: lj, error: e2 }] = await Promise.all([
+        supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", academicPeriodId),
+        supabase.from("ScheduleLoadJustification").select(Q.scheduleLoadJustification).eq("academicPeriodId", academicPeriodId),
+      ]);
+      if (cancelled) return;
+      if (e1 || e2) {
+        setLoadError((e1 ?? e2)!.message);
+        return;
+      }
+      setDbEntries((sch ?? []) as ScheduleEntry[]);
+      setLoadJustifications((lj ?? []) as ScheduleLoadJustification[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [academicPeriodId]);
 
   useEffect(() => {
     if (chairmanCollegeId) setCollegeId(chairmanCollegeId);
@@ -173,12 +234,6 @@ export function EvaluatorTimetablingPanel({
     if (!chairmanProgramId) return;
     setProgramId(chairmanProgramId);
   }, [chairmanProgramId]);
-
-  useEffect(() => {
-    if (periods.length === 0 || academicPeriodId) return;
-    const cur = periods.find((x) => x.isCurrent) ?? periods[0];
-    if (cur) setAcademicPeriodId(cur.id);
-  }, [periods, academicPeriodId]);
 
   /** Chairman scope is fixed from the server; avoids one frame where collegeId state has not synced yet. */
   const effectiveCollegeId = chairmanCollegeId || collegeId;
@@ -194,6 +249,13 @@ export function EvaluatorTimetablingPanel({
 
   const [bsitYearLevel, setBsitYearLevel] = useState(1);
   const [bsitSemester, setBsitSemester] = useState<BsitSemester>(1);
+
+  /** BSIT plotting: align prospectus semester (1 vs 2) with the global AcademicPeriod selection in the shell. */
+  useEffect(() => {
+    if (!bsitScope) return;
+    const s = prospectusSemesterFromAcademicPeriod(selectedPeriod);
+    if (s != null) setBsitSemester(s);
+  }, [bsitScope, selectedPeriod]);
 
   const sectionsInProgram = useMemo(
     () => sections.filter((s) => !programId || s.programId === programId),
@@ -652,7 +714,8 @@ export function EvaluatorTimetablingPanel({
           .eq("role", "college_admin")
           .eq("collegeId", effectiveCollegeId);
         if (admins?.length) {
-          const periodName = periods.find((p) => p.id === academicPeriodId)?.name ?? "the current term";
+          const periodName =
+            selectedPeriod?.name ?? periods.find((p) => p.id === academicPeriodId)?.name ?? "the current term";
           const msg = `${authorName} plotted or updated ${rows.length} schedule row(s) in the Evaluator (${periodName}). Open INS Form (Schedule View) and Evaluator to review.`;
           await supabase.from("Notification").insert(admins.map((a) => ({ userId: a.id, message: msg })));
         }
@@ -843,20 +906,9 @@ export function EvaluatorTimetablingPanel({
                   </select>
                 </label>
               )}
-              <label className="text-[13px] font-semibold text-black/70">
-                Term
-                <select
-                  className="ml-2 h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm"
-                  value={academicPeriodId}
-                  onChange={(e) => setAcademicPeriodId(e.target.value)}
-                >
-                  {periods.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.semester} · {p.academicYear})
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <p className="text-[12px] text-black/55 max-w-sm">
+                Academic term is selected in the header / sidebar.
+              </p>
               <Button
                 type="button"
                 className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
@@ -933,21 +985,9 @@ export function EvaluatorTimetablingPanel({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {!chairmanCollegeId ? (
-              <label className="text-sm font-medium">
-                Academic year & semester
-                <select
-                  className={`mt-1 ${selectClass}`}
-                  value={academicPeriodId}
-                  onChange={(e) => setAcademicPeriodId(e.target.value)}
-                >
-                  <option value="">Select…</option>
-                  {periods.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.semester} · {p.academicYear})
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <p className="text-sm text-black/55 md:col-span-2">
+                Pick the academic term from the orange selector in the navigation bar.
+              </p>
             ) : null}
 
             {!chairmanCollegeId ? (
@@ -1047,24 +1087,6 @@ export function EvaluatorTimetablingPanel({
                   <option value={2}>2nd Year</option>
                   <option value={3}>3rd Year</option>
                   <option value={4}>4th Year</option>
-                </select>
-              </label>
-            ) : null}
-
-            {bsitScope ? (
-              <label className="text-sm font-medium">
-                Semester (BSIT prospectus)
-                <select
-                  className={`mt-1 ${selectClass}`}
-                  value={bsitSemester}
-                  onChange={(e) => {
-                    setBsitSemester(parseInt(e.target.value, 10) as BsitSemester);
-                    setSubjectId("");
-                  }}
-                  disabled={!programId}
-                >
-                  <option value={1}>1st Semester</option>
-                  <option value={2}>2nd Semester</option>
                 </select>
               </label>
             ) : null}
@@ -1316,7 +1338,7 @@ export function EvaluatorTimetablingPanel({
           </div>
           {previewFocus === "section" ? (
             <ScheduleLivePreview
-              title={`Section · ${sectionNameById.get(sectionId) ?? "—"} · ${periods.find((p) => p.id === academicPeriodId)?.name ?? ""}`}
+              title={`Section · ${sectionNameById.get(sectionId) ?? "—"} · ${selectedPeriod?.name ?? periods.find((p) => p.id === academicPeriodId)?.name ?? ""}`}
               entries={previewSectionEntries}
               subjectCodeById={subjectCodeById}
               roomCodeById={roomCodeById}

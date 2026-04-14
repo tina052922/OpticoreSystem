@@ -5,6 +5,7 @@ import {
   type InsShareView,
   type WorkflowScheduleBundleV1,
 } from "@/lib/workflow-schedule-bundle";
+import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import type { AcademicPeriod, ScheduleEntry, Subject } from "@/types/db";
 
 const VIEW_LABEL: Record<InsShareView, string> = {
@@ -67,13 +68,13 @@ export async function buildChairmanInboxForwardBundle(args: {
 
   const { data: apRows, error: e1 } = await supabase
     .from("AcademicPeriod")
-    .select("*")
+    .select(Q.academicPeriod)
     .order("startDate", { ascending: false });
   if (e1 || !apRows?.length) return null;
 
   const periods = apRows as AcademicPeriod[];
-  const cur = periods.find((x) => x.isCurrent) ?? periods[0];
-  if (!cur) return null;
+  const curId = defaultAcademicPeriodId(periods);
+  if (!curId) return null;
 
   const { data: secRows, error: e2 } = await supabase.from("Section").select("id, programId");
   if (e2) return null;
@@ -84,8 +85,8 @@ export async function buildChairmanInboxForwardBundle(args: {
 
   const { data: schRows, error: e3 } = await supabase
     .from("ScheduleEntry")
-    .select("*")
-    .eq("academicPeriodId", cur.id);
+    .select(Q.scheduleEntry)
+    .eq("academicPeriodId", curId);
   if (e3) return null;
 
   const termScoped = ((schRows ?? []) as ScheduleEntry[]).filter((e) => sectionIds.has(e.sectionId));
@@ -100,7 +101,7 @@ export async function buildChairmanInboxForwardBundle(args: {
   }
 
   return buildWorkflowScheduleBundle({
-    academicPeriodId: cur.id,
+    academicPeriodId: curId,
     collegeId: args.collegeId,
     programId: args.programId,
     programCode: args.programCode ?? null,

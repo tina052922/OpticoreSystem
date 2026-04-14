@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { Room, ScheduleEntry } from "@/types/db";
 
 /** Section ids belonging to programs under this college. */
@@ -23,7 +24,7 @@ export async function getScheduleEntriesForCollegePeriod(
   if (sectionIds.length === 0) return [];
   const { data, error } = await supabase
     .from("ScheduleEntry")
-    .select("*")
+    .select(Q.scheduleEntry)
     .eq("academicPeriodId", academicPeriodId)
     .in("sectionId", sectionIds);
   if (error || !data) return [];
@@ -31,7 +32,7 @@ export async function getScheduleEntriesForCollegePeriod(
 }
 
 export async function getRoomsForCollege(supabase: SupabaseClient, collegeId: string): Promise<Room[]> {
-  const { data, error } = await supabase.from("Room").select("*").eq("collegeId", collegeId).order("code");
+  const { data, error } = await supabase.from("Room").select(Q.room).eq("collegeId", collegeId).order("code");
   if (error || !data) return [];
   return data as Room[];
 }

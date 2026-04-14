@@ -4,6 +4,7 @@ import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { enrichCampusConflictIssues } from "@/lib/scheduling/conflict-enrichment";
 import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
@@ -47,7 +48,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "periodId is required" }, { status: 400 });
   }
 
-  const { data: entries, error } = await supabase.from("ScheduleEntry").select("*").eq("academicPeriodId", periodId);
+  const { data: entries, error } = await supabase
+    .from("ScheduleEntry")
+    .select(Q.scheduleEntry)
+    .eq("academicPeriodId", periodId);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
@@ -69,16 +73,18 @@ export async function GET(req: Request) {
     { data: collegeRows, error: es5 },
   ] = await Promise.all([
     subjectIds.length
-      ? supabase.from("Subject").select("*").in("id", subjectIds)
+      ? supabase.from("Subject").select(Q.subject).in("id", subjectIds)
       : Promise.resolve({ data: [] as Subject[], error: null }),
     sectionIds.length
-      ? supabase.from("Section").select("*").in("id", sectionIds)
+      ? supabase.from("Section").select(Q.section).in("id", sectionIds)
       : Promise.resolve({ data: [] as Section[], error: null }),
-    roomIds.length ? supabase.from("Room").select("*").in("id", roomIds) : Promise.resolve({ data: [] as Room[], error: null }),
+    roomIds.length
+      ? supabase.from("Room").select(Q.room).in("id", roomIds)
+      : Promise.resolve({ data: [] as Room[], error: null }),
     userIds.length
       ? supabase.from("User").select("id,email,name,role,collegeId,employeeId").in("id", userIds)
       : Promise.resolve({ data: [] as User[], error: null }),
-    supabase.from("College").select("*"),
+    supabase.from("College").select(Q.college),
   ]);
 
   const lookupErr = es1 || es2 || es3 || es4 || es5;
@@ -95,7 +101,7 @@ export async function GET(req: Request) {
   const programById = new Map<string, Program>();
   const programIds = [...new Set([...sectionById.values()].map((s) => s.programId))];
   if (programIds.length > 0) {
-    const { data: programs, error: ep } = await supabase.from("Program").select("*").in("id", programIds);
+    const { data: programs, error: ep } = await supabase.from("Program").select(Q.program).in("id", programIds);
     if (ep) return NextResponse.json({ error: ep.message }, { status: 400 });
     (programs ?? []).forEach((p) => programById.set(p.id, p as Program));
   }

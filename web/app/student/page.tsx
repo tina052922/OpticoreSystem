@@ -1,22 +1,11 @@
-import Link from "next/link";
-import { Calendar, MapPin, Megaphone, ChevronRight, Clock } from "lucide-react";
 import { PortalShell } from "@/components/portal/PortalShell";
-import { DashboardCard } from "@/components/portal/DashboardCard";
+import { StudentDashboardTermClient } from "@/components/portal/StudentDashboardTermClient";
 import { requireRoles } from "@/lib/auth/require-role";
-import {
-  getCurrentAcademicPeriod,
-  getRecentNotifications,
-  getStudentScheduleRows,
-} from "@/lib/server/dashboard-data";
+import { getRecentNotifications } from "@/lib/server/dashboard-data";
 
 export default async function StudentDashboardPage() {
   const profile = await requireRoles(["student"]);
-  const period = await getCurrentAcademicPeriod();
-  const { rows, section, program } = period
-    ? await getStudentScheduleRows(profile.id, period.id)
-    : { rows: [], section: null, program: null };
   const notifications = await getRecentNotifications(profile.id);
-  const upcoming = rows.slice(0, 4);
 
   const navItems = [
     { label: "Dashboard", href: "/student" },
@@ -31,129 +20,9 @@ export default async function StudentDashboardPage() {
       userEmail={profile.email}
       sidebarBadge="Student"
       navItems={navItems}
-      periodLabel={period?.name ?? "Current semester"}
+      periodLabel="Current semester"
     >
-      <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-black tracking-tight">
-            Welcome, {profile.name.split(",")[0]?.trim() ?? profile.name}
-          </h1>
-          <p className="text-sm text-black/60">
-            {program ? `${program.name}` : "Program"}
-            {section ? ` · ${section.name}` : ""}
-            {period ? ` · ${period.name}` : ""}
-          </p>
-        </header>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <DashboardCard title="My schedule (current semester)">
-              {rows.length === 0 ? (
-                <p className="text-sm text-black/55">
-                  No class meetings found for your section this term. If you just enrolled, ask the registrar to link your
-                  profile to a section.
-                </p>
-              ) : (
-                <ul className="divide-y divide-black/10 rounded-lg border border-black/10 overflow-hidden">
-                  {rows.slice(0, 8).map((r) => (
-                    <li key={r.entry.id} className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm bg-white hover:bg-black/[0.02]">
-                      <span className="font-medium text-black min-w-[72px]">{r.entry.day}</span>
-                      <span className="text-black/70 tabular-nums">
-                        {r.entry.startTime}–{r.entry.endTime}
-                      </span>
-                      <span className="text-black font-medium flex-1 min-w-[120px]">
-                        {r.subject?.code ?? "Subject"} — {r.subject?.title ?? ""}
-                      </span>
-                      <span className="text-black/60 flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 shrink-0" />
-                        {r.room?.code ?? "—"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link
-                  href="/student/schedule"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:opacity-95"
-                >
-                  View full schedule
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
-                <Link
-                  href="/campus-navigation"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-4 py-2.5 text-sm font-semibold hover:bg-black/[0.03]"
-                >
-                  <MapPin className="w-4 h-4" />
-                  Campus navigation
-                </Link>
-              </div>
-            </DashboardCard>
-
-            <DashboardCard title="Upcoming classes">
-              {upcoming.length === 0 ? (
-                <p className="text-sm text-black/55">No upcoming entries in your timetable snapshot.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {upcoming.map((r) => (
-                    <li
-                      key={`up-${r.entry.id}`}
-                      className="flex gap-3 rounded-lg border border-black/10 p-3 bg-[#fafafa]"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-opticore-orange)]/15 text-[var(--color-opticore-orange)]">
-                        <Clock className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-black text-sm truncate">
-                          {r.subject?.code} · {r.subject?.title}
-                        </p>
-                        <p className="text-xs text-black/55">
-                          {r.entry.day} · {r.entry.startTime}–{r.entry.endTime} · {r.room?.code}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </DashboardCard>
-          </div>
-
-          <div className="space-y-6">
-            <DashboardCard title="Announcements">
-              {notifications.length === 0 ? (
-                <div className="flex items-start gap-2 text-sm text-black/55">
-                  <Megaphone className="w-4 h-4 mt-0.5 shrink-0 text-[var(--color-opticore-orange)]" />
-                  <span>No advisories yet. Department posts will appear here.</span>
-                </div>
-              ) : (
-                <ul className="space-y-3">
-                  {notifications.map((n) => (
-                    <li key={n.id} className="text-sm border-b border-black/5 pb-3 last:border-0 last:pb-0">
-                      <p className="text-black/85">{n.message}</p>
-                      <p className="text-xs text-black/40 mt-1">
-                        {new Date(n.createdAt).toLocaleString()}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <Link
-                href="/student/announcements"
-                className="mt-4 inline-flex w-full justify-center items-center gap-2 rounded-lg border border-black/15 py-2.5 text-sm font-semibold hover:bg-black/[0.03]"
-              >
-                View announcements
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-            </DashboardCard>
-
-            <div className="rounded-xl border border-dashed border-black/15 bg-white/80 p-4 text-xs text-black/50 leading-relaxed">
-              <Calendar className="w-4 h-4 mb-2 text-[var(--color-opticore-orange)]" />
-              Schedules follow the official repository in OptiCore. Campus navigation uses the same room data for
-              directions and status overlays.
-            </div>
-          </div>
-        </div>
-      </div>
+      <StudentDashboardTermClient profileName={profile.name} notifications={notifications} />
     </PortalShell>
   );
 }
