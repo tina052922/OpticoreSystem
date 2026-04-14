@@ -158,14 +158,13 @@ export function GecSectionPlottingTable({
   /** Matches `Program.code` in Supabase — drives which static prospectus drives slot spans. */
   const programCode = program?.code ?? "";
 
+  /** Only GEC subjects for the section’s year level (via `allowedSubjectIds` from prospectus). */
   const gecSubjects = useMemo(() => {
     if (!pid) return [];
-    return [...subjectById.values()]
-      .filter((s) => s.programId === pid && isGecCurriculumSubjectCode(s.code))
-      .filter((s) => {
-        if (!allowedSubjectIds || allowedSubjectIds.size === 0) return true;
-        return allowedSubjectIds.has(s.id);
-      });
+    const list = [...subjectById.values()].filter((s) => s.programId === pid && isGecCurriculumSubjectCode(s.code));
+    if (allowedSubjectIds == null) return [];
+    if (allowedSubjectIds.size === 0) return [];
+    return list.filter((s) => allowedSubjectIds.has(s.id));
   }, [subjectById, pid, allowedSubjectIds]);
 
   function conflictForEntry(e: ScheduleEntry): { faculty: string; room: string; section: string } {
