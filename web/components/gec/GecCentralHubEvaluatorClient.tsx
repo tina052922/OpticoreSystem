@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Save } from "lucide-react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
@@ -33,6 +34,9 @@ import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
 import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
+import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
+import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-registry";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -57,6 +61,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  * Vacant GEC placeholders are editable only after one-time `gec_vacant_slots` approval.
  */
 export function GecCentralHubEvaluatorClient() {
+  const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
   const collegeParam = searchParams.get("college")?.trim() ?? "";
@@ -77,7 +82,6 @@ export function GecCentralHubEvaluatorClient() {
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [academicPeriodId, setAcademicPeriodId] = useState("");
   const [programId, setProgramId] = useState("");
   /** Section scope for the three-panel plotting workspace (summary → grid → preview). */
   const [sectionIdFilter, setSectionIdFilter] = useState("");
@@ -89,6 +93,7 @@ export function GecCentralHubEvaluatorClient() {
   const [conflictSummary, setConflictSummary] = useState<string[]>([]);
   /** Local rows not yet in Supabase — same “Add schedule row” flow as Program Chairman (`BsitChairmanEvaluatorWorksheet`). */
   const [extraEntries, setExtraEntries] = useState<ScheduleEntry[]>([]);
+  const skipPeriodEntryFetchRef = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,9 +104,24 @@ export function GecCentralHubEvaluatorClient() {
       setLoading(false);
       return;
     }
+    skipPeriodEntryFetchRef.current = true;
+    const { data: ap, error: e1 } = await supabase
+      .from("AcademicPeriod")
+      .select(Q.academicPeriod)
+      .order("startDate", { ascending: false });
+    if (e1) {
+      setLoadError(e1.message);
+      setLoading(false);
+      return;
+    }
+    const periodList = (ap ?? []) as AcademicPeriod[];
+    const periodId = academicPeriodId || defaultAcademicPeriodId(periodList);
+    const schPromise = periodId
+      ? supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
+      : Promise.resolve({ data: [] as ScheduleEntry[], error: null });
+
     const [
       { data: col, error: e0 },
-      { data: ap, error: e1 },
       { data: prog, error: e2 },
       { data: sec, error: e3 },
       { data: sub, error: e4 },
@@ -109,23 +129,22 @@ export function GecCentralHubEvaluatorClient() {
       { data: fac, error: e6 },
       { data: sch, error: e7 },
     ] = await Promise.all([
-      supabase.from("College").select("*").order("name"),
-      supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false }),
-      supabase.from("Program").select("*").order("name"),
-      supabase.from("Section").select("*").order("name"),
-      supabase.from("Subject").select("*").order("code"),
-      supabase.from("Room").select("*").order("code"),
+      supabase.from("College").select(Q.college).order("name"),
+      supabase.from("Program").select(Q.program).order("name"),
+      supabase.from("Section").select(Q.section).order("name"),
+      supabase.from("Subject").select(Q.subject).order("code"),
+      supabase.from("Room").select(Q.room).order("code"),
       supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
-      supabase.from("ScheduleEntry").select("*"),
+      schPromise,
     ]);
-    const err = e0 || e1 || e2 || e3 || e4 || e5 || e6 || e7;
+    const err = e0 || e2 || e3 || e4 || e5 || e6 || e7;
     if (err) {
       setLoadError(err.message);
       setLoading(false);
       return;
     }
     setColleges((col ?? []) as College[]);
-    setPeriods((ap ?? []) as AcademicPeriod[]);
+    setPeriods(periodList);
     setPrograms((prog ?? []) as Program[]);
     setSections((sec ?? []) as Section[]);
     setSubjects((sub ?? []) as Subject[]);
@@ -133,17 +152,37 @@ export function GecCentralHubEvaluatorClient() {
     setUsers((fac ?? []) as User[]);
     setEntries((sch ?? []) as ScheduleEntry[]);
     setLoading(false);
-  }, []);
+  }, [academicPeriodId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    if (periods.length === 0 || academicPeriodId) return;
-    const cur = periods.find((x) => x.isCurrent) ?? periods[0];
-    if (cur) setAcademicPeriodId(cur.id);
-  }, [periods, academicPeriodId]);
+    if (!academicPeriodId) return;
+    if (skipPeriodEntryFetchRef.current) {
+      skipPeriodEntryFetchRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from("ScheduleEntry")
+        .select(Q.scheduleEntry)
+        .eq("academicPeriodId", academicPeriodId);
+      if (cancelled) return;
+      if (error) {
+        setLoadError(error.message);
+        return;
+      }
+      setEntries((data ?? []) as ScheduleEntry[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [academicPeriodId]);
 
   useEffect(() => {
     setSectionIdFilter("");
@@ -563,6 +602,45 @@ export function GecCentralHubEvaluatorClient() {
   const selectedCollege = isCampusWide ? null : selectedDbCollege;
   const selectedSection = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
   const sectionProgram = selectedSection ? programById.get(selectedSection.programId) : undefined;
+  const selectedProspectusSemester = useMemo(() => prospectusSemesterFromAcademicPeriod(selectedPeriod), [selectedPeriod]);
+
+  const selectedYearLevel = useMemo(() => {
+    const raw = selectedSection?.name ?? "";
+    // Examples: "BSIT 1A", "BSBA 2B", "1A" — we treat the first standalone digit as year level.
+    const m = raw.match(/\b([1-5])\b/);
+    if (m?.[1]) return parseInt(m[1], 10);
+    const m2 = raw.match(/(?:^|\s)([1-5])[A-Z]\b/i);
+    if (m2?.[1]) return parseInt(m2[1], 10);
+    return null;
+  }, [selectedSection?.name]);
+
+  const allowedProspectusCodes = useMemo(() => {
+    if (!sectionProgram?.code) return new Set<string>();
+    const sem = selectedProspectusSemester;
+    const yl = selectedYearLevel;
+    if (!sem || !yl) return new Set<string>();
+    const rows = getProspectusSubjectsForProgram(sectionProgram.code);
+    const set = new Set<string>();
+    for (const r of rows) {
+      if (r.yearLevel !== yl) continue;
+      if (r.semester !== sem) continue;
+      if (!isGecCurriculumSubjectCode(r.code)) continue;
+      set.add(normalizeProspectusCode(r.code));
+    }
+    return set;
+  }, [sectionProgram?.code, selectedProspectusSemester, selectedYearLevel]);
+
+  const allowedSubjectIds = useMemo(() => {
+    if (!selectedSection || allowedProspectusCodes.size === 0) return null;
+    const ids = new Set<string>();
+    for (const s of subjects) {
+      if (s.programId !== selectedSection.programId) continue;
+      if (!isGecCurriculumSubjectCode(s.code)) continue;
+      if (!allowedProspectusCodes.has(normalizeProspectusCode(s.code))) continue;
+      ids.add(s.id);
+    }
+    return ids;
+  }, [subjects, selectedSection, allowedProspectusCodes]);
 
   /** Hours / load tab — mirrors College Admin hub sample panel. */
   if (panel === "hrs") {
@@ -655,20 +733,9 @@ export function GecCentralHubEvaluatorClient() {
         </div>
 
         <div className="flex flex-wrap gap-3 items-end">
-          <label className="text-[13px] font-semibold text-black/70">
-            Term
-            <select
-              className="ml-2 h-11 rounded-lg border border-black/25 bg-white px-3 text-sm block mt-1"
-              value={academicPeriodId}
-              onChange={(e) => setAcademicPeriodId(e.target.value)}
-            >
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <p className="text-[12px] text-black/55 max-w-xs self-end pb-2">
+            Term is selected in the sidebar / header.
+          </p>
           <label className="text-[13px] font-semibold text-black/70">
             Section
             <select
@@ -752,6 +819,8 @@ export function GecCentralHubEvaluatorClient() {
                 <BsitProspectusSummaryTable
                   programCode={sectionProgram?.code ?? ""}
                   programName={sectionProgram?.name}
+                  yearLevel={selectedYearLevel}
+                  semester={selectedProspectusSemester}
                   onSelectSubjectCode={setPickedSummaryCode}
                 />
 
@@ -772,6 +841,7 @@ export function GecCentralHubEvaluatorClient() {
                     edits={edits}
                     patchEdit={patchEdit}
                     canEditVacant={canEditVacant}
+                    allowedSubjectIds={allowedSubjectIds}
                     pickedSummaryCode={pickedSummaryCode}
                     pickedSubjectId={pickedSubjectId}
                     onAddScheduleRow={addGecScheduleRow}

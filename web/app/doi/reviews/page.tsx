@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { ScheduleLoadJustification, College, AcademicPeriod } from "@/types/db";
 
 export default async function DoiReviewsPage() {
@@ -9,11 +10,11 @@ export default async function DoiReviewsPage() {
 
   const { data: rows, error } = await supabase
     .from("ScheduleLoadJustification")
-    .select("*")
+    .select(Q.scheduleLoadJustification)
     .order("updatedAt", { ascending: false });
 
-  const { data: colleges } = await supabase.from("College").select("*");
-  const { data: periods } = await supabase.from("AcademicPeriod").select("*");
+  const { data: colleges } = await supabase.from("College").select(Q.college);
+  const { data: periods } = await supabase.from("AcademicPeriod").select(Q.academicPeriod);
 
   const collegeById = new Map((colleges as College[] | null)?.map((c) => [c.id, c]) ?? []);
   const periodById = new Map((periods as AcademicPeriod[] | null)?.map((p) => [p.id, p]) ?? []);

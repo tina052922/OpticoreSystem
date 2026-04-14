@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { insertAuditLog } from "@/lib/server/audit-log";
 import { insertWorkflowInboxMessage } from "@/lib/server/workflow-inbox";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { AccessScope } from "@/types/db";
 import { GEC_DEFAULT_APPROVAL_COLLEGE_ID } from "@/lib/gec-routing";
 
@@ -33,7 +34,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("AccessRequest")
-    .select("*")
+    .select(Q.accessRequest)
     .order("createdAt", { ascending: false });
 
   if (error) {
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
       scopes,
       note,
     })
-    .select("*")
+    .select(Q.accessRequest)
     .maybeSingle();
 
   if (error) {

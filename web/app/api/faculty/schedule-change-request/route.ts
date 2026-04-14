@@ -3,6 +3,7 @@ import { appendWorkflowMessage } from "@/lib/inbox-store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { insertWorkflowInboxMessage } from "@/lib/server/workflow-inbox";
+import { Q } from "@/lib/supabase/catalog-columns";
 
 type Body = {
   scheduleEntryId?: string;
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
 
   const { data: entry, error: entryErr } = await supabase
     .from("ScheduleEntry")
-    .select("*")
+    .select(Q.scheduleEntry)
     .eq("id", scheduleEntryId)
     .eq("instructorId", user.id)
     .maybeSingle();

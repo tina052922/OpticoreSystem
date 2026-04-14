@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { College, Program } from "@/types/db";
 
 const selectClass =
@@ -52,8 +53,8 @@ export function CampusScopeFilters({
       return;
     }
     const [{ data: c }, { data: p }] = await Promise.all([
-      supabase.from("College").select("*").order("name"),
-      supabase.from("Program").select("*").order("name"),
+      supabase.from("College").select(Q.college).order("name"),
+      supabase.from("Program").select(Q.program).order("name"),
     ]);
     setColleges((c ?? []) as College[]);
     setPrograms((p ?? []) as Program[]);

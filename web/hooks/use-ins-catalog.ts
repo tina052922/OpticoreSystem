@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
+import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
 import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
@@ -41,6 +43,10 @@ export type InsRoomOption = { id: string; name: string };
  * When `campusWide` is true, loads all schedule rows (DOI / VPAA) without filtering by college.
  */
 export function useInsCatalog(args: { collegeId: string | null; programId: string | null; campusWide?: boolean }) {
+  const semesterFilter = useSemesterFilterOptional();
+  /** Fallback when `SemesterFilterProvider` is not mounted (e.g. isolated tests). */
+  const [fallbackPeriodId, setFallbackPeriodId] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
@@ -52,7 +58,19 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
   const [colleges, setColleges] = useState<College[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
-  const [academicPeriodId, setAcademicPeriodId] = useState("");
+  const skipPeriodEntryFetchRef = useRef(true);
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const academicPeriodId =
+    semesterFilter?.ready && semesterFilter.selectedPeriodId ? semesterFilter.selectedPeriodId : fallbackPeriodId;
+
+  const setAcademicPeriodId = useCallback(
+    (id: string) => {
+      semesterFilter?.setSelectedPeriodId(id);
+      setFallbackPeriodId(id);
+    },
+    [semesterFilter],
+  );
 
   const load = useCallback(async () => {
     if (!args.collegeId && !args.campusWide) {
@@ -70,8 +88,30 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     }
     setError(null);
     setLoading(true);
+    skipPeriodEntryFetchRef.current = true;
+    const { data: ap, error: e1 } = await supabase
+      .from("AcademicPeriod")
+      .select(Q.academicPeriod)
+      .order("startDate", { ascending: false });
+    if (e1) {
+      setError(e1.message);
+      setLoading(false);
+      return;
+    }
+    const periodList = (ap ?? []) as AcademicPeriod[];
+    let periodId = "";
+    if (semesterFilter?.ready && semesterFilter.selectedPeriodId) {
+      periodId = semesterFilter.selectedPeriodId;
+    } else if (!semesterFilter) {
+      periodId = fallbackPeriodId || defaultAcademicPeriodId(periodList);
+    } else {
+      periodId = defaultAcademicPeriodId(periodList);
+    }
+    const schPromise = periodId
+      ? supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
+      : Promise.resolve({ data: [] as ScheduleEntry[], error: null });
+
     const [
-      { data: ap, error: e1 },
       { data: sch, error: e2 },
       { data: sec, error: e3 },
       { data: sub, error: e4 },
@@ -81,25 +121,22 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
       { data: fac, error: e7 },
       { data: ins, error: e9 },
     ] = await Promise.all([
-      supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false }),
-      supabase.from("ScheduleEntry").select("*"),
-      supabase.from("Section").select("*").order("name"),
-      supabase.from("Subject").select("*").order("code"),
-      supabase.from("Room").select("*").order("code"),
-      supabase.from("Program").select("*").order("name"),
-      supabase.from("College").select("*").order("name"),
-      supabase.from("User").select(
-        "id,email,name,role,collegeId,chairmanProgramId,signatureImageUrl",
-      ),
-      supabase.from("CampusInsSettings").select("*").eq("id", "default").maybeSingle(),
+      schPromise,
+      supabase.from("Section").select(Q.section).order("name"),
+      supabase.from("Subject").select(Q.subject).order("code"),
+      supabase.from("Room").select(Q.room).order("code"),
+      supabase.from("Program").select(Q.program).order("name"),
+      supabase.from("College").select(Q.college).order("name"),
+      supabase.from("User").select(Q.userHub),
+      supabase.from("CampusInsSettings").select(Q.campusInsSettings).eq("id", "default").maybeSingle(),
     ]);
-    const err = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9;
+    const err = e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9;
     if (err) {
       setError(err.message);
       setLoading(false);
       return;
     }
-    setPeriods((ap ?? []) as AcademicPeriod[]);
+    setPeriods(periodList);
     setEntries((sch ?? []) as ScheduleEntry[]);
     setSections((sec ?? []) as Section[]);
     setSubjects((sub ?? []) as Subject[]);
@@ -108,11 +145,17 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     setColleges((col ?? []) as College[]);
     setUsers((fac ?? []) as User[]);
     setCampusInsSettings((ins as CampusInsSettings | null) ?? null);
+    if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
     setLoading(false);
-  }, [args.collegeId, args.campusWide]);
+  }, [args.collegeId, args.campusWide, semesterFilter?.ready, semesterFilter?.selectedPeriodId, fallbackPeriodId]);
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  const scheduleDebouncedReload = useCallback(() => {
+    if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+    realtimeDebounceRef.current = setTimeout(() => void load(), 320);
   }, [load]);
 
   useEffect(() => {
@@ -124,32 +167,61 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ScheduleEntry" },
-        () => void load(),
+        () => scheduleDebouncedReload(),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "CampusInsSettings" },
-        () => void load(),
+        () => scheduleDebouncedReload(),
       )
       .subscribe();
     return () => {
+      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       void supabase.removeChannel(ch);
     };
-  }, [load, args.collegeId, args.campusWide]);
+  }, [scheduleDebouncedReload, args.collegeId, args.campusWide]);
 
   /** Same-tab refresh when Chairman Evaluator saves (Realtime may be off in some projects). */
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
-    const handler = () => void load();
+    const handler = () => scheduleDebouncedReload();
     window.addEventListener(INS_CATALOG_RELOAD_EVENT, handler);
     return () => window.removeEventListener(INS_CATALOG_RELOAD_EVENT, handler);
-  }, [load, args.collegeId, args.campusWide]);
+  }, [scheduleDebouncedReload, args.collegeId, args.campusWide]);
 
   useEffect(() => {
-    if (periods.length === 0 || academicPeriodId) return;
+    if (!args.collegeId && !args.campusWide) return;
+    if (!academicPeriodId) return;
+    if (skipPeriodEntryFetchRef.current) {
+      skipPeriodEntryFetchRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from("ScheduleEntry")
+        .select(Q.scheduleEntry)
+        .eq("academicPeriodId", academicPeriodId);
+      if (cancelled) return;
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setEntries((data ?? []) as ScheduleEntry[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [academicPeriodId, args.collegeId, args.campusWide]);
+
+  useEffect(() => {
+    if (semesterFilter) return;
+    if (periods.length === 0 || fallbackPeriodId) return;
     const cur = periods.find((x) => x.isCurrent) ?? periods[0];
-    if (cur) setAcademicPeriodId(cur.id);
-  }, [periods, academicPeriodId]);
+    if (cur) setFallbackPeriodId(cur.id);
+  }, [periods, fallbackPeriodId, semesterFilter]);
 
   const sectionById = useMemo(() => {
     const m = new Map<string, Section>();

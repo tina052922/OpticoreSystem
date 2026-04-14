@@ -1,5 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { AcademicPeriod, Program, Room, ScheduleEntry, Section, StudentProfile, Subject, User } from "@/types/db";
+
+const USER_SCHEDULE_LOOKUP = "id,name,email,role,collegeId,employeeId";
 
 export type ScheduleRowView = {
   entry: ScheduleEntry;
@@ -12,16 +15,25 @@ export type ScheduleRowView = {
 export async function getCurrentAcademicPeriod(): Promise<AcademicPeriod | null> {
   const supabase = await createSupabaseServerClient();
   if (!supabase) return null;
-  const { data: cur } = await supabase.from("AcademicPeriod").select("*").eq("isCurrent", true).maybeSingle();
+  const { data: cur } = await supabase
+    .from("AcademicPeriod")
+    .select(Q.academicPeriod)
+    .eq("isCurrent", true)
+    .maybeSingle();
   if (cur) return cur as AcademicPeriod;
-  const { data: first } = await supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false }).limit(1).maybeSingle();
+  const { data: first } = await supabase
+    .from("AcademicPeriod")
+    .select(Q.academicPeriod)
+    .order("startDate", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   return (first as AcademicPeriod) ?? null;
 }
 
 export async function getStudentProfileForUser(userId: string): Promise<StudentProfile | null> {
   const supabase = await createSupabaseServerClient();
   if (!supabase) return null;
-  const { data } = await supabase.from("StudentProfile").select("*").eq("userId", userId).maybeSingle();
+  const { data } = await supabase.from("StudentProfile").select(Q.studentProfile).eq("userId", userId).maybeSingle();
   return (data as StudentProfile) ?? null;
 }
 
@@ -35,17 +47,17 @@ export async function getStudentScheduleRows(
   const profile = await getStudentProfileForUser(studentUserId);
   if (!profile) return { rows: [], section: null, program: null };
 
-  const { data: sec } = await supabase.from("Section").select("*").eq("id", profile.sectionId).maybeSingle();
+  const { data: sec } = await supabase.from("Section").select(Q.section).eq("id", profile.sectionId).maybeSingle();
   const section = (sec as Section) ?? null;
 
   const { data: prog } = section
-    ? await supabase.from("Program").select("*").eq("id", section.programId).maybeSingle()
+    ? await supabase.from("Program").select(Q.program).eq("id", section.programId).maybeSingle()
     : { data: null };
   const program = (prog as Program) ?? null;
 
   const { data: entries, error } = await supabase
     .from("ScheduleEntry")
-    .select("*")
+    .select(Q.scheduleEntry)
     .eq("academicPeriodId", academicPeriodId)
     .eq("sectionId", profile.sectionId)
     .order("day", { ascending: true });
@@ -57,9 +69,9 @@ export async function getStudentScheduleRows(
   const instructorIds = [...new Set(entries.map((e) => (e as ScheduleEntry).instructorId))];
 
   const [{ data: subjects }, { data: rooms }, { data: users }] = await Promise.all([
-    supabase.from("Subject").select("*").in("id", subjectIds),
-    supabase.from("Room").select("*").in("id", roomIds),
-    supabase.from("User").select("*").in("id", instructorIds),
+    supabase.from("Subject").select(Q.subject).in("id", subjectIds),
+    supabase.from("Room").select(Q.room).in("id", roomIds),
+    supabase.from("User").select(USER_SCHEDULE_LOOKUP).in("id", instructorIds),
   ]);
 
   const subMap = new Map((subjects as Subject[] | null)?.map((s) => [s.id, s]) ?? []);
@@ -97,7 +109,7 @@ export async function getInstructorScheduleRows(
 
   const { data: entries, error } = await supabase
     .from("ScheduleEntry")
-    .select("*")
+    .select(Q.scheduleEntry)
     .eq("academicPeriodId", academicPeriodId)
     .eq("instructorId", instructorUserId);
 
@@ -108,9 +120,9 @@ export async function getInstructorScheduleRows(
   const roomIds = [...new Set((entries as ScheduleEntry[]).map((e) => e.roomId))];
 
   const [{ data: subjects }, { data: rooms }, { data: sections }] = await Promise.all([
-    supabase.from("Subject").select("*").in("id", subjectIds),
-    supabase.from("Room").select("*").in("id", roomIds),
-    supabase.from("Section").select("*").in("id", sectionIds),
+    supabase.from("Subject").select(Q.subject).in("id", subjectIds),
+    supabase.from("Room").select(Q.room).in("id", roomIds),
+    supabase.from("Section").select(Q.section).in("id", sectionIds),
   ]);
 
   const subMap = new Map((subjects as Subject[] | null)?.map((s) => [s.id, s]) ?? []);
@@ -134,7 +146,7 @@ export async function countStudentsInSections(sectionIds: string[]): Promise<num
   if (!supabase) return 0;
   const { count, error } = await supabase
     .from("StudentProfile")
-    .select("*", { count: "exact", head: true })
+    .select("id", { count: "exact", head: true })
     .in("sectionId", sectionIds);
   if (error) return 0;
   return count ?? 0;
@@ -147,7 +159,7 @@ export async function getStudentRosterForSections(sectionIds: string[]): Promise
   const { data: profiles } = await supabase.from("StudentProfile").select("userId").in("sectionId", sectionIds);
   const ids = [...new Set((profiles as { userId: string }[] | null)?.map((p) => p.userId) ?? [])];
   if (ids.length === 0) return [];
-  const { data: users } = await supabase.from("User").select("*").in("id", ids).eq("role", "student");
+  const { data: users } = await supabase.from("User").select(USER_SCHEDULE_LOOKUP).in("id", ids).eq("role", "student");
   return (users as User[]) ?? [];
 }
 
@@ -156,7 +168,7 @@ export async function getRecentNotifications(userId: string, limit = 6) {
   if (!supabase) return [];
   const { data } = await supabase
     .from("Notification")
-    .select("*")
+    .select(Q.notification)
     .eq("userId", userId)
     .order("createdAt", { ascending: false })
     .limit(limit);

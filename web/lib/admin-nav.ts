@@ -66,9 +66,7 @@ export const CAS_ADMIN_NAV: AdminNavItem[] = [
  */
 export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/gec", icon: "LayoutDashboard" },
-  { label: "INS Form (Schedule View)", href: "/admin/gec/ins/faculty", icon: "BookOpen" },
-  { label: "INS Form — Section", href: "/admin/gec/ins/section", icon: "Layers" },
-  { label: "INS Form — Room", href: "/admin/gec/ins/room", icon: "CalendarPlus" },
+  { label: "INS Forms Schedule View", href: "/admin/gec/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
   { label: "Inbox", href: "/admin/gec/inbox", icon: "Inbox" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { AcademicPeriod, DoiScheduleFinalization } from "@/types/db";
 
 type ConflictPayload = {
@@ -41,7 +42,7 @@ export function DoiScheduleHubClient() {
       try {
         const supabase = createSupabaseBrowserClient();
         if (!supabase) return;
-        const { data } = await supabase.from("AcademicPeriod").select("*").order("startDate", { ascending: false });
+        const { data } = await supabase.from("AcademicPeriod").select(Q.academicPeriod).order("startDate", { ascending: false });
         const list = (data ?? []) as AcademicPeriod[];
         if (!cancelled && list.length) {
           setPeriods(list);

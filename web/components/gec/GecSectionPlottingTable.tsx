@@ -38,6 +38,8 @@ type Props = {
   edits: Record<string, GecPlotEditPatch>;
   patchEdit: (entryId: string, patch: GecPlotEditPatch) => void;
   canEditVacant: boolean;
+  /** Restrict subject dropdown to these ids (e.g., prospectus year+semester filter). */
+  allowedSubjectIds?: Set<string> | null;
   /** From prospectus summary click — optional quick-apply to vacant rows. */
   pickedSummaryCode: string | null;
   pickedSubjectId: string | null;
@@ -91,6 +93,7 @@ export function GecSectionPlottingTable({
   edits,
   patchEdit,
   canEditVacant,
+  allowedSubjectIds = null,
   pickedSummaryCode,
   pickedSubjectId,
   onAddScheduleRow,
@@ -141,10 +144,13 @@ export function GecSectionPlottingTable({
 
   const gecSubjects = useMemo(() => {
     if (!pid) return [];
-    return [...subjectById.values()].filter(
-      (s) => s.programId === pid && isGecCurriculumSubjectCode(s.code),
-    );
-  }, [subjectById, pid]);
+    return [...subjectById.values()]
+      .filter((s) => s.programId === pid && isGecCurriculumSubjectCode(s.code))
+      .filter((s) => {
+        if (!allowedSubjectIds || allowedSubjectIds.size === 0) return true;
+        return allowedSubjectIds.has(s.id);
+      });
+  }, [subjectById, pid, allowedSubjectIds]);
 
   function conflictForEntry(e: ScheduleEntry): { faculty: string; room: string; section: string } {
     const candidate = entryToSparse(e);

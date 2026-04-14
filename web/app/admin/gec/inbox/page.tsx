@@ -7,7 +7,7 @@ export default function GecInboxPage() {
     <InboxWorkspace
       portal="gec"
       title="Inbox"
-      subtitle="Mail: GEC distribution from CAS. Sent: returned GEC portion and access requests."
+      subtitle="Workflow inbox for GEC evaluation and access requests."
     />
   );
 }

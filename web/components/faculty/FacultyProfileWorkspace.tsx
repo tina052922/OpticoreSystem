@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { Q } from "@/lib/supabase/catalog-columns";
 import type { FacultyProfile, User } from "@/types/db";
 
 /**
@@ -94,7 +95,10 @@ export function FacultyProfileWorkspace({
       return;
     }
     const ids = list.map((u) => u.id);
-    const { data: profs, error: pErr } = await supabase.from("FacultyProfile").select("*").in("userId", ids);
+    const { data: profs, error: pErr } = await supabase
+      .from("FacultyProfile")
+      .select(Q.facultyProfileRow)
+      .in("userId", ids);
     setLoadingList(false);
     if (pErr) {
       setError(pErr.message);

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BSIT_PROSPECTUS_SUBJECTS } from "@/lib/chairman/bsit-prospectus";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { Q } from "@/lib/supabase/catalog-columns";
 import { normalizeSubjectCodeForCompare } from "@/lib/subjects/normalize-subject-code";
 import type { Subject } from "@/types/db";
 
@@ -53,7 +54,7 @@ export function SubjectCodesWorkspace({
     setError(null);
     const { data, error: e } = await supabase
       .from("Subject")
-      .select("*")
+      .select(Q.subject)
       .eq("programId", programId)
       .order("code");
     setLoadingList(false);

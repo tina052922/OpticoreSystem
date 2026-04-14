@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, ChevronDown, LogOut, MapPin, User, Menu, X } from "lucide-react";
+import { Bell, LogOut, MapPin, User, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +14,8 @@ import {
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/components/ui/utils";
+import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
+import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 
 export type PortalNavItem = { label: string; href: string };
 
@@ -24,6 +26,7 @@ export type PortalShellProps = {
   /** Shown under logo in sidebar */
   sidebarBadge?: string;
   navItems: PortalNavItem[];
+  /** @deprecated Selection comes from {@link SemesterNavDropdown} / {@link SemesterFilterProvider}. */
   periodLabel?: string;
   profileHref?: string;
   inboxHref?: string;
@@ -35,7 +38,7 @@ export function PortalShell({
   userEmail,
   sidebarBadge = "OptiCore",
   navItems,
-  periodLabel = "2nd Semester S.Y. 2025-2026",
+  periodLabel: _periodLabel,
   profileHref,
   inboxHref,
 }: PortalShellProps) {
@@ -63,6 +66,7 @@ export function PortalShell({
   }
 
   return (
+    <SemesterFilterProvider>
     <div className="flex min-h-screen flex-col bg-[#F8F8F8] overflow-hidden">
       <header
         className="h-[99px] w-full flex-none flex items-center justify-between px-4 md:px-8 no-print shrink-0 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
@@ -99,7 +103,10 @@ export function PortalShell({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 md:gap-4 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0 min-w-0">
+          <div className="hidden lg:block min-w-0 max-w-[200px] xl:max-w-[280px]">
+            <SemesterNavDropdown variant="header" />
+          </div>
           <Link
             href="/campus-navigation"
             className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 md:px-3 text-xs md:text-sm font-semibold text-white/95 hover:bg-white/10 transition-colors max-w-[min(100vw-12rem,200px)]"
@@ -144,6 +151,10 @@ export function PortalShell({
         </div>
       </header>
 
+      <div className="lg:hidden px-3 py-2 bg-[#6d0201] border-b border-black/20 no-print">
+        <SemesterNavDropdown variant="header" className="!text-[13px] !py-2.5" />
+      </div>
+
       {mobileNavOpen ? (
         <button
           type="button"
@@ -157,7 +168,7 @@ export function PortalShell({
         <aside
           id="portal-sidebar-nav"
           className={cn(
-            "fixed z-50 lg:z-auto left-0 top-[99px] lg:top-0 bottom-0",
+            "fixed z-50 lg:z-auto left-0 top-[147px] lg:top-0 bottom-0",
             "w-[min(90vw,320px)] max-w-[320px] lg:w-[345px] lg:max-w-[345px]",
             "bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] flex flex-col border-r border-black/5",
             "transform transition-transform duration-200 ease-out lg:transform-none",
@@ -169,13 +180,7 @@ export function PortalShell({
             <p className="text-[11px] font-bold uppercase tracking-wide text-black/50 px-3 mb-2 truncate">
               {sidebarBadge}
             </p>
-            <button
-              type="button"
-              className="w-full bg-[#FF990A] text-white rounded-full px-4 py-3 font-medium flex items-center justify-between hover:bg-[#e88909] transition-colors shadow-[0px_4px_4px_0px_rgba(0,0,0,0.15)]"
-            >
-              <span className="truncate text-left text-[15px]">{periodLabel}</span>
-              <ChevronDown className="w-5 h-5 shrink-0" />
-            </button>
+            <SemesterNavDropdown variant="sidebar" />
           </div>
 
           <nav className="flex-1 px-2 pb-2 space-y-1 no-print overflow-y-auto">
@@ -209,5 +214,6 @@ export function PortalShell({
         <main className="flex-1 overflow-auto min-w-0 bg-[#F8F8F8]">{children}</main>
       </div>
     </div>
+    </SemesterFilterProvider>
   );
 }

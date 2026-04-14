@@ -71,7 +71,9 @@ export async function listWorkflowInboxForPortal(
 ): Promise<{ mail: InboxMessage[]; sent: InboxMessage[] }> {
   const { data, error } = await supabase
     .from("WorkflowInboxMessage")
-    .select("*")
+    .select(
+      "id,senderId,collegeId,fromLabel,toLabel,subject,body,workflowStage,mailFor,sentFor,status,createdAt,payload",
+    )
     .order("createdAt", { ascending: false });
 
   if (error || !data) {
