@@ -13,3 +13,6 @@ out/
 # debug / os
 npm-debug.log*
 .DS_Store
+
+# TypeScript incremental (local; avoid noisy diffs after every build)
+tsconfig.tsbuildinfo
