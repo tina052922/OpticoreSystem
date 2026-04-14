@@ -93,6 +93,15 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     void load();
   }, [load]);
 
+<<<<<<< Updated upstream
+=======
+  const scheduleDebouncedReload = useCallback(() => {
+    if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+    /** Keep INS previews feeling near-real-time while still coalescing bursty DB events. */
+    realtimeDebounceRef.current = setTimeout(() => void load(), 140);
+  }, [load]);
+
+>>>>>>> Stashed changes
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
     const supabase = createSupabaseBrowserClient();

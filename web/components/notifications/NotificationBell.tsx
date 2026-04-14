@@ -70,7 +70,12 @@ export function NotificationBell() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" className="relative p-1 rounded-md hover:bg-white/10" aria-label="Notifications">
+        <button
+          type="button"
+          suppressHydrationWarning
+          className="relative p-1 rounded-md hover:bg-white/10"
+          aria-label="Notifications"
+        >
           <Bell className="w-6 h-6 text-white" />
           {unread > 0 ? (
             <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 bg-[#FF990A] rounded-full border border-white/30 text-[9px] font-bold text-white flex items-center justify-center">
@@ -96,6 +101,7 @@ export function NotificationBell() {
                 {!n.isRead ? (
                   <button
                     type="button"
+                    suppressHydrationWarning
                     className="ml-2 text-[#780301] font-medium hover:underline"
                     onClick={() => void markRead(n.id)}
                   >
