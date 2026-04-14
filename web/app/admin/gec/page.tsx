@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, ClipboardList, Inbox, KeyRound, MapPin, Shield } from "lucide-react";
+import { BookOpen, ClipboardList, KeyRound, MapPin, Shield } from "lucide-react";
 import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
@@ -58,13 +58,6 @@ export default async function GecChairmanDashboardPage() {
               >
                 <BookOpen className="w-4 h-4 text-[var(--color-opticore-orange)]" />
                 INS Form (Schedule View)
-              </Link>
-              <Link
-                href="/admin/gec/inbox"
-                className="flex items-center gap-2 rounded-lg border border-black/10 px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/50"
-              >
-                <Inbox className="w-4 h-4 text-[var(--color-opticore-orange)]" />
-                Inbox
               </Link>
               <Link
                 href="/campus-navigation"

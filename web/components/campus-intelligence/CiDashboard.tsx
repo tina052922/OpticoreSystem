@@ -89,13 +89,16 @@ export function CiDashboard({ welcomeName, basePath, variant = "full" }: CiDashb
     { label: "Conflicts Detected Today", value: "3", icon: AlertTriangle, color: "#F44336" },
   ];
 
+  /** Program Chairman + College Admin use centralized `ScheduleEntry` (no workflow Inbox quick link). CAS / DOI keep Inbox. */
   const fullQuickLinks: { label: string; href: string }[] = [
     { label: "Evaluator", href: `${basePath}/evaluator` },
     { label: "INS Form (Schedule View)", href: `${basePath}/ins/faculty` },
     { label: "Subject Codes", href: `${basePath}/subject-codes` },
     { label: "Faculty Profile", href: `${basePath}/faculty-profile` },
-    { label: "Inbox", href: `${basePath}/inbox` },
   ];
+  if (basePath !== "/chairman" && basePath !== "/admin/college") {
+    fullQuickLinks.push({ label: "Inbox", href: `${basePath}/inbox` });
+  }
 
   if (variant === "doi") {
     fullQuickLinks.push({ label: "Policy reviews", href: "/doi/reviews" });
@@ -107,7 +110,6 @@ export function CiDashboard({ welcomeName, basePath, variant = "full" }: CiDashb
     { label: "INS · Section (5B)", href: "/admin/gec/ins/section" },
     { label: "INS · Room (5C)", href: "/admin/gec/ins/room" },
     { label: "Request Approval to Edit Vacant GEC Slots", href: "/admin/gec/request-access" },
-    { label: "Inbox", href: "/admin/gec/inbox" },
     { label: "Campus navigation", href: "/campus-navigation" },
   ];
 

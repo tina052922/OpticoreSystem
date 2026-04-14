@@ -26,6 +26,7 @@ import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorW
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
+import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 
 const MAJOR_FIXED = "BSIT";
 
@@ -568,12 +569,28 @@ export function BsitChairmanEvaluatorWorksheet({
           }
         }
 
+        const wrote = upserts.length > 0 || removedIds.length > 0;
+        if (wrote) {
+          /** Central Hub + INS forms read the same `ScheduleEntry` rows — refresh catalog views without inbox forwarding. */
+          dispatchInsCatalogReload();
+          void fetch("/api/audit/schedule-write", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "chairman.evaluator_autosave",
+              collegeId: chairmanCollegeId,
+              academicPeriodId,
+              details: { upsertCount: upserts.length, deleteCount: removedIds.length },
+            }),
+          });
+        }
+
         lastSyncedRowIdsRef.current = new Set(rows.map((r) => r.id));
       })();
     }, 600);
 
     return () => clearTimeout(t);
-  }, [rows, academicPeriodId, subjectIdByCode]);
+  }, [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId]);
 
   if (loadError) {
     return <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>;

@@ -14,7 +14,6 @@ export default async function CollegeAdminLayout({ children }: { children: React
       navItems={COLLEGE_ADMIN_NAV}
       roleLabel="College admin · CTE"
       profileHref="/admin/college/profile"
-      inboxHref="/admin/college/inbox"
     >
       {children}
     </CampusIntelligenceShell>

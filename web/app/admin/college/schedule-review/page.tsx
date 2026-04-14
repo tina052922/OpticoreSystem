@@ -9,7 +9,7 @@ export default function CollegeScheduleReviewPage() {
     <div>
       <ChairmanPageHeader
         title="Schedule review"
-        subtitle="Inspect the plotted draft and Evaluator context. Chairman Admin owns editing; you finalize and forward via Inbox."
+        subtitle="Inspect the plotted draft and Evaluator context. Chairman Admin owns editing; schedules are centralized in ScheduleEntry — use Audit log for who changed what."
       />
       <div className="px-8 pb-10 max-w-3xl space-y-6">
         <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-6 space-y-4">

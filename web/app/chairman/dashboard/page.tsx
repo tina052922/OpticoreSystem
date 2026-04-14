@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, Building2, ChevronRight, ClipboardList, Inbox, Layers } from "lucide-react";
+import { BookOpen, Building2, ChevronRight, ClipboardList, Layers } from "lucide-react";
 import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { RecentActivityCard } from "@/components/audit/RecentActivityCard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
@@ -21,27 +21,18 @@ export default async function ChairmanDashboardPage() {
           <DashboardCard title="Workflow">
             <ol className="space-y-3 text-sm text-black/75 list-decimal pl-5">
               <li>
-                Use <strong>Inbox</strong> to coordinate drafts and messages with College Admin.
+                Use <strong>Evaluator</strong> to plot schedules — each save writes to the shared{" "}
+                <code className="text-xs bg-black/5 px-1 rounded">ScheduleEntry</code> table and is visible to College
+                Admin in the Central Hub (no inbox forwarding).
               </li>
               <li>
-                Use <strong>Evaluator</strong> to plot and save schedules for your assigned program.
-              </li>
-              <li>
-                Open <strong>INS Form</strong> views (faculty, section, room) for published timetables and conflict
-                checks.
+                Open <strong>INS Form</strong> views (faculty, section, room) for the same live timetable data.
               </li>
             </ol>
           </DashboardCard>
 
           <DashboardCard title="Quick actions">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Link
-                href="/chairman/inbox"
-                className="flex items-center gap-2 rounded-lg border border-black/10 bg-white px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/60"
-              >
-                <Inbox className="w-4 h-4 text-[var(--color-opticore-orange)]" />
-                Inbox
-              </Link>
               <Link
                 href="/chairman/evaluator"
                 className="flex items-center gap-2 rounded-lg border border-black/10 bg-white px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/60"

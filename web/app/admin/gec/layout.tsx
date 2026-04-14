@@ -14,7 +14,6 @@ export default async function GecChairmanLayout({ children }: { children: React.
       navItems={GEC_CHAIRMAN_NAV}
       roleLabel="GEC chairman"
       profileHref="/admin/gec/profile"
-      inboxHref="/admin/gec/inbox"
     >
       {children}
     </CampusIntelligenceShell>
