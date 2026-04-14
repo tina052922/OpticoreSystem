@@ -42,7 +42,16 @@ export type InsRoomOption = { id: string; name: string };
  * Shared Supabase load + realtime for INS views (faculty / section / room).
  * When `campusWide` is true, loads all schedule rows (DOI / VPAA) without filtering by college.
  */
-export function useInsCatalog(args: { collegeId: string | null; programId: string | null; campusWide?: boolean }) {
+export function useInsCatalog(args: {
+  collegeId: string | null;
+  programId: string | null;
+  campusWide?: boolean;
+  /**
+   * Faculty portal: after college/program scoping, keep only sections where this instructor teaches
+   * at least one class (so Section/Room INS tabs show peers in shared sections, not the whole college).
+   */
+  instructorPortalUserId?: string | null;
+}) {
   const semesterFilter = useSemesterFilterOptional();
   /** Fallback when `SemesterFilterProvider` is not mounted (e.g. isolated tests). */
   const [fallbackPeriodId, setFallbackPeriodId] = useState("");
@@ -260,20 +269,38 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
   }, [users]);
 
   const scopedEntries = useMemo(() => {
+    let base: ScheduleEntry[];
     if (args.campusWide) {
-      return entries.filter((e) => sectionById.has(e.sectionId));
+      base = entries.filter((e) => sectionById.has(e.sectionId));
+    } else if (!args.collegeId) {
+      base = entries;
+    } else {
+      base = entries.filter((e) => {
+        const sec = sectionById.get(e.sectionId);
+        if (!sec) return false;
+        const pr = programById.get(sec.programId);
+        if (!pr) return false;
+        if (pr.collegeId !== args.collegeId) return false;
+        if (args.programId && sec.programId !== args.programId) return false;
+        return true;
+      });
     }
-    if (!args.collegeId) return entries;
-    return entries.filter((e) => {
-      const sec = sectionById.get(e.sectionId);
-      if (!sec) return false;
-      const pr = programById.get(sec.programId);
-      if (!pr) return false;
-      if (pr.collegeId !== args.collegeId) return false;
-      if (args.programId && sec.programId !== args.programId) return false;
-      return true;
-    });
-  }, [entries, args.collegeId, args.programId, args.campusWide, sectionById, programById]);
+    const uid = args.instructorPortalUserId?.trim();
+    if (!uid) return base;
+    const teachingSectionIds = new Set(
+      base.filter((e) => e.instructorId === uid).map((e) => e.sectionId),
+    );
+    if (teachingSectionIds.size === 0) return [];
+    return base.filter((e) => teachingSectionIds.has(e.sectionId));
+  }, [
+    entries,
+    args.collegeId,
+    args.programId,
+    args.campusWide,
+    args.instructorPortalUserId,
+    sectionById,
+    programById,
+  ]);
 
   const termEntries = useMemo(
     () => scopedEntries.filter((e) => e.academicPeriodId === academicPeriodId),

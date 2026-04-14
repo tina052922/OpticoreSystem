@@ -3,7 +3,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { checkConflictForProposedMove } from "@/lib/schedule-change/conflict-check";
 import { Q } from "@/lib/supabase/catalog-columns";
-import { getScheduleEntriesForCollegePeriod } from "@/lib/server/schedule-change-queries";
+import { enrichConflictHitsForDisplay } from "@/lib/schedule-change/enrich-conflict-hits";
+import { getScheduleEntriesForAcademicPeriod } from "@/lib/server/schedule-change-queries";
 import type { ScheduleChangeStatus } from "@/types/db";
 import type { ScheduleEntry } from "@/types/db";
 
@@ -111,20 +112,22 @@ export async function PATCH(req: Request, ctx: Ctx) {
       { status: 423 },
     );
   }
-  const allInCollege = await getScheduleEntriesForCollegePeriod(supabase, profile.collegeId, e.academicPeriodId);
+  const allCampus = await getScheduleEntriesForAcademicPeriod(supabase, e.academicPeriodId);
   const { severity, hits } = checkConflictForProposedMove(
     e,
     row.requestedDay,
     row.requestedStartTime,
     row.requestedEndTime,
-    allInCollege,
+    allCampus,
   );
+
+  const hitsEnriched = await enrichConflictHitsForDisplay(supabase, hits, allCampus);
 
   await supabase
     .from("ScheduleChangeRequest")
     .update({
       conflictSeverity: severity,
-      conflictDetails: { hits },
+      conflictDetails: { hits: hitsEnriched },
     })
     .eq("id", id);
 
@@ -132,9 +135,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json(
       {
         error:
-          "Conflicts are too large to approve safely. Reject this request or adjust the master schedule first.",
+          "Conflicts are too large to approve safely (campus-wide scan). Reject this request or adjust the master schedule first.",
         severity,
-        hits,
+        hits: hitsEnriched,
       },
       { status: 409 },
     );
@@ -150,7 +153,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         error:
           "Small conflicts remain — add adminSuggestion (mitigation) or use approve_with_solution with a note.",
         severity,
-        hits,
+        hits: hitsEnriched,
       },
       { status: 400 },
     );
@@ -201,7 +204,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   await notifyInstructor(supabase, row.instructorId, "Schedule change approved", notifBody);
 
-  return NextResponse.json({ ok: true, status: finalStatus, severity, hits });
+  return NextResponse.json({ ok: true, status: finalStatus, severity, hits: hitsEnriched });
 }
 
 async function notifyInstructor(

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
-import { getCurrentAcademicPeriod, getInstructorScheduleRows } from "@/lib/server/dashboard-data";
+import { getInstructorScheduleRows } from "@/lib/server/dashboard-data";
+import { Q } from "@/lib/supabase/catalog-columns";
+import type { AcademicPeriod } from "@/types/db";
 
 export type ScheduleEntryOption = {
   id: string;
@@ -14,9 +16,10 @@ export type ScheduleEntryOption = {
 };
 
 /**
- * Lists current-term schedule rows for the instructor (for Request Schedule Change dropdown).
+ * Lists schedule rows for the instructor for the given academic period (semester filter on My Schedule).
+ * Query: `periodId` (required) — must match the shell’s selected term.
  */
-export async function GET() {
+export async function GET(req: Request) {
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
     return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
@@ -34,9 +37,19 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const period = await getCurrentAcademicPeriod();
+  const periodId = new URL(req.url).searchParams.get("periodId")?.trim() ?? "";
+  if (!periodId) {
+    return NextResponse.json({ error: "periodId is required" }, { status: 400 });
+  }
+
+  const { data: periodRow } = await supabase
+    .from("AcademicPeriod")
+    .select(Q.academicPeriod)
+    .eq("id", periodId)
+    .maybeSingle();
+  const period = (periodRow as AcademicPeriod | null) ?? null;
   if (!period) {
-    return NextResponse.json({ entries: [] as ScheduleEntryOption[], periodName: null });
+    return NextResponse.json({ entries: [] as ScheduleEntryOption[], periodName: null, academicPeriodId: null });
   }
 
   const { rows } = await getInstructorScheduleRows(profile.id, period.id);
@@ -56,3 +69,4 @@ export async function GET() {
 
   return NextResponse.json({ entries, periodName: period.name, academicPeriodId: period.id });
 }
+

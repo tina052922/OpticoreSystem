@@ -5,16 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PortalShell } from "@/components/portal/PortalShell";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-
-const NAV = [
-  { label: "Dashboard", href: "/faculty" },
-  { label: "My schedule", href: "/faculty/schedule" },
-  { label: "Request change", href: "/faculty/request-change" },
-  { label: "Announcements", href: "/faculty/announcements" },
-  { label: "Campus navigation", href: "/campus-navigation" },
-];
 
 /**
  * First-login flow: instructor must replace the emailed temporary password.
@@ -86,51 +77,49 @@ export function FacultyChangePasswordClient() {
   }
 
   return (
-    <PortalShell userName={userName} userEmail={userEmail} sidebarBadge="Faculty" navItems={NAV}>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-lg mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Set your password</h1>
-          <p className="text-sm text-black/65 mt-1">
-            You signed in with a temporary password. Choose a new password to continue. You will then be taken to your{" "}
-            <strong>INS schedule</strong> (Program by Teacher).
-          </p>
-        </div>
-
-        <form onSubmit={(e) => void onSubmit(e)} className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-800">New password</label>
-            <Input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              autoComplete="new-password"
-              className="h-12"
-              required
-              minLength={8}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-800">Confirm new password</label>
-            <Input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-              className="h-12"
-              required
-            />
-          </div>
-          {error ? <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p> : null}
-          <Button type="submit" disabled={saving} className="w-full h-12 bg-[#FF990A] hover:bg-[#e88909] text-white font-semibold">
-            {saving ? "Saving…" : "Save and open my schedule"}
-          </Button>
-          <p className="text-center text-xs text-black/50">
-            <Link href="/faculty" className="text-[#780301] hover:underline">
-              Cancel
-            </Link>
-          </p>
-        </form>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-lg mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Set your password</h1>
+        <p className="text-sm text-black/65 mt-1">
+          You signed in with a temporary password. Choose a new password to continue. You will then be taken to{" "}
+          <strong>My Schedule</strong>.
+        </p>
       </div>
-    </PortalShell>
+
+      <form onSubmit={(e) => void onSubmit(e)} className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-800">New password</label>
+          <Input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+            className="h-12"
+            required
+            minLength={8}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-800">Confirm new password</label>
+          <Input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            className="h-12"
+            required
+          />
+        </div>
+        {error ? <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p> : null}
+        <Button type="submit" disabled={saving} className="w-full h-12 bg-[#FF990A] hover:bg-[#e88909] text-white font-semibold">
+          {saving ? "Saving…" : "Save and open my schedule"}
+        </Button>
+        <p className="text-center text-xs text-black/50">
+          <Link href="/faculty" className="text-[#780301] hover:underline">
+            Cancel
+          </Link>
+        </p>
+      </form>
+    </div>
   );
 }

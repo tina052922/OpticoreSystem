@@ -31,6 +31,19 @@ export async function getScheduleEntriesForCollegePeriod(
   return data as ScheduleEntry[];
 }
 
+/** Entire campus: all schedule rows for a term (every program / section). Used for schedule-change conflict review. */
+export async function getScheduleEntriesForAcademicPeriod(
+  supabase: SupabaseClient,
+  academicPeriodId: string,
+): Promise<ScheduleEntry[]> {
+  const { data, error } = await supabase
+    .from("ScheduleEntry")
+    .select(Q.scheduleEntry)
+    .eq("academicPeriodId", academicPeriodId);
+  if (error || !data) return [];
+  return data as ScheduleEntry[];
+}
+
 export async function getRoomsForCollege(supabase: SupabaseClient, collegeId: string): Promise<Room[]> {
   const { data, error } = await supabase.from("Room").select(Q.room).eq("collegeId", collegeId).order("code");
   if (error || !data) return [];

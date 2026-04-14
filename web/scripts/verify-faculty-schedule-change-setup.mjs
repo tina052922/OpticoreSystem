@@ -116,7 +116,7 @@ async function main() {
 
   console.log("\nManual test (dev server on :3000):");
   console.log("  1. Sign in as instructor@opticore.local (seed user; public.User id matches demo instructor).");
-  console.log("  2. Open /faculty/request-change — dropdown should list CC-111 · BSIT-1A · Tuesday 14:00–16:00 (demo row).");
+  console.log("  2. Open /faculty/schedule — pick term in header, then Request schedule change (or tap a grid cell).");
   console.log("  3. Submit a change; sign in as college.admin@opticore.local → /admin/college/schedule-change-requests.");
   console.log("");
 }

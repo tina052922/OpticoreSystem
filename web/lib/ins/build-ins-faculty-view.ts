@@ -3,7 +3,15 @@ import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import type { Room, ScheduleEntry, Section, Subject } from "@/types/db";
 
 /** `vacantGec` is set when the live row is a CHED GEC/GEE slot still on the TBD placeholder instructor. */
-export type InsFacultyCell = { time: string; course: string; yearSec: string; room: string; vacantGec?: boolean };
+export type InsFacultyCell = {
+  time: string;
+  course: string;
+  yearSec: string;
+  room: string;
+  vacantGec?: boolean;
+  /** Populated from `ScheduleEntry.id` for faculty “My Schedule” request-change UX. */
+  scheduleEntryId?: string;
+};
 
 export type InsFacultySchedule = Record<InsDay, InsFacultyCell[]>;
 
@@ -107,6 +115,7 @@ export function buildInsFacultyView(args: {
       yearSec: sec?.name ?? "—",
       room: room?.code ?? "TBA",
       vacantGec: isGecVacantScheduleEntry(e, args.subjectById),
+      scheduleEntryId: e.id,
     });
   }
 

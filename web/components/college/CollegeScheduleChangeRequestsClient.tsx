@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
+import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { ScheduleChangeRequest } from "@/types/db";
 
 type Mitigation = {
@@ -14,6 +15,13 @@ type Mitigation = {
   endTime?: string;
 };
 
+type ConflictHitRow = {
+  type?: string;
+  message?: string;
+  detail?: string;
+  withEntryId?: string;
+};
+
 type Row = ScheduleChangeRequest & {
   instructorName?: string;
   subjectCode?: string;
@@ -21,7 +29,7 @@ type Row = ScheduleChangeRequest & {
   currentDay?: string;
   currentStartTime?: string;
   currentEndTime?: string;
-  conflictDetails?: { hits?: unknown[]; suggestedMitigation?: Mitigation } | null;
+  conflictDetails?: { hits?: ConflictHitRow[]; suggestedMitigation?: Mitigation } | null;
 };
 
 /**
@@ -37,7 +45,7 @@ export function CollegeScheduleChangeRequestsClient() {
   const [checkResult, setCheckResult] = useState<{
     severity?: string;
     summary?: string;
-    hits?: unknown[];
+    hits?: ConflictHitRow[];
     suggestedMitigation?: Mitigation | null;
   } | null>(null);
   const [applySuggestedMitigation, setApplySuggestedMitigation] = useState(false);
@@ -86,7 +94,7 @@ export function CollegeScheduleChangeRequestsClient() {
       const data = (await res.json()) as {
         severity?: string;
         summary?: string;
-        hits?: unknown[];
+        hits?: ConflictHitRow[];
         suggestedMitigation?: Mitigation | null;
         error?: string;
       };
@@ -120,7 +128,12 @@ export function CollegeScheduleChangeRequestsClient() {
           applySuggestedMitigation: applySuggestedMitigation,
         }),
       });
-      const data = (await res.json()) as { error?: string; status?: string; severity?: string; hits?: unknown[] };
+      const data = (await res.json()) as {
+        error?: string;
+        status?: string;
+        severity?: string;
+        hits?: ConflictHitRow[];
+      };
       if (res.status === 409) {
         setError(data.error ?? "Conflicts too large — approve blocked.");
         setCheckResult({ severity: data.severity, hits: data.hits });
@@ -130,6 +143,7 @@ export function CollegeScheduleChangeRequestsClient() {
       setCheckResult(null);
       setAdminNote("");
       await load();
+      dispatchInsCatalogReload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Update failed");
     } finally {
@@ -141,7 +155,7 @@ export function CollegeScheduleChangeRequestsClient() {
     <div>
       <ChairmanPageHeader
         title="Schedule change requests"
-        subtitle="Review instructor requests, run the conflict checker, then approve or reject. Faculty receive in-app notifications."
+        subtitle="Review instructor requests. Conflict check scans the whole campus for the term (all programs and sections). Approve applies ScheduleEntry updates immediately; INS views refresh via realtime + catalog reload."
       />
       <div className="px-4 md:px-8 pb-10 max-w-6xl mx-auto space-y-6">
         {error ? (
@@ -257,12 +271,30 @@ export function CollegeScheduleChangeRequestsClient() {
                               : "border-black/10 bg-[#fafafa]"
                           }`}
                         >
-                          <p className="font-semibold text-black/80">Last check</p>
+                          <p className="font-semibold text-black/80">Last check (campus-wide)</p>
                           <p className="text-black/80">{checkResult.summary}</p>
                           {checkResult.severity ? (
                             <p className="text-xs mt-1 text-black/55">
                               Severity: <strong>{checkResult.severity}</strong>
                             </p>
+                          ) : null}
+                          {checkResult.hits && checkResult.hits.length > 0 ? (
+                            <ul className="mt-3 space-y-2 border-t border-black/10 pt-3">
+                              {checkResult.hits.map((hit, idx) => (
+                                <li
+                                  key={`${hit.withEntryId ?? idx}-${idx}`}
+                                  className="rounded-md border border-amber-200/90 bg-amber-50/90 px-3 py-2 text-xs text-amber-950"
+                                >
+                                  <span className="font-bold uppercase tracking-wide text-amber-900/90">
+                                    {hit.type ?? "conflict"}
+                                  </span>
+                                  : {hit.message ?? "—"}
+                                  {hit.detail ? (
+                                    <p className="mt-1 text-[11px] leading-snug text-amber-950/95">{hit.detail}</p>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
                           ) : null}
                           {checkResult.suggestedMitigation?.label ? (
                             <div className="mt-2 pt-2 border-t border-black/10">

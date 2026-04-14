@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +33,8 @@ export type INSFormRoomProps = {
   chairmanProgramName?: string | null;
   viewerCollegeId?: string | null;
   campusWide?: boolean;
+  instructorPortalUserId?: string | null;
+  hideInnerInsTabs?: boolean;
 };
 
 const DEMO_SCHEDULE: Record<DayKey, Array<{ time: string; course: string; yearSec: string; room: string }>> = {
@@ -53,6 +55,8 @@ export function INSFormRoom({
   chairmanProgramName = null,
   viewerCollegeId = null,
   campusWide = false,
+  instructorPortalUserId = null,
+  hideInnerInsTabs = false,
 }: INSFormRoomProps) {
   const pathname = usePathname();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
@@ -62,9 +66,18 @@ export function INSFormRoom({
     collegeId: effectiveCollegeId,
     programId: chairmanProgramId,
     campusWide,
+    instructorPortalUserId,
   });
 
   const [selectedRoomId, setSelectedRoomId] = useState("");
+
+  const firstRoomId = catalog.roomOptions[0]?.id ?? "";
+
+  useEffect(() => {
+    if (!instructorPortalUserId) return;
+    if (selectedRoomId) return;
+    if (firstRoomId) setSelectedRoomId(firstRoomId);
+  }, [instructorPortalUserId, selectedRoomId, firstRoomId]);
 
   const { schedule, roomLabel } = useMemo(() => {
     if (!useLiveData) {
@@ -228,26 +241,28 @@ export function INSFormRoom({
           </p>
         </div>
 
-        <div className="flex gap-2 border-b border-gray-200 flex-wrap">
-          {[
-            { label: "INS Faculty", href: `${insBasePath}/faculty` },
-            { label: "INS Section", href: `${insBasePath}/section` },
-            { label: "INS Room", href: `${insBasePath}/room` },
-          ].map((t) => {
-            const active = pathname === t.href;
-            return (
-              <Link
-                key={t.href}
-                href={t.href}
-                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
-                  active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
-                }`}
-              >
-                {t.label}
-              </Link>
-            );
-          })}
-        </div>
+        {!hideInnerInsTabs ? (
+          <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+            {[
+              { label: "INS Faculty", href: `${insBasePath}/faculty` },
+              { label: "INS Section", href: `${insBasePath}/section` },
+              { label: "INS Room", href: `${insBasePath}/room` },
+            ].map((t) => {
+              const active = pathname === t.href;
+              return (
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
+                    active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                  }`}
+                >
+                  {t.label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
 
         {useLiveData && insBasePath ? (
           <InsEntityGroupingStrip

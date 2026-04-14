@@ -95,7 +95,7 @@ export async function notifyStakeholdersAfterDoiPublication(
   for (const id of instructorIds) {
     await notifyUser(
       id,
-      `${base} View your final timetable (INS by Faculty): /faculty/ins/faculty — Section/Room: /faculty/ins/section, /faculty/ins/room.`,
+      `${base} View your final timetable: /faculty/ins (Faculty / Section / Room tabs).`,
     );
   }
 

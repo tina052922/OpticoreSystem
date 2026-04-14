@@ -1,19 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
 import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import type { InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import { buildPortalFacultyIns5A } from "@/lib/portal/build-portal-ins-forms";
+import { FacultyScheduleChangeModal } from "@/components/faculty/FacultyScheduleChangeModal";
+import { Button } from "@/components/ui/button";
 
 type FacultyPayload = {
   rows: ScheduleRowView[];
 };
 
-/** INS 5A + schedule grid for the instructor, filtered by the global semester selection. */
+/**
+ * INS 5A + schedule grid for the instructor — respects the shell semester filter.
+ * Includes “Request schedule change” (toolbar + clickable plotted cells → modal).
+ */
 export function FacultyScheduleTermClient({
   facultyName,
   facultyUserId,
@@ -25,6 +28,8 @@ export function FacultyScheduleTermClient({
   const [rows, setRows] = useState<ScheduleRowView[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [changeOpen, setChangeOpen] = useState(false);
+  const [initialEntryId, setInitialEntryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready || !selectedPeriodId) return;
@@ -68,6 +73,11 @@ export function FacultyScheduleTermClient({
 
   const semesterLabel = selectedPeriod?.name ?? "—";
 
+  function openChangeModal(entryId: string | null) {
+    setInitialEntryId(entryId);
+    setChangeOpen(true);
+  }
+
   if (!ready || !selectedPeriodId) {
     return <p className="text-sm text-black/55 p-6">Loading academic term…</p>;
   }
@@ -77,22 +87,25 @@ export function FacultyScheduleTermClient({
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto space-y-4">
-      <Link
-        href="/faculty"
-        className="inline-flex items-center gap-2 text-sm font-medium text-black/70 hover:text-black"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to dashboard
-      </Link>
+    <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-[1200px] mx-auto space-y-4">
+      <FacultyScheduleChangeModal
+        open={changeOpen}
+        onOpenChange={setChangeOpen}
+        academicPeriodId={selectedPeriodId}
+        initialScheduleEntryId={initialEntryId}
+      />
 
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">My teaching schedule</h1>
-        <p className="text-gray-600 text-sm mt-1">
-          INS Form 5A — Program by Teacher (your teaching load only). Matches the official grid format used in Campus
-          Intelligence.
-          {loading ? <span className="ml-2 text-black/40">Updating…</span> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-black/60 max-w-2xl">
+          Tap a plotted class in the grid to request a new day/time, or use the button to pick from a list.
         </p>
+        <Button
+          type="button"
+          className="shrink-0 bg-[#780301] hover:bg-[#5c0201] text-white font-semibold"
+          onClick={() => openChangeModal(null)}
+        >
+          Request schedule change
+        </Button>
       </div>
 
       {rows.length === 0 ? (
@@ -110,7 +123,10 @@ export function FacultyScheduleTermClient({
           readOnly
           semesterLabel={semesterLabel}
           facultyFormSummary={facultyFormSummary}
+          clickableScheduleEntryCells
+          onScheduleEntryClick={(id) => openChangeModal(id)}
         />
+        {loading ? <p className="text-xs text-black/40 mt-2">Refreshing schedule…</p> : null}
       </div>
     </div>
   );

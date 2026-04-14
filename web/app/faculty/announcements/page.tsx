@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, Megaphone } from "lucide-react";
-import { PortalShell } from "@/components/portal/PortalShell";
+import { Megaphone } from "lucide-react";
+import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { requireRoles } from "@/lib/auth/require-role";
 import { getRecentNotifications } from "@/lib/server/dashboard-data";
 
@@ -8,23 +8,10 @@ export default async function FacultyAnnouncementsPage() {
   const profile = await requireRoles(["instructor"]);
   const notifications = await getRecentNotifications(profile.id, 50);
 
-  const navItems = [
-    { label: "Dashboard", href: "/faculty" },
-    { label: "INS Form (by faculty)", href: "/faculty/ins/faculty" },
-    { label: "My schedule", href: "/faculty/schedule" },
-    { label: "Request change", href: "/faculty/request-change" },
-    { label: "Announcements", href: "/faculty/announcements" },
-    { label: "Campus navigation", href: "/campus-navigation" },
-  ];
-
   return (
-    <PortalShell userName={profile.name} userEmail={profile.email} sidebarBadge="Faculty" navItems={navItems}>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
-        <Link href="/faculty" className="inline-flex items-center gap-2 text-sm font-medium text-black/70 hover:text-black">
-          <ArrowLeft className="w-4 h-4" />
-          Back to dashboard
-        </Link>
-        <h1 className="text-2xl font-semibold text-black">Announcements</h1>
+    <div>
+      <ChairmanPageHeader title="Announcements" subtitle="In-app messages including schedule change decisions." />
+      <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-3xl mx-auto space-y-6">
         <ul className="space-y-4">
           {notifications.length === 0 ? (
             <li className="rounded-xl border border-black/10 bg-white p-6 text-sm text-black/55 flex gap-3">
@@ -40,7 +27,10 @@ export default async function FacultyAnnouncementsPage() {
             ))
           )}
         </ul>
+        <Link href="/faculty" className="text-sm font-medium text-[#780301] hover:underline">
+          ← Back to Campus Intelligence
+        </Link>
       </div>
-    </PortalShell>
+    </div>
   );
 }
