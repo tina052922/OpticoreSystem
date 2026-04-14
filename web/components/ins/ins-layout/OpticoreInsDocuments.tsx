@@ -71,6 +71,7 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
             <span className="block text-center text-sm text-gray-900 py-0.5">{semesterLabel ?? "—"}</span>
           ) : (
             <input
+              suppressHydrationWarning
               type="text"
               placeholder="Semester, AY"
               className="w-full bg-transparent text-center text-sm outline-none placeholder:text-gray-400"
@@ -87,6 +88,7 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
             <span className="flex-1 min-w-[12rem] border-0 border-b border-gray-400 py-0.5 text-gray-900">{facultyName}</span>
           ) : (
             <input
+              suppressHydrationWarning
               type="text"
               defaultValue={facultyName}
               className="flex-1 min-w-[12rem] border-0 border-b border-gray-400 bg-transparent outline-none focus:border-[#FF990A]"
@@ -98,6 +100,7 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
           <>
             <div className="md:col-span-2 flex flex-wrap items-center gap-4">
               <span className="shrink-0">Status of Appointment:</span>
+<<<<<<< Updated upstream
               <label className="flex items-center gap-1 text-sm">
                 <input type="checkbox" className="rounded border-gray-400" /> Permanent
               </label>
@@ -106,32 +109,90 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
               </label>
               <label className="flex items-center gap-1 text-sm">
                 <input type="checkbox" className="rounded border-gray-400" /> Contract of Service
+=======
+              <label className="flex items-center gap-2 text-sm">
+                <input suppressHydrationWarning type="checkbox" className="rounded border-neutral-500" /> Permanent
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input suppressHydrationWarning type="checkbox" className="rounded border-neutral-500" /> Temporary
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input suppressHydrationWarning type="checkbox" className="rounded border-neutral-500" /> Contract of Service
+>>>>>>> Stashed changes
               </label>
             </div>
             <div className="flex gap-2 items-end">
               <span>Bachelor&apos;s Degree:</span>
+<<<<<<< Updated upstream
               <input type="text" className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none text-sm" />
+=======
+              <input
+                suppressHydrationWarning
+                type="text"
+                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
+              />
+>>>>>>> Stashed changes
             </div>
             <div className="flex gap-2 items-end">
               <span>Major:</span>
+<<<<<<< Updated upstream
               <input type="text" className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none text-sm" />
+=======
+              <input
+                suppressHydrationWarning
+                type="text"
+                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
+              />
+>>>>>>> Stashed changes
             </div>
             <div className="flex gap-2 items-end">
               <span>Master&apos;s Degree:</span>
+<<<<<<< Updated upstream
               <input type="text" className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none text-sm" />
+=======
+              <input
+                suppressHydrationWarning
+                type="text"
+                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
+              />
+>>>>>>> Stashed changes
             </div>
             <div className="flex gap-2 items-end">
               <span>Minor:</span>
+<<<<<<< Updated upstream
               <input type="text" className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none text-sm" />
+=======
+              <input
+                suppressHydrationWarning
+                type="text"
+                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
+              />
+>>>>>>> Stashed changes
             </div>
             <div className="flex gap-2 items-end">
               <span>Doctorate Degree:</span>
+<<<<<<< Updated upstream
               <input type="text" className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none text-sm" />
+=======
+              <input
+                suppressHydrationWarning
+                type="text"
+                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
+              />
+>>>>>>> Stashed changes
             </div>
             <div />
             <div className="md:col-span-2 flex gap-2 items-end">
               <span>Special Training:</span>
+<<<<<<< Updated upstream
               <input type="text" className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none text-sm" />
+=======
+              <input
+                suppressHydrationWarning
+                type="text"
+                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
+              />
+>>>>>>> Stashed changes
             </div>
           </>
         ) : (
@@ -178,6 +239,7 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
                 </>
               )}
             </div>
+<<<<<<< Updated upstream
           ))}
           {!readOnly &&
             Array.from({ length: Math.max(0, 4 - courses.length) }).map((_, i) => (
@@ -186,6 +248,64 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
                 <input type="text" className="border border-gray-300 rounded px-1 py-1 bg-white min-h-[28px]" />
                 <input type="text" className="border border-gray-300 rounded px-1 py-1 bg-white min-h-[28px]" />
                 <input type="text" className="border border-gray-300 rounded px-1 py-1 bg-white min-h-[28px]" />
+=======
+          ) : (
+            courses.map((c, idx) => (
+              <div key={idx} className="grid grid-cols-4 gap-2 text-xs">
+                {readOnly ? (
+                  <>
+                    <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
+                      {c.students}
+                    </span>
+                    <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
+                      {c.code}
+                    </span>
+                    <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
+                      {c.title}
+                    </span>
+                    <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
+                      {c.degreeYrSec}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      suppressHydrationWarning
+                      type="text"
+                      defaultValue={String(c.students)}
+                      className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                    />
+                    <input
+                      suppressHydrationWarning
+                      type="text"
+                      defaultValue={c.code}
+                      className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                    />
+                    <input
+                      suppressHydrationWarning
+                      type="text"
+                      defaultValue={c.title}
+                      className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                    />
+                    <input
+                      suppressHydrationWarning
+                      type="text"
+                      defaultValue={c.degreeYrSec}
+                      className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                    />
+                  </>
+                )}
+              </div>
+            ))
+          )}
+          {!readOnly &&
+            Array.from({ length: Math.max(0, 4 - courses.length) }).map((_, i) => (
+              <div key={`e-${i}`} className="grid grid-cols-4 gap-2 text-xs">
+                <input suppressHydrationWarning type="text" className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
+                <input suppressHydrationWarning type="text" className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
+                <input suppressHydrationWarning type="text" className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
+                <input suppressHydrationWarning type="text" className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
+>>>>>>> Stashed changes
               </div>
             ))}
         </div>
@@ -220,9 +340,20 @@ export function OpticoreInsForm5A({ facultyName, schedule, courses, readOnly = f
 
 function FieldLine({ label }: { label: string }) {
   return (
+<<<<<<< Updated upstream
     <div className="flex gap-2 items-end">
       <span className="text-xs shrink-0">{label}:</span>
       <input type="text" className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none text-sm" />
+=======
+    <div className="flex items-end gap-3">
+      <span className="shrink-0 text-sm">{label}:</span>
+      <input
+        suppressHydrationWarning
+        type="text"
+        defaultValue={defaultValue}
+        className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
+      />
+>>>>>>> Stashed changes
     </div>
   );
 }
@@ -272,7 +403,217 @@ export function OpticoreInsForm5B({
     }
     if (day === "Monday" && time === "7:00-8:00") {
       return (
+<<<<<<< Updated upstream
         <div className="leading-tight text-[9px] text-gray-500">
+=======
+        <div className="text-xs leading-relaxed text-neutral-500">
+          <div>Course code</div>
+          <div>Instructor</div>
+          <div>Room</div>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  return (
+    <div className="space-y-8 text-neutral-900">
+      <div className="flex flex-col gap-4 border-b border-neutral-300 pb-6 sm:flex-row sm:items-start sm:justify-between">
+        <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg">
+          Cebu Technological University
+        </h3>
+        <div className="text-right text-sm">
+          <div className="font-semibold">INS FORM 5B</div>
+          <div>{formDate()}</div>
+          <div>Revision: 2</div>
+        </div>
+      </div>
+
+      <div className="space-y-2 text-center">
+        <h4 className="text-xl font-bold uppercase tracking-wide">Program by Section</h4>
+        <div className="text-sm">Day Program</div>
+        <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
+          {readOnly ? (
+            <span className="block py-1 text-center text-sm text-neutral-900">{semesterLabel ?? "____ Semester, AY ____"}</span>
+          ) : (
+            <input
+              suppressHydrationWarning
+              type="text"
+              placeholder="____ Semester, AY ____"
+              className="w-full min-w-[16rem] bg-transparent text-center text-sm outline-none placeholder:text-neutral-400"
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4 text-sm">
+        <div className="flex items-end gap-3">
+          <span className="shrink-0">Degree and Year:</span>
+          {readOnly ? (
+            <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">{degreeAndYear}</span>
+          ) : (
+            <input
+              suppressHydrationWarning
+              type="text"
+              defaultValue={degreeAndYear}
+              className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
+            />
+          )}
+        </div>
+        <div className="flex items-end gap-3">
+          <span className="shrink-0">Adviser:</span>
+          {readOnly ? (
+            <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">{adviser || "—"}</span>
+          ) : (
+            <input
+              suppressHydrationWarning
+              type="text"
+              defaultValue={adviser}
+              className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
+            />
+          )}
+        </div>
+        <div className="flex items-end gap-3">
+          <span className="shrink-0">Assignment:</span>
+          {readOnly ? (
+            <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">{assignment}</span>
+          ) : (
+            <input
+              suppressHydrationWarning
+              type="text"
+              defaultValue={assignment}
+              className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
+            />
+          )}
+        </div>
+      </div>
+
+      <OpticoreInsScheduleTableWithSignatures
+        renderCell={renderCell}
+        signatureSlots={insSignatureSlots}
+        scheduleApproved={scheduleApproved}
+        signatureStrip="campusOnly"
+      />
+
+      <div className="min-h-[14rem] border border-neutral-900 p-4 md:p-6">
+        <div className="mb-4 text-center text-sm font-bold uppercase tracking-wide">Summary of Courses</div>
+        <div className="mb-3 grid grid-cols-4 gap-2 border-b border-neutral-900 pb-3 text-xs font-semibold">
+          <span>No. of Students</span>
+          <span>Course code</span>
+          <span>Descriptive Title</span>
+          <span>Degree/Yr/Sec</span>
+        </div>
+        <div className="space-y-2">
+          {courses.map((c, idx) => (
+            <div key={idx} className="grid grid-cols-4 gap-2 text-xs">
+              {readOnly ? (
+                <>
+                  <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
+                    {c.students}
+                  </span>
+                  <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
+                    {c.code}
+                  </span>
+                  <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
+                    {c.title}
+                  </span>
+                  <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
+                    {c.degreeYrSec}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <input
+                    suppressHydrationWarning
+                    type="text"
+                    defaultValue={String(c.students)}
+                    className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                  />
+                  <input suppressHydrationWarning type="text" defaultValue={c.code} className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
+                  <input suppressHydrationWarning type="text" defaultValue={c.title} className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
+                  <input
+                    suppressHydrationWarning
+                    type="text"
+                    defaultValue={c.degreeYrSec}
+                    className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                  />
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
+        <div className="text-sm font-semibold text-neutral-900">Approved</div>
+        <div className="mx-auto mt-3 flex min-h-[4rem] max-w-xs items-end justify-center border-b-2 border-neutral-900 pb-2">
+          {scheduleApproved && insSignatureSlots?.[0]?.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Supabase public URL
+            <img
+              src={insSignatureSlots[0].imageUrl}
+              alt=""
+              className="max-h-16 max-w-full object-contain"
+            />
+          ) : null}
+        </div>
+        <div className="mt-2 text-sm text-neutral-800">Campus Director</div>
+        {scheduleApproved && insSignatureSlots?.[0]?.signerName ? (
+          <div className="mt-1 text-xs font-medium text-neutral-900">{insSignatureSlots[0].signerName}</div>
+        ) : !scheduleApproved ? (
+          <div className="mt-1 text-[11px] text-neutral-500">Pending publication</div>
+        ) : (
+          <div className="mt-1 text-[11px] text-amber-900">No signature on file — DOI admin uploads under DOI Profile</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export type OpticoreInsForm5CProps = {
+  roomAssignment: string;
+  schedule: FacultySchedule;
+  scheduleApproved?: boolean;
+  insSignatureSlots?: InsSignatureSlot[] | null;
+  readOnly?: boolean;
+  semesterLabel?: string;
+};
+
+/** INS FORM 5C — Room utilization */
+export function OpticoreInsForm5C({
+  roomAssignment,
+  schedule,
+  scheduleApproved = false,
+  insSignatureSlots = null,
+  readOnly = false,
+  semesterLabel,
+}: OpticoreInsForm5CProps) {
+  const prepared = pickSlot(insSignatureSlots, "prepared");
+  const review = pickSlot(insSignatureSlots, "review");
+  const campus = pickSlot(insSignatureSlots, "campus");
+
+  function renderCell(time: string, day: InsDay) {
+    const classAtTime = matchSlot(schedule[day], time);
+    if (classAtTime) {
+      const inner = (
+        <div className="w-full space-y-0.5 text-xs leading-snug">
+          <div className="font-semibold">{classAtTime.course}</div>
+          <div>{classAtTime.yearSec}</div>
+          <div>{classAtTime.room}</div>
+        </div>
+      );
+      if (classAtTime.vacantGec) {
+        return (
+          <VacantGecSlotHighlight title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
+            {inner}
+          </VacantGecSlotHighlight>
+        );
+      }
+      return inner;
+    }
+    if (day === "Monday" && time === "7:00-8:00") {
+      return (
+        <div className="text-xs leading-relaxed text-neutral-500">
+>>>>>>> Stashed changes
           <div>Course code</div>
           <div>Yr. & Sec.</div>
           <div>Room</div>
@@ -312,6 +653,7 @@ export function OpticoreInsForm5B({
             <span className="flex-1 border-b border-gray-400 py-0.5 text-gray-900">{degreeAndYear}</span>
           ) : (
             <input
+              suppressHydrationWarning
               type="text"
               defaultValue={degreeAndYear}
               className="flex-1 border-0 border-b border-gray-400 bg-transparent outline-none"
@@ -340,6 +682,7 @@ export function OpticoreInsForm5B({
         </div>
       </div>
 
+<<<<<<< Updated upstream
       <OpticoreInsScheduleTableWithSignatures renderCell={renderCell} />
 
       <div className="border border-gray-400 rounded-sm p-3">
@@ -371,6 +714,20 @@ export function OpticoreInsForm5B({
             </div>
           ))}
         </div>
+=======
+      <div className="flex items-end gap-3 text-sm">
+        <span className="shrink-0">Room Assignment:</span>
+        {readOnly ? (
+          <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">{roomAssignment}</span>
+        ) : (
+          <input
+            suppressHydrationWarning
+            type="text"
+            defaultValue={roomAssignment}
+            className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
+          />
+        )}
+>>>>>>> Stashed changes
       </div>
 
       {!readOnly ? (

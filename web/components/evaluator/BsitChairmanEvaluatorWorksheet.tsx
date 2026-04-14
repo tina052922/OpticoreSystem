@@ -2,9 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+<<<<<<< Updated upstream
 import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
+=======
+import { Q } from "@/lib/supabase/catalog-columns";
+import { detectConflictsSparse, scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
+>>>>>>> Stashed changes
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
+import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
+import type { GASuggestion } from "@/lib/scheduling/types";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
 import type { AcademicPeriod, FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { Button } from "@/components/ui/button";
@@ -45,6 +52,10 @@ export type PlotRow = {
   /** First 1-hour slot index (0 = 7:00–8:00 AM … 9 = 4:00–5:00 PM). */
   startSlotIndex: number;
   day: BsitEvaluatorWeekday;
+};
+
+type ConflictAlternative = {
+  label: string;
 };
 
 function newRowId(): string {
@@ -172,6 +183,14 @@ export function BsitChairmanEvaluatorWorksheet({
   const [rows, setRows] = useState<PlotRow[]>([]);
   const [justificationText, setJustificationText] = useState("");
   const [selectedSectionId, setSelectedSectionId] = useState<string>("");
+  const [fullConflictIds, setFullConflictIds] = useState<Set<string>>(() => new Set());
+  const [fullConflictIssues, setFullConflictIssues] = useState<
+    { entryId: string; type: string; message: string; relatedEntryId?: string }[]
+  >([]);
+  const [fullConflictRan, setFullConflictRan] = useState(false);
+  const [conflictAlternativesByIssueKey, setConflictAlternativesByIssueKey] = useState<
+    Record<string, ConflictAlternative[]>
+  >({});
   const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
   const didHydrateFromDbRef = useRef(false);
 
@@ -293,17 +312,108 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [dbInstructors, chairmanCollegeId]);
 
+  const instructorNameByIdFromUsers = useMemo(() => {
+    const m = new Map<string, string>();
+    dbInstructors.forEach((u) => m.set(u.id, u.name));
+    SAMPLE_INSTRUCTORS.forEach((u) => {
+      if (!m.has(u.id)) m.set(u.id, u.name);
+    });
+    return m;
+  }, [dbInstructors]);
+
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
     bsitSections.forEach((s) => m.set(s.id, s.name));
     return m;
   }, [bsitSections]);
 
+<<<<<<< Updated upstream
+=======
+  useEffect(() => {
+    if (selectedSectionId && bsitSections.some((s) => s.id === selectedSectionId)) return;
+    const firstSectionId = bsitSections[0]?.id ?? "";
+    setSelectedSectionId(firstSectionId);
+  }, [bsitSections, selectedSectionId]);
+
+  /** Align plotted subjects with the global term: prospectus semester 1 vs 2 from `AcademicPeriod` naming. */
+  const termProspectusSemester = useMemo(
+    () => prospectusSemesterFromAcademicPeriod(selectedPeriod),
+    [selectedPeriod],
+  );
+
+  const selectedSectionName = selectedSectionId ? (sectionNameById.get(selectedSectionId) ?? "") : "";
+  const selectedYearLevel = selectedSectionName ? yearLevelFromBsitSectionName(selectedSectionName) : null;
+  const selectedSectionSummarySubjects = useMemo(() => {
+    if (selectedYearLevel == null) return [];
+    if (termProspectusSemester != null) {
+      return prospectusSubjectsForYearAndSemester(selectedYearLevel, termProspectusSemester);
+    }
+    return prospectusSubjectsForYearLevel(selectedYearLevel);
+  }, [selectedYearLevel, termProspectusSemester]);
+  const visibleRows = useMemo(
+    () => (selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : []),
+    [rows, selectedSectionId],
+  );
+
+  /** Any row published for this term — RLS blocks chairman mutations; worksheet stays read-only. */
+  const schedulePublished = useMemo(() => rows.some((r) => Boolean(r.lockedByDoiAt)), [rows]);
+
+>>>>>>> Stashed changes
   const roomCodeById = useMemo(() => {
     const m = new Map<string, string>();
     itLabsWithFallback.forEach((r) => m.set(r.id, r.code));
     return m;
   }, [itLabsWithFallback]);
+
+  /** Explicitly scope alternative generation to the current program's rows/resources only. */
+  const programScopedResourceIds = useMemo(() => {
+    const instructorIds = new Set<string>();
+    const roomIds = new Set<string>();
+    for (const r of rows) {
+      if (r.instructorId) instructorIds.add(r.instructorId);
+      if (r.roomId) roomIds.add(r.roomId);
+    }
+    return { instructorIds, roomIds };
+  }, [rows]);
+
+  const completeProgramBlocks = useMemo((): ScheduleBlock[] => {
+    if (!academicPeriodId) return [];
+    const list: ScheduleBlock[] = [];
+    for (const row of rows) {
+      if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) continue;
+      const subjectId = subjectIdByCode.get(normalizeProspectusCode(row.subjectCode));
+      if (!subjectId) continue;
+      const block = rowToBlock(row, academicPeriodId, subjectId);
+      if (block) list.push(block);
+    }
+    return list;
+  }, [rows, academicPeriodId, subjectIdByCode]);
+
+  const rowById = useMemo(() => {
+    const m = new Map<string, PlotRow>();
+    rows.forEach((r) => m.set(r.id, r));
+    return m;
+  }, [rows]);
+
+  const describeConflictRow = useCallback(
+    (id: string): string => {
+      const row = rowById.get(id);
+      if (!row) return "Unknown row";
+      const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
+      const dur = p ? scheduleDurationSlots(p) : 1;
+      const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+      const effectiveStart = Math.min(row.startSlotIndex, maxStart);
+      const section = row.sectionId ? (sectionNameById.get(row.sectionId) ?? row.sectionId) : "—";
+      const room = row.roomId ? (roomCodeById.get(row.roomId) ?? row.roomId) : "—";
+      const instructor = row.instructorId
+        ? (instructorNameByIdFromUsers.get(row.instructorId) ?? row.instructorId)
+        : "—";
+      const subject = row.subjectCode || "—";
+      const time = formatTimeRangeFromSlots(effectiveStart, dur).fullLine;
+      return `${subject} · ${section} · ${row.day} ${time} · ${room} · ${instructor}`;
+    },
+    [rowById, sectionNameById, roomCodeById, instructorNameByIdFromUsers],
+  );
 
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
@@ -397,6 +507,128 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const showJustification = policyRows.hasAnyViolation;
 
+  const conflictIssueKey = useCallback(
+    (issue: { entryId: string; type: string; relatedEntryId?: string }) =>
+      `${issue.type}:${issue.entryId}:${issue.relatedEntryId ?? "none"}`,
+    [],
+  );
+
+  /**
+   * Deterministic fallback suggestions when GA does not return options.
+   * Scans day/time + room + instructor combinations and keeps the first conflict-free candidates.
+   */
+  const buildFallbackAlternativesForRow = useCallback(
+    (row: PlotRow): ConflictAlternative[] => {
+      const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
+      if (!p || !academicPeriodId) return [];
+      const dur = scheduleDurationSlots(p);
+      const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+      const roomPoolFromProgram = itLabsWithFallback
+        .map((r) => r.id)
+        .filter((id) => programScopedResourceIds.roomIds.size === 0 || programScopedResourceIds.roomIds.has(id));
+      const instructorPoolFromProgram = instructorOptions
+        .map((u) => u.id)
+        .filter(
+          (id) =>
+            programScopedResourceIds.instructorIds.size === 0 ||
+            programScopedResourceIds.instructorIds.has(id),
+        );
+      const roomPool = roomPoolFromProgram.length > 0 ? roomPoolFromProgram : itLabsWithFallback.map((r) => r.id);
+      const instructorPool =
+        instructorPoolFromProgram.length > 0
+          ? instructorPoolFromProgram
+          : instructorOptions.map((u) => u.id);
+      const out: ConflictAlternative[] = [];
+
+      for (const day of BSIT_EVALUATOR_WEEKDAYS) {
+        for (let startSlotIndex = 0; startSlotIndex <= maxStart; startSlotIndex++) {
+          for (const roomId of roomPool) {
+            for (const instructorId of instructorPool) {
+              const candidateRow: PlotRow = {
+                ...row,
+                day,
+                startSlotIndex,
+                roomId,
+                instructorId,
+              };
+              const candidate = rowToSparseBlock(candidateRow, academicPeriodId);
+              if (!candidate) continue;
+              const hits = detectConflictsSparse(candidate, sparseUniverse, row.id);
+              if (hits.length > 0) continue;
+              const roomCode = roomCodeById.get(roomId) ?? roomId;
+              const instructorName = instructorNameByIdFromUsers.get(instructorId) ?? instructorId;
+              const time = formatTimeRangeFromSlots(startSlotIndex, dur).fullLine;
+              out.push({
+                label: `${day} ${time} · Room ${roomCode} · ${instructorName}`,
+              });
+              if (out.length >= 4) return out;
+            }
+          }
+        }
+      }
+      return out;
+    },
+    [
+      academicPeriodId,
+      itLabsWithFallback,
+      instructorOptions,
+      programScopedResourceIds,
+      sparseUniverse,
+      roomCodeById,
+      instructorNameByIdFromUsers,
+    ],
+  );
+
+  function runFullConflictCheck() {
+    const { conflictingEntryIds, issues } = scanAllScheduleConflicts(completeProgramBlocks);
+    setFullConflictIds(conflictingEntryIds);
+    setFullConflictIssues(issues);
+    setFullConflictRan(true);
+    const scopedRoomIds = itLabsWithFallback
+      .map((r) => r.id)
+      .filter((id) => programScopedResourceIds.roomIds.size === 0 || programScopedResourceIds.roomIds.has(id));
+    const scopedInstructorIds = instructorOptions
+      .map((u) => u.id)
+      .filter(
+        (id) =>
+          programScopedResourceIds.instructorIds.size === 0 ||
+          programScopedResourceIds.instructorIds.has(id),
+      );
+    const roomIds = scopedRoomIds.length > 0 ? scopedRoomIds : itLabsWithFallback.map((r) => r.id);
+    const instructorIds =
+      scopedInstructorIds.length > 0
+        ? scopedInstructorIds
+        : instructorOptions.map((u) => u.id);
+    const altMap: Record<string, ConflictAlternative[]> = {};
+    if (roomIds.length > 0 && instructorIds.length > 0 && academicPeriodId) {
+      for (const issue of issues.slice(0, 20)) {
+        const row = rowById.get(issue.entryId);
+        if (!row || !row.sectionId || !row.subjectCode) continue;
+        const subjectId = subjectIdByCode.get(normalizeProspectusCode(row.subjectCode));
+        const issueKey = conflictIssueKey(issue);
+        if (subjectId) {
+          const suggestions = runRuleBasedGeneticAlgorithm({
+            universe: completeProgramBlocks,
+            sectionId: row.sectionId,
+            subjectId,
+            academicPeriodId,
+            excludeEntryId: issue.entryId,
+            roomIds,
+            instructorIds,
+            generations: 40,
+            populationSize: 56,
+          });
+          if (suggestions.length > 0) {
+            altMap[issueKey] = suggestions.slice(0, 4).map((s) => ({ label: s.label }));
+            continue;
+          }
+        }
+        altMap[issueKey] = buildFallbackAlternativesForRow(row);
+      }
+    }
+    setConflictAlternativesByIssueKey(altMap);
+  }
+
   function updateRow(id: string, patch: Partial<PlotRow>) {
     setRows((prev) =>
       prev.map((r) => {
@@ -414,7 +646,17 @@ export function BsitChairmanEvaluatorWorksheet({
   }
 
   function addRow() {
+<<<<<<< Updated upstream
     setRows((prev) => [...prev, emptyRow()]);
+=======
+    setRows((prev) => {
+      if (prev.some((r) => Boolean(r.lockedByDoiAt))) return prev;
+      if (!selectedSectionId) return prev;
+      const next = emptyRow();
+      next.sectionId = selectedSectionId;
+      return [...prev, next];
+    });
+>>>>>>> Stashed changes
   }
 
   function removeRow(id: string) {
@@ -544,7 +786,7 @@ export function BsitChairmanEvaluatorWorksheet({
 
         lastSyncedRowIdsRef.current = new Set(rows.map((r) => r.id));
       })();
-    }, 600);
+    }, 300);
 
     return () => clearTimeout(t);
   }, [rows, academicPeriodId, subjectIdByCode]);
@@ -563,7 +805,6 @@ export function BsitChairmanEvaluatorWorksheet({
             value={selectedSectionId}
             onChange={(e) => setSelectedSectionId(e.target.value)}
           >
-            <option value="">All sections</option>
             {Array.from(sectionNameById.entries()).map(([id, name]) => (
               <option key={id} value={id}>
                 {name}
@@ -571,9 +812,121 @@ export function BsitChairmanEvaluatorWorksheet({
             ))}
           </select>
         </div>
+<<<<<<< Updated upstream
         <Button type="button" className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold" onClick={addRow}>
           + Add schedule row
         </Button>
+=======
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="bg-white border-red-300 text-red-900 hover:bg-red-50 disabled:opacity-50 disabled:pointer-events-none"
+            disabled={schedulePublished || completeProgramBlocks.length === 0}
+            onClick={runFullConflictCheck}
+          >
+            Run Conflict Check
+          </Button>
+          <Button
+            type="button"
+            className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold disabled:opacity-50 disabled:pointer-events-none"
+            disabled={schedulePublished || !selectedSectionId}
+            onClick={addRow}
+          >
+            + Add schedule row to section
+          </Button>
+        </div>
+      </div>
+
+      {fullConflictRan ? (
+        fullConflictIssues.length > 0 ? (
+          <div className="rounded-xl border border-red-300 bg-red-50/80 p-4 space-y-3">
+            <div className="text-[14px] font-semibold text-red-900">
+              Conflicts detected across the BSIT program schedule
+            </div>
+            <p className="text-[12px] text-red-900/85">
+              Includes room, faculty, and section overlaps. Each item shows the affected row and the overlapping row.
+            </p>
+            <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+              {fullConflictIssues.slice(0, 30).map((issue, idx) => (
+                <div key={`${issue.entryId}-${issue.relatedEntryId ?? "none"}-${idx}`} className="rounded-md border border-red-200 bg-white p-2 text-[12px]">
+                  <div className="font-semibold uppercase text-red-900">{issue.type} conflict</div>
+                  <div className="text-black/80 mt-1">A: {describeConflictRow(issue.entryId)}</div>
+                  {issue.relatedEntryId ? <div className="text-black/80">B: {describeConflictRow(issue.relatedEntryId)}</div> : null}
+                  <div className="text-black/70 mt-1">{issue.message}</div>
+                  <div className="mt-2 rounded border border-amber-200 bg-amber-50/70 p-2">
+                    <div className="text-[11px] font-semibold text-amber-950">Alternative solutions</div>
+                    {(conflictAlternativesByIssueKey[conflictIssueKey(issue)] ?? []).length === 0 ? (
+                      <p className="text-[11px] text-amber-900/85 mt-1">
+                        No feasible alternative found in current room/faculty pools.
+                      </p>
+                    ) : (
+                      <ul className="mt-1 space-y-1 text-[11px] text-black/80">
+                        {(conflictAlternativesByIssueKey[conflictIssueKey(issue)] ?? []).map((s, si) => (
+                          <li key={`${conflictIssueKey(issue)}-${si}`} className="rounded border border-amber-200/70 bg-white px-2 py-1">
+                            {s.label}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {fullConflictIssues.length > 30 ? (
+                <p className="text-[11px] text-red-900/80">Showing first 30 items of {fullConflictIssues.length} conflicts.</p>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-[13px] text-green-900">
+            No room/faculty/section conflicts found in the current BSIT program schedule for this term.
+          </div>
+        )
+      ) : null}
+
+      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-[0px_2px_4px_rgba(0,0,0,0.08)]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[14px] font-semibold text-black">
+            Prospectus subject summary {selectedSectionName ? `· ${selectedSectionName}` : ""}
+          </div>
+          <div className="text-[12px] text-black/60">
+            {selectedYearLevel ? `Year ${selectedYearLevel}` : "Year —"} ·{" "}
+            {termProspectusSemester ? `${termProspectusSemester}${termProspectusSemester === 1 ? "st" : "nd"} Semester` : "Semester not detected"}
+          </div>
+        </div>
+        {selectedSectionSummarySubjects.length === 0 ? (
+          <p className="mt-3 text-[12px] text-black/55">
+            Select a BSIT section and academic period to load the matching prospectus subject summary.
+          </p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-[11px]">
+              <thead>
+                <tr className="bg-black/[0.04] text-black/80">
+                  <th className="border border-black/10 px-2 py-2 text-left font-semibold">Code</th>
+                  <th className="border border-black/10 px-2 py-2 text-left font-semibold">Title</th>
+                  <th className="border border-black/10 px-2 py-2 text-left font-semibold">Lec (u/h)</th>
+                  <th className="border border-black/10 px-2 py-2 text-left font-semibold">Lab (u/h)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedSectionSummarySubjects.map((s) => (
+                  <tr key={`${s.yearLevel}-${s.semester}-${s.code}`} className="odd:bg-white even:bg-black/[0.02]">
+                    <td className="border border-black/10 px-2 py-1.5 font-medium">{s.code}</td>
+                    <td className="border border-black/10 px-2 py-1.5">{s.title}</td>
+                    <td className="border border-black/10 px-2 py-1.5 tabular-nums">
+                      {s.lecUnits}u / {s.lecHours}h
+                    </td>
+                    <td className="border border-black/10 px-2 py-1.5 tabular-nums">
+                      {s.labUnits}u / {s.labHours}h
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+>>>>>>> Stashed changes
       </div>
 
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10">
@@ -598,14 +951,14 @@ export function BsitChairmanEvaluatorWorksheet({
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {visibleRows.length === 0 ? (
                 <tr>
                   <td colSpan={14} className="px-4 py-10 text-center text-[13px] text-black/50">
-                    No rows yet. Click &quot;Add schedule row&quot; to plot BSIT sections (Mon–Fri, 7:00 AM–5:00 PM).
+                    No rows yet for this section. Click &quot;Add schedule row to section&quot; to start plotting.
                   </td>
                 </tr>
               ) : (
-                rows.map((row, i) => {
+                visibleRows.map((row, i) => {
                   const pr = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
                   const dur = pr ? scheduleDurationSlots(pr) : 1;
                   const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
@@ -616,7 +969,12 @@ export function BsitChairmanEvaluatorWorksheet({
                   const cf = conflictForRow(row);
                   const timeFmt = formatTimeRangeFromSlots(effectiveStart, dur);
                   return (
-                    <tr key={row.id} className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}`}>
+                    <tr
+                      key={row.id}
+                      className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"} ${
+                        fullConflictIds.has(row.id) ? "bg-red-50/70" : ""
+                      }`}
+                    >
                       <td className="border border-black/10 px-2 py-1.5 font-semibold text-black/80">{MAJOR_FIXED}</td>
                       <td className="border border-black/10 px-1 py-1">
                         <select

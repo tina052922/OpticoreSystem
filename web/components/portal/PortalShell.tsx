@@ -99,7 +99,11 @@ export function PortalShell({
           </div>
         </div>
 
+<<<<<<< Updated upstream
         <div className="flex items-center gap-3 md:gap-4 shrink-0">
+=======
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0 min-w-0">
+>>>>>>> Stashed changes
           <Link
             href="/campus-navigation"
             className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 md:px-3 text-xs md:text-sm font-semibold text-white/95 hover:bg-white/10 transition-colors max-w-[min(100vw-12rem,200px)]"
@@ -116,6 +120,7 @@ export function PortalShell({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
+                suppressHydrationWarning
                 className="w-10 h-10 rounded-full bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-white/90 hover:brightness-95 transition-[filter]"
                 aria-label="Account menu"
               >
