@@ -17,7 +17,7 @@ export const Q = {
   userChairmanScope: "id,email,name,role,collegeId",
   campusInsSettings: "id,campusDirectorSignatureImageUrl,updatedAt",
   scheduleLoadJustification:
-    "id,academicPeriodId,collegeId,authorUserId,authorName,authorEmail,justification,violationsSnapshot,createdAt,updatedAt",
+    "id,academicPeriodId,collegeId,authorUserId,authorName,authorEmail,justification,violationsSnapshot,createdAt,updatedAt,doiDecision,doiReviewedAt,doiReviewedById,doiReviewNote",
   /** Policy / evaluator loads (name + policy fields) */
   facultyProfilePolicy: "id,userId,fullName,status,designation,ratePerHour",
   /** INS 5A credentials block + form summary */

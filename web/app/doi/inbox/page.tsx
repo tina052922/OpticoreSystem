@@ -1,13 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { InboxWorkspace } from "@/components/inbox/InboxWorkspace";
-
-export default function DoiInboxPage() {
-  return (
-    <InboxWorkspace
-      portal="doi"
-      title="Inbox"
-      subtitle="Mail: validated drafts from CAS for final approval. Policy justification threads appear separately in Policy reviews."
-    />
-  );
+/** DOI uses centralized `ScheduleEntry` + Policy reviews; legacy inbox URL redirects to the dashboard. */
+export default function DoiInboxRedirectPage() {
+  redirect("/doi/dashboard");
 }

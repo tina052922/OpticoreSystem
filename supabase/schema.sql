@@ -754,9 +754,16 @@ create table if not exists public."ScheduleLoadJustification" (
   "authorEmail" text,
   justification text not null,
   "violationsSnapshot" jsonb,
+  "doiDecision" text,
+  "doiReviewedAt" timestamptz,
+  "doiReviewedById" text references public."User"(id) on delete set null,
+  "doiReviewNote" text,
   "createdAt" timestamptz not null default now(),
   "updatedAt" timestamptz not null default now(),
-  unique ("academicPeriodId", "collegeId")
+  unique ("academicPeriodId", "collegeId"),
+  constraint "ScheduleLoadJustification_doiDecision_check" check (
+    "doiDecision" is null or "doiDecision" in ('accepted', 'rejected', 'pending')
+  )
 );
 
 drop trigger if exists trg_schedule_load_justif_updated_at on public."ScheduleLoadJustification";
@@ -810,6 +817,13 @@ using (
   public.is_chairman_admin()
   and "collegeId" = public.current_user_college_id()
 );
+
+drop policy if exists schedule_load_justif_doi_update on public."ScheduleLoadJustification";
+create policy schedule_load_justif_doi_update on public."ScheduleLoadJustification"
+for update
+to authenticated
+using (public.is_doi_admin())
+with check (public.is_doi_admin());
 
 -- ---------------------------------------------------------------------------
 -- Ensure public."User".role CHECK includes cas_admin (idempotent).

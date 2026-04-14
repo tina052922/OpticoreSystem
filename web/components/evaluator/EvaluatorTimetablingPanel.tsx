@@ -692,6 +692,11 @@ export function EvaluatorTimetablingPanel({
             authorEmail: user.email ?? null,
             justification: justificationText.trim(),
             violationsSnapshot: { summary, detail: policyEvaluation.rows },
+            /** Chair resubmits → VPAA must review again. */
+            doiDecision: null,
+            doiReviewedAt: null,
+            doiReviewedById: null,
+            doiReviewNote: null,
           },
           { onConflict: "academicPeriodId,collegeId" },
         );
@@ -789,6 +794,10 @@ export function EvaluatorTimetablingPanel({
           authorEmail: user.email ?? null,
           justification: t,
           violationsSnapshot: { summary: snapRows.join("\n"), detail: policyEvaluation.rows },
+          doiDecision: null,
+          doiReviewedAt: null,
+          doiReviewedById: null,
+          doiReviewNote: null,
         },
         { onConflict: "academicPeriodId,collegeId" },
       );

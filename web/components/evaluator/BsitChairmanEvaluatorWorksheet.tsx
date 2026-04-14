@@ -7,7 +7,7 @@ import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
-import type { FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import type { FacultyProfile, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 import { Button } from "@/components/ui/button";
 import {
   BSIT_PROSPECTUS_SUBJECTS,
@@ -174,6 +174,8 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const [rows, setRows] = useState<PlotRow[]>([]);
   const [justificationText, setJustificationText] = useState("");
+  const [justificationSaving, setJustificationSaving] = useState(false);
+  const [justificationMsg, setJustificationMsg] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string>("");
   const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
   /** IDs loaded with `lockedByDoiAt` — never send DELETE for these if they disappear from state (e.g. scope change). */
@@ -407,6 +409,78 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const showJustification = policyRows.hasAnyViolation;
 
+  /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
+  const saveLoadJustificationForDoi = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase || !academicPeriodId || !chairmanCollegeId) {
+      setJustificationMsg("Select a term and ensure your college is in scope.");
+      return;
+    }
+    const t = justificationText.trim();
+    if (t.length < 12) {
+      setJustificationMsg("Enter at least 12 characters for VPAA review.");
+      return;
+    }
+    if (!policyRows.hasAnyViolation) {
+      setJustificationMsg("No load-policy violations detected; a justification is not required.");
+      return;
+    }
+    setJustificationSaving(true);
+    setJustificationMsg(null);
+    try {
+      const {
+        data: { user },
+        error: authErr,
+      } = await supabase.auth.getUser();
+      if (authErr || !user) {
+        setJustificationMsg("Not signed in.");
+        return;
+      }
+      const author = dbInstructors.find((u) => u.id === user.id);
+      const authorName = author?.name ?? user.email ?? user.id;
+      const snapRows = policyRows.rows
+        .filter((r) => r.violations.length > 0)
+        .map(
+          (r) =>
+            `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
+        );
+      const { error: jErr } = await supabase.from("ScheduleLoadJustification").upsert(
+        {
+          academicPeriodId,
+          collegeId: chairmanCollegeId,
+          authorUserId: user.id,
+          authorName,
+          authorEmail: user.email ?? null,
+          justification: t,
+          violationsSnapshot: { summary: snapRows.join("\n"), detail: policyRows.rows },
+          doiDecision: null,
+          doiReviewedAt: null,
+          doiReviewedById: null,
+          doiReviewNote: null,
+        },
+        { onConflict: "academicPeriodId,collegeId" },
+      );
+      if (jErr) {
+        setJustificationMsg(jErr.message);
+        return;
+      }
+      dispatchInsCatalogReload();
+      void fetch("/api/audit/schedule-write", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "chairman.policy_justification_upsert",
+          collegeId: chairmanCollegeId,
+          academicPeriodId,
+          details: { source: "bsit_evaluator_worksheet" },
+        }),
+      });
+      setJustificationMsg("Justification saved for DOI / VPAA review.");
+    } finally {
+      setJustificationSaving(false);
+    }
+  }, [academicPeriodId, chairmanCollegeId, justificationText, policyRows, dbInstructors]);
+
   function updateRow(id: string, patch: Partial<PlotRow>) {
     setRows((prev) =>
       prev.map((r) => {
@@ -485,7 +559,19 @@ export function BsitChairmanEvaluatorWorksheet({
     didHydrateFromDbRef.current = true;
     lastSyncedRowIdsRef.current = new Set(nextRows.map((r) => r.id));
     setRows(nextRows);
-  }, [academicPeriodId, bsitSections, subjectCodeById]);
+
+    if (chairmanCollegeId) {
+      const { data: lj } = await supabase
+        .from("ScheduleLoadJustification")
+        .select(Q.scheduleLoadJustification)
+        .eq("academicPeriodId", academicPeriodId)
+        .eq("collegeId", chairmanCollegeId)
+        .maybeSingle();
+      setJustificationText((lj as ScheduleLoadJustification | null)?.justification ?? "");
+    } else {
+      setJustificationText("");
+    }
+  }, [academicPeriodId, bsitSections, subjectCodeById, chairmanCollegeId]);
 
   useEffect(() => {
     void loadRowsFromSupabase();
@@ -913,6 +999,21 @@ export function BsitChairmanEvaluatorWorksheet({
             onChange={(e) => setJustificationText(e.target.value)}
             placeholder="e.g. Approved overload; temporary faculty shortage; consolidated sections…"
           />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              className="bg-amber-900 hover:bg-amber-950 text-white"
+              disabled={schedulePublished || justificationSaving}
+              onClick={() => void saveLoadJustificationForDoi()}
+            >
+              {justificationSaving ? "Saving…" : "Submit justification for VPAA (DOI)"}
+            </Button>
+            <span className="text-[11px] text-amber-950/70">
+              Draft rows still sync to the hub automatically; this button records the written overload reason for Policy
+              reviews.
+            </span>
+          </div>
+          {justificationMsg ? <p className="text-[12px] text-amber-950">{justificationMsg}</p> : null}
         </div>
       ) : null}
     </div>

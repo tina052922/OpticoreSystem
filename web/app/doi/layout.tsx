@@ -18,7 +18,6 @@ export default async function DoiLayout({ children }: { children: React.ReactNod
       navItems={DOI_ADMIN_NAV}
       roleLabel="DOI · VPAA"
       profileHref="/doi/profile"
-      inboxHref="/doi/inbox"
     >
       {children}
     </CampusIntelligenceShell>
