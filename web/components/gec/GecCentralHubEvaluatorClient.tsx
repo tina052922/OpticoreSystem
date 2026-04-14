@@ -535,6 +535,58 @@ export function GecCentralHubEvaluatorClient() {
     setSaveMsg(null);
   }
 
+  /**
+   * IMPORTANT (Rules of Hooks): these derived values must be computed before any early returns below.
+   * The evaluator has multiple landing/invalid states; keeping hooks unconditional prevents hook order
+   * changes when the user navigates between hub → college → section.
+   */
+  const selectedCollege = isCampusWide ? null : selectedDbCollege;
+  const selectedSection = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
+  const sectionProgram = selectedSection ? programById.get(selectedSection.programId) : undefined;
+
+  const selectedProspectusSemester = useMemo(
+    () => prospectusSemesterFromAcademicPeriod(selectedPeriod),
+    [selectedPeriod],
+  );
+
+  const selectedYearLevel = useMemo(() => {
+    const raw = selectedSection?.name ?? "";
+    // Examples: "BSIT 1A", "BSBA 2B", "1A" — we treat the first standalone digit as year level.
+    const m = raw.match(/\b([1-5])\b/);
+    if (m?.[1]) return parseInt(m[1], 10);
+    const m2 = raw.match(/(?:^|\s)([1-5])[A-Z]\b/i);
+    if (m2?.[1]) return parseInt(m2[1], 10);
+    return null;
+  }, [selectedSection?.name]);
+
+  const allowedProspectusCodes = useMemo(() => {
+    if (!sectionProgram?.code) return new Set<string>();
+    const sem = selectedProspectusSemester;
+    const yl = selectedYearLevel;
+    if (!sem || !yl) return new Set<string>();
+    const rows = getProspectusSubjectsForProgram(sectionProgram.code);
+    const set = new Set<string>();
+    for (const r of rows) {
+      if (r.yearLevel !== yl) continue;
+      if (r.semester !== sem) continue;
+      if (!isGecCurriculumSubjectCode(r.code)) continue;
+      set.add(normalizeProspectusCode(r.code));
+    }
+    return set;
+  }, [sectionProgram?.code, selectedProspectusSemester, selectedYearLevel]);
+
+  const allowedSubjectIds = useMemo(() => {
+    if (!selectedSection || allowedProspectusCodes.size === 0) return null;
+    const ids = new Set<string>();
+    for (const s of subjects) {
+      if (s.programId !== selectedSection.programId) continue;
+      if (!isGecCurriculumSubjectCode(s.code)) continue;
+      if (!allowedProspectusCodes.has(normalizeProspectusCode(s.code))) continue;
+      ids.add(s.id);
+    }
+    return ids;
+  }, [subjects, selectedSection, allowedProspectusCodes]);
+
   if (loadError) {
     return <div className="px-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4 m-4">{loadError}</div>;
   }
@@ -598,49 +650,6 @@ export function GecCentralHubEvaluatorClient() {
       </div>
     );
   }
-
-  const selectedCollege = isCampusWide ? null : selectedDbCollege;
-  const selectedSection = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
-  const sectionProgram = selectedSection ? programById.get(selectedSection.programId) : undefined;
-  const selectedProspectusSemester = useMemo(() => prospectusSemesterFromAcademicPeriod(selectedPeriod), [selectedPeriod]);
-
-  const selectedYearLevel = useMemo(() => {
-    const raw = selectedSection?.name ?? "";
-    // Examples: "BSIT 1A", "BSBA 2B", "1A" — we treat the first standalone digit as year level.
-    const m = raw.match(/\b([1-5])\b/);
-    if (m?.[1]) return parseInt(m[1], 10);
-    const m2 = raw.match(/(?:^|\s)([1-5])[A-Z]\b/i);
-    if (m2?.[1]) return parseInt(m2[1], 10);
-    return null;
-  }, [selectedSection?.name]);
-
-  const allowedProspectusCodes = useMemo(() => {
-    if (!sectionProgram?.code) return new Set<string>();
-    const sem = selectedProspectusSemester;
-    const yl = selectedYearLevel;
-    if (!sem || !yl) return new Set<string>();
-    const rows = getProspectusSubjectsForProgram(sectionProgram.code);
-    const set = new Set<string>();
-    for (const r of rows) {
-      if (r.yearLevel !== yl) continue;
-      if (r.semester !== sem) continue;
-      if (!isGecCurriculumSubjectCode(r.code)) continue;
-      set.add(normalizeProspectusCode(r.code));
-    }
-    return set;
-  }, [sectionProgram?.code, selectedProspectusSemester, selectedYearLevel]);
-
-  const allowedSubjectIds = useMemo(() => {
-    if (!selectedSection || allowedProspectusCodes.size === 0) return null;
-    const ids = new Set<string>();
-    for (const s of subjects) {
-      if (s.programId !== selectedSection.programId) continue;
-      if (!isGecCurriculumSubjectCode(s.code)) continue;
-      if (!allowedProspectusCodes.has(normalizeProspectusCode(s.code))) continue;
-      ids.add(s.id);
-    }
-    return ids;
-  }, [subjects, selectedSection, allowedProspectusCodes]);
 
   /** Hours / load tab — mirrors College Admin hub sample panel. */
   if (panel === "hrs") {
