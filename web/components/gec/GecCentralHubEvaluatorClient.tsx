@@ -37,7 +37,6 @@ import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
 import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
-import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-registry";
 import { parseGecYearLevelFromSectionName } from "@/lib/gec/gec-section-year-level";
 import { formatGecChairConflictHeadline } from "@/lib/gec/gec-conflict-headlines";
@@ -65,7 +64,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  * Vacant GEC placeholders are editable only after one-time `gec_vacant_slots` approval.
  */
 export function GecCentralHubEvaluatorClient() {
-  const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
+  const { selectedPeriodId: academicPeriodId } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
   const collegeParam = searchParams.get("college")?.trim() ?? "";
@@ -413,8 +412,8 @@ export function GecCentralHubEvaluatorClient() {
   }
 
   /**
-   * Full campus-wide scan for the selected term: every `ScheduleEntry` (all programs / majors / GEC)
-   * so vacant GEC edits cannot overlap locked majors elsewhere.
+   * Campus-wide for the selected term: every `ScheduleEntry` row (all colleges/programs — majors + GEC),
+   * so conflicts are detected against the real master timetable, not a single department filter.
    */
   function runConflictCheck() {
     if (!academicPeriodId) return;
@@ -504,9 +503,10 @@ export function GecCentralHubEvaluatorClient() {
       }
       setEdits({});
       setExtraEntries([]);
+      // INS Form 5A / by Section / by Room all use `useInsCatalog`, which listens for this event and refetches immediately.
+      dispatchInsCatalogReload();
       await load();
       await reloadAccess();
-      dispatchInsCatalogReload();
       setSaveMsg(`Saved ${toSave.length} vacant GEC row(s).`);
       runConflictCheck();
 
@@ -605,34 +605,30 @@ export function GecCentralHubEvaluatorClient() {
   const selectedSection = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
   const sectionProgram = selectedSection ? programById.get(selectedSection.programId) : undefined;
 
-  const selectedProspectusSemester = useMemo(
-    () => prospectusSemesterFromAcademicPeriod(selectedPeriod),
-    [selectedPeriod],
-  );
-
   const selectedYearLevel = useMemo(() => {
     const raw = selectedSection?.name ?? "";
     return parseGecYearLevelFromSectionName(raw);
   }, [selectedSection?.name]);
 
+  /** GEC dropdown + summary: prospectus rows for this section’s year only (e.g. BSIT 3A → year 3), all GEC codes in that year. */
   const allowedProspectusCodes = useMemo(() => {
     if (!sectionProgram?.code) return new Set<string>();
-    const sem = selectedProspectusSemester;
     const yl = selectedYearLevel;
-    if (!sem || !yl) return new Set<string>();
+    if (!yl) return new Set<string>();
     const rows = getProspectusSubjectsForProgram(sectionProgram.code);
     const set = new Set<string>();
     for (const r of rows) {
       if (r.yearLevel !== yl) continue;
-      if (r.semester !== sem) continue;
       if (!isGecCurriculumSubjectCode(r.code)) continue;
       set.add(normalizeProspectusCode(r.code));
     }
     return set;
-  }, [sectionProgram?.code, selectedProspectusSemester, selectedYearLevel]);
+  }, [sectionProgram?.code, selectedYearLevel]);
 
+  /** Empty set = section selected but no matching curriculum codes; null = no section. */
   const allowedSubjectIds = useMemo(() => {
-    if (!selectedSection || allowedProspectusCodes.size === 0) return null;
+    if (!selectedSection) return null;
+    if (allowedProspectusCodes.size === 0) return new Set<string>();
     const ids = new Set<string>();
     for (const s of subjects) {
       if (s.programId !== selectedSection.programId) continue;
@@ -945,11 +941,11 @@ export function GecCentralHubEvaluatorClient() {
               <div className="space-y-6">
                 {/* Top: static prospectus for this section’s program (registry in prospectus-registry.ts) */}
                 <BsitProspectusSummaryTable
-                  key={`${sectionIdFilter}-${selectedYearLevel ?? "x"}-${selectedProspectusSemester ?? "x"}`}
+                  key={`${sectionIdFilter}-${selectedYearLevel ?? "x"}`}
                   programCode={sectionProgram?.code ?? ""}
                   programName={sectionProgram?.name}
                   yearLevel={selectedYearLevel}
-                  semester={selectedProspectusSemester}
+                  semester={null}
                   onSelectSubjectCode={setPickedSummaryCode}
                 />
 

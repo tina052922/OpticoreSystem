@@ -181,13 +181,19 @@ export function useInsCatalog(args: { collegeId: string | null; programId: strin
     };
   }, [scheduleDebouncedReload, args.collegeId, args.campusWide]);
 
-  /** Same-tab refresh when Chairman Evaluator saves (Realtime may be off in some projects). */
+  /**
+   * Same-tab refresh when GEC Chairman / Chairman saves `ScheduleEntry` (Realtime may be off).
+   * Call `load()` immediately — no debounce — so Faculty / Section / Room INS views reflect new rows right away.
+   * Realtime `postgres_changes` above stays debounced to avoid storms.
+   */
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
-    const handler = () => scheduleDebouncedReload();
+    const handler = () => {
+      void load();
+    };
     window.addEventListener(INS_CATALOG_RELOAD_EVENT, handler);
     return () => window.removeEventListener(INS_CATALOG_RELOAD_EVENT, handler);
-  }, [scheduleDebouncedReload, args.collegeId, args.campusWide]);
+  }, [load, args.collegeId, args.campusWide]);
 
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
