@@ -71,6 +71,12 @@ export function DoiInsFormalApprovalPanel({
   const [notes, setNotes] = useState("");
   const [decisionBusy, setDecisionBusy] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  /** Set only after mount so SSR and first client paint match (avoids `new Date()` hydration mismatch). */
+  const [signaturePreviewAt, setSignaturePreviewAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSignaturePreviewAt(new Date().toLocaleString());
+  }, []);
 
   const loadFinalization = useCallback(async () => {
     const id = periodId.trim();
@@ -449,7 +455,7 @@ export function DoiInsFormalApprovalPanel({
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-700">Date / time</label>
               <p className="h-10 flex items-center text-sm text-gray-700 tabular-nums">
-                {new Date().toLocaleString()}
+                {signaturePreviewAt ?? "—"}
                 <span className="ml-2 text-xs text-gray-500">(captured on submit)</span>
               </p>
             </div>
