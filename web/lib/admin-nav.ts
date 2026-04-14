@@ -27,7 +27,6 @@ export const CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/chairman/dashboard", icon: "LayoutDashboard" },
   { label: "INS Form (Schedule View)", href: "/chairman/ins/faculty", icon: "BookOpen" },
   { label: "Evaluator", href: "/chairman/evaluator", icon: "ClipboardList" },
-  { label: "Inbox", href: "/chairman/inbox", icon: "Inbox" },
   { label: "Faculty Profile", href: "/chairman/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/chairman/subject-codes", icon: "Layers" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
@@ -38,7 +37,6 @@ export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/college", icon: "LayoutDashboard" },
   { label: "INS Form (Schedule View)", href: "/admin/college/ins/faculty", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/college/evaluator", icon: "ClipboardList" },
-  { label: "Inbox", href: "/admin/college/inbox", icon: "Inbox" },
   { label: "Schedule change requests", href: "/admin/college/schedule-change-requests", icon: "ClipboardList" },
   { label: "Access requests", href: "/admin/college/access-requests", icon: "KeyRound" },
   { label: "Audit log", href: "/admin/college/audit-log", icon: "History" },
@@ -68,7 +66,6 @@ export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/gec", icon: "LayoutDashboard" },
   { label: "INS Forms Schedule View", href: "/admin/gec/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
-  { label: "Inbox", href: "/admin/gec/inbox", icon: "Inbox" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 

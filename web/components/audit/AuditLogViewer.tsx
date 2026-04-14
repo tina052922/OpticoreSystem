@@ -53,7 +53,8 @@ export function AuditLogViewer() {
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={5} className="p-6 text-center text-black/50">
-                  No audit entries yet. Actions on access requests, inbox shares, and forwards appear here.
+                  No audit entries yet. Access requests, Chairman/GEC schedule writes, and CAS/DOI workflow events appear
+                  here.
                 </td>
               </tr>
             ) : (

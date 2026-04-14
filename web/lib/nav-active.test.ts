@@ -5,7 +5,7 @@ describe("isNavItemActive", () => {
   const collegeNav = [
     "/admin/college",
     "/admin/college/evaluator",
-    "/admin/college/inbox",
+    "/admin/college/audit-log",
     "/admin/college/ins/faculty",
   ];
 

@@ -35,6 +35,7 @@ import {
 } from "@/lib/chairman/bsit-prospectus";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -706,8 +707,21 @@ export function EvaluatorTimetablingPanel({
         return;
       }
 
-      const actor = collegeUsers.find((u) => u.id === user.id);
-      if (actor?.role === "chairman_admin" && effectiveCollegeId && rows.length > 0) {
+      dispatchInsCatalogReload();
+      if (author?.role === "chairman_admin" && effectiveCollegeId) {
+        void fetch("/api/audit/schedule-write", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "chairman.evaluator_save",
+            collegeId: effectiveCollegeId,
+            academicPeriodId,
+            details: { rowCount: rows.length },
+          }),
+        });
+      }
+
+      if (author?.role === "chairman_admin" && effectiveCollegeId && rows.length > 0) {
         const { data: admins } = await supabase
           .from("User")
           .select("id")

@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { appendWorkflowMessage } from "@/lib/inbox-store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { insertAuditLog } from "@/lib/server/audit-log";
-import { insertWorkflowInboxMessage } from "@/lib/server/workflow-inbox";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { AccessScope } from "@/types/db";
 import { GEC_DEFAULT_APPROVAL_COLLEGE_ID } from "@/lib/gec-routing";
@@ -128,30 +126,17 @@ export async function POST(req: Request) {
     details: { scopes, note },
   });
 
-  await insertWorkflowInboxMessage(supabase, {
-    senderId: user.id,
-    collegeId: targetCollegeId,
-    fromLabel: row.role === "cas_admin" ? "CAS Admin" : "GEC Chairman",
-    toLabel: "College Admin",
-    subject: "Access request — Evaluator / INS / GEC slots",
-    body:
-      `${note ?? "Requesting scoped access."}\n\nScopes: ${scopes.join(", ")}.\nRequest id: ${inserted?.id ?? "—"}.`,
-    workflowStage: "access_request",
-    mailFor: ["college"],
-    sentFor: row.role === "cas_admin" ? ["cas"] : ["gec"],
-  });
-
-  appendWorkflowMessage({
-    from: row.role === "cas_admin" ? "CAS Admin" : "GEC Chairman",
-    to: "College Admin",
-    subject: "Access request — Evaluator / INS / GEC slots",
-    body:
-      `${note ?? "Requesting scoped access."}\n\nScopes: ${scopes.join(", ")}.\nRequest id: ${inserted?.id ?? "—"}.`,
-    mailFor: ["college"],
-    sentFor: row.role === "cas_admin" ? ["cas"] : ["gec"],
-    workflowStage: "access_request",
-    status: "Unread",
-  });
+  /** In-app notice for College Admin (replaces workflow Inbox mail). */
+  const { data: admins } = await supabase
+    .from("User")
+    .select("id")
+    .eq("role", "college_admin")
+    .eq("collegeId", targetCollegeId);
+  if (admins?.length) {
+    const fromLabel = row.role === "cas_admin" ? "CAS Admin" : "GEC Chairman";
+    const msg = `${fromLabel} submitted an access request (${scopes.join(", ")}). Open Access requests to approve or deny.`;
+    await supabase.from("Notification").insert(admins.map((a) => ({ userId: a.id, message: msg })));
+  }
 
   return NextResponse.json({ ok: true, request: inserted });
 }
