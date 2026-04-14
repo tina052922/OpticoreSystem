@@ -58,6 +58,8 @@ type Props = {
   saveVacantBusy?: boolean;
   /** Shown immediately to the right of “Run conflict check” when conflicts exist (enriched + GA). */
   conflictAlternativesSlot?: ReactNode;
+  /** Visible label “Alternative Solutions” before the slot (when conflicts were found). */
+  showAlternativeSolutionsHeading?: boolean;
 };
 
 function hhmm(t: string): string {
@@ -115,6 +117,7 @@ export function GecSectionPlottingTable({
   saveVacantEditsDisabled = false,
   saveVacantBusy = false,
   conflictAlternativesSlot,
+  showAlternativeSolutionsHeading = false,
 }: Props) {
   const vacantSourceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -138,18 +141,16 @@ export function GecSectionPlottingTable({
       });
   }, [mergedEntries, academicPeriodId, sectionId]);
 
-  const sparseCollegeUniverse = useMemo(() => {
+  /** All plotted rows for this term campus-wide — matches GEC Chairman full scan (majors + GEC, every program). */
+  const sparseCampusWideUniverse = useMemo(() => {
     const list: SparseScheduleBlock[] = [];
     for (const e of mergedEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
-      const sec = sectionById.get(e.sectionId);
-      const pr = sec ? programById.get(sec.programId) : null;
-      if (!pr || pr.collegeId !== collegeId) continue;
       const b = entryToSparse(e);
       if (b) list.push(b);
     }
     return list;
-  }, [mergedEntries, academicPeriodId, collegeId, sectionById, programById]);
+  }, [mergedEntries, academicPeriodId]);
 
   const sec = sectionById.get(sectionId);
   const program = sec ? programById.get(sec.programId) : null;
@@ -170,7 +171,7 @@ export function GecSectionPlottingTable({
   function conflictForEntry(e: ScheduleEntry): { faculty: string; room: string; section: string } {
     const candidate = entryToSparse(e);
     if (!candidate) return { faculty: "—", room: "—", section: "—" };
-    const hits = detectConflictsSparse(candidate, sparseCollegeUniverse, candidate.id);
+    const hits = detectConflictsSparse(candidate, sparseCampusWideUniverse, candidate.id);
     const fac = hits.some((h) => h.type === "faculty");
     const room = hits.some((h) => h.type === "room");
     const secHit = hits.some((h) => h.type === "section");
@@ -226,6 +227,9 @@ export function GecSectionPlottingTable({
               <AlertTriangle className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
               Run conflict check
             </Button>
+          ) : null}
+          {showAlternativeSolutionsHeading && conflictAlternativesSlot ? (
+            <span className="text-[10px] font-bold text-[#780301] self-center whitespace-nowrap">Alternative Solutions</span>
           ) : null}
           {conflictAlternativesSlot ? (
             <div className="min-w-[200px] max-w-[min(100%,520px)] flex-1 basis-[280px]">{conflictAlternativesSlot}</div>
@@ -287,9 +291,7 @@ export function GecSectionPlottingTable({
                 const effStart = startIdx >= 0 ? Math.min(startIdx, maxStart) : 0;
                 const rowClass = editable
                   ? "bg-emerald-50/90 ring-1 ring-inset ring-emerald-400/70"
-                  : i % 2 === 0
-                    ? "bg-white"
-                    : "bg-black/[0.02]";
+                  : "bg-gray-200/85 text-black/65";
                 return (
                   <tr key={e.id} className={`text-[11px] ${rowClass}`}>
                     <td className="border border-black/10 px-2 py-1.5 font-semibold">{program?.code ?? "—"}</td>

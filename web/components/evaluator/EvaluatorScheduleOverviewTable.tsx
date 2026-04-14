@@ -105,16 +105,19 @@ export function EvaluatorScheduleOverviewTable({
                   : conflictRow
                     ? "bg-red-100 ring-2 ring-inset ring-red-400/80"
                     : "";
+                const zebra = i % 2 === 0 ? "bg-white" : "bg-black/[0.02]";
+                const lockedMajorGray =
+                  dimLocked && !isVacantGec && !conflictRow && !focused
+                    ? "bg-gray-200/80 text-black/60"
+                    : zebra;
                 return (
                 <tr
                   key={row.id}
                   id={`${rowDomIdPrefix}-${row.id}`}
-                  className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"} ${rowRing} ${
+                  className={`text-[11px] ${lockedMajorGray} ${rowRing} ${
                     isVacantGec
                       ? "border-l-[5px] border-l-emerald-500 bg-emerald-50/90 ring-1 ring-inset ring-emerald-300/60"
                       : ""
-                  } ${
-                    dimLocked ? "opacity-[0.52]" : ""
                   } ${onRowClick ? "cursor-pointer hover:bg-black/[0.04]" : ""}`}
                   onClick={onRowClick ? () => onRowClick(row.id) : undefined}
                   title={

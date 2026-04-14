@@ -47,9 +47,8 @@ export function BsitProspectusSummaryTable({
   useEffect(() => {
     setActiveCode(null);
     onSelectSubjectCode?.(null);
-    // Intentionally only when program changes — parent callback identity may vary.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [programCode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when scope (program/year/term) changes
+  }, [programCode, yearLevel, semester]);
 
   function pick(code: string) {
     const next = activeCode === code ? null : code;
@@ -73,11 +72,11 @@ export function BsitProspectusSummaryTable({
   return (
     <div className={`rounded-xl border border-black/10 bg-white shadow-[0px_4px_4px_rgba(0,0,0,0.08)] overflow-hidden ${className}`}>
       <div className="bg-[#780301] text-white px-4 py-3">
-        <h3 className="text-sm font-bold tracking-tight">Predefined summary of subjects</h3>
+        <h3 className="text-sm font-bold tracking-tight">Predefined summary of subjects (GEC · by year level)</h3>
         <p className="text-[11px] text-white/85 mt-1">
-          Program: <strong>{label}</strong> · Scope: <strong>{scopeLabel}</strong>. Click a row to select a code for
-          vacant GEC slots below. Static rows are filtered to <strong>GEC subjects</strong> and the selected term. To
-          add another program, register its prospectus in{" "}
+          Program: <strong>{label}</strong> · Scope: <strong>{scopeLabel}</strong>. Only this year level for the selected
+          semester. Click a row to select a code for vacant GEC slots below. To add another program, register its
+          prospectus in{" "}
           <code className="rounded bg-white/15 px-1">lib/chairman/prospectus-registry.ts</code>.
         </p>
       </div>

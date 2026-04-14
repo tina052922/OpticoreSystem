@@ -39,6 +39,8 @@ import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsR
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-registry";
+import { parseGecYearLevelFromSectionName } from "@/lib/gec/gec-section-year-level";
+import { formatGecChairConflictHeadline } from "@/lib/gec/gec-conflict-headlines";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -410,19 +412,13 @@ export function GecCentralHubEvaluatorClient() {
     });
   }
 
+  /**
+   * Full campus-wide scan for the selected term: every `ScheduleEntry` (all programs / majors / GEC)
+   * so vacant GEC edits cannot overlap locked majors elsewhere.
+   */
   function runConflictCheck() {
-    const blocks = mergedEntries
-      .filter((e) => {
-        if (e.academicPeriodId !== academicPeriodId) return false;
-        if (!collegeParam) return false;
-        const sec = sectionById.get(e.sectionId);
-        const pr = sec ? programById.get(sec.programId) : null;
-        if (!pr) return false;
-        if (!isCampusWide && pr.collegeId !== collegeParam) return false;
-        if (programId && sec?.programId !== programId) return false;
-        return true;
-      })
-      .map(toBlock);
+    if (!academicPeriodId) return;
+    const blocks = mergedEntries.filter((e) => e.academicPeriodId === academicPeriodId).map(toBlock);
     const scan = scanAllScheduleConflicts(blocks);
     setConflictIds(scan.conflictingEntryIds);
     setConflictSummary(scan.issueSummaries);
@@ -442,17 +438,14 @@ export function GecCentralHubEvaluatorClient() {
 
     const universe = blocks;
     const gaMap: Record<string, GASuggestion[]> = {};
+    /** Search all rooms and all teaching staff campus-wide so suggestions can move across programs when needed. */
+    const roomIds = rooms.map((r) => r.id);
+    const instructorIds = users
+      .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+      .map((u) => u.id);
     for (const iss of enriched) {
       const entry = mergedEntries.find((e) => e.id === iss.rowA.entryId);
       if (!entry) continue;
-      const sec = sectionById.get(entry.sectionId);
-      const pr = sec ? programById.get(sec.programId) : null;
-      const cid = pr?.collegeId;
-      if (!cid) continue;
-      const roomIds = rooms.filter((r) => !r.collegeId || r.collegeId === cid).map((r) => r.id);
-      const instructorIds = users
-        .filter((u) => u.collegeId === cid && (u.role === "instructor" || u.role === "chairman_admin"))
-        .map((u) => u.id);
       if (roomIds.length === 0 || instructorIds.length === 0) continue;
       const sug = runRuleBasedGeneticAlgorithm({
         universe,
@@ -564,10 +557,13 @@ export function GecCentralHubEvaluatorClient() {
     const programCode = prog?.code ?? "";
     const gecList = subjects
       .filter((s) => s.programId === sec.programId && isGecCurriculumSubjectCode(s.code))
+      .filter((s) => !allowedSubjectIds || allowedSubjectIds.size === 0 || allowedSubjectIds.has(s.id))
       .sort((a, b) => a.code.localeCompare(b.code));
     const firstSub = gecList[0];
     if (!firstSub) {
-      setSaveMsg("No GEC/GEE subjects found for this program. Add curriculum subjects in the database first.");
+      setSaveMsg(
+        "No GEC subjects for this section’s year level and term (check section code e.g. 3A) or add subjects in the database.",
+      );
       return;
     }
     const dur = scheduleSlotDurationForSubject(programCode, firstSub);
@@ -616,12 +612,7 @@ export function GecCentralHubEvaluatorClient() {
 
   const selectedYearLevel = useMemo(() => {
     const raw = selectedSection?.name ?? "";
-    // Examples: "BSIT 1A", "BSBA 2B", "1A" — we treat the first standalone digit as year level.
-    const m = raw.match(/\b([1-5])\b/);
-    if (m?.[1]) return parseInt(m[1], 10);
-    const m2 = raw.match(/(?:^|\s)([1-5])[A-Z]\b/i);
-    if (m2?.[1]) return parseInt(m2[1], 10);
-    return null;
+    return parseGecYearLevelFromSectionName(raw);
   }, [selectedSection?.name]);
 
   const allowedProspectusCodes = useMemo(() => {
@@ -656,11 +647,11 @@ export function GecCentralHubEvaluatorClient() {
   const gecAlternativesBesideRunButton =
     gecEnrichedConflicts.length === 0 ? null : (
       <div className="rounded-lg border border-amber-300 bg-amber-50/95 px-2 py-1.5 text-[10px] leading-snug text-black/90 max-h-40 overflow-y-auto shadow-sm min-w-[220px]">
-        <p className="font-bold text-amber-950 mb-1">Alternative solutions</p>
         {gecEnrichedConflicts.map((iss) => (
           <div key={iss.key} className="mb-2 last:mb-0 border-b border-amber-200/80 pb-2 last:border-0 last:pb-0">
-            <p className="font-semibold text-red-900 capitalize">{iss.type} conflict</p>
-            <div className="mt-0.5 space-y-0.5">
+            <p className="font-semibold text-red-900">{formatGecChairConflictHeadline(iss)}</p>
+            <p className="text-[9px] text-black/55 mt-0.5 capitalize">({iss.type} overlap — details below)</p>
+            <div className="mt-0.5 space-y-0.5 text-black/70">
               <p>
                 <span className="font-semibold text-black/80">A · </span>
                 {iss.rowA.what} · {iss.rowA.when} · room {iss.rowA.where} · faculty {iss.rowA.who}
@@ -798,7 +789,7 @@ export function GecCentralHubEvaluatorClient() {
     <div>
       <ChairmanPageHeader
         title="Central Hub Evaluator"
-        subtitle="Campus-wide data — narrow by college and department (program). Vacant GEC slots are highlighted; plotting matches the Program Chairman worksheet."
+        subtitle="Select college and section. Conflict check uses the full campus timetable for the selected term; you may edit vacant GEC slots only."
       />
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
@@ -889,6 +880,11 @@ export function GecCentralHubEvaluatorClient() {
                 <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
                 Run conflict check
               </Button>
+              {gecEnrichedConflicts.length > 0 ? (
+                <span className="text-[11px] font-bold text-[#780301] self-end pb-2 whitespace-nowrap">
+                  Alternative Solutions
+                </span>
+              ) : null}
               {gecAlternativesBesideRunButton}
               <Button
                 type="button"
@@ -949,6 +945,7 @@ export function GecCentralHubEvaluatorClient() {
               <div className="space-y-6">
                 {/* Top: static prospectus for this section’s program (registry in prospectus-registry.ts) */}
                 <BsitProspectusSummaryTable
+                  key={`${sectionIdFilter}-${selectedYearLevel ?? "x"}-${selectedProspectusSemester ?? "x"}`}
                   programCode={sectionProgram?.code ?? ""}
                   programName={sectionProgram?.name}
                   yearLevel={selectedYearLevel}
@@ -986,6 +983,7 @@ export function GecCentralHubEvaluatorClient() {
                     saveVacantEditsDisabled={!canEditVacant}
                     saveVacantBusy={saveBusy}
                     conflictAlternativesSlot={gecAlternativesBesideRunButton}
+                    showAlternativeSolutionsHeading={gecEnrichedConflicts.length > 0}
                   />
                 ) : (
                   <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
