@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { groupProspectusByYearLevelOnly } from "@/lib/gec/prospectus-summary";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
+import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 
 type Props = {
   /** Must match `Program.code` for the selected section (drives which static curriculum is shown). */
   programCode: string;
   /** Optional display name (e.g. program full name). */
   programName?: string;
-  /** Optional filters: show only subjects for this year level. */
+  /** Filter: show only subjects for this year level (from section name, e.g. BSIT 3A → 3). */
   yearLevel?: number | null;
-  /** Optional filters: show only subjects for this semester. */
+  /** Filter: when set, only that prospectus semester; when null, both semesters for the year. */
   semester?: 1 | 2 | null;
+  /** When provided, show a Status column — GEC codes already scheduled for the active section/term. */
+  plottedSubjectCodes?: ReadonlySet<string>;
   /** When user picks a code, vacant-row subject dropdowns can prefill from this. */
   onSelectSubjectCode?: (code: string | null) => void;
   className?: string;
@@ -29,6 +33,7 @@ export function BsitProspectusSummaryTable({
   programName,
   yearLevel = null,
   semester = null,
+  plottedSubjectCodes,
   onSelectSubjectCode,
   className = "",
 }: Props) {
@@ -36,9 +41,10 @@ export function BsitProspectusSummaryTable({
 
   const groups = useMemo(() => {
     const rows = getProspectusSubjectsForProgram(programCode).filter((r) => isGecCurriculumSubjectCode(r.code));
+    /** Use `!= null` so year level 0 would still filter — curriculum uses 1–4 only. */
     const filtered = rows.filter((r) => {
-      if (yearLevel && r.yearLevel !== yearLevel) return false;
-      if (semester && r.semester !== semester) return false;
+      if (yearLevel != null && r.yearLevel !== yearLevel) return false;
+      if (semester != null && r.semester !== semester) return false;
       return true;
     });
     return groupProspectusByYearLevelOnly(filtered);
@@ -61,11 +67,11 @@ export function BsitProspectusSummaryTable({
     : programCode || "—";
 
   const scopeLabel =
-    yearLevel && semester
+    yearLevel != null && semester != null
       ? `Year ${yearLevel} · ${semester === 1 ? "1st" : "2nd"} Semester`
-      : yearLevel
+      : yearLevel != null
         ? `Year ${yearLevel}`
-        : semester
+        : semester != null
           ? `${semester === 1 ? "1st" : "2nd"} Semester`
           : "All year levels";
 
@@ -74,9 +80,9 @@ export function BsitProspectusSummaryTable({
       <div className="bg-[#780301] text-white px-4 py-3">
         <h3 className="text-sm font-bold tracking-tight">Predefined summary of subjects (GEC · by year level)</h3>
         <p className="text-[11px] text-white/85 mt-1">
-          Program: <strong>{label}</strong> · Scope: <strong>{scopeLabel}</strong>. Only this year level for the selected
-          semester. Click a row to select a code for vacant GEC slots below. To add another program, register its
-          prospectus in{" "}
+          Program: <strong>{label}</strong> · Scope: <strong>{scopeLabel}</strong> (year from the selected section name;
+          semester from the current term when detected). Click a row to select a code for vacant GEC slots below. Register
+          curricula in{" "}
           <code className="rounded bg-white/15 px-1">lib/chairman/prospectus-registry.ts</code>.
         </p>
       </div>
@@ -103,12 +109,18 @@ export function BsitProspectusSummaryTable({
                 <th className="border border-black/10 px-2 py-2 text-left font-bold">Title</th>
                 <th className="border border-black/10 px-2 py-2 text-right font-bold w-[52px]">Lec U</th>
                 <th className="border border-black/10 px-2 py-2 text-right font-bold w-[52px]">Lab U</th>
+                {plottedSubjectCodes ? (
+                  <th className="border border-black/10 px-2 py-2 text-left font-bold w-[88px]">Status</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
               {groups.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="border border-black/10 px-3 py-8 text-center text-[12px] text-black/55">
+                  <td
+                    colSpan={plottedSubjectCodes ? 7 : 6}
+                    className="border border-black/10 px-3 py-8 text-center text-[12px] text-black/55"
+                  >
                     No GEC subjects found for the selected year level / semester scope.
                   </td>
                 </tr>
@@ -141,6 +153,18 @@ export function BsitProspectusSummaryTable({
                     <td className="border border-black/10 px-2 py-1.5 text-black/85">{s.title}</td>
                     <td className="border border-black/10 px-2 py-1.5 text-right tabular-nums">{s.lecUnits}</td>
                     <td className="border border-black/10 px-2 py-1.5 text-right tabular-nums">{s.labUnits}</td>
+                    {plottedSubjectCodes ? (
+                      <td className="border border-black/10 px-2 py-1.5 text-[10px]">
+                        {plottedSubjectCodes.has(normalizeProspectusCode(s.code)) ? (
+                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-900">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                            Plotted
+                          </span>
+                        ) : (
+                          <span className="text-black/45">—</span>
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 )),
               )}

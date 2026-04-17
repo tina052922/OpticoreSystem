@@ -10,13 +10,13 @@ export default async function ChairmanSubjectCodesPage() {
   return (
     <ChairmanScopedPage
       title="Subject Codes"
-      subtitle="Official BSIT curriculum (CMO 25 s. 2015, A.Y. 2023–2024) — your program scope only."
+      subtitle="Official curriculum reference for your assigned program (static prospectus when available in the registry)."
       chairmanCollegeId={session.collegeId}
       chairmanProgramId={session.programId}
       chairmanProgramCode={session.programCode}
       chairmanProgramName={session.programName}
     >
-      <SubjectCodesWorkspace lockedProgramId={session.programId} />
+      <SubjectCodesWorkspace lockedProgramId={session.programId} lockedProgramCode={session.programCode} />
     </ChairmanScopedPage>
   );
 }

@@ -6,12 +6,14 @@ import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
+import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
 import type {
   AcademicPeriod,
   CampusInsSettings,
   College,
+  FacultyProfile,
   Program,
   Room,
   ScheduleEntry,
@@ -66,6 +68,8 @@ export function useInsCatalog(args: {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  /** `userId` + name fields for INS labels (AKA vs full name; never Employee ID). */
+  const [facultyInsNames, setFacultyInsNames] = useState<Pick<FacultyProfile, "userId" | "fullName" | "aka">[]>([]);
   const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
   const skipPeriodEntryFetchRef = useRef(true);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -85,6 +89,7 @@ export function useInsCatalog(args: {
     if (!args.collegeId && !args.campusWide) {
       setLoading(false);
       setEntries([]);
+      setFacultyInsNames([]);
       setCampusInsSettings(null);
       setError(null);
       return;
@@ -129,6 +134,7 @@ export function useInsCatalog(args: {
       { data: col, error: e8 },
       { data: fac, error: e7 },
       { data: ins, error: e9 },
+      { data: fpIns, error: e10 },
     ] = await Promise.all([
       schPromise,
       supabase.from("Section").select(Q.section).order("name"),
@@ -138,8 +144,9 @@ export function useInsCatalog(args: {
       supabase.from("College").select(Q.college).order("name"),
       supabase.from("User").select(Q.userHub),
       supabase.from("CampusInsSettings").select(Q.campusInsSettings).eq("id", "default").maybeSingle(),
+      supabase.from("FacultyProfile").select(Q.facultyProfileInsNames),
     ]);
-    const err = e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9;
+    const err = e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10;
     if (err) {
       setError(err.message);
       setLoading(false);
@@ -153,6 +160,7 @@ export function useInsCatalog(args: {
     setPrograms((prog ?? []) as Program[]);
     setColleges((col ?? []) as College[]);
     setUsers((fac ?? []) as User[]);
+    setFacultyInsNames((fpIns ?? []) as Pick<FacultyProfile, "userId" | "fullName" | "aka">[]);
     setCampusInsSettings((ins as CampusInsSettings | null) ?? null);
     if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
     setLoading(false);
@@ -269,6 +277,14 @@ export function useInsCatalog(args: {
     return m;
   }, [users]);
 
+  const facultyProfileByUserId = useMemo(() => {
+    const m = new Map<string, Pick<FacultyProfile, "fullName" | "aka">>();
+    for (const p of facultyInsNames) {
+      m.set(p.userId, { fullName: p.fullName, aka: p.aka });
+    }
+    return m;
+  }, [facultyInsNames]);
+
   const scopedEntries = useMemo(() => {
     let base: ScheduleEntry[];
     if (args.campusWide) {
@@ -326,11 +342,15 @@ export function useInsCatalog(args: {
     const list: InsInstructorOption[] = [];
     for (const id of ids) {
       const u = users.find((x) => x.id === id);
-      if (u) list.push({ id: u.id, name: u.name });
+      if (u)
+        list.push({
+          id: u.id,
+          name: insInstructorDisplayName(u, facultyProfileByUserId.get(id)),
+        });
     }
     list.sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [termEntries, users]);
+  }, [termEntries, users, facultyProfileByUserId]);
 
   const sectionOptions: InsSectionOption[] = useMemo(() => {
     const ids = new Set<string>();
@@ -395,6 +415,7 @@ export function useInsCatalog(args: {
     colleges,
     users,
     userById,
+    facultyProfileByUserId,
     instructorOptions,
     sectionOptions,
     roomOptions,

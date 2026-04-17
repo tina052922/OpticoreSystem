@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
-import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
+import { detectConflictsSparse, scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
 import type { FacultyProfile, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
+import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   BSIT_PROSPECTUS_SUBJECTS,
@@ -27,19 +29,21 @@ import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
+import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
+import type { EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
+import {
+  formatInstructorPlotOptionLabel,
+  formatUserInstructorLabel,
+  mergeLegacyRowInstructorsIntoPlotOptions,
+  usersToInstructorPlotOptions,
+  type InstructorPlotOption,
+} from "@/lib/evaluator/instructor-employee-id";
 
 const MAJOR_FIXED = "BSIT";
 
 const selectClass =
   "w-full min-h-10 rounded-md border border-black/25 bg-white px-2 text-[11px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
-
-/** Fallback when Supabase has no instructors (demo). */
-const SAMPLE_INSTRUCTORS: { id: string; name: string }[] = [
-  { id: "sample-ins-1", name: "Prof. Ramon Santos" },
-  { id: "sample-ins-2", name: "Dr. Ana L. Reyes" },
-  { id: "sample-ins-3", name: "Engr. Marco Dela Cruz" },
-  { id: "sample-ins-4", name: "Ms. Clara V. Gomez" },
-];
 
 export type PlotRow = {
   id: string;
@@ -140,6 +144,42 @@ function rowToBlock(row: PlotRow, academicPeriodId: string, subjectIdForRow: str
   };
 }
 
+/** Normalize DB time strings for sparse overlap checks (matches GEC `GecSectionPlottingTable`). */
+function hhmmSchedule(t: string): string {
+  const s = t.trim();
+  return s.length > 5 ? s.slice(0, 5) : s;
+}
+
+/** Supabase row → sparse block for campus-wide conflict universe (all programs / sections / rooms / faculty). */
+function scheduleEntryToSparse(e: ScheduleEntry): SparseScheduleBlock | null {
+  if (!e.academicPeriodId) return null;
+  return {
+    id: e.id,
+    academicPeriodId: e.academicPeriodId,
+    day: e.day,
+    startTime: hhmmSchedule(e.startTime),
+    endTime: hhmmSchedule(e.endTime),
+    instructorId: e.instructorId,
+    sectionId: e.sectionId,
+    roomId: e.roomId,
+  };
+}
+
+function scheduleEntryToBlock(e: ScheduleEntry): ScheduleBlock | null {
+  if (!e.instructorId || !e.sectionId || !e.roomId) return null;
+  return {
+    id: e.id,
+    academicPeriodId: e.academicPeriodId,
+    subjectId: e.subjectId,
+    instructorId: e.instructorId,
+    sectionId: e.sectionId,
+    roomId: e.roomId,
+    day: e.day,
+    startTime: hhmmSchedule(e.startTime),
+    endTime: hhmmSchedule(e.endTime),
+  };
+}
+
 /** INS-style labels: full range line + each 1-hour row (matches Schedule Preview). */
 function formatTimeRangeFromSlots(effectiveStart: number, dur: number): { fullLine: string; slotLines: string[] } {
   const slots = BSIT_EVALUATOR_TIME_SLOTS;
@@ -155,15 +195,37 @@ function formatTimeRangeFromSlots(effectiveStart: number, dur: number): { fullLi
 type BsitChairmanEvaluatorWorksheetProps = {
   chairmanCollegeId: string | null;
   chairmanProgramId: string | null;
+  /** Static prospectus / summary label (e.g. BSIT) — mirrors `getChairmanSession().programCode`. */
+  chairmanProgramCode?: string | null;
+  chairmanProgramName?: string | null;
   /** Live load summary for the Evaluator &quot;Hrs-Units-Preps-Remarks&quot; tab. */
   onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
 };
 
+function rowFullyPlotted(row: PlotRow): boolean {
+  if (!row.sectionId || !row.subjectCode || !row.instructorId || !row.roomId) return false;
+  return rowTimeBounds(row) != null;
+}
+
+/**
+ * Same bar as {@link BsitWeekPreview}: a class appears in the weekly grid when section, prospectus subject, day, and
+ * start slot are set. Instructor/room are optional for rendering the cell — the summary “Plotted” badge must follow
+ * this so it stays in sync with the preview (autosave to DB may still wait for full resource fields).
+ */
+function rowVisibleInSchedulePreview(row: PlotRow): boolean {
+  if (!row.sectionId || !row.subjectCode) return false;
+  if (!prospectusByCode(row.subjectCode)) return false;
+  return rowTimeBounds(row) != null;
+}
+
 export function BsitChairmanEvaluatorWorksheet({
   chairmanCollegeId,
   chairmanProgramId,
+  chairmanProgramCode = null,
+  chairmanProgramName = null,
   onPolicySnapshot,
 }: BsitChairmanEvaluatorWorksheetProps) {
+  const searchParams = useSearchParams();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const [sections, setSections] = useState<Section[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -171,18 +233,35 @@ export function BsitChairmanEvaluatorWorksheet({
   const [dbInstructors, setDbInstructors] = useState<User[]>([]);
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Full term load for campus-wide conflict checks (every program — merged with worksheet state). */
+  const [allTermScheduleEntries, setAllTermScheduleEntries] = useState<ScheduleEntry[]>([]);
+  /** Row ids flagged by explicit &quot;Run conflict check&quot; (full campus scan). */
+  const [campusScanConflictIds, setCampusScanConflictIds] = useState<Set<string>>(() => new Set());
+  const [saveScheduleBusy, setSaveScheduleBusy] = useState(false);
+  const [saveScheduleMsg, setSaveScheduleMsg] = useState<string | null>(null);
+  /** Server-enriched explanations (saved DB rows); local unsaved edits may add conflicts not listed here. */
+  const [chairmanEnrichedIssues, setChairmanEnrichedIssues] = useState<EnrichedCampusIssue[]>([]);
+  const [conflictDetailLoading, setConflictDetailLoading] = useState(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [rows, setRows] = useState<PlotRow[]>([]);
   const [justificationText, setJustificationText] = useState("");
   const [justificationSaving, setJustificationSaving] = useState(false);
   const [justificationMsg, setJustificationMsg] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string>("");
+  /** Brief highlight in the prospectus summary when a new subject is plotted for the selected section. */
+  const [lastPlottedSubjectFlash, setLastPlottedSubjectFlash] = useState<string | null>(null);
+  const plottedSnapshotRef = useRef<string>("");
+  const [policyPromptOpen, setPolicyPromptOpen] = useState(false);
+  const wasPolicyViolatingRef = useRef(false);
   const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
   /** IDs loaded with `lockedByDoiAt` — never send DELETE for these if they disappear from state (e.g. scope change). */
   const lockedEntryIdsRef = useRef<Set<string>>(new Set());
   const didHydrateFromDbRef = useRef(false);
 
   const programId = chairmanProgramId ?? "prog-bsit";
+  /** Prospectus registry key — aligns with `Program.code` in Supabase (e.g. BSIT). */
+  const programCodeForSummary = (chairmanProgramCode ?? "").trim() || MAJOR_FIXED;
 
   const loadCatalog = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -264,43 +343,48 @@ export function BsitChairmanEvaluatorWorksheet({
     });
   }, [rooms, chairmanCollegeId]);
 
-  const instructorOptions = useMemo(() => {
-    if (dbInstructors.length > 0) return dbInstructors.map((u) => ({ id: u.id, name: u.name }));
-    return SAMPLE_INSTRUCTORS;
-  }, [dbInstructors]);
+  const rowInstructorIds = useMemo(() => rows.map((r) => r.instructorId).filter(Boolean) as string[], [rows]);
 
-  const instructorNameById = useMemo(() => {
-    const m = new Map<string, string>();
-    instructorOptions.forEach((u) => m.set(u.id, u.name));
+  const facultyProfileByUserId = useMemo(() => {
+    const m = new Map<string, FacultyProfile>();
+    for (const p of facultyProfiles) m.set(p.userId, p);
     return m;
-  }, [instructorOptions]);
+  }, [facultyProfiles]);
+
+  const instructorPlotOptions = useMemo((): InstructorPlotOption[] => {
+    const base = usersToInstructorPlotOptions(dbInstructors, facultyProfileByUserId);
+    return mergeLegacyRowInstructorsIntoPlotOptions(base, dbInstructors, rowInstructorIds, facultyProfileByUserId);
+  }, [dbInstructors, rowInstructorIds, facultyProfileByUserId]);
+
+  /** Week preview / conflict UI: full name (Faculty Profile when set). */
+  const instructorDisplayById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of dbInstructors) {
+      m.set(u.id, formatUserInstructorLabel(u, facultyProfileByUserId.get(u.id)));
+    }
+    return m;
+  }, [dbInstructors, facultyProfileByUserId]);
 
   const userById = useMemo(() => {
     const m = new Map<string, User>();
     dbInstructors.forEach((u) => m.set(u.id, u));
-    if (dbInstructors.length === 0) {
-      const now = new Date().toISOString();
-      for (const s of SAMPLE_INSTRUCTORS) {
-        m.set(s.id, {
-          id: s.id,
-          employeeId: null,
-          email: `${s.id}@sample.local`,
-          name: s.name,
-          role: "instructor",
-          collegeId: chairmanCollegeId,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
-    }
     return m;
-  }, [dbInstructors, chairmanCollegeId]);
+  }, [dbInstructors]);
 
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
     bsitSections.forEach((s) => m.set(s.id, s.name));
     return m;
   }, [bsitSections]);
+
+  /**
+   * Prospectus summary: year level from section name (BSIT-3A → 3). `undefined` = no section; `null` = unparseable.
+   */
+  const summaryYearLevelFilter = useMemo((): number | null | undefined => {
+    if (!selectedSectionId) return undefined;
+    const name = sectionNameById.get(selectedSectionId) ?? "";
+    return yearLevelFromBsitSectionName(name);
+  }, [selectedSectionId, sectionNameById]);
 
   /** Align plotted subjects with the global term: prospectus semester 1 vs 2 from `AcademicPeriod` naming. */
   const termProspectusSemester = useMemo(
@@ -332,22 +416,33 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [facultyProfiles]);
 
-  const sparseUniverse = useMemo((): SparseScheduleBlock[] => {
+  /**
+   * Campus-wide sparse universe: all `ScheduleEntry` rows for the term from Supabase, with worksheet rows
+   * overriding same ids so edits compare against every other section / program / room / instructor.
+   */
+  const sparseCampusWideUniverse = useMemo((): SparseScheduleBlock[] => {
     if (!academicPeriodId) return [];
-    const list: SparseScheduleBlock[] = [];
+    const worksheetIds = new Set(rows.map((r) => r.id));
+    const byId = new Map<string, SparseScheduleBlock>();
+    for (const e of allTermScheduleEntries) {
+      if (e.academicPeriodId !== academicPeriodId) continue;
+      if (worksheetIds.has(e.id)) continue;
+      const sp = scheduleEntryToSparse(e);
+      if (sp) byId.set(e.id, sp);
+    }
     for (const row of rows) {
       const b = rowToSparseBlock(row, academicPeriodId);
-      if (b) list.push(b);
+      if (b) byId.set(row.id, b);
     }
-    return list;
-  }, [rows, academicPeriodId]);
+    return [...byId.values()];
+  }, [allTermScheduleEntries, academicPeriodId, rows]);
 
   const conflictForRow = useCallback(
     (row: PlotRow): { faculty: string; room: string; section: string } => {
       if (!academicPeriodId) return { faculty: "—", room: "—", section: "—" };
       const candidate = rowToSparseBlock(row, academicPeriodId);
       if (!candidate) return { faculty: "—", room: "—", section: "—" };
-      const hits = detectConflictsSparse(candidate, sparseUniverse, candidate.id);
+      const hits = detectConflictsSparse(candidate, sparseCampusWideUniverse, candidate.id);
       const fac = hits.some((h) => h.type === "faculty");
       const room = hits.some((h) => h.type === "room");
       const sec = hits.some((h) => h.type === "section");
@@ -357,8 +452,126 @@ export function BsitChairmanEvaluatorWorksheet({
         section: !candidate.sectionId ? "—" : sec ? "Yes" : "No",
       };
     },
-    [academicPeriodId, sparseUniverse],
+    [academicPeriodId, sparseCampusWideUniverse],
   );
+
+  /**
+   * Subject codes that appear in the schedule preview for the selected section — drives the prospectus “Plotted”
+   * column (must match {@link BsitWeekPreview} / {@link rowVisibleInSchedulePreview}, not DB-only “fully saved” rows).
+   */
+  const plottedSubjectCodesForSection = useMemo(() => {
+    const set = new Set<string>();
+    if (!selectedSectionId) return set;
+    for (const row of rows) {
+      if (row.sectionId !== selectedSectionId) continue;
+      if (!rowVisibleInSchedulePreview(row)) continue;
+      set.add(normalizeProspectusCode(row.subjectCode));
+    }
+    return set;
+  }, [rows, selectedSectionId]);
+
+  /**
+   * Full `ScheduleBlock` set for the term: DB snapshot + worksheet overlay. Drives the explicit
+   * &quot;Run conflict check&quot; (campus-wide — same model as GEC Central Hub).
+   */
+  const mergedBlocksForCampusScan = useMemo(() => {
+    if (!academicPeriodId) return [] as ScheduleBlock[];
+    const worksheetIds = new Set(rows.map((r) => r.id));
+    const byId = new Map<string, ScheduleBlock>();
+    for (const e of allTermScheduleEntries) {
+      if (e.academicPeriodId !== academicPeriodId) continue;
+      if (worksheetIds.has(e.id)) continue;
+      const b = scheduleEntryToBlock(e);
+      if (b) byId.set(e.id, b);
+    }
+    for (const row of rows) {
+      const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId) : undefined;
+      if (!subj) continue;
+      const b = rowToBlock(row, academicPeriodId, subj.id);
+      if (b) byId.set(row.id, b);
+    }
+    return [...byId.values()];
+  }, [allTermScheduleEntries, academicPeriodId, rows, programId]);
+
+  const runCampusConflictCheck = useCallback(async () => {
+    if (!academicPeriodId) return;
+    setSaveScheduleMsg(null);
+    setChairmanEnrichedIssues([]);
+    const scan = scanAllScheduleConflicts(mergedBlocksForCampusScan);
+    setCampusScanConflictIds(new Set(scan.conflictingEntryIds));
+    if (scan.issueSummaries.length === 0) {
+      setSaveScheduleMsg("No conflicts — faculty, room, and section times are clear campus-wide for this term.");
+    } else {
+      setSaveScheduleMsg(`Campus-wide scan: ${scan.conflictingEntryIds.size} row(s) involved in conflicts.`);
+    }
+    setConflictDetailLoading(true);
+    try {
+      const res = await fetch("/api/scheduling/scope-conflict-scan", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          academicPeriodId,
+          mode: "chairman_program",
+          collegeId: chairmanCollegeId,
+          programId: chairmanProgramId,
+        }),
+      });
+      const data = (await res.json()) as { enrichedIssues?: EnrichedCampusIssue[] };
+      if (res.ok && Array.isArray(data.enrichedIssues)) {
+        setChairmanEnrichedIssues(data.enrichedIssues);
+      }
+    } catch {
+      setChairmanEnrichedIssues([]);
+    } finally {
+      setConflictDetailLoading(false);
+    }
+  }, [academicPeriodId, mergedBlocksForCampusScan, chairmanCollegeId, chairmanProgramId]);
+
+  useEffect(() => {
+    const ser = [...plottedSubjectCodesForSection].sort().join(",");
+    if (plottedSnapshotRef.current === "") {
+      plottedSnapshotRef.current = ser;
+      return;
+    }
+    if (ser === plottedSnapshotRef.current) return;
+    const prev = new Set(plottedSnapshotRef.current.split(",").filter(Boolean));
+    let flash: string | null = null;
+    for (const c of plottedSubjectCodesForSection) {
+      if (!prev.has(c)) {
+        flash = c;
+        break;
+      }
+    }
+    plottedSnapshotRef.current = ser;
+    if (!flash) return;
+    setLastPlottedSubjectFlash(flash);
+    const id = window.setTimeout(() => setLastPlottedSubjectFlash(null), 4500);
+    return () => window.clearTimeout(id);
+  }, [plottedSubjectCodesForSection]);
+
+  const chairmanConflictDeepLinkKey = useRef<string | null>(null);
+  useEffect(() => {
+    chairmanConflictDeepLinkKey.current = null;
+  }, [academicPeriodId]);
+
+  useEffect(() => {
+    if (searchParams.get("conflicts") !== "1" || !academicPeriodId) return;
+    if (mergedBlocksForCampusScan.length === 0) return;
+    const k = `${academicPeriodId}:${searchParams.toString()}`;
+    if (chairmanConflictDeepLinkKey.current === k) return;
+    chairmanConflictDeepLinkKey.current = k;
+    runCampusConflictCheck();
+  }, [searchParams, academicPeriodId, mergedBlocksForCampusScan.length, runCampusConflictCheck]);
+
+  useEffect(() => {
+    if (searchParams.get("conflicts") !== "1") return;
+    const first = [...campusScanConflictIds][0];
+    if (!first) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`chairman-eval-row-${first}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [searchParams, campusScanConflictIds]);
 
   const policyRows = useMemo(() => {
     if (!academicPeriodId || !chairmanCollegeId) {
@@ -408,6 +621,16 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [policyRows, facultyProfiles, onPolicySnapshot]);
 
   const showJustification = policyRows.hasAnyViolation;
+
+  /** First transition into a load-policy violation while plotting — prompt the chairman to document rationale for DOI. */
+  useEffect(() => {
+    const v = policyRows.hasAnyViolation;
+    if (v && !wasPolicyViolatingRef.current) {
+      setPolicyPromptOpen(true);
+    }
+    wasPolicyViolatingRef.current = v;
+    if (!v) setPolicyPromptOpen(false);
+  }, [policyRows.hasAnyViolation]);
 
   /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
   const saveLoadJustificationForDoi = useCallback(async () => {
@@ -532,6 +755,15 @@ export function BsitChairmanEvaluatorWorksheet({
       return;
     }
     const entries = (sch ?? []) as ScheduleEntry[];
+    setAllTermScheduleEntries(entries);
+
+    if (sectionIds.size === 0) {
+      setRows([]);
+      didHydrateFromDbRef.current = true;
+      lastSyncedRowIdsRef.current = new Set();
+      return;
+    }
+
     const relevant = entries.filter((e) => sectionIds.has(e.sectionId));
 
     lockedEntryIdsRef.current = new Set(
@@ -598,18 +830,28 @@ export function BsitChairmanEvaluatorWorksheet({
     });
   }, [rows, academicPeriodId, chairmanCollegeId, chairmanProgramId]);
 
-  useEffect(() => {
-    if (!academicPeriodId) return;
-    if (!didHydrateFromDbRef.current) return;
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) return;
-
-    const t = setTimeout(() => {
-      void (async () => {
+  /**
+   * Writes worksheet rows to `ScheduleEntry` (same source as INS Faculty / Section / Room).
+   * Autosave is debounced; &quot;Save schedule&quot; flushes immediately and dispatches `ins-catalog-reload`.
+   */
+  const performSchedulePersist = useCallback(
+    async (source: "autosave" | "manual") => {
+      if (!academicPeriodId) return;
+      if (source === "autosave" && !didHydrateFromDbRef.current) return;
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      if (source === "manual") {
+        setSaveScheduleBusy(true);
+        setSaveScheduleMsg(null);
+      }
+      try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          if (source === "manual") setSaveScheduleMsg("Not signed in.");
+          return;
+        }
 
         const upserts: ScheduleEntry[] = [];
         for (const row of rows) {
@@ -643,6 +885,7 @@ export function BsitChairmanEvaluatorWorksheet({
           const { error: delErr } = await supabase.from("ScheduleEntry").delete().in("id", removedIds);
           if (delErr) {
             setLoadError(delErr.message);
+            if (source === "manual") setSaveScheduleMsg(delErr.message);
             return;
           }
         }
@@ -651,19 +894,20 @@ export function BsitChairmanEvaluatorWorksheet({
           const { error: upErr } = await supabase.from("ScheduleEntry").upsert(upserts, { onConflict: "id" });
           if (upErr) {
             setLoadError(upErr.message);
+            if (source === "manual") setSaveScheduleMsg(upErr.message);
             return;
           }
         }
 
         const wrote = upserts.length > 0 || removedIds.length > 0;
         if (wrote) {
-          /** Central Hub + INS forms read the same `ScheduleEntry` rows — refresh catalog views without inbox forwarding. */
+          /** INS forms subscribe to this event via `useInsCatalog` — immediate refresh for all viewers. */
           dispatchInsCatalogReload();
           void fetch("/api/audit/schedule-write", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              action: "chairman.evaluator_autosave",
+              action: source === "manual" ? "chairman.evaluator_save" : "chairman.evaluator_autosave",
               collegeId: chairmanCollegeId,
               academicPeriodId,
               details: { upsertCount: upserts.length, deleteCount: removedIds.length },
@@ -672,11 +916,32 @@ export function BsitChairmanEvaluatorWorksheet({
         }
 
         lastSyncedRowIdsRef.current = new Set(rows.map((r) => r.id));
-      })();
-    }, 600);
 
-    return () => clearTimeout(t);
-  }, [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId]);
+        if (source === "manual") {
+          setSaveScheduleMsg(
+            wrote
+              ? "Schedule saved. INS Faculty, Section, and Room views refresh for all users."
+              : "Nothing new to save (draft already matches the database).",
+          );
+        }
+      } finally {
+        if (source === "manual") setSaveScheduleBusy(false);
+      }
+    },
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId],
+  );
+
+  useEffect(() => {
+    if (!academicPeriodId) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void performSchedulePersist("autosave");
+    }, 600);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [rows, academicPeriodId, performSchedulePersist]);
 
   if (loadError) {
     return <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>;
@@ -695,35 +960,107 @@ export function BsitChairmanEvaluatorWorksheet({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
-          <span>Section</span>
-          <select
-            className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
-            value={selectedSectionId}
-            disabled={schedulePublished}
-            onChange={(e) => setSelectedSectionId(e.target.value)}
-          >
-            <option value="">All sections</option>
-            {Array.from(sectionNameById.entries()).map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <Button
-          type="button"
-          className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold disabled:opacity-50 disabled:pointer-events-none"
+      <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
+        <span>Section</span>
+        <select
+          className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
+          value={selectedSectionId}
           disabled={schedulePublished}
-          onClick={addRow}
+          onChange={(e) => setSelectedSectionId(e.target.value)}
         >
-          + Add schedule row
-        </Button>
+          <option value="">All sections</option>
+          {Array.from(sectionNameById.entries()).map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
       </div>
 
+      <ChairmanProgramProspectusSummaryTable
+        programCode={programCodeForSummary}
+        programName={chairmanProgramName ?? undefined}
+        selectedSectionId={selectedSectionId}
+        yearLevelFilter={summaryYearLevelFilter}
+        filterSemester={termProspectusSemester}
+        plottedSubjectCodes={plottedSubjectCodesForSection}
+        lastPlottedSubjectCode={lastPlottedSubjectFlash}
+      />
+
+      {/* Plotting grid: actions above the scroll area (parity with GEC hub). */}
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10">
-        <div className="overflow-x-auto">
+        <div className="px-4 py-3 border-b border-black/10 bg-black/[0.02] flex flex-col gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-black/90">Evaluator plotting grid</h3>
+            <p className="text-[11px] text-black/55 mt-0.5">
+              Real-time conflict cells use a <strong>campus-wide</strong> timetable (all programs). Run the scan to
+              highlight conflicting rows in this worksheet.
+            </p>
+            <p className="text-[11px] text-black/60 leading-relaxed">
+              Pick instructors by <strong>full name</strong> (from Faculty Profile). Rows store{" "}
+              <code className="text-[10px] bg-black/[0.04] px-1 rounded">User.id</code>; when the instructor
+              self-registers with Gmail using the same Employee ID, plots attach to their account automatically.
+            </p>
+            {instructorPlotOptions.length === 0 ? (
+              <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                No instructors with an Employee ID in this college. Add faculty in <strong>Faculty Profile</strong> and
+                set their Employee ID before plotting.
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold disabled:opacity-50 disabled:pointer-events-none shrink-0"
+              disabled={schedulePublished}
+              onClick={addRow}
+            >
+              + Add schedule row
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-amber-300 bg-white font-bold shrink-0 h-9 text-xs"
+              disabled={schedulePublished || !academicPeriodId || mergedBlocksForCampusScan.length === 0}
+              onClick={() => void runCampusConflictCheck()}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
+              Run conflict check
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold shrink-0 h-9 text-xs disabled:opacity-50"
+              disabled={schedulePublished || saveScheduleBusy}
+              onClick={() => {
+                if (autosaveTimerRef.current) {
+                  clearTimeout(autosaveTimerRef.current);
+                  autosaveTimerRef.current = null;
+                }
+                void performSchedulePersist("manual");
+              }}
+            >
+              <Save className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
+              {saveScheduleBusy ? "Saving…" : "Save schedule"}
+            </Button>
+          </div>
+          {saveScheduleMsg ? (
+            <p className="text-[12px] text-black/70 border border-black/10 rounded-lg px-3 py-2 bg-emerald-50/80">
+              {saveScheduleMsg}
+            </p>
+          ) : null}
+          {conflictDetailLoading ? (
+            <p className="text-[11px] text-black/50">Loading conflict detail…</p>
+          ) : chairmanEnrichedIssues.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-[11px] text-black/55">
+                Detail below uses saved database rows; unsaved rows in this worksheet may add overlaps not listed.
+              </p>
+              <EnrichedConflictIssuesPanel issues={chairmanEnrichedIssues} allowApply={false} maxIssues={8} />
+            </div>
+          ) : null}
+        </div>
+        <div className="max-h-[min(70vh,880px)] overflow-auto">
+          <div className="overflow-x-auto min-h-0">
           <table className="w-full border-collapse min-w-[1100px]">
             <thead>
               <tr className="bg-[#ff990a] text-white text-[11px]">
@@ -767,8 +1104,19 @@ export function BsitChairmanEvaluatorWorksheet({
                   const cf = conflictForRow(row);
                   const timeFmt = formatTimeRangeFromSlots(effectiveStart, dur);
                   const rowReadOnly = schedulePublished || Boolean(row.lockedByDoiAt);
+                  const conflictHighlight = campusScanConflictIds.has(row.id);
                   return (
-                    <tr key={row.id} className={`text-[11px] ${i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}`}>
+                    <tr
+                      key={row.id}
+                      id={`chairman-eval-row-${row.id}`}
+                      className={`text-[11px] ${
+                        conflictHighlight
+                          ? "bg-red-50/90 ring-2 ring-red-300/80"
+                          : i % 2 === 0
+                            ? "bg-white"
+                            : "bg-black/[0.02]"
+                      }`}
+                    >
                       <td className="border border-black/10 px-2 py-1.5 font-semibold text-black/80">{MAJOR_FIXED}</td>
                       <td className="border border-black/10 px-1 py-1">
                         <select
@@ -848,11 +1196,12 @@ export function BsitChairmanEvaluatorWorksheet({
                           value={row.instructorId}
                           disabled={rowReadOnly}
                           onChange={(e) => updateRow(row.id, { instructorId: e.target.value })}
+                          aria-label="Instructor"
                         >
-                          <option value="">Select…</option>
-                          {instructorOptions.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name}
+                          <option value="">Select instructor…</option>
+                          {instructorPlotOptions.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {formatInstructorPlotOptionLabel(opt)}
                             </option>
                           ))}
                         </select>
@@ -974,6 +1323,7 @@ export function BsitChairmanEvaluatorWorksheet({
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
@@ -981,7 +1331,7 @@ export function BsitChairmanEvaluatorWorksheet({
         rows={rows}
         sectionNameById={sectionNameById}
         roomCodeById={roomCodeById}
-        instructorNameById={instructorNameById}
+        instructorDisplayById={instructorDisplayById}
         selectedSectionId={selectedSectionId}
       />
 
@@ -1016,6 +1366,51 @@ export function BsitChairmanEvaluatorWorksheet({
           {justificationMsg ? <p className="text-[12px] text-amber-950">{justificationMsg}</p> : null}
         </div>
       ) : null}
+
+      {policyPromptOpen && showJustification ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
+          <div
+            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl space-y-4 border border-amber-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="policy-prompt-title"
+          >
+            <h2 id="policy-prompt-title" className="text-lg font-semibold text-amber-950">
+              Faculty load policy notice
+            </h2>
+            <p className="text-sm text-black/75 leading-relaxed">
+              The current draft exceeds one or more faculty merit / load rules (e.g. weekly teaching cap). Please enter a
+              short justification — it is stored with{" "}
+              <strong className="text-black/85">ScheduleLoadJustification</strong> and appears on the DOI Admin{" "}
+              <strong className="text-black/85">Policy reviews</strong> page.
+            </p>
+            <textarea
+              className="w-full min-h-[100px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
+              value={justificationText}
+              disabled={schedulePublished}
+              onChange={(e) => setJustificationText(e.target.value)}
+              placeholder="e.g. Approved overload; staffing gap; consolidated sections…"
+            />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPolicyPromptOpen(false)}
+              >
+                I&apos;ll use the form below
+              </Button>
+              <Button
+                type="button"
+                className="bg-[#780301] text-white hover:bg-[#5a0201]"
+                disabled={schedulePublished || justificationSaving || justificationText.trim().length < 12}
+                onClick={() => void saveLoadJustificationForDoi().then(() => setPolicyPromptOpen(false))}
+              >
+                Save justification for DOI
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1024,13 +1419,13 @@ function BsitWeekPreview({
   rows,
   sectionNameById,
   roomCodeById,
-  instructorNameById,
+  instructorDisplayById,
   selectedSectionId,
 }: {
   rows: PlotRow[];
   sectionNameById: Map<string, string>;
   roomCodeById: Map<string, string>;
-  instructorNameById: Map<string, string>;
+  instructorDisplayById: Map<string, string>;
   selectedSectionId: string;
 }) {
   const slots = BSIT_EVALUATOR_TIME_SLOTS;
@@ -1102,7 +1497,7 @@ function BsitWeekPreview({
                         {atHere.map((r) => {
                           const sec = sectionNameById.get(r.sectionId) ?? r.sectionId;
                           const room = roomCodeById.get(r.roomId) ?? "";
-                          const inst = instructorNameById.get(r.instructorId) ?? "";
+                          const inst = instructorDisplayById.get(r.instructorId) ?? "";
                           const p = prospectusByCode(r.subjectCode);
                           const dur = p ? scheduleDurationSlots(p) : 1;
                           const maxS = p ? slots.length - dur : 0;

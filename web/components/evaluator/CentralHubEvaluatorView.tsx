@@ -14,10 +14,25 @@ import {
   hubSlugForCollegeId,
 } from "@/lib/evaluator-central-hub";
 import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
-import { buildConflictGridHints, type CampusConflictScanApiPayload } from "@/lib/scheduling/conflict-enrichment";
+import {
+  buildConflictGridHints,
+  enrichCampusConflictIssues,
+  type CampusConflictScanApiPayload,
+} from "@/lib/scheduling/conflict-enrichment";
+import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
-import type { AcademicPeriod, College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import type {
+  AcademicPeriod,
+  College,
+  FacultyProfile,
+  Program,
+  Room,
+  ScheduleEntry,
+  Section,
+  Subject,
+  User,
+} from "@/types/db";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
 import {
   clearPendingCentralHubBundle,
@@ -27,7 +42,10 @@ import { HubEvaluatorTabs } from "@/components/evaluator/HubEvaluatorTabs";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEntryQuickEditDialog";
+import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
+import { AlertTriangle } from "lucide-react";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -66,6 +84,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
 
@@ -76,6 +95,10 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   const [altBusy, setAltBusy] = useState(false);
 
   const [campusConflictScan, setCampusConflictScan] = useState<CampusConflictScanApiPayload | null>(null);
+  /** GA picks for the first few enriched issues (computed on scan — capped for responsiveness). */
+  const [hubConflictGaByIssueKey, setHubConflictGaByIssueKey] = useState<Record<string, GASuggestion[]>>({});
+  const [conflictScanBusy, setConflictScanBusy] = useState(false);
+  const [busyConflictApplyKey, setBusyConflictApplyKey] = useState<string | null>(null);
   const [focusEntryId, setFocusEntryId] = useState<string | null>(null);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [editBusy, setEditBusy] = useState(false);
@@ -137,7 +160,21 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     setSections((sec ?? []) as Section[]);
     setSubjects((sub ?? []) as Subject[]);
     setRooms((rm ?? []) as Room[]);
-    setUsers((fac ?? []) as User[]);
+    const allUsers = (fac ?? []) as User[];
+    setUsers(allUsers);
+    const profileCandidateIds = allUsers
+      .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+      .map((u) => u.id);
+    const { data: fpRows, error: efp } =
+      profileCandidateIds.length > 0
+        ? await supabase.from("FacultyProfile").select(Q.facultyProfilePolicy).in("userId", profileCandidateIds)
+        : { data: [] as FacultyProfile[], error: null };
+    if (efp) {
+      setLoadError(efp.message);
+      setLoading(false);
+      return;
+    }
+    setFacultyProfiles((fpRows ?? []) as FacultyProfile[]);
     setEntries((sch ?? []) as ScheduleEntry[]);
     setColleges((col ?? []) as College[]);
     setLoading(false);
@@ -228,6 +265,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
 
   useEffect(() => {
     setCampusConflictScan(null);
+    setHubConflictGaByIssueKey({});
     setFocusEntryId(null);
   }, [academicPeriodId]);
 
@@ -262,6 +300,12 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     users.forEach((u) => m.set(u.id, u));
     return m;
   }, [users]);
+
+  const facultyProfileByUserId = useMemo(() => {
+    const m = new Map<string, FacultyProfile>();
+    facultyProfiles.forEach((p) => m.set(p.userId, p));
+    return m;
+  }, [facultyProfiles]);
 
   const sectionById = useMemo(() => {
     const m = new Map<string, Section>();
@@ -306,7 +350,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   );
 
   const campusConflictHighlightIds = useMemo(() => {
-    if (!campusConflictScan || campusConflictScan.entryCount === 0) return undefined;
+    if (!campusConflictScan?.conflictingEntryIds?.length) return undefined;
     return new Set(campusConflictScan.conflictingEntryIds);
   }, [campusConflictScan]);
 
@@ -346,6 +390,82 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     return m;
   }, [colleges]);
 
+  /**
+   * Scoped conflict scan for the hub grid (respects college + program filters). Precomputes a few GA alternatives
+   * per issue for one-click apply — same enrichment model as the dashboard banner.
+   */
+  const runScopedConflictScan = useCallback(() => {
+    if (!academicPeriodId) return;
+    setConflictScanBusy(true);
+    try {
+      const scoped = entries.filter((e) => {
+        if (e.academicPeriodId !== academicPeriodId) return false;
+        if (scopeCollegeId == null) {
+          if (programId) {
+            const sec = sectionById.get(e.sectionId);
+            return sec?.programId === programId;
+          }
+          return true;
+        }
+        const sec = sectionById.get(e.sectionId);
+        const pr = sec ? programById.get(sec.programId) : null;
+        if (pr?.collegeId !== scopeCollegeId) return false;
+        if (programId && sec?.programId !== programId) return false;
+        return true;
+      });
+      if (scoped.length === 0) {
+        setCampusConflictScan({
+          entryCount: 0,
+          conflictingEntryIds: [],
+          issueSummaries: [],
+          issues: [],
+          enrichedIssues: [],
+        });
+        setHubConflictGaByIssueKey({});
+        return;
+      }
+      const blocks = scoped.map(toBlock);
+      const scan = scanAllScheduleConflicts(blocks);
+      const entryById = new Map(entries.map((e) => [e.id, e]));
+      const enriched = enrichCampusConflictIssues(
+        scan.issues,
+        entryById,
+        subjectById,
+        sectionById,
+        roomById,
+        userById,
+        programById,
+        collegeNameById,
+      );
+      setCampusConflictScan({
+        entryCount: blocks.length,
+        conflictingEntryIds: [...scan.conflictingEntryIds],
+        issueSummaries: scan.issueSummaries,
+        issues: scan.issues,
+        enrichedIssues: enriched,
+      });
+      const gaMap: Record<string, GASuggestion[]> = {};
+      for (const iss of enriched.slice(0, 8)) {
+        gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 4);
+      }
+      setHubConflictGaByIssueKey(gaMap);
+    } finally {
+      setConflictScanBusy(false);
+    }
+  }, [
+    academicPeriodId,
+    entries,
+    scopeCollegeId,
+    programId,
+    sectionById,
+    programById,
+    subjectById,
+    roomById,
+    userById,
+    collegeNameById,
+    suggestAlternativesForEntry,
+  ]);
+
   const tableRows = useMemo(() => {
     if (!academicPeriodId) return [];
     return buildScheduleEvaluatorTableRows({
@@ -358,6 +478,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
       subjectById,
       roomById,
       userById,
+      facultyProfileByUserId,
       collegeNameById,
     });
   }, [
@@ -369,9 +490,22 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     subjectById,
     roomById,
     userById,
+    facultyProfileByUserId,
     programById,
     collegeNameById,
   ]);
+
+  /** Dashboard deep link: ?conflicts=1&focusEntry=<id> — same scan as the explicit Run conflict check button. */
+  const conflictDeepLinkRanRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (searchParams.get("conflicts") !== "1" || loading || !academicPeriodId) return;
+    const key = `${academicPeriodId}:${searchParams.toString()}`;
+    if (conflictDeepLinkRanRef.current === key) return;
+    runScopedConflictScan();
+    const fe = searchParams.get("focusEntry")?.trim();
+    if (fe) setFocusEntryId(fe);
+    conflictDeepLinkRanRef.current = key;
+  }, [searchParams, loading, academicPeriodId, runScopedConflictScan]);
 
   function runAlternativeSuggestion() {
     if (!academicPeriodId) return;
@@ -425,6 +559,38 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
       setAltBusy(false);
     }
   }
+
+  /** Apply a GA suggestion to the primary row in a conflict pair (updates Supabase + reloads grid). */
+  const applyHubConflictSuggestion = useCallback(
+    async (issueKey: string, s: GASuggestion) => {
+      const iss = campusConflictScan?.enrichedIssues.find((i) => i.key === issueKey);
+      if (!iss) return;
+      setBusyConflictApplyKey(issueKey);
+      try {
+        const supabase = createSupabaseBrowserClient();
+        if (!supabase) return;
+        const pad = (t: string) => (t.trim().length <= 5 ? `${t.trim()}:00` : t.trim());
+        const { error } = await supabase
+          .from("ScheduleEntry")
+          .update({
+            day: s.day,
+            startTime: pad(s.startTime),
+            endTime: pad(s.endTime),
+            roomId: s.roomId,
+            instructorId: s.instructorId,
+          })
+          .eq("id", iss.rowA.entryId);
+        if (error) throw new Error(error.message);
+        setCampusConflictScan(null);
+        setHubConflictGaByIssueKey({});
+        setFocusEntryId(null);
+        await load();
+      } finally {
+        setBusyConflictApplyKey(null);
+      }
+    },
+    [campusConflictScan, load],
+  );
 
   /* —— Hub: college tiles —— */
   if (!collegeSlug) {
@@ -584,7 +750,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                       what: `${sub?.code ?? "—"} · ${sec?.name ?? "—"}`,
                       when: `${s.day} ${formatTimeRange(s.startTime, s.endTime)}`,
                       where: room?.code ?? s.roomId,
-                      who: fac?.name ?? "—",
+                      who: formatUserInstructorLabel(fac, facultyProfileByUserId.get(s.instructorId)),
                     };
                   },
                 }}
@@ -642,6 +808,16 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                 </p>
                 <Button
                   type="button"
+                  variant="outline"
+                  className="h-11 px-5 border-amber-300 font-bold text-red-900 bg-white"
+                  disabled={loading || conflictScanBusy || !academicPeriodId}
+                  onClick={() => runScopedConflictScan()}
+                >
+                  <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
+                  {conflictScanBusy ? "Scanning…" : "Run conflict check"}
+                </Button>
+                <Button
+                  type="button"
                   className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
                   disabled={altBusy || loading}
                   onClick={() => runAlternativeSuggestion()}
@@ -651,58 +827,82 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
               </div>
             </div>
 
+            {campusConflictScan && campusConflictScan.enrichedIssues.length > 0 ? (
+              <div className="mb-4">
+                <EnrichedConflictIssuesPanel
+                  issues={campusConflictScan.enrichedIssues}
+                  suggestionsByIssueKey={hubConflictGaByIssueKey}
+                  busyIssueKey={busyConflictApplyKey}
+                  onApplySuggestion={(key, s) => void applyHubConflictSuggestion(key, s)}
+                  allowApply
+                  formatSuggestionLabel={(s) => {
+                    const room = roomById.get(s.roomId)?.code ?? s.roomId;
+                    const inst = formatUserInstructorLabel(
+                      userById.get(s.instructorId),
+                      facultyProfileByUserId.get(s.instructorId),
+                    );
+                    return `Move to ${room} · ${s.day} ${s.startTime}–${s.endTime} · ${inst}`;
+                  }}
+                />
+              </div>
+            ) : campusConflictScan &&
+              campusConflictScan.conflictingEntryIds.length === 0 &&
+              campusConflictScan.entryCount > 0 ? (
+              <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-lg px-4 py-3 mb-4">
+                No resource overlaps detected for this scope and term.
+              </p>
+            ) : null}
+
             {loadError ? (
               <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>
             ) : loading ? (
               <div className="text-sm text-black/60 py-8">Loading schedule…</div>
             ) : (
               <>
-                {showDoiGovernance ? (
-                  <p className="text-[12px] text-black/60 mb-2">
-                    After a campus-wide scan, conflicting rows are highlighted in red; use &quot;Show row in grid&quot;
-                    from the VPAA panel to focus a row (blue ring). Click any row to edit day, time, room, or instructor.
-                  </p>
-                ) : null}
+                <p className="text-[12px] text-black/60 mb-2">
+                  After <strong>Run conflict check</strong>, overlapping rows are highlighted; click a row to edit time,
+                  room, or instructor, or apply a suggested fix above.
+                </p>
                 <EvaluatorScheduleOverviewTable
                   rows={tableRows}
                   showCollegeColumn={isCampusWide}
-                  highlightRowIds={showDoiGovernance ? campusConflictHighlightIds : undefined}
-                  focusRowId={showDoiGovernance ? focusEntryId : null}
-                  conflictDetailsByRowId={showDoiGovernance ? conflictDetailsByRowId : undefined}
+                  highlightRowIds={campusConflictHighlightIds}
+                  focusRowId={focusEntryId}
+                  conflictDetailsByRowId={conflictDetailsByRowId}
                   rowDomIdPrefix="central-eval-row"
-                  onRowClick={showDoiGovernance ? (id) => setEditEntryId(id) : undefined}
+                  onRowClick={(id) => setEditEntryId(id)}
                 />
               </>
             )}
 
-            {showDoiGovernance ? (
-              <DoiScheduleEntryQuickEditDialog
-                open={Boolean(editEntryId)}
-                onOpenChange={(o) => {
-                  if (!o) setEditEntryId(null);
-                }}
-                entry={editEntry}
-                rooms={roomsForEdit}
-                instructors={instructorsForEdit}
-                busy={editBusy}
-                onSave={async (patch) => {
-                  if (!editEntryId) return;
-                  setEditBusy(true);
-                  try {
-                    const supabase = createSupabaseBrowserClient();
-                    if (!supabase) throw new Error("Supabase not configured");
-                    const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", editEntryId);
-                    if (error) throw new Error(error.message);
-                    setEditEntryId(null);
-                    setCampusConflictScan(null);
-                    setFocusEntryId(null);
-                    await load();
-                  } finally {
-                    setEditBusy(false);
-                  }
-                }}
-              />
-            ) : null}
+            <DoiScheduleEntryQuickEditDialog
+              open={Boolean(editEntryId)}
+              onOpenChange={(o) => {
+                if (!o) setEditEntryId(null);
+              }}
+              entry={editEntry}
+              rooms={roomsForEdit}
+              instructors={instructorsForEdit}
+              facultyProfileByUserId={facultyProfileByUserId}
+              busy={editBusy}
+              onSave={async (patch) => {
+                if (!editEntryId) return;
+                setEditBusy(true);
+                try {
+                  const supabase = createSupabaseBrowserClient();
+                  if (!supabase) throw new Error("Supabase not configured");
+                  const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", editEntryId);
+                  if (error) throw new Error(error.message);
+                  setEditEntryId(null);
+                  setCampusConflictScan(null);
+                  setHubConflictGaByIssueKey({});
+                  setFocusEntryId(null);
+                  await load();
+                } finally {
+                  setEditBusy(false);
+                }
+              }}
+            />
 
             {altOpen ? (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">

@@ -20,7 +20,8 @@ export async function fetchMyUserRowForAuth(
 ): Promise<AuthUserProfile | null> {
   const { data: rpcData, error: rpcErr } = await supabase.rpc("auth_get_my_user_row");
   if (!rpcErr && rpcData && typeof rpcData === "object" && rpcData !== null && "role" in rpcData) {
-    return rpcData as AuthUserProfile;
+    const row = rpcData as AuthUserProfile;
+    if (String(row.role ?? "").trim()) return row;
   }
 
   const uid = userId.toLowerCase();

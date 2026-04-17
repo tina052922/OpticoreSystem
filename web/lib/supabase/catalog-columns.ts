@@ -14,15 +14,18 @@ export const Q = {
   /** Inbox / INS / hubs — signature URL when needed */
   userHub:
     "id,email,name,role,collegeId,employeeId,chairmanProgramId,signatureImageUrl",
-  userChairmanScope: "id,email,name,role,collegeId",
+  /** Includes employeeId — Evaluator plots by Employee ID (join key for instructor self-registration). */
+  userChairmanScope: "id,email,name,role,collegeId,employeeId",
   campusInsSettings: "id,campusDirectorSignatureImageUrl,updatedAt",
   scheduleLoadJustification:
     "id,academicPeriodId,collegeId,authorUserId,authorName,authorEmail,justification,violationsSnapshot,createdAt,updatedAt,doiDecision,doiReviewedAt,doiReviewedById,doiReviewNote",
   /** Policy / evaluator loads (name + policy fields) */
   facultyProfilePolicy: "id,userId,fullName,status,designation,ratePerHour",
-  /** INS 5A credentials block + form summary */
+  /** INS 5A credentials block + form summary (+ `aka` for printed name rules) */
   facultyProfileIns:
-    "id,userId,fullName,bsDegree,msDegree,doctoralDegree,major1,major2,major3,minor1,minor2,minor3,specialTraining,designation,production,extension,research",
+    "id,userId,fullName,aka,bsDegree,msDegree,doctoralDegree,major1,major2,major3,minor1,minor2,minor3,specialTraining,designation,production,extension,research",
+  /** Lightweight: INS catalog dropdowns / cell labels (AKA vs full name) */
+  facultyProfileInsNames: "userId,fullName,aka",
   notification: "id,userId,message,isRead,createdAt",
   studentProfile: "id,userId,programId,sectionId,yearLevel,createdAt,updatedAt",
   accessRequest:

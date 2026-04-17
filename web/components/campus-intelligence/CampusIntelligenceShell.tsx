@@ -143,10 +143,6 @@ export function CampusIntelligenceShell({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0 min-w-0">
-          {/* Large sidebars show the orange pill; small screens use the bar below the header. */}
-          <div className="hidden lg:block min-w-0 max-w-[200px] xl:max-w-[280px]">
-            <SemesterNavDropdown variant="header" />
-          </div>
           <Link
             href="/campus-navigation"
             className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 md:px-3 text-xs md:text-sm font-semibold text-white/95 hover:bg-white/10 transition-colors max-w-[min(100vw-12rem,200px)]"
@@ -187,11 +183,6 @@ export function CampusIntelligenceShell({
         </div>
       </header>
 
-      {/* Below lg width: compact semester strip (sidebar pill is off-canvas until opened). */}
-      <div className="lg:hidden px-3 py-2 bg-[#6d0201] border-b border-black/20 no-print">
-        <SemesterNavDropdown variant="header" className="!text-[13px] !py-2.5" />
-      </div>
-
       {mobileNavOpen ? (
         <button
           type="button"
@@ -205,7 +196,8 @@ export function CampusIntelligenceShell({
         <aside
           id="admin-sidebar-nav"
           className={cn(
-            "fixed left-0 top-[147px] lg:top-[99px] bottom-0 z-50 flex flex-col border-r border-black/5 bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]",
+            /* Semester / academic period: sidebar only (header duplicate removed for all roles). */
+            "fixed left-0 top-[99px] bottom-0 z-50 flex flex-col border-r border-black/5 bg-[#EEEEEE] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]",
             "w-[min(90vw,320px)] max-w-[320px] lg:static lg:top-auto lg:bottom-auto lg:z-auto lg:w-[345px] lg:max-w-[345px] lg:shrink-0",
             "transform transition-transform duration-200 ease-out lg:translate-x-0",
             mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",

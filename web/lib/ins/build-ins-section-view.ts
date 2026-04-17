@@ -1,6 +1,7 @@
 import { INS_DAYS, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
-import type { Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import type { FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { scheduleEntryTimeLabel } from "./build-ins-faculty-view";
 
 export type InsSectionCell = {
@@ -33,6 +34,7 @@ export function buildInsSectionView(args: {
   subjectById: Map<string, Subject>;
   roomById: Map<string, Room>;
   userById: Map<string, User>;
+  facultyProfileByUserId: Map<string, Pick<FacultyProfile, "fullName" | "aka">>;
 }): {
   schedule: InsSectionSchedule;
   courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }>;
@@ -51,7 +53,7 @@ export function buildInsSectionView(args: {
     schedule[insDay].push({
       time: scheduleEntryTimeLabel(e.startTime, e.endTime),
       course: sub?.code ?? "—",
-      instructor: inst?.name ?? "—",
+      instructor: insInstructorDisplayName(inst, args.facultyProfileByUserId.get(e.instructorId)),
       room: room?.code ?? "TBA",
       vacantGec: isGecVacantScheduleEntry(e, args.subjectById),
     });

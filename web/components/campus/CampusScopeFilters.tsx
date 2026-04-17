@@ -11,7 +11,12 @@ const selectClass =
 export type CampusScopeFiltersProps = {
   initialCollegeId?: string | null;
   className?: string;
-  onScopeChange?: (scope: { collegeId: string | null; programId: string | null }) => void;
+  onScopeChange?: (scope: {
+    collegeId: string | null;
+    programId: string | null;
+    /** Resolved from the selected Program row when `programId` is set. */
+    programCode: string | null;
+  }) => void;
   /** Default: campus-wide college + program. Chairman: program filter only (college from session). */
   variant?: "default" | "chairman";
   /** Required when variant is chairman — from `getChairmanSession().collegeId` */
@@ -88,8 +93,10 @@ export function CampusScopeFilters({
   useEffect(() => {
     const cid = isChairman ? chairmanCollegeId ?? null : collegeId || null;
     const pid = programId || null;
-    onScopeChange?.({ collegeId: cid, programId: pid });
-  }, [collegeId, programId, onScopeChange, isChairman, chairmanCollegeId]);
+    const programCode =
+      pid && programs.length ? (programs.find((p) => p.id === pid)?.code ?? null) : null;
+    onScopeChange?.({ collegeId: cid, programId: pid, programCode });
+  }, [collegeId, programId, onScopeChange, isChairman, chairmanCollegeId, programs]);
 
   return (
     <div

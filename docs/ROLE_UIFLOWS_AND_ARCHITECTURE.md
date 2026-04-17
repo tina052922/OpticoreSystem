@@ -10,10 +10,10 @@ Schedules are **centralized**: **`ScheduleEntry`** is written from the Evaluator
 
 | Role | Modules (summary) |
 |------|---------------------|
-| **Program Chairman** | Campus Intelligence · INS Form (Faculty / Section / Room tabs) · Evaluator (plot **ScheduleEntry**, conflicts, **policy justification** when load rules are exceeded — BSIT worksheet + Central Hub Evaluator) · Faculty Profile · Subject Codes · Campus navigation · **Audit** (via College Admin patterns where applicable) |
-| **College Admin** | Campus Intelligence · INS Form · Central Hub Evaluator · **Schedule change requests** (notifications) · Access requests · **Audit log** · Faculty Profile · Subject Codes · Campus navigation |
+| **Program Chairman** | Campus Intelligence (live **conflict** banner when overlaps exist in the master schedule) · INS Form (Faculty / Section / Room tabs) · Evaluator (plot **ScheduleEntry**, **prospectus summary** by year/sem with plotted status, conflicts, **policy justification** prompt when load rules are exceeded — BSIT worksheet + Central Hub Evaluator) · Faculty Profile · Subject Codes · Campus navigation · **Audit** (via College Admin patterns where applicable) |
+| **College Admin** | Campus Intelligence (conflict banner + **Evaluator** deep link when overlaps exist) · INS Form · Central Hub Evaluator · **Schedule change requests** (notifications) · Access requests · **Audit log** · Faculty Profile · Subject Codes · Campus navigation |
 | **CAS Admin** | Campus Intelligence · INS Form · Central Hub Evaluator · GEC distribution · **Inbox (workflow)** · Audit log · Faculty Profile · Subject Codes · Campus navigation |
-| **GEC Chairman** | Campus Intelligence · **INS Forms Schedule View** (tabs) · **Central Hub Evaluator** · Campus navigation (simplified shell; access / vacant-slot flows live on dashboard links where configured) |
+| **GEC Chairman** | Campus Intelligence (campus-wide conflict banner) · **INS Forms Schedule View** (tabs) · **Central Hub Evaluator** · Campus navigation (access / vacant-slot flows on dashboard links where configured) |
 | **DOI / VPAA** | Campus Intelligence · INS Form (campus-wide + VPAA signature / publish) · Central Hub Evaluator · **Policy reviews** (view / accept / reject **ScheduleLoadJustification**) · Audit log · Faculty Profile · Subject Codes · Campus navigation |
 | **Instructor** | Portal dashboard · INS schedule views · My schedule · Schedule change request · Announcements · Campus navigation · Notifications |
 | **Student** | Portal dashboard · My schedule · Announcements · Campus navigation · Notifications |
@@ -26,15 +26,15 @@ The descriptions below follow the **left sidebar labels** in each role’s shell
 
 ### Chairman Admin
 
-**Shell:** Campus Intelligence (red gradient header, orange sidebar accents). Semester context is shown in the shell when configured.
+**Shell:** Campus Intelligence (red gradient header, orange sidebar accents). **Academic term / semester** is selected only from the **sidebar** orange control (not duplicated in the top header bar).
 
 | Sidebar label | Route | Purpose |
 |---------------|-------|---------|
 | Campus Intelligence | `/chairman/dashboard` | Landing dashboard: workload summaries, quick links, and orientation to the chairman’s scheduling scope. |
 | INS Form (Schedule View) | `/chairman/ins/faculty` | Official INS **Program by Teacher** grid; use tabs on the page for **INS Section** and **INS Room** views. Live data when a college (and program, if restricted) is in scope. |
-| Evaluator | `/chairman/evaluator` | Central Hub timetabling: plot or edit **ScheduleEntry** rows (saved to the shared hub), run conflict checks, and align offerings to the repository. When faculty **load policy** is violated, submit written justification (Evaluator save path or **Submit justification for VPAA** on the BSIT worksheet); stored in **`ScheduleLoadJustification`** for DOI **Policy reviews**. |
+| Evaluator | `/chairman/evaluator` | BSIT-style worksheet: plot or edit **ScheduleEntry** rows, **predefined prospectus summary** (year × semester, major + GEC) with **Plotted** status per selected section, run conflict checks (highlighted rows), and align offerings to the repository. When faculty **load policy** is violated, a **prompt** asks for justification (same text as **Submit justification for VPAA**); stored in **`ScheduleLoadJustification`** for DOI **Policy reviews**. |
 | Faculty Profile | `/chairman/faculty-profile` | Maintain faculty roster and **Employee ID** for linkage to plotted schedules and future instructor self-registration. |
-| Subject Codes | `/chairman/subject-codes` | Browse and manage subject catalog entries relevant to the chairman’s scope. |
+| Subject Codes | `/chairman/subject-codes` | CRUD for subjects under the chairman’s program; **Official prospectus (reference)** is loaded from `prospectus-registry` by `Program.code` (e.g. BSIT / CMO 25 when that slice is registered). |
 | Campus navigation | `/campus-navigation` | Physical campus wayfinding and map-style navigation. |
 
 ---

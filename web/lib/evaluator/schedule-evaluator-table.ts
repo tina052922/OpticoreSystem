@@ -1,6 +1,7 @@
 import { detectConflictsForEntry } from "@/lib/scheduling/conflicts";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
-import type { Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import type { FacultyProfile, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 
 /** Match Central Hub / Figma column formatting. */
 export function formatTimeRange(start: string, end: string): string {
@@ -63,6 +64,8 @@ export function buildScheduleEvaluatorTableRows(args: {
   subjectById: Map<string, Subject>;
   roomById: Map<string, Room>;
   userById: Map<string, User>;
+  /** Optional: Faculty Profile rows so the grid shows full name (not raw `User.name` only). */
+  facultyProfileByUserId?: Map<string, Pick<FacultyProfile, "fullName">>;
   collegeNameById: Map<string, string>;
 }): ScheduleEvaluatorTableRow[] {
   const universe = args.entries.map(toBlock);
@@ -76,6 +79,7 @@ export function buildScheduleEvaluatorTableRows(args: {
     subjectById,
     roomById,
     userById,
+    facultyProfileByUserId,
     collegeNameById,
   } = args;
 
@@ -107,7 +111,7 @@ export function buildScheduleEvaluatorTableRows(args: {
       section: sec.name,
       students: sec.studentCount,
       subjectCode: sub?.code ?? "—",
-      instructor: inst?.name ?? "—",
+      instructor: formatUserInstructorLabel(inst, facultyProfileByUserId?.get(e.instructorId)),
       room: room?.code ?? "TBA",
       time: formatTimeRange(e.startTime, e.endTime),
       day: dayAbbrev(e.day),

@@ -3,13 +3,42 @@ import { GitBranch, Inbox, MapPin, Send } from "lucide-react";
 import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
+import { getCampusIntelligenceStats } from "@/lib/server/campus-intelligence-stats";
+import { getDashboardConflictBanner } from "@/lib/server/dashboard-conflicts";
 
 export default async function CasAdminDashboardPage() {
   const profile = await getAuthenticatedProfile();
 
+  const [conflictBanner, liveStats] = await Promise.all([
+    getDashboardConflictBanner({
+      mode: "college",
+      collegeId: profile.collegeId,
+      programId: null,
+    }),
+    getCampusIntelligenceStats({
+      mode: "college",
+      collegeId: profile.collegeId,
+    }),
+  ]);
+
   return (
     <div className="space-y-8 pb-8">
-      <CiDashboard welcomeName={profile.name} basePath="/admin/cas" variant="full" />
+      <CiDashboard
+        welcomeName={profile.name}
+        basePath="/admin/cas"
+        variant="full"
+        liveStats={liveStats}
+        scopeHint="CAS coordination — same college scope as your profile when a college is assigned"
+        conflictBanner={
+          conflictBanner
+            ? {
+                conflictingRowCount: conflictBanner.conflictingRowCount,
+                previewLines: conflictBanner.previewLines,
+                evaluatorHref: conflictBanner.evaluatorHref,
+              }
+            : null
+        }
+      />
 
       <div className="px-6 max-w-6xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

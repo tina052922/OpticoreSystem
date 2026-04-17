@@ -24,11 +24,12 @@ export function SemesterNavDropdown({ variant = "sidebar", className }: { varian
 
   const pillClass = cn(
     "w-full bg-[#FF990A] text-white rounded-full font-medium flex items-center justify-between",
-    "border border-black shadow-[0px_4px_4px_0px_rgba(0,0,0,0.15)]",
+    "shadow-[0px_4px_4px_0px_rgba(0,0,0,0.15)]",
     "hover:bg-[#e88909] transition-colors disabled:opacity-60",
     variant === "header"
-      ? "px-4 py-2 text-xs sm:text-sm max-w-[min(100vw-10rem,280px)]"
-      : "px-4 py-3 text-[15px]",
+      ? "border border-black px-4 py-2 text-xs sm:text-sm max-w-[min(100vw-10rem,280px)]"
+      : /* Sidebar-only term switcher: no harsh black ring (header variant may still be used in legacy embeds). */
+        "border border-white/35 px-4 py-3 text-[15px]",
   );
 
   return (

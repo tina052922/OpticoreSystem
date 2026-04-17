@@ -16,6 +16,8 @@ export type EvaluatorPageProps = {
   chairmanCollegeId?: string | null;
   /** Locked program for chairman (`getChairmanSession` defaults BSIT for CTE when DB column unset). */
   chairmanProgramId?: string | null;
+  chairmanProgramCode?: string | null;
+  chairmanProgramName?: string | null;
 };
 
 function centralHubBasePath(variant: "college" | "cas" | "doi"): string {
@@ -28,6 +30,8 @@ export function EvaluatorPage({
   variant = "chairman",
   chairmanCollegeId = null,
   chairmanProgramId = null,
+  chairmanProgramCode = null,
+  chairmanProgramName = null,
 }: EvaluatorPageProps) {
   if (variant === "college" || variant === "cas" || variant === "doi") {
     return (
@@ -80,6 +84,8 @@ export function EvaluatorPage({
           <BsitChairmanEvaluatorWorksheet
             chairmanCollegeId={chairmanCollegeId}
             chairmanProgramId={chairmanProgramId}
+            chairmanProgramCode={chairmanProgramCode}
+            chairmanProgramName={chairmanProgramName}
             onPolicySnapshot={setPolicySnapshot}
           />
         </div>

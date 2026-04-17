@@ -79,7 +79,7 @@ export function LoginClient() {
       if (!role) {
         await supabase.auth.signOut();
         throw new Error(
-          "No OptiCore profile for this account. In Supabase: run seed.sql (or insert into public.\"User\"), set User.id to the same UUID as Authentication → Users for this email, deploy auth_get_my_user_row.sql, and grant execute to authenticated.",
+          "No OptiCore profile for this account. Every Auth user needs a row in public.\"User\" with the same id (UUID) as Supabase → Authentication → Users. Run supabase/seed.sql, or from web/ run: node scripts/create-gec-chairman-test.mjs (GEC test). See docs/QA_TESTING_GUIDE.md.",
         );
       }
       const home = getDefaultHomeForRole(role);

@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { FacultyProfile, User } from "@/types/db";
 
 /**
  * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
- * without Auth; the Evaluator then assigns `ScheduleEntry.instructorId` to that `User.id`. Self-registration with the
- * same Employee ID links Auth and schedules (see `register-instructor` API).
+ * without Auth; `User.email` is a unique placeholder until self-registration (see `register-instructor` API).
+ * The Evaluator assigns `ScheduleEntry.instructorId` to that `User.id`. Self-registration with the same Employee ID
+ * links Auth and schedules.
  */
 
 export type FacultyProfileWorkspaceProps = {
@@ -21,6 +23,11 @@ export type FacultyProfileWorkspaceProps = {
   scopeCollegeId?: string | null;
   /** Chairman Faculty Profile page: edit status & designation on list rows (updates evaluator load rules). */
   enableFacultyListEdit?: boolean;
+  /**
+   * GEC Chairman: show instructors who teach at least one GEC/GEE course (or have no plots yet).
+   * Excludes faculty who only appear on major (non-GEC) schedules, and the vacant-slot placeholder user.
+   */
+  gecFacultyFilter?: boolean;
 };
 
 type ListRow = {
@@ -34,13 +41,13 @@ export function FacultyProfileWorkspace({
   viewerCollegeId = null,
   scopeCollegeId = null,
   enableFacultyListEdit = false,
+  gecFacultyFilter = false,
 }: FacultyProfileWorkspaceProps) {
   const collegeId = chairmanCollegeId ?? viewerCollegeId ?? scopeCollegeId ?? null;
   const programLabel = chairmanProgramCode ?? "—";
 
   const [tab, setTab] = useState<"profile" | "designation" | "advisory">("profile");
 
-  const [email, setEmail] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [fullName, setFullName] = useState("");
   const [aka, setAka] = useState("");
@@ -88,12 +95,43 @@ export function FacultyProfileWorkspace({
       setError(uErr.message);
       return;
     }
-    const list = (users ?? []) as Pick<User, "id" | "name" | "employeeId" | "role">[];
+    let list = (users ?? []) as Pick<User, "id" | "name" | "employeeId" | "role">[];
     if (list.length === 0) {
       setRows([]);
       setLoadingList(false);
       return;
     }
+
+    if (gecFacultyFilter) {
+      list = list.filter((u) => u.id !== GEC_VACANT_INSTRUCTOR_USER_ID);
+      const idsForScope = list.map((u) => u.id);
+      const { data: seRows } = await supabase
+        .from("ScheduleEntry")
+        .select("instructorId, subjectId")
+        .in("instructorId", idsForScope);
+      const subIds = [...new Set((seRows ?? []).map((r) => r.subjectId).filter(Boolean))] as string[];
+      const codeById = new Map<string, string>();
+      if (subIds.length > 0) {
+        const { data: subs } = await supabase.from("Subject").select("id, code").in("id", subIds);
+        for (const s of subs ?? []) codeById.set(s.id, s.code);
+      }
+      const byInst = new Map<string, { any: boolean; gec: boolean }>();
+      for (const u of list) byInst.set(u.id, { any: false, gec: false });
+      for (const r of seRows ?? []) {
+        const code = codeById.get(r.subjectId) ?? "";
+        const cur = byInst.get(r.instructorId);
+        if (!cur) continue;
+        cur.any = true;
+        if (isGecCurriculumSubjectCode(code)) cur.gec = true;
+      }
+      list = list.filter((u) => {
+        const st = byInst.get(u.id);
+        if (!st) return true;
+        if (!st.any) return true;
+        return st.gec;
+      });
+    }
+
     const ids = list.map((u) => u.id);
     const { data: profs, error: pErr } = await supabase
       .from("FacultyProfile")
@@ -111,7 +149,7 @@ export function FacultyProfileWorkspace({
         profile: byUser.get(u.id) ?? null,
       })),
     );
-  }, [collegeId]);
+  }, [collegeId, gecFacultyFilter]);
 
   useEffect(() => {
     void loadFaculty();
@@ -190,18 +228,16 @@ export function FacultyProfileWorkspace({
     void loadFaculty();
   }
 
+  function placeholderEmailForPendingUser(userId: string) {
+    return `pending.${userId}@opticore.local`.toLowerCase();
+  }
+
   async function assertNoDuplicateFaculty(supabase: NonNullable<ReturnType<typeof createSupabaseBrowserClient>>) {
-    const emailTrim = email.trim().toLowerCase();
-    if (!emailTrim) return "Work email is required.";
-
-    const { data: byEmail } = await supabase.from("User").select("id").eq("email", emailTrim).maybeSingle();
-    if (byEmail) return "Faculty already exists.";
-
     const eid = employeeId.trim();
-    if (eid) {
-      const { data: byEid } = await supabase.from("User").select("id").eq("employeeId", eid).maybeSingle();
-      if (byEid) return "Faculty already exists.";
-    }
+    if (!eid) return "Employee ID is required.";
+
+    const { data: byEid } = await supabase.from("User").select("id").eq("employeeId", eid).maybeSingle();
+    if (byEid) return "Faculty already exists.";
 
     const nameKey = fullName.trim().toLowerCase();
     if (nameKey) {
@@ -257,7 +293,7 @@ export function FacultyProfileWorkspace({
     const id = crypto.randomUUID();
     const payloadUser = {
       id,
-      email: email.trim().toLowerCase(),
+      email: placeholderEmailForPendingUser(id),
       name: nameTrim,
       role: "instructor" as const,
       collegeId,
@@ -310,7 +346,6 @@ export function FacultyProfileWorkspace({
 
     setSaving(false);
     setSuccess("Faculty saved.");
-    setEmail("");
     setEmployeeId("");
     setFullName("");
     setAka("");
@@ -334,6 +369,14 @@ export function FacultyProfileWorkspace({
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6">
+      {gecFacultyFilter ? (
+        <div className="rounded-xl border border-[var(--color-opticore-orange)]/35 bg-orange-50/90 px-4 py-3 text-sm text-black/80">
+          <strong className="text-[var(--color-opticore-orange)]">GEC scope.</strong> Listed faculty either have no
+          plots yet (eligible for GEC assignment) or teach at least one GEC/GEE course. Major-only instructors are
+          hidden. Plotting non-GEC courses stays with the Program Chairman.
+        </div>
+      ) : null}
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex gap-2 flex-wrap">
           {[
@@ -401,20 +444,9 @@ export function FacultyProfileWorkspace({
           <div className="text-[16px] font-semibold mb-3">New faculty</div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
             <div className="space-y-1">
-              <div className="text-sm font-medium">Work email (login id)</div>
-              <Input
-                type="email"
-                placeholder="name@ctu.edu.ph"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={!collegeId}
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-1">
               <div className="text-sm font-medium">Employee ID</div>
               <Input
-                placeholder="Optional; must be unique if set"
+                placeholder="Required; must match self-registration"
                 value={employeeId}
                 onChange={(e) => setEmployeeId(e.target.value)}
                 disabled={!collegeId}

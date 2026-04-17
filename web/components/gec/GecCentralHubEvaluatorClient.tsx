@@ -14,7 +14,17 @@ import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import { enrichCampusConflictIssues, type EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
-import type { AcademicPeriod, College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import type {
+  AcademicPeriod,
+  College,
+  FacultyProfile,
+  Program,
+  Room,
+  ScheduleEntry,
+  Section,
+  Subject,
+  User,
+} from "@/types/db";
 import { useAccessRequests } from "@/hooks/use-access-requests";
 import {
   getGecVacantSlotApprovalUiState,
@@ -37,9 +47,14 @@ import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
 import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-registry";
 import { parseGecYearLevelFromSectionName } from "@/lib/gec/gec-section-year-level";
 import { formatGecChairConflictHeadline } from "@/lib/gec/gec-conflict-headlines";
+import {
+  mergeLegacyRowInstructorsIntoPlotOptions,
+  usersToInstructorPlotOptions,
+} from "@/lib/evaluator/instructor-employee-id";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -64,7 +79,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  * Vacant GEC placeholders are editable only after one-time `gec_vacant_slots` approval.
  */
 export function GecCentralHubEvaluatorClient() {
-  const { selectedPeriodId: academicPeriodId } = useSemesterFilter();
+  const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
   const collegeParam = searchParams.get("college")?.trim() ?? "";
@@ -82,6 +97,7 @@ export function GecCentralHubEvaluatorClient() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,7 +171,21 @@ export function GecCentralHubEvaluatorClient() {
     setSections((sec ?? []) as Section[]);
     setSubjects((sub ?? []) as Subject[]);
     setRooms((rm ?? []) as Room[]);
-    setUsers((fac ?? []) as User[]);
+    const allUsers = (fac ?? []) as User[];
+    setUsers(allUsers);
+    const profileCandidateIds = allUsers
+      .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+      .map((u) => u.id);
+    const { data: fpRows, error: efp } =
+      profileCandidateIds.length > 0
+        ? await supabase.from("FacultyProfile").select(Q.facultyProfilePolicy).in("userId", profileCandidateIds)
+        : { data: [] as FacultyProfile[], error: null };
+    if (efp) {
+      setLoadError(efp.message);
+      setLoading(false);
+      return;
+    }
+    setFacultyProfiles((fpRows ?? []) as FacultyProfile[]);
     setEntries((sch ?? []) as ScheduleEntry[]);
     setLoading(false);
   }, [academicPeriodId]);
@@ -234,6 +264,12 @@ export function GecCentralHubEvaluatorClient() {
     users.forEach((u) => m.set(u.id, u));
     return m;
   }, [users]);
+
+  const facultyProfileByUserId = useMemo(() => {
+    const m = new Map<string, FacultyProfile>();
+    facultyProfiles.forEach((p) => m.set(p.userId, p));
+    return m;
+  }, [facultyProfiles]);
 
   const collegeNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -354,6 +390,7 @@ export function GecCentralHubEvaluatorClient() {
       subjectById,
       roomById,
       userById,
+      facultyProfileByUserId,
       collegeNameById,
     });
   }, [
@@ -367,6 +404,7 @@ export function GecCentralHubEvaluatorClient() {
     subjectById,
     roomById,
     userById,
+    facultyProfileByUserId,
     collegeNameById,
   ]);
 
@@ -378,13 +416,24 @@ export function GecCentralHubEvaluatorClient() {
     return pr?.collegeId ?? null;
   }, [sectionIdFilter, sectionById, programById]);
 
-  const instructorsForPlotting = useMemo(() => {
+  const entryInstructorIdsForPlotMerge = useMemo(
+    () => mergedEntries.map((e) => e.instructorId).filter(Boolean) as string[],
+    [mergedEntries],
+  );
+
+  const instructorPlotOptionsBase = useMemo(() => {
     if (!plotCollegeId) return [];
-    return users.filter(
-      (u) =>
-        u.collegeId === plotCollegeId && (u.role === "instructor" || u.role === "chairman_admin"),
+    const pool = users.filter(
+      (u) => u.collegeId === plotCollegeId && (u.role === "instructor" || u.role === "chairman_admin"),
     );
-  }, [users, plotCollegeId]);
+    const base = usersToInstructorPlotOptions(pool, facultyProfileByUserId);
+    return mergeLegacyRowInstructorsIntoPlotOptions(
+      base,
+      pool,
+      entryInstructorIdsForPlotMerge,
+      facultyProfileByUserId,
+    );
+  }, [users, plotCollegeId, entryInstructorIdsForPlotMerge, facultyProfileByUserId]);
 
   const roomsForPlotting = useMemo(() => {
     if (!plotCollegeId) return [];
@@ -462,13 +511,33 @@ export function GecCentralHubEvaluatorClient() {
     setGecGaByIssueKey(gaMap);
 
     if (scan.issueSummaries.length === 0) {
-      setSaveMsg("No faculty, room, or section time conflicts detected for the current term.");
+      setSaveMsg("No conflicts detected — faculty, room, and section times are clear for this term.");
       setGecEnrichedConflicts([]);
       setGecGaByIssueKey({});
     } else {
       setSaveMsg(null);
     }
   }
+
+  /** Campus Intelligence dashboard → Central Hub Evaluator with ?conflicts=1: auto-run the same scan + row highlights. */
+  const runConflictCheckRef = useRef(runConflictCheck);
+  runConflictCheckRef.current = runConflictCheck;
+  const gecConflictDeepLinkKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (searchParams.get("conflicts") !== "1" || loading || !academicPeriodId) return;
+    const k = `${academicPeriodId}:${searchParams.toString()}`;
+    if (gecConflictDeepLinkKey.current === k) return;
+    runConflictCheckRef.current();
+    gecConflictDeepLinkKey.current = k;
+  }, [searchParams, loading, academicPeriodId, mergedEntries.length]);
+
+  useEffect(() => {
+    const id = searchParams.get("focusEntry")?.trim();
+    if (!id || loading) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`gec-hub-eval-row-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [searchParams, loading, conflictIds]);
 
   async function saveVacantEdits() {
     if (!canEditVacant || !collegeParam || !academicPeriodId) return;
@@ -638,6 +707,25 @@ export function GecCentralHubEvaluatorClient() {
     }
     return ids;
   }, [subjects, selectedSection, allowedProspectusCodes]);
+
+  /** Current term → prospectus 1st/2nd sem; narrows the GEC summary when the period name is parseable. */
+  const termProspectusSemesterForSummary = useMemo(
+    () => prospectusSemesterFromAcademicPeriod(selectedPeriod),
+    [selectedPeriod],
+  );
+
+  /** GEC codes already on the master schedule for this section + term (drives “Plotted” in the summary table). */
+  const gecPlottedSubjectCodesForSection = useMemo(() => {
+    if (!sectionIdFilter || !academicPeriodId) return new Set<string>();
+    const set = new Set<string>();
+    for (const e of mergedEntries) {
+      if (e.sectionId !== sectionIdFilter || e.academicPeriodId !== academicPeriodId) continue;
+      const sub = subjectById.get(e.subjectId);
+      if (!sub || !isGecCurriculumSubjectCode(sub.code)) continue;
+      set.add(normalizeProspectusCode(sub.code));
+    }
+    return set;
+  }, [mergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
 
   /** Scrollable strip beside “Run conflict check”: conflict parties + GA alternatives (same engine as DOI / College Hub). */
   const gecAlternativesBesideRunButton =
@@ -935,23 +1023,42 @@ export function GecCentralHubEvaluatorClient() {
                   highlightRowIds={conflictIds}
                   vacantGecRowIds={vacantGecSourceIds}
                   dimNonVacantRows
+                  rowDomIdPrefix="gec-hub-eval-row"
                 />
               </>
             ) : (
               <div className="space-y-6">
-                {/* Top: static prospectus for this section’s program (registry in prospectus-registry.ts) */}
-                <BsitProspectusSummaryTable
-                  key={`${sectionIdFilter}-${selectedYearLevel ?? "x"}`}
-                  programCode={sectionProgram?.code ?? ""}
-                  programName={sectionProgram?.name}
-                  yearLevel={selectedYearLevel}
-                  semester={null}
-                  onSelectSubjectCode={setPickedSummaryCode}
-                />
+                {/* Top: GEC-only prospectus for this section’s year (from section name) + term semester when known */}
+                {selectedYearLevel == null ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950">
+                    <p className="font-semibold">Could not detect year level from the section name.</p>
+                    <p className="mt-1 text-black/75">
+                      Use a label like <strong>BSIT 3A</strong> or <strong>BSIT-3A</strong> so the summary can show only
+                      that year’s GEC subjects.
+                    </p>
+                  </div>
+                ) : (
+                  <BsitProspectusSummaryTable
+                    key={`${sectionIdFilter}-${selectedYearLevel}-${termProspectusSemesterForSummary ?? "semx"}`}
+                    programCode={sectionProgram?.code ?? ""}
+                    programName={sectionProgram?.name}
+                    yearLevel={selectedYearLevel}
+                    semester={termProspectusSemesterForSummary}
+                    plottedSubjectCodes={gecPlottedSubjectCodesForSection}
+                    onSelectSubjectCode={setPickedSummaryCode}
+                  />
+                )}
 
                 {/* Main plotting grid — same timetabling model as Program Chairman; only vacant GEC rows accept edits. */}
                 {plotCollegeId ? (
-                  <GecSectionPlottingTable
+                  <div className="space-y-2">
+                    {instructorPlotOptionsBase.length === 0 ? (
+                      <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        No instructors with an Employee ID in this college. Add faculty in <strong>Faculty Profile</strong>{" "}
+                        first.
+                      </p>
+                    ) : null}
+                    <GecSectionPlottingTable
                     collegeId={plotCollegeId}
                     academicPeriodId={academicPeriodId}
                     sectionId={sectionIdFilter}
@@ -960,8 +1067,9 @@ export function GecCentralHubEvaluatorClient() {
                     subjectById={subjectById}
                     sectionById={sectionById}
                     programById={programById}
-                    instructors={instructorsForPlotting}
+                    instructorPlotOptions={instructorPlotOptionsBase}
                     userById={userById}
+                    facultyProfileByUserId={facultyProfileByUserId}
                     rooms={roomsForPlotting}
                     edits={edits}
                     patchEdit={patchEdit}
@@ -974,13 +1082,15 @@ export function GecCentralHubEvaluatorClient() {
                     pendingNewEntryIds={pendingNewEntryIds}
                     onRemovePendingEntry={removePendingEntry}
                     onRunConflictCheck={() => runConflictCheck()}
-                    runConflictCheckDisabled={loading}
+                    runConflictCheckDisabled={loading || saveBusy}
                     onSaveVacantEdits={() => void saveVacantEdits()}
                     saveVacantEditsDisabled={!canEditVacant}
                     saveVacantBusy={saveBusy}
                     conflictAlternativesSlot={gecAlternativesBesideRunButton}
                     showAlternativeSolutionsHeading={gecEnrichedConflicts.length > 0}
+                    highlightConflictEntryIds={conflictIds}
                   />
+                  </div>
                 ) : (
                   <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
                     Could not resolve this section&apos;s college — check program linkage in the database.
@@ -1004,6 +1114,7 @@ export function GecCentralHubEvaluatorClient() {
                   subjectById={subjectById}
                   roomById={roomById}
                   userById={userById}
+                  facultyProfileByUserId={facultyProfileByUserId}
                 />
               </div>
             )}

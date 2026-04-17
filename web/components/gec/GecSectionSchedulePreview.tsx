@@ -8,7 +8,8 @@ import {
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
-import type { Room, ScheduleEntry, Subject, User } from "@/types/db";
+import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
+import type { FacultyProfile, Room, ScheduleEntry, Subject, User } from "@/types/db";
 
 function hhmm(t: string): string {
   return t.trim().length > 5 ? t.trim().slice(0, 5) : t.trim();
@@ -47,6 +48,7 @@ type Props = {
   subjectById: Map<string, Subject>;
   roomById: Map<string, Room>;
   userById: Map<string, User>;
+  facultyProfileByUserId: Map<string, Pick<FacultyProfile, "fullName">>;
 };
 
 /**
@@ -62,6 +64,7 @@ export function GecSectionSchedulePreview({
   subjectById,
   roomById,
   userById,
+  facultyProfileByUserId,
 }: Props) {
   const slots = BSIT_EVALUATOR_TIME_SLOTS;
   const list = useMemo(
@@ -159,7 +162,9 @@ export function GecSectionSchedulePreview({
                                 {formatTimeRangeFromSlots(eff, d)}
                               </span>
                               <span className="block text-[9px] text-black/60">{room?.code ?? "TBA"}</span>
-                              <span className="block text-[9px] text-black/60">{inst?.name ?? "—"}</span>
+                              <span className="block text-[9px] text-black/60">
+                                {formatUserInstructorLabel(inst, facultyProfileByUserId.get(e.instructorId))}
+                              </span>
                             </li>
                           );
                         })}

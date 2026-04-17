@@ -5,6 +5,9 @@
 
 export const BSIT_PROGRAM_CODE = "BSIT";
 
+/** Seed `Program.id` for BSIT (see supabase/seed.sql). */
+export const BSIT_PROGRAM_ID = "prog-bsit";
+
 /** Section names as used in scheduling (must align with seed `Section.name`). */
 export const BSIT_SECTION_NAMES = [
   "BSIT-1A",
@@ -106,9 +109,12 @@ export const BSIT_PROSPECTUS_SUBJECTS: ProspectusSubjectRow[] = [
 
 const prospectusCodeSet = new Set(BSIT_PROSPECTUS_SUBJECTS.map((s) => normalizeProspectusCode(s.code)));
 
-/** Normalize for comparison with DB `Subject.code` (hyphens, case). */
+/**
+ * Normalize for comparison with DB `Subject.code` and static prospectus rows (spacing, hyphens, case).
+ * Hyphens are stripped so `CC-111` and `CC111` match — common variance between seed data and dropdowns.
+ */
 export function normalizeProspectusCode(code: string): string {
-  return code.replace(/\s+/g, "").toUpperCase();
+  return code.replace(/\s+/g, "").replace(/-/g, "").toUpperCase();
 }
 
 /** Resolve a plotted or DB subject code to the static BSIT prospectus row, if any. */

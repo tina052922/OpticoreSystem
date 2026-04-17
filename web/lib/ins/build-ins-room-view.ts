@@ -1,9 +1,18 @@
 import { INS_DAYS, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
-import type { Room, ScheduleEntry, Section, Subject } from "@/types/db";
+import type { FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { scheduleEntryTimeLabel } from "./build-ins-faculty-view";
 
-export type InsRoomCell = { time: string; course: string; yearSec: string; room: string; vacantGec?: boolean };
+/** Room grid: includes instructor line (INS naming rules: AKA or full name). */
+export type InsRoomCell = {
+  time: string;
+  course: string;
+  instructor: string;
+  yearSec: string;
+  room: string;
+  vacantGec?: boolean;
+};
 
 export type InsRoomSchedule = Record<InsDay, InsRoomCell[]>;
 
@@ -26,6 +35,8 @@ export function buildInsRoomView(args: {
   sectionById: Map<string, Section>;
   subjectById: Map<string, Subject>;
   roomById: Map<string, Room>;
+  userById: Map<string, User>;
+  facultyProfileByUserId: Map<string, Pick<FacultyProfile, "fullName" | "aka">>;
 }): { schedule: InsRoomSchedule; roomLabel: string } {
   const schedule = emptyInsRoomSchedule();
   const list = args.entries.filter(
@@ -39,9 +50,11 @@ export function buildInsRoomView(args: {
     if (!insDay) continue;
     const sub = args.subjectById.get(e.subjectId);
     const sec = args.sectionById.get(e.sectionId);
+    const instUser = args.userById.get(e.instructorId);
     schedule[insDay].push({
       time: scheduleEntryTimeLabel(e.startTime, e.endTime),
       course: sub?.code ?? "—",
+      instructor: insInstructorDisplayName(instUser, args.facultyProfileByUserId.get(e.instructorId)),
       yearSec: sec?.name ?? "—",
       room: room?.code ?? "TBA",
       vacantGec: isGecVacantScheduleEntry(e, args.subjectById),
