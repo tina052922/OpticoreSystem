@@ -47,7 +47,8 @@ if (!url || !serviceKey) {
 const email = (process.env.GEC_TEST_EMAIL || "gec.chairman.test@opticore.local").trim().toLowerCase();
 const password = process.env.GEC_TEST_PASSWORD || "OptiCore2026!";
 /** Empty GEC_TEST_COLLEGE_ID = campus-wide GEC Chair (no college); matches product scope. */
-const collegeIdRaw = (process.env.GEC_TEST_COLLEGE_ID ?? "").trim();
+const collegeIdRaw = (process.env.GEC_TEST_COLLEGE_ID ?? "col-tech-eng").trim();
+/** Default COTE college from seed; set GEC_TEST_COLLEGE_ID="" only for campus-wide Auth tests (public.User may use routing college). */
 const collegeId = collegeIdRaw === "" ? null : collegeIdRaw;
 
 const admin = createClient(url, serviceKey, {
@@ -57,10 +58,14 @@ const admin = createClient(url, serviceKey, {
 const name = "GEC Chairman (test)";
 
 async function main() {
-  const { data: col } = await admin.from("College").select("id").eq("id", collegeId).maybeSingle();
-  if (!col) {
-    console.error(`College id "${collegeId}" not found. Run supabase/seed.sql or set GEC_TEST_COLLEGE_ID to a valid College.id.`);
-    process.exit(1);
+  if (collegeId !== null) {
+    const { data: col } = await admin.from("College").select("id").eq("id", collegeId).maybeSingle();
+    if (!col) {
+      console.error(
+        `College id "${collegeId}" not found. Run supabase/seed.sql or set GEC_TEST_COLLEGE_ID to a valid College.id.`,
+      );
+      process.exit(1);
+    }
   }
 
   const { data: created, error: authErr } = await admin.auth.admin.createUser({

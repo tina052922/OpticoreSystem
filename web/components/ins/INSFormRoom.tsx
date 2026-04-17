@@ -37,9 +37,12 @@ export type INSFormRoomProps = {
   hideInnerInsTabs?: boolean;
 };
 
-const DEMO_SCHEDULE: Record<DayKey, Array<{ time: string; course: string; yearSec: string; room: string }>> = {
-  Monday: [{ time: "7:00-9:00", course: "IT 203", yearSec: "BSIT 2A", room: "Lab 301" }],
-  Tuesday: [{ time: "9:00-11:00", course: "IT 101", yearSec: "BSIT 2B", room: "Room 201" }],
+const DEMO_SCHEDULE: Record<
+  DayKey,
+  Array<{ time: string; course: string; instructor: string; yearSec: string; room: string }>
+> = {
+  Monday: [{ time: "7:00-9:00", course: "IT 203", instructor: "Dr. Maria Santos", yearSec: "BSIT 2A", room: "Lab 301" }],
+  Tuesday: [{ time: "9:00-11:00", course: "IT 101", instructor: "Juan", yearSec: "BSIT 2B", room: "Room 201" }],
   Wednesday: [],
   Thursday: [],
   Friday: [],
@@ -93,6 +96,8 @@ export function INSFormRoom({
       sectionById: catalog.sectionById,
       subjectById: catalog.subjectById,
       roomById: catalog.roomById,
+      userById: catalog.userById,
+      facultyProfileByUserId: catalog.facultyProfileByUserId,
     });
   }, [
     useLiveData,
@@ -103,6 +108,8 @@ export function INSFormRoom({
     catalog.sectionById,
     catalog.subjectById,
     catalog.roomById,
+    catalog.userById,
+    catalog.facultyProfileByUserId,
   ]);
 
   const displaySchedule = schedule;

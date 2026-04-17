@@ -91,12 +91,9 @@ export function INSFormFaculty({
       facultyPortalIns && lockedInstructorId ? lockedInstructorId : null,
   });
 
-  const selectedFacultyName =
-    live.instructorOptions.find((x) => x.id === live.selectedInstructorId)?.name ?? "Search faculty";
-
   const displaySchedule = useLiveData ? live.schedule : DEMO_SCHEDULE;
   const displayCourses = useLiveData ? live.courses : DEMO_COURSES;
-  const displayFacultyName = useLiveData ? selectedFacultyName : "Dr. Maria Santos (demo)";
+  const displayFacultyName = useLiveData ? live.selectedFacultyDisplayName : "Dr. Maria Santos (demo)";
 
   async function onShare() {
     try {

@@ -3,13 +3,39 @@ import { CalendarPlus, ChevronRight, ClipboardList, MapPin, Scale } from "lucide
 import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
+import { getCampusIntelligenceStats } from "@/lib/server/campus-intelligence-stats";
+import { getDashboardConflictBanner } from "@/lib/server/dashboard-conflicts";
 
 export default async function DoiDashboardPage() {
   const profile = await getAuthenticatedProfile();
 
+  const [conflictBanner, liveStats] = await Promise.all([
+    getDashboardConflictBanner({
+      mode: "doi_campus",
+      collegeId: null,
+      programId: null,
+    }),
+    getCampusIntelligenceStats({ mode: "doi_campus" }),
+  ]);
+
   return (
     <div className="space-y-8 pb-8">
-      <CiDashboard welcomeName={profile.name} basePath="/doi" variant="doi" />
+      <CiDashboard
+        welcomeName={profile.name}
+        basePath="/doi"
+        variant="doi"
+        liveStats={liveStats}
+        scopeHint="Full campus — all colleges and programs (VPAA / institutional view)"
+        conflictBanner={
+          conflictBanner
+            ? {
+                conflictingRowCount: conflictBanner.conflictingRowCount,
+                previewLines: conflictBanner.previewLines,
+                evaluatorHref: conflictBanner.evaluatorHref,
+              }
+            : null
+        }
+      />
 
       <div className="px-6 max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

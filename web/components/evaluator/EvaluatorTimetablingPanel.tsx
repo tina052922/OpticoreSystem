@@ -36,6 +36,12 @@ import {
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import {
+  formatInstructorPlotOptionLabel,
+  formatUserInstructorLabel,
+  mergeLegacyRowInstructorsIntoPlotOptions,
+  usersToInstructorPlotOptions,
+} from "@/lib/evaluator/instructor-employee-id";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -391,6 +397,12 @@ export function EvaluatorTimetablingPanel({
     return [...dbEntries, ...fromLocal];
   }, [dbEntries, localDrafts]);
 
+  const instructorPlotOptionsForPanel = useMemo(() => {
+    const base = usersToInstructorPlotOptions(instructorsInCollege, profileByUserId);
+    const ids = mergedScheduleEntries.map((e) => e.instructorId).filter(Boolean) as string[];
+    return mergeLegacyRowInstructorsIntoPlotOptions(base, instructorsInCollege, ids, profileByUserId);
+  }, [instructorsInCollege, mergedScheduleEntries, profileByUserId]);
+
   const mergedEntriesForPolicy = useMemo((): ScheduleEntry[] => {
     if (!academicPeriodId || !effectiveCollegeId) return [];
     const inCollege = (sId: string) => sectionToCollegeId(sId) === effectiveCollegeId;
@@ -464,11 +476,11 @@ export function EvaluatorTimetablingPanel({
     return m;
   }, [rooms]);
 
-  const instructorNameById = useMemo(() => {
+  const instructorDisplayById = useMemo(() => {
     const m = new Map<string, string>();
-    collegeUsers.forEach((u) => m.set(u.id, u.name));
+    collegeUsers.forEach((u) => m.set(u.id, formatUserInstructorLabel(u, profileByUserId.get(u.id))));
     return m;
-  }, [collegeUsers]);
+  }, [collegeUsers, profileByUserId]);
 
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -493,6 +505,7 @@ export function EvaluatorTimetablingPanel({
       subjectById,
       roomById,
       userById,
+      facultyProfileByUserId: profileByUserId,
       collegeNameById,
     });
   }, [
@@ -505,6 +518,7 @@ export function EvaluatorTimetablingPanel({
     subjectById,
     roomById,
     userById,
+    profileByUserId,
     collegeNameById,
   ]);
 
@@ -930,7 +944,7 @@ export function EvaluatorTimetablingPanel({
                 </label>
               )}
               <p className="text-[12px] text-black/55 max-w-sm">
-                Academic term is selected in the header / sidebar.
+                Academic term is selected in the sidebar (orange semester control).
               </p>
               <Button
                 type="button"
@@ -952,19 +966,31 @@ export function EvaluatorTimetablingPanel({
             </div>
           </div>
           {fullCheckRan && fullConflictSummaries.length > 0 ? (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm space-y-2">
-              <div className="font-semibold text-red-900">Conflicts in saved + draft rows (this term & scope)</div>
-              <p className="text-[12px] text-red-900/85">
-                Highlighted rows in the table below overlap in time and share the same instructor, room, or section.
-              </p>
+            <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm space-y-3">
+              <div>
+                <div className="font-bold text-red-950 text-base">Conflicts detected</div>
+                <p className="text-[12px] text-red-900/85 mt-1">
+                  Highlighted rows in the table below overlap in time and share the same instructor, room, or section.
+                </p>
+              </div>
               <ul className="list-disc pl-5 space-y-1 text-red-900">
                 {fullConflictSummaries.map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>
+              <div className="rounded-md border border-red-200/80 bg-white/70 px-3 py-2 text-[12px] text-red-950/90 leading-relaxed">
+                <p className="font-semibold text-red-950">Suggested remedies</p>
+                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                  <li>Move one of the overlapping classes to a different day or time block.</li>
+                  <li>Assign a different room or instructor if policy allows.</li>
+                  <li>
+                    Use <strong>Alternative Suggestion</strong> above for rule-based GA picks scoped to your program.
+                  </li>
+                </ul>
+              </div>
               {fullConflictDetails.length > 0 ? (
                 <details className="text-[12px] text-red-900/90">
-                  <summary className="cursor-pointer font-medium">Affected entry ids</summary>
+                  <summary className="cursor-pointer font-medium">Technical detail (entry ids)</summary>
                   <ul className="mt-2 font-mono text-[11px] space-y-0.5 pl-2">
                     {fullConflictDetails.slice(0, 40).map((d, i) => (
                       <li key={`${d.entryId}-${i}`}>
@@ -980,9 +1006,12 @@ export function EvaluatorTimetablingPanel({
               ) : null}
             </div>
           ) : fullCheckRan ? (
-            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-              No resource conflicts detected for this term and scope. Faculty load policy checks are in the plotting
-              panel.
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-4 text-sm text-green-950 space-y-1">
+              <div className="font-bold text-lg">No conflicts detected</div>
+              <p className="text-[13px] text-green-900/90">
+                No overlapping faculty, room, or section usage was found for this term and scope. Faculty load policy
+                checks remain in the plotting panel below.
+              </p>
             </div>
           ) : academicPeriodId && scopeBlocksForFullCheck.length > 0 ? (
             <p className="text-[12px] text-black/50">
@@ -1009,7 +1038,7 @@ export function EvaluatorTimetablingPanel({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {!chairmanCollegeId ? (
               <p className="text-sm text-black/55 md:col-span-2">
-                Pick the academic term from the orange selector in the navigation bar.
+                Pick the academic term from the orange semester control in the sidebar.
               </p>
             ) : null}
 
@@ -1131,22 +1160,26 @@ export function EvaluatorTimetablingPanel({
               </select>
             </label>
 
-            <label className="text-sm font-medium">
-              Instructor (faculty)
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Instructor</label>
               <select
                 className={`mt-1 ${selectClass}`}
                 value={instructorId}
                 onChange={(e) => setInstructorId(e.target.value)}
                 disabled={!effectiveCollegeId}
+                aria-label="Instructor"
               >
-                <option value="">Select…</option>
-                {instructorsInCollege.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
+                <option value="">Select instructor…</option>
+                {instructorPlotOptionsForPanel.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {formatInstructorPlotOptionLabel(opt)}
                   </option>
                 ))}
               </select>
-            </label>
+              {instructorPlotOptionsForPanel.length === 0 ? (
+                <p className="text-[11px] text-amber-800">Set Employee ID on faculty in Faculty Profile before plotting.</p>
+              ) : null}
+            </div>
 
             <label className="text-sm font-medium">
               Room
@@ -1230,7 +1263,7 @@ export function EvaluatorTimetablingPanel({
                   >
                     <div>
                       {s.label} · Room {roomCodeById.get(s.roomId) ?? s.roomId} ·{" "}
-                      {instructorNameById.get(s.instructorId) ?? s.instructorId}
+                      {instructorDisplayById.get(s.instructorId) ?? s.instructorId}
                       <span className="text-black/50 ml-2"> (fitness {Math.round(s.fitness)})</span>
                     </div>
                     <Button type="button" size="sm" className="bg-[#ff990a] text-white" onClick={() => applySuggestion(s)}>
@@ -1365,7 +1398,7 @@ export function EvaluatorTimetablingPanel({
               entries={previewSectionEntries}
               subjectCodeById={subjectCodeById}
               roomCodeById={roomCodeById}
-              instructorNameById={instructorNameById}
+              instructorNameById={instructorDisplayById}
               sectionNameById={sectionNameById}
             />
           ) : null}
@@ -1375,17 +1408,17 @@ export function EvaluatorTimetablingPanel({
               entries={previewRoomEntries}
               subjectCodeById={subjectCodeById}
               roomCodeById={roomCodeById}
-              instructorNameById={instructorNameById}
+              instructorNameById={instructorDisplayById}
               sectionNameById={sectionNameById}
             />
           ) : null}
           {previewFocus === "instructor" ? (
             <ScheduleLivePreview
-              title={`Instructor · ${instructorNameById.get(instructorId) ?? "—"}`}
+              title={`Instructor · ${instructorDisplayById.get(instructorId) ?? "—"}`}
               entries={previewInstructorEntries}
               subjectCodeById={subjectCodeById}
               roomCodeById={roomCodeById}
-              instructorNameById={instructorNameById}
+              instructorNameById={instructorDisplayById}
               sectionNameById={sectionNameById}
             />
           ) : null}

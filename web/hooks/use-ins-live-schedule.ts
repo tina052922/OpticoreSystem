@@ -8,6 +8,7 @@ import {
   type InsFacultySchedule,
 } from "@/lib/ins/build-ins-faculty-view";
 import { buildInsSignatureSlots, type InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
+import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { FacultyProfile } from "@/types/db";
@@ -170,6 +171,18 @@ export function useInsLiveSchedule(args: {
     };
   }, [catalog.academicPeriodId, selectedInstructorId, teachingMetrics, facultyProfile]);
 
+  /**
+   * Form 5A header / print: AKA if set, else full name (INS rules). Uses the async `FacultyProfile` row when loaded,
+   * otherwise catalog name fields so the label is correct before the detail fetch finishes.
+   */
+  const selectedFacultyDisplayName = useMemo(() => {
+    if (!selectedInstructorId) return "Search faculty";
+    const u = catalog.userById.get(selectedInstructorId);
+    if (!u) return "Search faculty";
+    const fromCatalog = catalog.facultyProfileByUserId.get(selectedInstructorId);
+    return insInstructorDisplayName(u, facultyProfile ?? fromCatalog ?? null);
+  }, [selectedInstructorId, catalog.userById, catalog.facultyProfileByUserId, facultyProfile]);
+
   return {
     loading: catalog.loading,
     error: catalog.error,
@@ -191,6 +204,7 @@ export function useInsLiveSchedule(args: {
     insSignatureSlots,
     facultyCredentials,
     facultyFormSummary,
+    selectedFacultyDisplayName,
     reload: catalog.reload,
   };
 }

@@ -1,0 +1,19 @@
+-- One-off: link an existing Supabase Auth user to public."User" when login fails with "No OptiCore profile".
+-- Replace the UUID and email/name with values from Authentication → Users.
+--
+-- Example (GEC test account):
+-- insert into public."User" (id, "employeeId", email, name, role, "collegeId", "chairmanProgramId")
+-- values (
+--   '13df0eb6-19cc-451a-bcc1-4f7b1c59b8c0',
+--   'CTU-ARG-GEC-TEST',
+--   'gec.chairman.test@opticore.local',
+--   'GEC Chairman (test)',
+--   'gec_chairman',
+--   'col-tech-eng',
+--   null
+-- )
+-- on conflict (id) do update set
+--   email = excluded.email,
+--   name = excluded.name,
+--   role = excluded.role,
+--   "collegeId" = excluded."collegeId";

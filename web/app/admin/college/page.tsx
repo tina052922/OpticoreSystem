@@ -4,13 +4,42 @@ import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { RecentActivityCard } from "@/components/audit/RecentActivityCard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
+import { getCampusIntelligenceStats } from "@/lib/server/campus-intelligence-stats";
+import { getDashboardConflictBanner } from "@/lib/server/dashboard-conflicts";
 
 export default async function CollegeAdminDashboardPage() {
   const profile = await getAuthenticatedProfile();
 
+  const [conflictBanner, liveStats] = await Promise.all([
+    getDashboardConflictBanner({
+      mode: "college",
+      collegeId: profile.collegeId,
+      programId: null,
+    }),
+    getCampusIntelligenceStats({
+      mode: "college",
+      collegeId: profile.collegeId,
+    }),
+  ]);
+
   return (
     <div className="space-y-8 pb-8">
-      <CiDashboard welcomeName={profile.name} basePath="/admin/college" variant="full" />
+      <CiDashboard
+        welcomeName={profile.name}
+        basePath="/admin/college"
+        variant="full"
+        liveStats={liveStats}
+        scopeHint="Your entire college — all programs, sections, rooms linked to the college, and college faculty"
+        conflictBanner={
+          conflictBanner
+            ? {
+                conflictingRowCount: conflictBanner.conflictingRowCount,
+                previewLines: conflictBanner.previewLines,
+                evaluatorHref: conflictBanner.evaluatorHref,
+              }
+            : null
+        }
+      />
 
       <div className="px-4 sm:px-6 max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

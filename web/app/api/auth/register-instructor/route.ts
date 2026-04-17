@@ -16,6 +16,10 @@ const GMAIL_RE = /@gmail\.com$/i;
 /**
  * Self-service instructor registration: creates Auth user + public.User + FacultyProfile.
  *
+ * Schedules always reference `ScheduleEntry.instructorId` = `public.User.id`. Chairmen plot by **Employee ID** in the UI;
+ * the placeholder `User` row created in Faculty Profile shares that `employeeId`, so when this API links Auth to the
+ * placeholder (`migrateInstructorPlaceholderToAuthUser`), existing schedule rows follow the new `auth.users.id`.
+ *
  * ## Chairman plots before the instructor registers (recommended approach)
  * The Chairman should record the person in **Faculty Profile** with the official **Employee ID** first.
  * That creates a placeholder `public.User` (no Auth login) and `FacultyProfile`. The Evaluator then plots

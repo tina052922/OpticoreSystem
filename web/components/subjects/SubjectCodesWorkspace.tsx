@@ -3,29 +3,82 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BSIT_PROSPECTUS_SUBJECTS } from "@/lib/chairman/bsit-prospectus";
+import { BSIT_PROGRAM_CODE } from "@/lib/chairman/bsit-prospectus";
+import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
+import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
 import { normalizeSubjectCodeForCompare } from "@/lib/subjects/normalize-subject-code";
 import type { Subject } from "@/types/db";
 
-const prospectusRows = BSIT_PROSPECTUS_SUBJECTS.map((s) => ({
-  ...s,
-  subcode: "" as const,
-}));
+function formatProspectusSemester(sem: number): string {
+  return sem === 1 ? "1st" : "2nd";
+}
 
 export type SubjectCodesWorkspaceProps = {
   /** Chairman session: program is fixed. */
   lockedProgramId?: string | null;
+  /** When set, keys the static prospectus registry (must match `Program.code`). Skips a Program lookup. */
+  lockedProgramCode?: string | null;
   /** Campus scope: program from `SubjectCodesWithScope` / filters. */
   scopeProgramId?: string | null;
+  scopeProgramCode?: string | null;
+  /**
+   * GEC Chairman: BSIT program only — prospectus and database rows limited to GEC-% / GEE-% codes.
+   */
+  gecCurriculumOnly?: boolean;
 };
 
 export function SubjectCodesWorkspace({
   lockedProgramId = null,
+  lockedProgramCode = null,
   scopeProgramId = null,
+  scopeProgramCode = null,
+  gecCurriculumOnly = false,
 }: SubjectCodesWorkspaceProps) {
   const programId = lockedProgramId ?? scopeProgramId ?? null;
+
+  const [resolvedProgramCode, setResolvedProgramCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const explicit = (lockedProgramCode ?? scopeProgramCode)?.trim();
+    if (explicit) {
+      setResolvedProgramCode(null);
+      return;
+    }
+    if (!programId) {
+      setResolvedProgramCode(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data } = await supabase.from("Program").select("code").eq("id", programId).maybeSingle();
+      if (!cancelled) setResolvedProgramCode(data?.code ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [programId, lockedProgramCode, scopeProgramCode]);
+
+  const effectiveProgramCode = useMemo(() => {
+    const l = lockedProgramCode?.trim();
+    const s = scopeProgramCode?.trim();
+    if (l) return l;
+    if (s) return s;
+    return resolvedProgramCode?.trim() ?? null;
+  }, [lockedProgramCode, scopeProgramCode, resolvedProgramCode]);
+
+  const prospectusRows = useMemo(() => {
+    if (!effectiveProgramCode) return [];
+    const raw = getProspectusSubjectsForProgram(effectiveProgramCode);
+    const filtered = gecCurriculumOnly ? raw.filter((row) => isGecCurriculumSubjectCode(row.code)) : raw;
+    return filtered.map((row) => ({
+      ...row,
+      subcode: "" as const,
+    }));
+  }, [effectiveProgramCode, gecCurriculumOnly]);
 
   const [code, setCode] = useState("");
   const [subcode, setSubcode] = useState("");
@@ -70,26 +123,31 @@ export function SubjectCodesWorkspace({
   }, [loadSubjects]);
 
   const filteredDbSubjects = useMemo(() => {
+    let base = gecCurriculumOnly ? dbSubjects.filter((s) => isGecCurriculumSubjectCode(s.code)) : dbSubjects;
     const q = subjectSearch.trim().toLowerCase();
-    if (!q) return dbSubjects;
-    return dbSubjects.filter(
+    if (!q) return base;
+    return base.filter(
       (s) =>
         s.code.toLowerCase().includes(q) ||
         (s.title && s.title.toLowerCase().includes(q)) ||
         (s.subcode && s.subcode.toLowerCase().includes(q)),
     );
-  }, [dbSubjects, subjectSearch]);
+  }, [dbSubjects, subjectSearch, gecCurriculumOnly]);
 
   const filteredProspectus = useMemo(() => {
     const q = subjectSearch.trim().toLowerCase();
     if (!q) return prospectusRows;
-    return prospectusRows.filter(
-      (s) =>
-        String(s.code).toLowerCase().includes(q) ||
-        s.title.toLowerCase().includes(q) ||
-        (s.subcode && String(s.subcode).toLowerCase().includes(q)),
-    );
-  }, [subjectSearch]);
+    return prospectusRows.filter((row) => {
+      const semText = formatProspectusSemester(row.semester).toLowerCase();
+      return (
+        String(row.code).toLowerCase().includes(q) ||
+        row.title.toLowerCase().includes(q) ||
+        (row.subcode && String(row.subcode).toLowerCase().includes(q)) ||
+        semText.includes(q) ||
+        String(row.semester).includes(q)
+      );
+    });
+  }, [prospectusRows, subjectSearch]);
 
   const duplicateLocal = useMemo(() => {
     const n = normalizeSubjectCodeForCompare(code.trim());
@@ -108,6 +166,10 @@ export function SubjectCodesWorkspace({
     const trimmedTitle = title.trim();
     if (!trimmedCode || !trimmedTitle) {
       setError("Subject Code and Descriptive Title are required.");
+      return;
+    }
+    if (gecCurriculumOnly && !isGecCurriculumSubjectCode(trimmedCode)) {
+      setError("GEC Chairman may only add subjects whose codes start with GEC- or GEE- (general education).");
       return;
     }
     if (duplicateLocal) {
@@ -176,6 +238,13 @@ export function SubjectCodesWorkspace({
     void loadSubjects();
   }
 
+  const prospectusSubtitle =
+    gecCurriculumOnly && effectiveProgramCode?.toUpperCase() === BSIT_PROGRAM_CODE
+      ? "GEC / GEE rows only — CMO No. 25 s. 2015 (BSIT)"
+      : effectiveProgramCode?.toUpperCase() === BSIT_PROGRAM_CODE
+        ? "CMO No. 25 s. 2015 — effective A.Y. 2023–2024"
+        : "Static prospectus slice in `prospectus-registry` for this program code.";
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6">
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-6">
@@ -183,7 +252,9 @@ export function SubjectCodesWorkspace({
           <div>
             <div className="text-[16px] font-semibold">Add Subject</div>
             <p className="text-[12px] text-black/55 mt-1">
-              New offerings are saved to Supabase for the selected program. Codes are unique across the database.
+              {gecCurriculumOnly
+                ? "Only GEC- / GEE- codes (general education). Saved under the BSIT program for this college."
+                : "New offerings are saved to Supabase for the selected program. Codes are unique across the database."}
             </p>
           </div>
           <Button
@@ -328,14 +399,16 @@ export function SubjectCodesWorkspace({
                     No program selected.
                   </td>
                 </tr>
-              ) : dbSubjects.length === 0 ? (
+              ) : filteredDbSubjects.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
-                    No subjects in the database for this program yet.
+                    {dbSubjects.length === 0
+                      ? "No subjects in the database for this program yet."
+                      : "No saved subjects match your search."}
                   </td>
                 </tr>
               ) : (
-                dbSubjects.map((s) => (
+                filteredDbSubjects.map((s) => (
                   <tr key={s.id}>
                     <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
                     <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
@@ -356,49 +429,68 @@ export function SubjectCodesWorkspace({
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
         <div className="p-4 border-b border-black/10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
-            <div className="text-[16px] font-semibold">BSIT prospectus (reference)</div>
-            <p className="text-[12px] text-black/55 mt-1">CMO No. 25 s. 2015 — effective A.Y. 2023–2024</p>
+            <div className="text-[16px] font-semibold">Official prospectus (reference)</div>
+            <p className="text-[12px] text-black/55 mt-1">
+              {programId && effectiveProgramCode
+                ? `${effectiveProgramCode} — ${prospectusSubtitle}`
+                : "Select a program to load the static curriculum reference for that program code."}
+            </p>
           </div>
           <p className="text-[11px] text-black/45 sm:text-right">Uses the same search box as saved subjects above.</p>
         </div>
-        <div className="overflow-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-[#ff990a] text-white text-[11px]">
-                <th className="border border-black/10 px-2 py-2 text-left">Yr</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Subject Code</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Subcode</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Descriptive Title</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Lec Units</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Lab Units</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Lab Hours</th>
-              </tr>
-            </thead>
-            <tbody className="text-[12px]">
-              {filteredProspectus.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
-                    No prospectus rows match &quot;{subjectSearch.trim()}&quot;.
-                  </td>
+        {!programId ? (
+          <p className="text-[13px] text-black/45 px-4 py-6 text-center">No program selected.</p>
+        ) : !effectiveProgramCode ? (
+          <p className="text-[13px] text-amber-800 bg-amber-50 border-t border-amber-200 px-4 py-3">
+            Resolving program code… If this persists, ensure the Program row exists in Supabase.
+          </p>
+        ) : !hasProspectusForProgram(effectiveProgramCode) ? (
+          <p className="text-[13px] text-amber-800 bg-amber-50 border-t border-amber-200 px-4 py-3">
+            No static prospectus is registered for <strong>{effectiveProgramCode}</strong>. Add entries in{" "}
+            <code className="text-xs">prospectus-registry.ts</code> or use saved subjects only.
+          </p>
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-[#ff990a] text-white text-[11px]">
+                  <th className="border border-black/10 px-2 py-2 text-left">Yr</th>
+                  <th className="border border-black/10 px-2 py-2 text-left">Sem</th>
+                  <th className="border border-black/10 px-2 py-2 text-left">Subject Code</th>
+                  <th className="border border-black/10 px-2 py-2 text-left">Subcode</th>
+                  <th className="border border-black/10 px-2 py-2 text-left">Descriptive Title</th>
+                  <th className="border border-black/10 px-2 py-2 text-left">Lec Units</th>
+                  <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
+                  <th className="border border-black/10 px-2 py-2 text-left">Lab Units</th>
+                  <th className="border border-black/10 px-2 py-2 text-left">Lab Hours</th>
                 </tr>
-              ) : (
-                filteredProspectus.map((s) => (
-                <tr key={s.code}>
-                  <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
-                  <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                  <td className="border border-black/10 px-2 py-2">{s.subcode || "—"}</td>
-                  <td className="border border-black/10 px-2 py-2">{s.title}</td>
-                  <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                  <td className="border border-black/10 px-2 py-2">{s.lecHours}</td>
-                  <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                  <td className="border border-black/10 px-2 py-2">{s.labHours}</td>
-                </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="text-[12px]">
+                {filteredProspectus.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                      No prospectus rows match &quot;{subjectSearch.trim()}&quot;.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProspectus.map((s) => (
+                    <tr key={`${s.yearLevel}-${s.semester}-${s.code}`}>
+                      <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
+                      <td className="border border-black/10 px-2 py-2">{formatProspectusSemester(s.semester)}</td>
+                      <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.subcode || "—"}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.title}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.lecHours}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.labHours}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

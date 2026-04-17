@@ -12,7 +12,12 @@ import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-regist
 import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecCurriculumSubjectCode, isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
-import type { Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import {
+  formatInstructorPlotOptionLabel,
+  formatUserInstructorLabel,
+  type InstructorPlotOption,
+} from "@/lib/evaluator/instructor-employee-id";
+import type { FacultyProfile, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 
 const selectClass =
   "w-full min-h-9 rounded-md border border-black/25 bg-white px-2 text-[11px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -32,9 +37,12 @@ type Props = {
   subjectById: Map<string, Subject>;
   sectionById: Map<string, Section>;
   programById: Map<string, Program>;
-  instructors: User[];
+  /** Faculty with Employee ID (plus legacy row fallbacks) — `<option value>` is still `User.id` on save. */
+  instructorPlotOptions: InstructorPlotOption[];
   /** All users (for locked-row instructor names). */
   userById: Map<string, User>;
+  /** Faculty Profile rows — evaluator labels use full name (not Employee ID). */
+  facultyProfileByUserId: Map<string, Pick<FacultyProfile, "fullName">>;
   rooms: Room[];
   edits: Record<string, GecPlotEditPatch>;
   patchEdit: (entryId: string, patch: GecPlotEditPatch) => void;
@@ -60,6 +68,8 @@ type Props = {
   conflictAlternativesSlot?: ReactNode;
   /** Visible label “Alternative Solutions” before the slot (when conflicts were found). */
   showAlternativeSolutionsHeading?: boolean;
+  /** After campus-wide &quot;Run conflict check&quot; — highlight involved rows in this section. */
+  highlightConflictEntryIds?: Set<string>;
 };
 
 function hhmm(t: string): string {
@@ -98,8 +108,9 @@ export function GecSectionPlottingTable({
   subjectById,
   sectionById,
   programById,
-  instructors,
+  instructorPlotOptions,
   userById,
+  facultyProfileByUserId,
   rooms,
   edits,
   patchEdit,
@@ -118,6 +129,7 @@ export function GecSectionPlottingTable({
   saveVacantBusy = false,
   conflictAlternativesSlot,
   showAlternativeSolutionsHeading = false,
+  highlightConflictEntryIds,
 }: Props) {
   const vacantSourceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -196,16 +208,16 @@ export function GecSectionPlottingTable({
 
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10">
-      <div className="px-4 py-2 border-b border-black/10 bg-black/[0.02] flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+      <div className="px-4 py-3 border-b border-black/10 bg-black/[0.02] flex flex-col gap-3">
+        <div className="min-w-0">
           <h3 className="text-sm font-bold text-black/90">Main evaluator grid (section scope)</h3>
           <p className="text-[11px] text-black/55 mt-0.5">
-            Locked rows: major subjects (read-only). Highlighted vacant GEC slots: plot subject, instructor, room, day,
-            and start time — same fields as Program Chairman.
+            Locked rows: major subjects (read-only). Vacant GEC slots (light green): plot subject, instructor, room,
+            day, and start time. Conflict check is <strong>campus-wide</strong> (all programs) for the selected term.
           </p>
         </div>
-        {/* Order: Add schedule → Run conflict check → alternatives (when any) → Save vacant edits (DOI-style GA beside Run). */}
-        <div className="flex flex-wrap items-center gap-2 justify-end shrink-0 max-w-full">
+        {/* Actions sit above the scrollable grid: Add → Run conflict check → GA alternatives → Save vacant edits. */}
+        <div className="flex flex-wrap items-center gap-2">
           {showAddScheduleButton && onAddScheduleRow ? (
             <Button
               type="button"
@@ -246,7 +258,8 @@ export function GecSectionPlottingTable({
           ) : null}
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="max-h-[min(70vh,880px)] overflow-auto">
+        <div className="overflow-x-auto min-h-0">
         <table className="w-full border-collapse min-w-[1180px]">
           <thead>
             <tr className="bg-[#ff990a] text-white text-[11px]">
@@ -288,11 +301,18 @@ export function GecSectionPlottingTable({
                 const startIdx = startSlotIndexFromEntry(merged);
                 const maxStart = Math.max(0, BSIT_EVALUATOR_TIME_SLOTS.length - dur);
                 const effStart = startIdx >= 0 ? Math.min(startIdx, maxStart) : 0;
+                const conflictScanHit = highlightConflictEntryIds?.has(e.id) ?? false;
                 const rowClass = editable
                   ? "bg-emerald-50/90 ring-1 ring-inset ring-emerald-400/70"
                   : "bg-gray-200/85 text-black/65";
                 return (
-                  <tr key={e.id} className={`text-[11px] ${rowClass}`}>
+                  <tr
+                    key={e.id}
+                    id={`gec-hub-eval-row-${e.id}`}
+                    className={`text-[11px] ${rowClass} ${
+                      conflictScanHit ? "ring-2 ring-inset ring-red-400/90 bg-red-50/50" : ""
+                    }`}
+                  >
                     <td className="border border-black/10 px-2 py-1.5 font-semibold">{program?.code ?? "—"}</td>
                     <td className="border border-black/10 px-2 py-1.5">{sec?.name ?? "—"}</td>
                     <td className="border border-black/10 px-2 py-1.5 tabular-nums">{sec?.studentCount ?? "—"}</td>
@@ -340,16 +360,22 @@ export function GecSectionPlottingTable({
                           className={selectClass}
                           value={merged.instructorId}
                           onChange={(ev) => patchEdit(e.id, { instructorId: ev.target.value })}
+                          aria-label="Instructor"
                         >
                           <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>— Vacant (TBD) —</option>
-                          {instructors.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name}
+                          {instructorPlotOptions.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {formatInstructorPlotOptionLabel(opt)}
                             </option>
                           ))}
                         </select>
                       ) : (
-                        <span>{userById.get(merged.instructorId)?.name ?? "—"}</span>
+                        <span>
+                          {formatUserInstructorLabel(
+                            userById.get(merged.instructorId),
+                            facultyProfileByUserId.get(merged.instructorId),
+                          )}
+                        </span>
                       )}
                     </td>
                     <td className="border border-black/10 px-1 py-1 min-w-[120px]">
@@ -449,6 +475,7 @@ export function GecSectionPlottingTable({
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

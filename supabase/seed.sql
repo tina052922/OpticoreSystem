@@ -1,26 +1,22 @@
 -- OptiCore sample data — COTE prospectus-inspired (example only; not official / final curriculum).
--- Exactly ONE public."User" per role (chairman_admin, college_admin, cas_admin, gec_chairman, doi_admin, instructor, student, visitor).
+--
+-- Core admin accounts (seeded here): Program Chairman, College Admin, GEC Chairman, DOI Admin.
+-- Additional roles (cas_admin, instructor, student, visitor) are not seeded — use reset_for_clean_e2e_testing.sql
+-- and Supabase Auth for a clean QA environment. Real instructors self-register (Gmail) via /register/instructor.
+--
+-- System user (not seeded here): GEC vacant-slot placeholder instructor
+--   id = a0000000-0000-4000-8000-000000000099 (see migration 20260413120000_gec_chairman_schedule_placeholder_and_rls.sql).
 --
 -- AUTH: public."User".id MUST equal auth.users.id (same UUID as Supabase Authentication → Users).
 --
--- If you see ERROR 23514 on cas_admin: your DB had an old User.role CHECK without cas_admin.
--- Run the block at the END of schema.sql (User_role_check refresh), or run upgrade_add_cas_admin_role.sql, then re-run this seed.
---
--- IDs below match Supabase Auth UIDs (Dashboard). Chairman + visitor use the two Gmail accounts shown there;
--- the six @opticore.local accounts use their Auth UIDs.
---
--- PASSWORD: set in Supabase Auth when you created each user (seed_auth.sql used OptiCore2026! if you ran it instead).
+-- PASSWORD: set in Supabase Auth when you create each user (seed_auth.sql used OptiCore2026! if you ran it instead).
 --
 -- | Role           | Email                              | User.id (UUID)                              |
 -- |----------------|------------------------------------|---------------------------------------------|
 -- | chairman_admin | macalisangchristina@gmail.com      | 9a727fde-53b7-4463-8c36-fa7614945a7a        |
 -- | college_admin  | college.admin@opticore.local       | 7f77000a-bf51-43ed-b52e-a27a3e8add6c        |
--- | cas_admin      | cas.admin@opticore.local           | c35393fb-940c-455d-8809-9bafdab7f103        |
 -- | gec_chairman   | gec.chairman@opticore.local        | 41288bb4-7b5e-49d0-b02a-b8d20c2d701e        |
 -- | doi_admin      | doi.admin@opticore.local           | 3424c55e-d871-47a3-8134-1d339717e7ca        |
--- | instructor     | instructor@opticore.local          | 2913ec86-b6c3-4663-a969-1557c46835bd        |
--- | student        | student@opticore.local             | 225962fc-8cc1-41d7-8378-cb36ef1aed14        |
--- | visitor        | galbolingachristina2229@gmail.com  | d2b1447e-a32b-4c30-9c96-b765700f12c0        |
 
 alter table public."User" add column if not exists "chairmanProgramId" text references public."Program"(id) on delete set null;
 
@@ -189,17 +185,13 @@ on conflict (id) do update set
   "programId" = excluded."programId",
   "yearLevel" = excluded."yearLevel";
 
--- One row per role (id = auth.users.id from Supabase Authentication)
+-- Four admin rows (id = auth.users.id from Supabase Authentication)
 insert into public."User" (id, "employeeId", email, name, role, "collegeId", "chairmanProgramId")
 values
   ('9a727fde-53b7-4463-8c36-fa7614945a7a', 'CTU-ARG-CHAIR', 'macalisangchristina@gmail.com', 'Justine Shene Cariman', 'chairman_admin', 'col-tech-eng', 'prog-bsit'),
   ('7f77000a-bf51-43ed-b52e-a27a3e8add6c', 'CTU-ARG-COLL', 'college.admin@opticore.local', 'Vilia Crestene M. Gelaga', 'college_admin', 'col-tech-eng', null),
-  ('c35393fb-940c-455d-8809-9bafdab7f103', 'CTU-ARG-CAS', 'cas.admin@opticore.local', 'Carla Primitiva C. Pontanan', 'cas_admin', 'col-tech-eng', null),
   ('41288bb4-7b5e-49d0-b02a-b8d20c2d701e', 'CTU-ARG-GEC', 'gec.chairman@opticore.local', 'Christina Joan M. Gelbolingo', 'gec_chairman', 'col-tech-eng', null),
-  ('3424c55e-d871-47a3-8134-1d339717e7ca', 'CTU-ARG-DOI', 'doi.admin@opticore.local', 'Dr. Maria Elena Reyes', 'doi_admin', null, null),
-  ('2913ec86-b6c3-4663-a969-1557c46835bd', 'CTU-ARG-FAC', 'instructor@opticore.local', 'Prof. Ramon Santos', 'instructor', 'col-tech-eng', null),
-  ('225962fc-8cc1-41d7-8378-cb36ef1aed14', null, 'student@opticore.local', 'John Michael Reyes', 'student', 'col-tech-eng', null),
-  ('d2b1447e-a32b-4c30-9c96-b765700f12c0', null, 'galbolingachristina2229@gmail.com', 'Campus Visitor (demo)', 'visitor', null, null)
+  ('3424c55e-d871-47a3-8134-1d339717e7ca', 'CTU-ARG-DOI', 'doi.admin@opticore.local', 'Dr. Maria Elena Reyes', 'doi_admin', null, null)
 on conflict (id) do update set
   "employeeId" = excluded."employeeId",
   email = excluded.email,
@@ -207,66 +199,3 @@ on conflict (id) do update set
   role = excluded.role,
   "collegeId" = excluded."collegeId",
   "chairmanProgramId" = excluded."chairmanProgramId";
-
-insert into public."FacultyProfile" (id, "userId", "fullName", aka, "bsDegree", status, designation, "ratePerHour")
-values
-  ('fp-inst-1', '2913ec86-b6c3-4663-a969-1557c46835bd', 'Prof. Ramon Santos', 'Ramon', 'BS Information Technology', 'Organic', 'Instructor I', 250)
-on conflict ("userId") do update set
-  "fullName" = excluded."fullName",
-  aka = excluded.aka,
-  "bsDegree" = excluded."bsDegree",
-  status = excluded.status,
-  designation = excluded.designation,
-  "ratePerHour" = excluded."ratePerHour";
-
-insert into public."StudentProfile" (id, "userId", "programId", "sectionId", "yearLevel")
-values
-  ('sp-stu-1', '225962fc-8cc1-41d7-8378-cb36ef1aed14', 'prog-bsit', 'sec-bsit-2a', 2)
-on conflict ("userId") do update set
-  "programId" = excluded."programId",
-  "sectionId" = excluded."sectionId",
-  "yearLevel" = excluded."yearLevel";
-
--- Schedule entries: single instructor (006); demos conflicts + overload justification
-insert into public."ScheduleEntry" (id, "academicPeriodId", "subjectId", "instructorId", "sectionId", "roomId", day, "startTime", "endTime", status)
-values
-  ('sch-1', 'ap-2025-2', 'sub-pc-224', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-it-lab-1', 'Monday', '07:00', '09:00', 'draft'),
-  ('sch-2', 'ap-2025-2', 'sub-cc-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2b', 'room-201', 'Tuesday', '09:00', '11:00', 'draft'),
-  ('sch-3', 'ap-2025-2', 'sub-elx-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bit-elx-1a', 'room-elx-1', 'Monday', '07:00', '09:00', 'draft'),
-  ('sch-4', 'ap-2025-2', 'sub-auto-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bit-auto-1a', 'room-elx-1', 'Monday', '07:00', '09:00', 'conflicted'),
-  ('sch-5', 'ap-2025-2', 'sub-cc-214', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2b', 'lab-301', 'Monday', '07:00', '09:00', 'conflicted'),
-  ('sch-6', 'ap-2025-2', 'sub-ie-tech-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsie-1a', 'room-bsie-lab', 'Wednesday', '13:00', '15:00', 'draft'),
-  ('sch-7', 'ap-2025-2', 'sub-dtech-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bit-dt-1a', 'room-draft-1', 'Thursday', '09:00', '11:00', 'draft'),
-  ('sch-8', 'ap-2025-2', 'sub-cc-112', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Wednesday', '07:00', '09:00', 'draft'),
-  ('sch-9', 'ap-2025-2', 'sub-bsit-gec-pc', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'lab-301', 'Wednesday', '09:00', '11:00', 'draft'),
-  ('sch-10', 'ap-2025-2', 'sub-cc-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Wednesday', '13:00', '15:00', 'draft'),
-  ('sch-11', 'ap-2025-2', 'sub-cc-112', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'lab-301', 'Thursday', '07:00', '09:00', 'draft'),
-  ('sch-12', 'ap-2025-2', 'sub-bsit-gec-pc', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Thursday', '09:00', '11:00', 'draft'),
-  ('sch-13', 'ap-2025-2', 'sub-cc-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'lab-301', 'Thursday', '13:00', '15:00', 'draft'),
-  ('sch-14', 'ap-2025-2', 'sub-cc-112', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Friday', '07:00', '09:00', 'draft'),
-  ('sch-15', 'ap-2025-2', 'sub-bsit-gec-pc', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'lab-301', 'Friday', '09:00', '11:00', 'draft'),
-  ('sch-16', 'ap-2025-2', 'sub-cc-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Friday', '13:00', '15:00', 'draft'),
-  ('sch-17', 'ap-2025-2', 'sub-cc-112', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'lab-301', 'Saturday', '07:00', '09:00', 'draft'),
-  ('sch-18', 'ap-2025-2', 'sub-bsit-gec-pc', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-2a', 'room-201', 'Saturday', '09:00', '11:00', 'draft'),
-  -- Explicit QA row for Schedule Change Request flow (same instructor as seed; id matches migration sch-qa-schedule-change-demo)
-  ('sch-qa-schedule-change-demo', 'ap-2025-2', 'sub-cc-111', '2913ec86-b6c3-4663-a969-1557c46835bd', 'sec-bsit-1a', 'room-it-lab-2', 'Tuesday', '14:00', '16:00', 'draft')
-on conflict (id) do nothing;
-
-insert into public."ScheduleLoadJustification" (id, "academicPeriodId", "collegeId", "authorUserId", "authorName", "authorEmail", justification, "violationsSnapshot")
-values
-  (
-    'slj-demo-1',
-    'ap-2025-2',
-    'col-tech-eng',
-    '9a727fde-53b7-4463-8c36-fa7614945a7a',
-    'Justine Shene Cariman',
-    'macalisangchristina@gmail.com',
-    'Example: shortage of qualified faculty this term; consolidated sections; overload approved in principle pending VPAA signature.',
-    '{"summary":"Prof. Ramon Santos: weekly contact exceeds standard 24h (demo seed)."}'::jsonb
-  )
-on conflict ("academicPeriodId", "collegeId") do update set
-  "authorUserId" = excluded."authorUserId",
-  "authorName" = excluded."authorName",
-  "authorEmail" = excluded."authorEmail",
-  justification = excluded.justification,
-  "violationsSnapshot" = excluded."violationsSnapshot";

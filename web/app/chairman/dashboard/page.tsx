@@ -5,14 +5,48 @@ import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
 import { RecentActivityCard } from "@/components/audit/RecentActivityCard";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { getChairmanSession } from "@/lib/auth/chairman-session";
+import { getCampusIntelligenceStats } from "@/lib/server/campus-intelligence-stats";
+import { getDashboardConflictBanner } from "@/lib/server/dashboard-conflicts";
 
 export default async function ChairmanDashboardPage() {
   const session = await getChairmanSession();
   if (!session) redirect("/login");
 
+  const [conflictBanner, liveStats] = await Promise.all([
+    getDashboardConflictBanner({
+      mode: "chairman_program",
+      collegeId: session.collegeId,
+      programId: session.programId,
+    }),
+    getCampusIntelligenceStats({
+      mode: "chairman_program",
+      collegeId: session.collegeId,
+      programId: session.programId,
+    }),
+  ]);
+
   return (
     <div className="space-y-8 pb-8">
-      <CiDashboard welcomeName={session.name} basePath="/chairman" variant="full" />
+      <CiDashboard
+        welcomeName={session.name}
+        basePath="/chairman"
+        variant="full"
+        liveStats={liveStats}
+        scopeHint={
+          session.programCode
+            ? `Your program (${session.programCode}) — rooms & sections for this program; faculty in your college`
+            : "Your assigned program — rooms & sections scoped to catalog; faculty in your college"
+        }
+        conflictBanner={
+          conflictBanner
+            ? {
+                conflictingRowCount: conflictBanner.conflictingRowCount,
+                previewLines: conflictBanner.previewLines,
+                evaluatorHref: conflictBanner.evaluatorHref,
+              }
+            : null
+        }
+      />
 
       <div className="px-4 sm:px-6 max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

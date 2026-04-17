@@ -6,7 +6,7 @@
  * 2. Import it here and add an entry to `PROGRAM_PROSPECTUS_SUBJECTS` using the same `Program.code` value as in Supabase (case-insensitive lookup).
  *
  * The GEC Central Hub summary, slot durations, and previews use the **selected section’s program** via
- * `getProspectusSubjectsForProgram` / `prospectusRowForProgram`. BSIT Chairman worksheet still uses `bsit-prospectus.ts` directly until multi-program chairman UI exists.
+ * `getProspectusSubjectsForProgram` / `prospectusRowForProgram`. Subject Codes and chairman tools resolve the same catalog via program code.
  */
 
 import {

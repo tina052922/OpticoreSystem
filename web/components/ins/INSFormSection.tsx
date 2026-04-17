@@ -107,6 +107,7 @@ export function INSFormSection({
       subjectById: catalog.subjectById,
       roomById: catalog.roomById,
       userById: catalog.userById,
+      facultyProfileByUserId: catalog.facultyProfileByUserId,
     });
   }, [
     useLiveData,
@@ -118,6 +119,7 @@ export function INSFormSection({
     catalog.subjectById,
     catalog.roomById,
     catalog.userById,
+    catalog.facultyProfileByUserId,
   ]);
 
   const displaySchedule = schedule;

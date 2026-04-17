@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Users, BookOpen, DoorOpen, Percent, FileText, AlertTriangle } from "lucide-react";
+import { Users, BookOpen, DoorOpen, FileText, AlertTriangle, ChevronRight } from "lucide-react";
 
 const CiDashboardCharts = dynamic(
   () => import("./CiDashboardCharts").then((m) => ({ default: m.CiDashboardCharts })),
@@ -19,6 +19,20 @@ const CiDashboardCharts = dynamic(
 
 export type CiDashboardVariant = "full" | "gec" | "doi";
 
+export type CiDashboardConflictBanner = {
+  conflictingRowCount: number;
+  previewLines: string[];
+  evaluatorHref: string;
+};
+
+/** Live counts from Supabase — scope depends on role (see `getCampusIntelligenceStats`). */
+export type CiDashboardLiveStats = {
+  roomCount: number;
+  sectionCount: number;
+  facultyCount: number;
+  draftScheduleCount: number;
+};
+
 export type CiDashboardProps = {
   /** Optional welcome line above the main title. */
   welcomeName?: string;
@@ -29,6 +43,15 @@ export type CiDashboardProps = {
   basePath: string;
   /** `full`: standard admin modules. `gec`: GEC chairman shortcuts. `doi`: adds policy reviews link in quick access. */
   variant?: CiDashboardVariant;
+  /**
+   * Live overlap scan for the current term (Evaluator scope). When present, shows an actionable “conflicts” card
+   * and updates the stat tile — not calendar-specific; reflects the master schedule as it exists now.
+   */
+  conflictBanner?: CiDashboardConflictBanner | null;
+  /** Real-time catalog + draft counts; omit to show placeholders (legacy). */
+  liveStats?: CiDashboardLiveStats | null;
+  /** Shown under the main subtitle (e.g. “Scope: BSIT program”). */
+  scopeHint?: string | null;
 };
 
 const recentActivities = [
@@ -79,14 +102,49 @@ const recentActivities = [
 /**
  * Campus Intelligence Core dashboard (ported from Opticore-CampusIntelligence `Dashboard.tsx`).
  */
-export function CiDashboard({ welcomeName, basePath, variant = "full" }: CiDashboardProps) {
+function fmtCount(n: number): string {
+  return n.toLocaleString();
+}
+
+export function CiDashboard({
+  welcomeName,
+  basePath,
+  variant = "full",
+  conflictBanner = null,
+  liveStats = null,
+  scopeHint = null,
+}: CiDashboardProps) {
   const stats = [
-    { label: "Total Sections", value: "127", icon: BookOpen, color: "#FF990A" },
-    { label: "Total Instructors", value: "45", icon: Users, color: "#780301" },
-    { label: "Total Rooms", value: "38", icon: DoorOpen, color: "#4CAF50" },
-    { label: "Room Utilization", value: "87%", icon: Percent, color: "#2196F3", progress: 87 },
-    { label: "Pending Drafts", value: "12", icon: FileText, color: "#FFC107" },
-    { label: "Conflicts Detected Today", value: "3", icon: AlertTriangle, color: "#F44336" },
+    {
+      label: "Rooms",
+      value: liveStats ? fmtCount(liveStats.roomCount) : "—",
+      icon: DoorOpen,
+      color: "#4CAF50",
+    },
+    {
+      label: "Sections",
+      value: liveStats ? fmtCount(liveStats.sectionCount) : "—",
+      icon: BookOpen,
+      color: "#FF990A",
+    },
+    {
+      label: "Faculty",
+      value: liveStats ? fmtCount(liveStats.facultyCount) : "—",
+      icon: Users,
+      color: "#780301",
+    },
+    {
+      label: "Draft schedules (current term)",
+      value: liveStats ? fmtCount(liveStats.draftScheduleCount) : "—",
+      icon: FileText,
+      color: "#FFC107",
+    },
+    {
+      label: "Schedule conflicts (current term)",
+      value: conflictBanner ? String(conflictBanner.conflictingRowCount) : "—",
+      icon: AlertTriangle,
+      color: conflictBanner ? "#F44336" : "#9E9E9E",
+    },
   ];
 
   /** Program Chairman + College Admin + DOI: centralized `ScheduleEntry` (no workflow Inbox quick link). CAS keeps Inbox. */
@@ -123,28 +181,56 @@ export function CiDashboard({ welcomeName, basePath, variant = "full" }: CiDashb
         ) : null}
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Campus Intelligence Core</h2>
         <p className="text-gray-600 text-sm">High-level view of today&apos;s academic activity and room usage.</p>
+        {scopeHint ? (
+          <p className="text-[12px] text-gray-500 mt-1">
+            <span className="font-semibold text-gray-600">Scope:</span> {scopeHint}
+          </p>
+        ) : null}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      {conflictBanner && conflictBanner.conflictingRowCount > 0 ? (
+        <Link
+          href={conflictBanner.evaluatorHref}
+          className="block rounded-xl border-2 border-red-400/80 bg-gradient-to-r from-red-50 to-amber-50/90 p-4 sm:p-5 shadow-[0px_4px_12px_rgba(120,3,1,0.12)] hover:border-[#ff990a] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#780301]"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-md">
+                <AlertTriangle className="w-6 h-6" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-red-950">Conflicts detected today</h3>
+                <p className="text-sm text-red-900/85 mt-0.5">
+                  {conflictBanner.conflictingRowCount} schedule row(s) participate in a time overlap (faculty, room, or
+                  section). Open the Evaluator to review details and suggested remedies.
+                </p>
+                {conflictBanner.previewLines.length > 0 ? (
+                  <ul className="mt-2 text-[12px] text-red-950/80 space-y-1 list-disc pl-5 max-h-[7.5rem] overflow-y-auto">
+                    {conflictBanner.previewLines.map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1 text-sm font-bold text-[#780301] shrink-0">
+              Go to Evaluator
+              <ChevronRight className="w-4 h-4" aria-hidden />
+            </span>
+          </div>
+        </Link>
+      ) : null}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <div key={index} className="bg-white rounded-lg shadow-sm p-5 border border-gray-200">
               <div className="flex items-center justify-between mb-3">
                 <Icon className="w-8 h-8" style={{ color: stat.color }} />
               </div>
               <div className="text-3xl font-bold text-gray-800 mb-1">{stat.value}</div>
-              <div className="text-sm text-gray-600">{stat.label}</div>
-              {stat.progress != null ? (
-                <div className="mt-3 relative">
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="h-2 rounded-full transition-all"
-                      style={{ width: `${stat.progress}%`, backgroundColor: stat.color }}
-                    />
-                  </div>
-                </div>
-              ) : null}
+              <div className="text-sm text-gray-600 leading-snug">{stat.label}</div>
             </div>
           );
         })}

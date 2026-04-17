@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { TIME_SLOT_OPTIONS, WEEKDAYS } from "@/lib/scheduling/constants";
-import type { Room, ScheduleEntry, User } from "@/types/db";
+import {
+  formatInstructorPlotOptionLabel,
+  mergeLegacyRowInstructorsIntoPlotOptions,
+  usersToInstructorPlotOptions,
+} from "@/lib/evaluator/instructor-employee-id";
+import type { FacultyProfile, Room, ScheduleEntry, User } from "@/types/db";
 
 export type DoiScheduleEntryQuickEditDialogProps = {
   open: boolean;
@@ -11,6 +16,8 @@ export type DoiScheduleEntryQuickEditDialogProps = {
   entry: ScheduleEntry | null;
   rooms: Room[];
   instructors: User[];
+  /** Optional: Faculty Profile rows for full-name labels in the instructor `<select>`. */
+  facultyProfileByUserId?: Map<string, Pick<FacultyProfile, "fullName">>;
   busy?: boolean;
   onSave: (patch: Pick<ScheduleEntry, "day" | "startTime" | "endTime" | "roomId" | "instructorId">) => Promise<void>;
 };
@@ -24,6 +31,7 @@ export function DoiScheduleEntryQuickEditDialog({
   entry,
   rooms,
   instructors,
+  facultyProfileByUserId,
   busy,
   onSave,
 }: DoiScheduleEntryQuickEditDialogProps) {
@@ -48,6 +56,12 @@ export function DoiScheduleEntryQuickEditDialog({
     if (!s || !e) return null;
     return { startTime: s, endTime: e };
   }, [slotKey]);
+
+  const instructorSelectOptions = useMemo(() => {
+    const base = usersToInstructorPlotOptions(instructors, facultyProfileByUserId);
+    const ids = entry?.instructorId ? [entry.instructorId] : [];
+    return mergeLegacyRowInstructorsIntoPlotOptions(base, instructors, ids, facultyProfileByUserId);
+  }, [instructors, entry?.instructorId, facultyProfileByUserId]);
 
   const slotOptions = useMemo(() => {
     const base = TIME_SLOT_OPTIONS.map((o) => ({
@@ -136,10 +150,11 @@ export function DoiScheduleEntryQuickEditDialog({
                 className="mt-1 w-full h-10 rounded-lg border border-gray-200 px-2 text-sm"
                 value={instructorId}
                 onChange={(e) => setInstructorId(e.target.value)}
+                aria-label="Instructor"
               >
-                {instructors.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name || u.email}
+                {instructorSelectOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {formatInstructorPlotOptionLabel(opt)}
                   </option>
                 ))}
               </select>

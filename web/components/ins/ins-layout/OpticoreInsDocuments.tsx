@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { InsFacultyCell, InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
+import type { InsRoomSchedule } from "@/lib/ins/build-ins-room-view";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsDay } from "./opticore-ins-constants";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
@@ -35,7 +36,7 @@ function CredLine({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function matchSlot(daySchedule: InsFacultyCell[], slot: string): InsFacultyCell | undefined {
+function matchSlot<T extends { time: string }>(daySchedule: T[], slot: string): T | undefined {
   const start = slot.split("-")[0];
   return daySchedule.find((c) => c.time.includes(start));
 }
@@ -676,7 +677,8 @@ export function OpticoreInsForm5B({
 
 export type OpticoreInsForm5CProps = {
   roomAssignment: string;
-  schedule: FacultySchedule;
+  /** Built from `buildInsRoomView` — includes per-slot instructor (AKA / full name). */
+  schedule: InsRoomSchedule;
   scheduleApproved?: boolean;
   insSignatureSlots?: InsSignatureSlot[] | null;
   readOnly?: boolean;
@@ -702,6 +704,7 @@ export function OpticoreInsForm5C({
       const inner = (
         <div className="w-full space-y-0.5 text-xs leading-snug">
           <div className="font-semibold">{classAtTime.course}</div>
+          <div>{classAtTime.instructor}</div>
           <div>{classAtTime.yearSec}</div>
           <div>{classAtTime.room}</div>
         </div>
@@ -719,6 +722,7 @@ export function OpticoreInsForm5C({
       return (
         <div className="text-xs leading-relaxed text-neutral-500">
           <div>Course code</div>
+          <div>Instructor</div>
           <div>Yr. & Sec.</div>
           <div>Room</div>
         </div>
