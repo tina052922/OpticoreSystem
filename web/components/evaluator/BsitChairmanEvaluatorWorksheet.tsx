@@ -7,14 +7,15 @@ import { Q } from "@/lib/supabase/catalog-columns";
 import { detectConflictsSparse, scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
-import type { ScheduleBlock } from "@/lib/scheduling/types";
+import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
+import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
+import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import type { FacultyProfile, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   BSIT_PROSPECTUS_SUBJECTS,
   BSIT_SCHEDULING_ROOM_CODES,
-  BSIT_SECTION_NAMES,
   normalizeProspectusCode,
   prospectusByCode,
   prospectusSubjectsForYearAndSemester,
@@ -29,6 +30,7 @@ import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import type { EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
@@ -241,6 +243,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const [saveScheduleMsg, setSaveScheduleMsg] = useState<string | null>(null);
   /** Server-enriched explanations (saved DB rows); local unsaved edits may add conflicts not listed here. */
   const [chairmanEnrichedIssues, setChairmanEnrichedIssues] = useState<EnrichedCampusIssue[]>([]);
+  const [chairmanGaByIssueKey, setChairmanGaByIssueKey] = useState<Record<string, GASuggestion[]>>({});
+  const [busyChairmanApplyKey, setBusyChairmanApplyKey] = useState<string | null>(null);
   const [conflictDetailLoading, setConflictDetailLoading] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -297,14 +301,19 @@ export function BsitChairmanEvaluatorWorksheet({
     void loadCatalog();
   }, [loadCatalog]);
 
-  const bsitSections = useMemo(() => {
-    const names = new Set(BSIT_SECTION_NAMES.map((n) => n.replace(/\s+/g, "-").toUpperCase()));
-    return sections.filter((s) => {
-      if (chairmanProgramId && s.programId !== chairmanProgramId) return false;
-      const n = s.name.trim().replace(/\s+/g, "-").replace(/-+/g, "-").toUpperCase();
-      return names.has(n);
-    });
-  }, [sections, chairmanProgramId]);
+  /**
+   * All sections for this chairman program (same scope as INS Faculty/Section/Room via `useInsCatalog`).
+   * Do not restrict to a hard-coded BSIT name list — DB section labels vary and extra rows were hidden from the grid.
+   */
+  const programSections = useMemo(
+    () => sections.filter((s) => s.programId === programId).sort((a, b) => a.name.localeCompare(b.name)),
+    [sections, programId],
+  );
+
+  const programSectionIdSet = useMemo(
+    () => new Set(programSections.map((s) => s.id)),
+    [programSections],
+  );
 
   const subjectIdByCode = useMemo(() => {
     const m = new Map<string, string>();
@@ -371,11 +380,18 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [dbInstructors]);
 
+  const roomById = useMemo(() => {
+    const m = new Map<string, Room>();
+    for (const r of rooms) m.set(r.id, r);
+    for (const r of itLabsWithFallback) m.set(r.id, r);
+    return m;
+  }, [rooms, itLabsWithFallback]);
+
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
-    bsitSections.forEach((s) => m.set(s.id, s.name));
+    programSections.forEach((s) => m.set(s.id, s.name));
     return m;
-  }, [bsitSections]);
+  }, [programSections]);
 
   /**
    * Prospectus summary: year level from section name (BSIT-3A → 3). `undefined` = no section; `null` = unparseable.
@@ -497,6 +513,7 @@ export function BsitChairmanEvaluatorWorksheet({
     if (!academicPeriodId) return;
     setSaveScheduleMsg(null);
     setChairmanEnrichedIssues([]);
+    setChairmanGaByIssueKey({});
     const scan = scanAllScheduleConflicts(mergedBlocksForCampusScan);
     setCampusScanConflictIds(new Set(scan.conflictingEntryIds));
     if (scan.issueSummaries.length === 0) {
@@ -520,13 +537,54 @@ export function BsitChairmanEvaluatorWorksheet({
       const data = (await res.json()) as { enrichedIssues?: EnrichedCampusIssue[] };
       if (res.ok && Array.isArray(data.enrichedIssues)) {
         setChairmanEnrichedIssues(data.enrichedIssues);
+        const enriched = data.enrichedIssues;
+        const gaMap: Record<string, GASuggestion[]> = {};
+        if (chairmanCollegeId && mergedBlocksForCampusScan.length > 0) {
+          const roomIds = rooms
+            .filter((r) => !r.collegeId || r.collegeId === chairmanCollegeId)
+            .map((r) => r.id);
+          const instructorIds = dbInstructors
+            .filter(
+              (u) =>
+                u.collegeId === chairmanCollegeId &&
+                (u.role === "instructor" || u.role === "chairman_admin"),
+            )
+            .map((u) => u.id);
+          for (const iss of enriched.slice(0, 12)) {
+            const block = mergedBlocksForCampusScan.find((b) => b.id === iss.rowA.entryId);
+            if (!block || roomIds.length === 0 || instructorIds.length === 0) continue;
+            const sug = runRuleBasedGeneticAlgorithm({
+              universe: mergedBlocksForCampusScan,
+              sectionId: block.sectionId,
+              subjectId: block.subjectId,
+              academicPeriodId: block.academicPeriodId,
+              excludeEntryId: block.id,
+              roomIds,
+              instructorIds,
+              generations: 32,
+              populationSize: 48,
+            });
+            gaMap[iss.key] = sug.slice(0, 5);
+          }
+        }
+        setChairmanGaByIssueKey(gaMap);
+      } else {
+        setChairmanGaByIssueKey({});
       }
     } catch {
       setChairmanEnrichedIssues([]);
+      setChairmanGaByIssueKey({});
     } finally {
       setConflictDetailLoading(false);
     }
-  }, [academicPeriodId, mergedBlocksForCampusScan, chairmanCollegeId, chairmanProgramId]);
+  }, [
+    academicPeriodId,
+    mergedBlocksForCampusScan,
+    chairmanCollegeId,
+    chairmanProgramId,
+    rooms,
+    dbInstructors,
+  ]);
 
   useEffect(() => {
     const ser = [...plottedSubjectCodesForSection].sort().join(",");
@@ -735,14 +793,17 @@ export function BsitChairmanEvaluatorWorksheet({
     });
   }
 
+  useEffect(() => {
+    didHydrateFromDbRef.current = false;
+    lastSyncedRowIdsRef.current = new Set();
+    setRows([]);
+  }, [academicPeriodId]);
+
   const loadRowsFromSupabase = useCallback(async () => {
     if (!academicPeriodId) return;
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
     setLoadError(null);
-
-    const sectionIds = new Set(bsitSections.map((s) => s.id));
-    if (sectionIds.size === 0) return;
 
     const { data: sch, error } = await supabase
       .from("ScheduleEntry")
@@ -757,14 +818,10 @@ export function BsitChairmanEvaluatorWorksheet({
     const entries = (sch ?? []) as ScheduleEntry[];
     setAllTermScheduleEntries(entries);
 
-    if (sectionIds.size === 0) {
-      setRows([]);
-      didHydrateFromDbRef.current = true;
-      lastSyncedRowIdsRef.current = new Set();
-      return;
-    }
-
-    const relevant = entries.filter((e) => sectionIds.has(e.sectionId));
+    const relevant =
+      programSectionIdSet.size === 0
+        ? []
+        : entries.filter((e) => programSectionIdSet.has(e.sectionId));
 
     lockedEntryIdsRef.current = new Set(
       relevant.filter((e) => Boolean(e.lockedByDoiAt)).map((e) => e.id),
@@ -790,7 +847,12 @@ export function BsitChairmanEvaluatorWorksheet({
 
     didHydrateFromDbRef.current = true;
     lastSyncedRowIdsRef.current = new Set(nextRows.map((r) => r.id));
-    setRows(nextRows);
+    /** Cross-reload replays full DB rows; keep client-only draft rows until they are persisted (prevents “row disappears”). */
+    setRows((prev) => {
+      const dbIds = new Set(nextRows.map((r) => r.id));
+      const pending = prev.filter((r) => !dbIds.has(r.id) && !r.lockedByDoiAt);
+      return [...nextRows, ...pending];
+    });
 
     if (chairmanCollegeId) {
       const { data: lj } = await supabase
@@ -803,11 +865,84 @@ export function BsitChairmanEvaluatorWorksheet({
     } else {
       setJustificationText("");
     }
-  }, [academicPeriodId, bsitSections, subjectCodeById, chairmanCollegeId]);
+  }, [academicPeriodId, programSectionIdSet, subjectCodeById, chairmanCollegeId]);
 
   useEffect(() => {
     void loadRowsFromSupabase();
   }, [loadRowsFromSupabase]);
+
+  const reloadScheduleFromDb = useCallback(async () => {
+    await loadCatalog();
+    await loadRowsFromSupabase();
+  }, [loadCatalog, loadRowsFromSupabase]);
+
+  /** GEC / hub / other-role saves: pull fresh `ScheduleEntry` rows so campus-wide conflict checks stay accurate. */
+  useScheduleEntryCrossReload(reloadScheduleFromDb, {
+    academicPeriodId,
+    enabled: Boolean(academicPeriodId),
+  });
+
+  const applyChairmanConflictSuggestion = useCallback(
+    async (issueKey: string, s: GASuggestion) => {
+      const iss = chairmanEnrichedIssues.find((i) => i.key === issueKey);
+      if (!iss) return;
+      const row = rows.find((r) => r.id === iss.rowA.entryId);
+      if (row?.lockedByDoiAt) return;
+      setBusyChairmanApplyKey(issueKey);
+      try {
+        const supabase = createSupabaseBrowserClient();
+        if (!supabase) return;
+        const pad = (t: string) => (t.trim().length <= 5 ? `${t.trim()}:00` : t.trim());
+        const { error } = await supabase
+          .from("ScheduleEntry")
+          .update({
+            day: s.day,
+            startTime: pad(s.startTime),
+            endTime: pad(s.endTime),
+            roomId: s.roomId,
+            instructorId: s.instructorId,
+          })
+          .eq("id", iss.rowA.entryId);
+        if (error) throw new Error(error.message);
+        setChairmanEnrichedIssues([]);
+        setChairmanGaByIssueKey({});
+        setCampusScanConflictIds(new Set());
+        await reloadScheduleFromDb();
+        dispatchInsCatalogReload();
+        void fetch("/api/audit/schedule-write", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "chairman.conflict_apply",
+            collegeId: chairmanCollegeId,
+            academicPeriodId,
+            details: {
+              entryId: iss.rowA.entryId,
+              issueKey,
+              applied: {
+                day: s.day,
+                startTime: pad(s.startTime),
+                endTime: pad(s.endTime),
+                roomId: s.roomId,
+                instructorId: s.instructorId,
+              },
+            },
+          }),
+        });
+        void runCampusConflictCheck();
+      } finally {
+        setBusyChairmanApplyKey(null);
+      }
+    },
+    [
+      chairmanEnrichedIssues,
+      rows,
+      reloadScheduleFromDb,
+      chairmanCollegeId,
+      academicPeriodId,
+      runCampusConflictCheck,
+    ],
+  );
 
   useEffect(() => {
     if (!academicPeriodId || !chairmanCollegeId) return;
@@ -1055,7 +1190,24 @@ export function BsitChairmanEvaluatorWorksheet({
               <p className="text-[11px] text-black/55">
                 Detail below uses saved database rows; unsaved rows in this worksheet may add overlaps not listed.
               </p>
-              <EnrichedConflictIssuesPanel issues={chairmanEnrichedIssues} allowApply={false} maxIssues={8} />
+              <EnrichedConflictIssuesPanel
+                issues={chairmanEnrichedIssues}
+                allowApply={!schedulePublished}
+                suggestionsByIssueKey={chairmanGaByIssueKey}
+                busyIssueKey={busyChairmanApplyKey}
+                onApplySuggestion={(k, s) => void applyChairmanConflictSuggestion(k, s)}
+                formatSuggestionLabel={(sug) =>
+                  formatGaSuggestionShortLabel(sug, {
+                    roomCode: roomById.get(sug.roomId)?.code ?? sug.roomId,
+                    instructorDisplay: formatUserInstructorLabel(
+                      userById.get(sug.instructorId),
+                      facultyProfileByUserId.get(sug.instructorId),
+                    ),
+                  })
+                }
+                title="Conflicts & suggested fixes"
+                maxIssues={12}
+              />
             </div>
           ) : null}
         </div>
@@ -1125,7 +1277,7 @@ export function BsitChairmanEvaluatorWorksheet({
                           disabled={rowReadOnly}
                           onChange={(e) => {
                             const sectionId = e.target.value;
-                            const name = bsitSections.find((s) => s.id === sectionId)?.name ?? "";
+                            const name = programSections.find((s) => s.id === sectionId)?.name ?? "";
                             const yl = yearLevelFromBsitSectionName(name);
                             let subjectCode = row.subjectCode;
                             if (subjectCode && yl != null) {
@@ -1138,7 +1290,7 @@ export function BsitChairmanEvaluatorWorksheet({
                           }}
                         >
                           <option value="">Select…</option>
-                          {bsitSections.map((s) => (
+                          {programSections.map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.name}
                             </option>
