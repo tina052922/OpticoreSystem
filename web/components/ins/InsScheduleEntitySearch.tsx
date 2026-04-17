@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 
 type Option = { id: string; name: string };
@@ -27,6 +27,16 @@ export function InsScheduleEntitySearch({
 }) {
   const [q, setQ] = useState("");
 
+  const onSelectedIdChangeRef = useRef(onSelectedIdChange);
+  onSelectedIdChangeRef.current = onSelectedIdChange;
+
+  /** Keep the text field aligned when the parent sets `selectedId` (e.g. default section). */
+  useEffect(() => {
+    if (!selectedId) return;
+    const opt = options.find((o) => o.id === selectedId);
+    if (opt) setQ(opt.name);
+  }, [selectedId, options]);
+
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return options;
@@ -35,23 +45,25 @@ export function InsScheduleEntitySearch({
 
   useEffect(() => {
     const t = q.trim().toLowerCase();
-    if (!t) {
-      if (selectedId) onSelectedIdChange("");
-      return;
-    }
+    const notify = onSelectedIdChangeRef.current;
+
+    // Empty query must NOT clear selection: parents often re-apply a default id when selection becomes "",
+    // which retriggered this effect and caused "Maximum update depth exceeded".
+    if (!t) return;
+
     if (filtered.length === 1) {
-      if (filtered[0]!.id !== selectedId) onSelectedIdChange(filtered[0]!.id);
+      if (filtered[0]!.id !== selectedId) notify(filtered[0]!.id);
       return;
     }
     const exact = options.find((o) => o.name.trim().toLowerCase() === t);
     if (exact) {
-      if (exact.id !== selectedId) onSelectedIdChange(exact.id);
+      if (exact.id !== selectedId) notify(exact.id);
       return;
     }
     if (selectedId && !filtered.some((f) => f.id === selectedId)) {
-      onSelectedIdChange("");
+      notify("");
     }
-  }, [q, filtered, options, selectedId, onSelectedIdChange]);
+  }, [q, filtered, options, selectedId]);
 
   return (
     <div className="w-full lg:max-w-md">
