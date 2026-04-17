@@ -1,7 +1,10 @@
 /**
- * Browser event fired after schedule rows are saved to `ScheduleEntry` (e.g. GEC Chairman “Save Vacant Edits”).
- * `useInsCatalog` listens and calls `load()` immediately so Faculty / Section / Room INS forms stay in sync
- * even if Realtime is disabled.
+ * Browser event fired after schedule rows are saved to `ScheduleEntry` (Program Chairman, GEC Chairman,
+ * College Admin hub, conflict “Apply”, hub quick-edits). Listeners:
+ * - `useInsCatalog` — INS Faculty / Section / Room (instructor, chairman, college admin, GEC, DOI scopes)
+ * - `useScheduleEntryCrossReload` — Central Hub, GEC hub, Program Chairman worksheet, timetabling panel
+ *
+ * Call this after every successful `ScheduleEntry` write so open tabs refetch without waiting only on Realtime.
  */
 export const INS_CATALOG_RELOAD_EVENT = "opticore:ins-catalog-reload";
 
