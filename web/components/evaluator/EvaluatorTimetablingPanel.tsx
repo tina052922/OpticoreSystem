@@ -36,6 +36,7 @@ import {
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import {
   formatInstructorPlotOptionLabel,
   formatUserInstructorLabel,
@@ -205,6 +206,9 @@ export function EvaluatorTimetablingPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** GEC / chairman / hub saves + Realtime: stay aligned with INS and other evaluator shells. */
+  useScheduleEntryCrossReload(load, { academicPeriodId, enabled: Boolean(academicPeriodId) });
 
   useEffect(() => {
     if (!academicPeriodId) return;

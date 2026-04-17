@@ -43,6 +43,7 @@ import {
   isGecVacantScheduleEntry,
 } from "@/lib/gec/gec-vacant";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
 import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
@@ -50,11 +51,13 @@ import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-registry";
 import { parseGecYearLevelFromSectionName } from "@/lib/gec/gec-section-year-level";
-import { formatGecChairConflictHeadline } from "@/lib/gec/gec-conflict-headlines";
 import {
   mergeLegacyRowInstructorsIntoPlotOptions,
   usersToInstructorPlotOptions,
+  formatUserInstructorLabel,
 } from "@/lib/evaluator/instructor-employee-id";
+import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
+import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -193,6 +196,9 @@ export function GecCentralHubEvaluatorClient() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** Program Chairman / hub saves + Realtime: GEC grid & previews stay aligned with INS campus-wide. */
+  useScheduleEntryCrossReload(load, { academicPeriodId, enabled: Boolean(academicPeriodId) });
 
   useEffect(() => {
     if (!academicPeriodId) return;
@@ -491,7 +497,7 @@ export function GecCentralHubEvaluatorClient() {
     const instructorIds = users
       .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
       .map((u) => u.id);
-    for (const iss of enriched) {
+    for (const iss of enriched.slice(0, 10)) {
       const entry = mergedEntries.find((e) => e.id === iss.rowA.entryId);
       if (!entry) continue;
       if (roomIds.length === 0 || instructorIds.length === 0) continue;
@@ -503,8 +509,8 @@ export function GecCentralHubEvaluatorClient() {
         excludeEntryId: entry.id,
         roomIds,
         instructorIds,
-        generations: 40,
-        populationSize: 56,
+        generations: 32,
+        populationSize: 48,
       });
       gaMap[iss.key] = sug.slice(0, 5);
     }
@@ -572,10 +578,26 @@ export function GecCentralHubEvaluatorClient() {
       }
       setEdits({});
       setExtraEntries([]);
-      // INS Form 5A / by Section / by Room all use `useInsCatalog`, which listens for this event and refetches immediately.
+      /** Same-tab + other evaluator shells: notify immediately so INS/evaluators start refetch without waiting on Realtime. */
       dispatchInsCatalogReload();
+      void fetch("/api/audit/schedule-write", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "gec.vacant_slot_save",
+          collegeId: plotCollegeId,
+          academicPeriodId,
+          details: {
+            rowCount: toSave.length,
+            sectionId: sectionIdFilter || null,
+            entryIds: toSave.map((r) => r.id),
+          },
+        }),
+      });
       await load();
       await reloadAccess();
+      /** Second pulse after local state matches DB so any listener that batched with the first event still picks up the same commit. */
+      dispatchInsCatalogReload();
       setSaveMsg(`Saved ${toSave.length} vacant GEC row(s).`);
       runConflictCheck();
 
@@ -726,57 +748,6 @@ export function GecCentralHubEvaluatorClient() {
     }
     return set;
   }, [mergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
-
-  /** Scrollable strip beside “Run conflict check”: conflict parties + GA alternatives (same engine as DOI / College Hub). */
-  const gecAlternativesBesideRunButton =
-    gecEnrichedConflicts.length === 0 ? null : (
-      <div className="rounded-lg border border-amber-300 bg-amber-50/95 px-2 py-1.5 text-[10px] leading-snug text-black/90 max-h-40 overflow-y-auto shadow-sm min-w-[220px]">
-        {gecEnrichedConflicts.map((iss) => (
-          <div key={iss.key} className="mb-2 last:mb-0 border-b border-amber-200/80 pb-2 last:border-0 last:pb-0">
-            <p className="font-semibold text-red-900">{formatGecChairConflictHeadline(iss)}</p>
-            <p className="text-[9px] text-black/55 mt-0.5 capitalize">({iss.type} overlap — details below)</p>
-            <div className="mt-0.5 space-y-0.5 text-black/70">
-              <p>
-                <span className="font-semibold text-black/80">A · </span>
-                {iss.rowA.what} · {iss.rowA.when} · room {iss.rowA.where} · faculty {iss.rowA.who}
-              </p>
-              <p>
-                <span className="font-semibold text-black/80">B · </span>
-                {iss.rowB.what} · {iss.rowB.when} · room {iss.rowB.where} · faculty {iss.rowB.who}
-              </p>
-            </div>
-            <ul className="mt-1 space-y-1">
-              {(gecGaByIssueKey[iss.key] ?? []).map((s, idx) => {
-                const rm = roomById.get(s.roomId)?.code ?? s.roomId;
-                const fac = userById.get(s.instructorId)?.name ?? s.instructorId;
-                return (
-                  <li key={`${iss.key}-${idx}`} className="rounded bg-white/80 px-1.5 py-1 border border-amber-200/60">
-                    <span className="text-black/85">
-                      Suggested: <strong>{s.day}</strong> {s.startTime}–{s.endTime} · room <strong>{rm}</strong> ·
-                      instructor <strong>{fac}</strong>
-                    </span>
-                    {canEditVacant && vacantGecSourceIds.has(iss.rowA.entryId) ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="ml-2 h-6 text-[9px] px-1.5 align-middle"
-                        onClick={() => applyGecGaSuggestion(iss.rowA.entryId, s)}
-                      >
-                        Apply
-                      </Button>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-            {(!gecGaByIssueKey[iss.key] || gecGaByIssueKey[iss.key].length === 0) ? (
-              <p className="text-[9px] text-amber-900/80 mt-0.5">No feasible alternative found in the search space — adjust manually.</p>
-            ) : null}
-          </div>
-        ))}
-      </div>
-    );
 
   if (loadError) {
     return <div className="px-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4 m-4">{loadError}</div>;
@@ -964,12 +935,6 @@ export function GecCentralHubEvaluatorClient() {
                 <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
                 Run conflict check
               </Button>
-              {gecEnrichedConflicts.length > 0 ? (
-                <span className="text-[11px] font-bold text-[#780301] self-end pb-2 whitespace-nowrap">
-                  Alternative Solutions
-                </span>
-              ) : null}
-              {gecAlternativesBesideRunButton}
               <Button
                 type="button"
                 className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-11 px-5 disabled:opacity-50"
@@ -983,7 +948,32 @@ export function GecCentralHubEvaluatorClient() {
           ) : null}
         </div>
 
-        {conflictSummary.length > 0 && !sectionIdFilter ? (
+        {gecEnrichedConflicts.length > 0 ? (
+          <div className="mb-4">
+            <EnrichedConflictIssuesPanel
+              variant="compact"
+              title="Conflicts & suggested fixes (campus-wide scan)"
+              issues={gecEnrichedConflicts}
+              suggestionsByIssueKey={gecGaByIssueKey}
+              allowApply={canEditVacant}
+              onApplySuggestion={(key, s) => {
+                const iss = gecEnrichedConflicts.find((i) => i.key === key);
+                if (!iss || !vacantGecSourceIds.has(iss.rowA.entryId)) return;
+                applyGecGaSuggestion(iss.rowA.entryId, s);
+              }}
+              formatSuggestionLabel={(sug) =>
+                formatGaSuggestionShortLabel(sug, {
+                  roomCode: roomById.get(sug.roomId)?.code ?? sug.roomId,
+                  instructorDisplay: formatUserInstructorLabel(
+                    userById.get(sug.instructorId),
+                    facultyProfileByUserId.get(sug.instructorId),
+                  ),
+                })
+              }
+              maxIssues={12}
+            />
+          </div>
+        ) : conflictSummary.length > 0 && !sectionIdFilter ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
             <strong>Conflicts ({conflictSummary.length} type(s)):</strong>
             <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -1086,8 +1076,6 @@ export function GecCentralHubEvaluatorClient() {
                     onSaveVacantEdits={() => void saveVacantEdits()}
                     saveVacantEditsDisabled={!canEditVacant}
                     saveVacantBusy={saveBusy}
-                    conflictAlternativesSlot={gecAlternativesBesideRunButton}
-                    showAlternativeSolutionsHeading={gecEnrichedConflicts.length > 0}
                     highlightConflictEntryIds={conflictIds}
                   />
                   </div>
