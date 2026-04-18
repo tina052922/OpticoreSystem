@@ -1,5 +1,4 @@
-import { detectConflictsForEntry } from "@/lib/scheduling/conflicts";
-import type { ScheduleBlock } from "@/lib/scheduling/types";
+import { detectConflictsSparse, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import type { FacultyProfile, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 
@@ -19,18 +18,8 @@ export function dayAbbrev(day: string): string {
   return d.slice(0, 3);
 }
 
-function toBlock(e: ScheduleEntry): ScheduleBlock {
-  return {
-    id: e.id,
-    academicPeriodId: e.academicPeriodId,
-    subjectId: e.subjectId,
-    instructorId: e.instructorId,
-    sectionId: e.sectionId,
-    roomId: e.roomId,
-    day: e.day,
-    startTime: e.startTime,
-    endTime: e.endTime,
-  };
+function entryToSparseOrNull(e: ScheduleEntry) {
+  return scheduleEntryToSparseBlock(e);
 }
 
 export type ScheduleEvaluatorTableRow = {
@@ -68,7 +57,7 @@ export function buildScheduleEvaluatorTableRows(args: {
   facultyProfileByUserId?: Map<string, Pick<FacultyProfile, "fullName">>;
   collegeNameById: Map<string, string>;
 }): ScheduleEvaluatorTableRow[] {
-  const universe = args.entries.map(toBlock);
+  const universe = args.entries.map(entryToSparseOrNull).filter((b): b is NonNullable<typeof b> => b != null);
   const {
     entries,
     academicPeriodId,
@@ -100,7 +89,8 @@ export function buildScheduleEvaluatorTableRows(args: {
     const room = roomById.get(e.roomId);
     const inst = userById.get(e.instructorId);
     const pr = programById.get(sec.programId);
-    const hits = detectConflictsForEntry(toBlock(e), universe);
+    const cand = entryToSparseOrNull(e);
+    const hits = cand ? detectConflictsSparse(cand, universe, cand.id) : [];
     const fac = hits.some((h) => h.type === "faculty");
     const secConflict = hits.some((h) => h.type === "section");
     const roomConflict = hits.some((h) => h.type === "room");

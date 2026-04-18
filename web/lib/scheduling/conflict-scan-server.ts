@@ -1,27 +1,12 @@
 /**
- * Shared server/client-safe helpers to run {@link scanAllScheduleConflicts} plus label enrichment
+ * Shared server/client-safe helpers to run {@link scanAllSparseScheduleConflicts} plus label enrichment
  * (used by DOI API, dashboards, and any role-scoped conflict summaries).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { enrichCampusConflictIssues, type EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
-import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
-import type { ScheduleBlock } from "@/lib/scheduling/types";
+import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
-
-function toBlock(e: ScheduleEntry): ScheduleBlock {
-  return {
-    id: e.id,
-    academicPeriodId: e.academicPeriodId,
-    subjectId: e.subjectId,
-    instructorId: e.instructorId,
-    sectionId: e.sectionId,
-    roomId: e.roomId,
-    day: e.day,
-    startTime: e.startTime,
-    endTime: e.endTime,
-  };
-}
 
 export type ConflictScanPayload = {
   entryCount: number;
@@ -39,8 +24,10 @@ export async function buildConflictScanPayload(
   entries: ScheduleEntry[],
 ): Promise<{ error: string | null; payload: ConflictScanPayload | null }> {
   const entryList = entries;
-  const blocks = entryList.map((e) => toBlock(e));
-  const scan = scanAllScheduleConflicts(blocks);
+  const sparseBlocks = entryList
+    .map((e) => scheduleEntryToSparseBlock(e))
+    .filter((b): b is NonNullable<typeof b> => b != null);
+  const scan = scanAllSparseScheduleConflicts(sparseBlocks);
 
   const subjectIds = [...new Set(entryList.map((e) => e.subjectId))];
   const sectionIds = [...new Set(entryList.map((e) => e.sectionId))];
@@ -103,7 +90,7 @@ export async function buildConflictScanPayload(
   return {
     error: null,
     payload: {
-      entryCount: blocks.length,
+      entryCount: sparseBlocks.length,
       conflictingEntryIds: [...scan.conflictingEntryIds],
       issueSummaries: scan.issueSummaries,
       issues: scan.issues,

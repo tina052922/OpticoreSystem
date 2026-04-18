@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, TIME_SLOT_OPTIONS, WEEKDAYS } from "@/lib/scheduling/constants";
-import { detectConflictsForEntry, scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
+import { detectConflictsForEntry, scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import type { ConflictHit, GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
@@ -530,11 +530,12 @@ export function EvaluatorTimetablingPanel({
 
   /** Match per-row conflict columns: scan the whole college timetable for the term, not only the selected program filter. */
   const scopeBlocksForFullCheck = useMemo(() => {
-    if (!academicPeriodId) return [] as ScheduleBlock[];
+    if (!academicPeriodId) return [];
     return mergedScheduleEntries
       .filter((e) => e.academicPeriodId === academicPeriodId)
       .filter((e) => !scopeCollegeForConflicts || sectionToCollegeId(e.sectionId) === scopeCollegeForConflicts)
-      .map(toBlock);
+      .map((e) => scheduleEntryToSparseBlock(e))
+      .filter((b): b is NonNullable<typeof b> => b != null);
   }, [mergedScheduleEntries, academicPeriodId, scopeCollegeForConflicts, sectionToCollegeId]);
 
   useEffect(() => {
@@ -545,7 +546,7 @@ export function EvaluatorTimetablingPanel({
   }, [academicPeriodId, scopeCollegeForConflicts, chairmanProgramId, programId]);
 
   function runFullConflictCheck() {
-    const { conflictingEntryIds, issueSummaries, issues } = scanAllScheduleConflicts(scopeBlocksForFullCheck);
+    const { conflictingEntryIds, issueSummaries, issues } = scanAllSparseScheduleConflicts(scopeBlocksForFullCheck);
     setFullConflictIds(conflictingEntryIds);
     setFullConflictSummaries(issueSummaries);
     setFullConflictDetails(issues);

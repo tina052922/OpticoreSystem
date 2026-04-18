@@ -1,3 +1,4 @@
+import type { ScheduleEntry } from "@/types/db";
 import type { ConflictHit, ScheduleBlock } from "./types";
 
 function toMinutes(t: string): number {
@@ -129,6 +130,62 @@ export function scanAllScheduleConflicts(blocks: ScheduleBlock[]): {
 
   for (const b of blocks) {
     const hits = detectConflictsForEntry(b, blocks);
+    for (const h of hits) {
+      conflictingEntryIds.add(b.id);
+      if (h.withEntryId) conflictingEntryIds.add(h.withEntryId);
+      issues.push({
+        entryId: b.id,
+        type: h.type,
+        message: h.message,
+        relatedEntryId: h.withEntryId,
+      });
+    }
+  }
+
+  const issueSummaries = [...new Set(issues.map((i) => i.message))];
+  return { conflictingEntryIds, issueSummaries, issues };
+}
+
+export type SparseConflictScanResult = {
+  conflictingEntryIds: Set<string>;
+  issueSummaries: string[];
+  issues: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
+};
+
+/** HH:MM from DB strings (matches GEC / Chairman sparse grids). */
+export function hhmmForConflict(t: string): string {
+  const s = t.trim();
+  return s.length > 5 ? s.slice(0, 5) : s;
+}
+
+/**
+ * Sparse row for overlap checks — empty string ids become null so faculty/room rules match
+ * {@link detectConflictsSparse} (same as per-row Evaluator / INS grids).
+ */
+export function scheduleEntryToSparseBlock(e: ScheduleEntry): SparseScheduleBlock | null {
+  if (!e.academicPeriodId) return null;
+  return {
+    id: e.id,
+    academicPeriodId: e.academicPeriodId,
+    day: e.day,
+    startTime: hhmmForConflict(e.startTime),
+    endTime: hhmmForConflict(e.endTime),
+    instructorId: e.instructorId?.trim() ? e.instructorId : null,
+    sectionId: e.sectionId?.trim() ? e.sectionId : null,
+    roomId: e.roomId?.trim() ? e.roomId : null,
+  };
+}
+
+/**
+ * Campus-wide / full-term scan using sparse semantics (aligned with grid columns and worksheet preview).
+ * Prefer this over {@link scanAllScheduleConflicts} when data may omit instructor/room or use placeholder ids.
+ */
+export function scanAllSparseScheduleConflicts(blocks: SparseScheduleBlock[]): SparseConflictScanResult {
+  const conflictingEntryIds = new Set<string>();
+  const issues: SparseConflictScanResult["issues"] = [];
+
+  for (const b of blocks) {
+    const hits = detectConflictsSparse(b, blocks, b.id);
     for (const h of hits) {
       conflictingEntryIds.add(b.id);
       if (h.withEntryId) conflictingEntryIds.add(h.withEntryId);

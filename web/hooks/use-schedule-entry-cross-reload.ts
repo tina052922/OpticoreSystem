@@ -67,7 +67,12 @@ export function useScheduleEntryCrossReload(
       .channel(`opticore-schedule-entry-sync-${academicPeriodId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "ScheduleEntry" },
+        {
+          event: "*",
+          schema: "public",
+          table: "ScheduleEntry",
+          filter: `academicPeriodId=eq.${academicPeriodId}`,
+        },
         () => scheduleDebouncedReload(),
       )
       .subscribe();

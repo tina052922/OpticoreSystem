@@ -9,7 +9,7 @@ import { INS_CATALOG_RELOAD_EVENT, subscribeScheduleEntryBroadcast } from "@/lib
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { enrichCampusConflictIssues, conflictHeadlineShort } from "@/lib/scheduling/conflict-enrichment";
-import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
+import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
@@ -399,16 +399,19 @@ export function useInsCatalog(args: {
   const getInsConflictSummaries = useCallback(() => {
     const blocks = entries
       .filter((e) => e.academicPeriodId === academicPeriodId)
-      .map(toScheduleBlock);
-    return scanAllScheduleConflicts(blocks).issueSummaries;
+      .map((e) => scheduleEntryToSparseBlock(e))
+      .filter((b): b is NonNullable<typeof b> => b != null);
+    return scanAllSparseScheduleConflicts(blocks).issueSummaries;
   }, [entries, academicPeriodId]);
 
   /** Full alert body: enriched causes + one GA-style suggestion per unique issue (when pools are available). */
   const getInsConflictAlertText = useCallback((): string => {
     if (!academicPeriodId) return "";
     const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
-    const blocks = termRows.map(toScheduleBlock);
-    const scan = scanAllScheduleConflicts(blocks);
+    const blocks = termRows
+      .map((e) => scheduleEntryToSparseBlock(e))
+      .filter((b): b is NonNullable<typeof b> => b != null);
+    const scan = scanAllSparseScheduleConflicts(blocks);
     if (scan.issueSummaries.length === 0) return "";
 
     const entryById = new Map(entries.map((e) => [e.id, e]));
@@ -445,8 +448,9 @@ export function useInsCatalog(args: {
 
       const entry = entryById.get(iss.rowA.entryId);
       if (entry && roomIds.length > 0 && instructorIds.length > 0) {
+        const universeForGa = termRows.map(toScheduleBlock);
         const sug = runRuleBasedGeneticAlgorithm({
-          universe: blocks,
+          universe: universeForGa,
           sectionId: entry.sectionId,
           subjectId: entry.subjectId,
           academicPeriodId: entry.academicPeriodId,

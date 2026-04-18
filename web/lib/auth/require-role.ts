@@ -9,6 +9,7 @@ export type AuthProfileRow = {
   name: string;
   role: string;
   collegeId: string | null;
+  employeeId?: string | null;
   signatureImageUrl?: string | null;
 };
 
