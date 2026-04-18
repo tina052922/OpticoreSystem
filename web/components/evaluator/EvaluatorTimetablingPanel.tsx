@@ -528,27 +528,14 @@ export function EvaluatorTimetablingPanel({
 
   const scopeCollegeForConflicts = chairmanCollegeId || collegeId;
 
+  /** Match per-row conflict columns: scan the whole college timetable for the term, not only the selected program filter. */
   const scopeBlocksForFullCheck = useMemo(() => {
     if (!academicPeriodId) return [] as ScheduleBlock[];
-    const progFilter = chairmanProgramId || programId || null;
     return mergedScheduleEntries
       .filter((e) => e.academicPeriodId === academicPeriodId)
       .filter((e) => !scopeCollegeForConflicts || sectionToCollegeId(e.sectionId) === scopeCollegeForConflicts)
-      .filter((e) => {
-        if (!progFilter) return true;
-        const sec = sectionById.get(e.sectionId);
-        return sec?.programId === progFilter;
-      })
       .map(toBlock);
-  }, [
-    mergedScheduleEntries,
-    academicPeriodId,
-    scopeCollegeForConflicts,
-    chairmanProgramId,
-    programId,
-    sectionById,
-    sectionToCollegeId,
-  ]);
+  }, [mergedScheduleEntries, academicPeriodId, scopeCollegeForConflicts, sectionToCollegeId]);
 
   useEffect(() => {
     setFullConflictIds(new Set());

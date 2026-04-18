@@ -144,11 +144,11 @@ export function INSFormFaculty({
       alert("Connect to Supabase with a college scope to run conflict checks on live data.");
       return;
     }
-    const lines = live.getInsConflictSummaries();
-    if (lines.length === 0) {
-      alert("No instructor / room / section time conflicts detected for this college and term.");
+    const detail = live.getInsConflictAlertText();
+    if (!detail) {
+      alert("No instructor, room, or section time conflicts detected for this term (full campus scan).");
     } else {
-      alert(`Conflicts:\n\n${lines.join("\n")}`);
+      alert(`Conflict check\n\n${detail}`);
     }
   }
 

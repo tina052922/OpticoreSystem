@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { DashboardCard } from "@/components/portal/DashboardCard";
+import { formatAuditActionEnglish } from "@/lib/audit/format-audit-entry";
 import type { AuditEntry } from "./AuditLogViewer";
 
 type Props = {
@@ -32,7 +33,7 @@ export function RecentActivityCard({ auditHref = "/admin/college/audit-log" }: P
           {entries.map((e) => (
             <li key={e.id} className="flex flex-col gap-0.5 border-b border-black/5 pb-2 last:border-0">
               <span className="text-[11px] text-black/45">{new Date(e.createdAt).toLocaleString()}</span>
-              <span className="font-medium text-black/85">{e.action}</span>
+              <span className="font-medium text-black/85 leading-snug">{formatAuditActionEnglish(e.action)}</span>
               <span className="text-xs text-black/55">
                 {e.actorName ?? e.actorId} · {e.entityType}
               </span>

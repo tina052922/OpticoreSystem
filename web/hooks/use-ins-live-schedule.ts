@@ -200,6 +200,7 @@ export function useInsLiveSchedule(args: {
     scopedEntries: catalog.scopedEntries,
     subjectIdByCode: catalog.subjectIdByCode,
     getInsConflictSummaries: catalog.getInsConflictSummaries,
+    getInsConflictAlertText: catalog.getInsConflictAlertText,
     termPublishLocked: catalog.termPublishLocked,
     insSignatureSlots,
     facultyCredentials,

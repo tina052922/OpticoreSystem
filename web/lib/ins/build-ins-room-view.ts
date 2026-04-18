@@ -7,6 +7,8 @@ import { scheduleEntryTimeLabel } from "./build-ins-faculty-view";
 /** Room grid: includes instructor line (INS naming rules: AKA or full name). */
 export type InsRoomCell = {
   time: string;
+  startTime?: string;
+  endTime?: string;
   course: string;
   instructor: string;
   yearSec: string;
@@ -53,6 +55,8 @@ export function buildInsRoomView(args: {
     const instUser = args.userById.get(e.instructorId);
     schedule[insDay].push({
       time: scheduleEntryTimeLabel(e.startTime, e.endTime),
+      startTime: e.startTime,
+      endTime: e.endTime,
       course: sub?.code ?? "—",
       instructor: insInstructorDisplayName(instUser, args.facultyProfileByUserId.get(e.instructorId)),
       yearSec: sec?.name ?? "—",
