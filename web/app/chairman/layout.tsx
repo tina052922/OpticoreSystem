@@ -12,6 +12,7 @@ export default async function ChairmanLayout({ children }: { children: React.Rea
   return (
     <CampusIntelligenceShell
       userName={session.name}
+      profileImageUrl={session.profileImageUrl}
       userEmail={session.email}
       navItems={CHAIRMAN_NAV}
       roleLabel="Chairman admin · CTE"

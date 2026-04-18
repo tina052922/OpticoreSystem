@@ -18,7 +18,6 @@ import {
   Menu,
   Scale,
   Send,
-  User,
   UserCircle,
   X,
 } from "lucide-react";
@@ -38,6 +37,7 @@ import { isNavItemActive } from "@/lib/nav-active";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
+import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
 
 const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   LayoutDashboard,
@@ -58,6 +58,8 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
 export type CampusIntelligenceShellProps = {
   children: React.ReactNode;
   userName?: string;
+  /** Public URL for header avatar (from User.profileImageUrl). */
+  profileImageUrl?: string | null;
   userEmail?: string;
   /** Sidebar navigation (Chairman, College, CAS, GEC, DOI). */
   navItems: AdminNavItem[];
@@ -74,6 +76,7 @@ export type CampusIntelligenceShellProps = {
 export function CampusIntelligenceShell({
   children,
   userName = "Admin",
+  profileImageUrl,
   userEmail,
   navItems,
   roleLabel,
@@ -160,7 +163,7 @@ export function CampusIntelligenceShell({
                 className="w-10 h-10 rounded-full bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-white/90 hover:brightness-95 transition-[filter]"
                 aria-label="Account menu"
               >
-                <User className="w-5 h-5 text-gray-600" strokeWidth={2.2} />
+                <UserShellAvatar name={userName} imageUrl={profileImageUrl} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[220px]">

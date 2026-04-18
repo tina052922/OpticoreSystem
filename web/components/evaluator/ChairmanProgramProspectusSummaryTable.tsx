@@ -79,7 +79,7 @@ export function ChairmanProgramProspectusSummaryTable({
       className={`rounded-xl border border-black/10 bg-white shadow-[0px_4px_4px_rgba(0,0,0,0.08)] overflow-hidden ${className}`}
     >
       <div className="bg-[#780301] text-white px-4 py-3">
-        <h3 className="text-sm font-bold tracking-tight">Predefined summary of subjects (Program Chairman)</h3>
+        <h3 className="text-sm font-bold tracking-tight">Summary of Subjects.</h3>
         <p className="text-[11px] text-white/85 mt-1">
           Program: <strong>{label}</strong>
           {scopeDescription ? (

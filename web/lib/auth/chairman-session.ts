@@ -16,6 +16,7 @@ export type ChairmanSession = {
   programCode: string | null;
   programName: string | null;
   signatureImageUrl?: string | null;
+  profileImageUrl?: string | null;
 };
 
 export async function getChairmanSession(): Promise<ChairmanSession | null> {
@@ -55,6 +56,7 @@ export async function getChairmanSession(): Promise<ChairmanSession | null> {
       programCode,
       programName,
       signatureImageUrl: row.signatureImageUrl ?? null,
+      profileImageUrl: row.profileImageUrl ?? null,
     };
   } catch {
     return null;

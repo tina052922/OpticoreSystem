@@ -63,6 +63,8 @@ export interface User {
   chairmanProgramId?: string | null;
   /** Public URL for INS / formal forms (uploaded in Profile). */
   signatureImageUrl?: string | null;
+  /** Public URL for header / profile avatar. */
+  profileImageUrl?: string | null;
   createdAt: string; // timestamptz
   updatedAt: string; // timestamptz
 }

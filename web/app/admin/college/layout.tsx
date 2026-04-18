@@ -10,6 +10,7 @@ export default async function CollegeAdminLayout({ children }: { children: React
   return (
     <CampusIntelligenceShell
       userName={profile.name}
+      profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       navItems={COLLEGE_ADMIN_NAV}
       roleLabel="College admin · CTE"

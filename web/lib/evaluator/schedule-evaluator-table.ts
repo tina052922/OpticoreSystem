@@ -48,6 +48,8 @@ export function buildScheduleEvaluatorTableRows(args: {
   academicPeriodId: string;
   scopeCollegeId: string | null;
   programId: string;
+  /** When set, only rows for this section id (e.g. College Admin section filter). */
+  sectionId?: string;
   sectionById: Map<string, Section>;
   programById: Map<string, Program>;
   subjectById: Map<string, Subject>;
@@ -63,6 +65,7 @@ export function buildScheduleEvaluatorTableRows(args: {
     academicPeriodId,
     scopeCollegeId,
     programId,
+    sectionId: sectionIdFilter,
     sectionById,
     programById,
     subjectById,
@@ -80,6 +83,7 @@ export function buildScheduleEvaluatorTableRows(args: {
     if (!pr) return false;
     if (scopeCollegeId && pr.collegeId !== scopeCollegeId) return false;
     if (programId && sec.programId !== programId) return false;
+    if (sectionIdFilter && e.sectionId !== sectionIdFilter) return false;
     return true;
   });
 

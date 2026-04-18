@@ -38,6 +38,7 @@ export function EvaluatorPage({
       <CentralHubEvaluatorView
         basePath={centralHubBasePath(variant)}
         showDoiGovernance={variant === "doi"}
+        hubAccessMode={variant === "college" ? "collegeAdmin" : "default"}
       />
     );
   }

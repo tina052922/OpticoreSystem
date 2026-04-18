@@ -11,6 +11,7 @@ export default async function FacultyLayout({ children }: { children: React.Reac
   return (
     <CampusIntelligenceShell
       userName={profile.name}
+      profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       navItems={INSTRUCTOR_NAV}
       roleLabel="Instructor"

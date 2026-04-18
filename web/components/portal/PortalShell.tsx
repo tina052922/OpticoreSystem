@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, KeyRound, LogOut, MapPin, User, Menu, X } from "lucide-react";
+import { Bell, KeyRound, LogOut, MapPin, Menu, X } from "lucide-react";
+import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,6 +23,8 @@ export type PortalNavItem = { label: string; href: string };
 export type PortalShellProps = {
   children: React.ReactNode;
   userName: string;
+  /** Public URL for header avatar (from User.profileImageUrl). */
+  profileImageUrl?: string | null;
   userEmail?: string | null;
   /** Shown under logo in sidebar */
   sidebarBadge?: string;
@@ -35,6 +38,7 @@ export type PortalShellProps = {
 export function PortalShell({
   children,
   userName,
+  profileImageUrl,
   userEmail,
   sidebarBadge = "OptiCore",
   navItems,
@@ -124,7 +128,7 @@ export function PortalShell({
                 className="w-10 h-10 rounded-full bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-white/90 hover:brightness-95 transition-[filter]"
                 aria-label="Account menu"
               >
-                <User className="w-5 h-5 text-gray-600" strokeWidth={2.2} />
+                <UserShellAvatar name={userName} imageUrl={profileImageUrl} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[220px]">
