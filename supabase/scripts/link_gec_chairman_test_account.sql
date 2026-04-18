@@ -1,13 +1,11 @@
--- Link auth user ↔ public."User" for GEC Chairman test email (fixes empty schedule / RLS if role is NULL).
+-- Link auth user ↔ public."User" for GEC Chairman test (fixes empty schedule / RLS when role is NULL).
+-- Auth UID for gec.chairman.test@opticore.local — run once in Supabase SQL Editor.
 --
--- 1) In Supabase Dashboard → Authentication → Users, copy the UUID for `gec.chairman.test@opticore.local`.
--- 2) Replace <AUTH_USER_UUID> below and run in SQL Editor.
---
--- If public."User".id does not match auth.users.id, current_user_role() is NULL and ScheduleEntry SELECT policies for gec_chairman will not apply.
+-- If public."User".id does not match auth.users.id, current_user_role() is NULL and ScheduleEntry policies for gec_chairman fail.
 
 insert into public."User" (id, "employeeId", email, name, role, "collegeId")
 values (
-  '<AUTH_USER_UUID>'::text,
+  '13df0eb6-19cc-451a-bcc1-4f7b1c59b8c0'::text,
   'GEC-CHAIR-TEST',
   'gec.chairman.test@opticore.local',
   'GEC Chairman (Test)',
