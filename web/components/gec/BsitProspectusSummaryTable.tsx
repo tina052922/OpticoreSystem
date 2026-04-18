@@ -78,7 +78,7 @@ export function BsitProspectusSummaryTable({
   return (
     <div className={`rounded-xl border border-black/10 bg-white shadow-[0px_4px_4px_rgba(0,0,0,0.08)] overflow-hidden ${className}`}>
       <div className="bg-[#780301] text-white px-4 py-3">
-        <h3 className="text-sm font-bold tracking-tight">Predefined summary of subjects (GEC · by year level)</h3>
+        <h3 className="text-sm font-bold tracking-tight">Summary of Subjects (GEC-by Year Level).</h3>
         <p className="text-[11px] text-white/85 mt-1">
           Program: <strong>{label}</strong> · Scope: <strong>{scopeLabel}</strong> (year from the selected section name;
           semester from the current term when detected). Click a row to select a code for vacant GEC slots below. Register
