@@ -578,6 +578,7 @@ export function GecCentralHubEvaluatorClient() {
       }
       setEdits({});
       setExtraEntries([]);
+      const secForAudit = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
       /** Same-tab + other evaluator shells: notify immediately so INS/evaluators start refetch without waiting on Realtime. */
       dispatchInsCatalogReload();
       void fetch("/api/audit/schedule-write", {
@@ -590,6 +591,7 @@ export function GecCentralHubEvaluatorClient() {
           details: {
             rowCount: toSave.length,
             sectionId: sectionIdFilter || null,
+            sectionName: secForAudit?.name ?? "",
             entryIds: toSave.map((r) => r.id),
           },
         }),
@@ -598,10 +600,11 @@ export function GecCentralHubEvaluatorClient() {
       await reloadAccess();
       /** Second pulse after local state matches DB so any listener that batched with the first event still picks up the same commit. */
       dispatchInsCatalogReload();
+      router.refresh();
       setSaveMsg(`Saved ${toSave.length} vacant GEC row(s).`);
       runConflictCheck();
 
-      const sec = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
+      const sec = secForAudit;
       if (plotCollegeId && sectionIdFilter) {
         void fetch("/api/gec/schedule-save-notify", {
           method: "POST",

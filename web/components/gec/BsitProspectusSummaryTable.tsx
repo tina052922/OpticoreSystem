@@ -99,7 +99,7 @@ export function BsitProspectusSummaryTable({
           </p>
         </div>
       ) : (
-        <div className="max-h-[320px] overflow-y-auto">
+        <div className="max-h-[min(58vh,720px)] overflow-y-auto">
           <table className="w-full border-collapse text-[11px]">
             <thead className="sticky top-0 z-[1]">
               <tr className="bg-[#ff990a] text-white">

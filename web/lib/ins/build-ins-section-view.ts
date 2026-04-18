@@ -6,6 +6,8 @@ import { scheduleEntryTimeLabel } from "./build-ins-faculty-view";
 
 export type InsSectionCell = {
   time: string;
+  startTime?: string;
+  endTime?: string;
   course: string;
   instructor: string;
   room: string;
@@ -52,6 +54,8 @@ export function buildInsSectionView(args: {
     const inst = args.userById.get(e.instructorId);
     schedule[insDay].push({
       time: scheduleEntryTimeLabel(e.startTime, e.endTime),
+      startTime: e.startTime,
+      endTime: e.endTime,
       course: sub?.code ?? "—",
       instructor: insInstructorDisplayName(inst, args.facultyProfileByUserId.get(e.instructorId)),
       room: room?.code ?? "TBA",

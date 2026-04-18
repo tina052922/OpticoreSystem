@@ -6,8 +6,12 @@ import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
+import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
+import { enrichCampusConflictIssues, conflictHeadlineShort } from "@/lib/scheduling/conflict-enrichment";
 import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
+import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
+import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
 import type {
   AcademicPeriod,
@@ -382,12 +386,100 @@ export function useInsCatalog(args: {
 
   const periodLabel = periods.find((p) => p.id === academicPeriodId)?.name ?? "";
 
+  const collegeNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of colleges) m.set(c.id, c.name);
+    return m;
+  }, [colleges]);
+
+  /** Same scope as Evaluator grid: every `ScheduleEntry` row in this term (not only the INS college/program filter). */
   const getInsConflictSummaries = useCallback(() => {
-    const blocks = scopedEntries
+    const blocks = entries
       .filter((e) => e.academicPeriodId === academicPeriodId)
       .map(toScheduleBlock);
     return scanAllScheduleConflicts(blocks).issueSummaries;
-  }, [scopedEntries, academicPeriodId]);
+  }, [entries, academicPeriodId]);
+
+  /** Full alert body: enriched causes + one GA-style suggestion per unique issue (when pools are available). */
+  const getInsConflictAlertText = useCallback((): string => {
+    if (!academicPeriodId) return "";
+    const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+    const blocks = termRows.map(toScheduleBlock);
+    const scan = scanAllScheduleConflicts(blocks);
+    if (scan.issueSummaries.length === 0) return "";
+
+    const entryById = new Map(entries.map((e) => [e.id, e]));
+    const enriched = enrichCampusConflictIssues(
+      scan.issues,
+      entryById,
+      subjectById,
+      sectionById,
+      roomById,
+      userById,
+      programById,
+      collegeNameById,
+    );
+
+    const roomIds = rooms.map((r) => r.id);
+    const instructorIds = users
+      .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+      .map((u) => u.id);
+
+    const lines: string[] = [
+      `Scanned ${termRows.length} schedule row(s) for this term (full campus master data).`,
+      "",
+    ];
+
+    const seen = new Set<string>();
+    let n = 0;
+    for (const iss of enriched) {
+      if (n >= 12) break;
+      if (seen.has(iss.key)) continue;
+      seen.add(iss.key);
+      n += 1;
+      lines.push(`• ${conflictHeadlineShort(iss)}`);
+      lines.push(`  ${iss.rootCause}`);
+
+      const entry = entryById.get(iss.rowA.entryId);
+      if (entry && roomIds.length > 0 && instructorIds.length > 0) {
+        const sug = runRuleBasedGeneticAlgorithm({
+          universe: blocks,
+          sectionId: entry.sectionId,
+          subjectId: entry.subjectId,
+          academicPeriodId: entry.academicPeriodId,
+          excludeEntryId: entry.id,
+          roomIds,
+          instructorIds,
+          generations: 28,
+          populationSize: 40,
+        });
+        const best = sug[0];
+        if (best) {
+          const rc = roomById.get(best.roomId)?.code ?? "TBA";
+          const inst = formatUserInstructorLabel(
+            userById.get(best.instructorId),
+            facultyProfileByUserId.get(best.instructorId),
+          );
+          lines.push(`  Suggested fix: ${formatGaSuggestionShortLabel(best, { roomCode: rc, instructorDisplay: inst })}`);
+        }
+      }
+      lines.push("");
+    }
+
+    return lines.join("\n").trim();
+  }, [
+    academicPeriodId,
+    entries,
+    subjectById,
+    sectionById,
+    roomById,
+    userById,
+    programById,
+    collegeNameById,
+    rooms,
+    users,
+    facultyProfileByUserId,
+  ]);
 
   /** True when VPAA has published this term: at least one scoped row carries lockedByDoiAt. */
   const termPublishLocked = useMemo(() => {
@@ -420,6 +512,7 @@ export function useInsCatalog(args: {
     sectionOptions,
     roomOptions,
     getInsConflictSummaries,
+    getInsConflictAlertText,
     reload: load,
     campusInsSettings,
     campusWideDirectorSignatureUrl,

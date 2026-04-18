@@ -171,6 +171,12 @@ export function CampusIntelligenceShell({
               <DropdownMenuItem asChild>
                 <Link href={profileHref}>Profile</Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/account/change-password" className="flex items-center gap-2 cursor-pointer">
+                  <KeyRound className="w-4 h-4 shrink-0 text-black/70" aria-hidden />
+                  Change password
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => void logout()}
                 className="text-red-700 focus:text-red-800 focus:bg-red-50"

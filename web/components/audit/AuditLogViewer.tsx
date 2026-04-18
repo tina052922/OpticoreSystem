@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { formatAuditActionEnglish, formatAuditDetailsEnglish } from "@/lib/audit/format-audit-entry";
 
 export type AuditEntry = {
   id: string;
@@ -62,13 +63,13 @@ export function AuditLogViewer() {
                 <tr key={e.id} className="border-t border-black/10">
                   <td className="p-2 whitespace-nowrap">{new Date(e.createdAt).toLocaleString()}</td>
                   <td className="p-2">{e.actorName ?? e.actorId}</td>
-                  <td className="p-2 font-mono text-[11px]">{e.action}</td>
+                  <td className="p-2 text-[12px] text-black/90 leading-snug">{formatAuditActionEnglish(e.action)}</td>
                   <td className="p-2">
                     {e.entityType}
                     {e.entityId ? <span className="text-black/45"> · {e.entityId.slice(0, 8)}…</span> : null}
                   </td>
-                  <td className="p-2 max-w-md truncate font-mono text-[11px] text-black/70">
-                    {e.details ? JSON.stringify(e.details) : "—"}
+                  <td className="p-2 max-w-xl text-[12px] text-black/85 leading-snug">
+                    {formatAuditDetailsEnglish(e)}
                   </td>
                 </tr>
               ))

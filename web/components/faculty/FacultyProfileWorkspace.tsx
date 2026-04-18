@@ -368,7 +368,7 @@ export function FacultyProfileWorkspace({
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6">
+    <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6 max-h-[min(85vh,1200px)] overflow-y-auto">
       {gecFacultyFilter ? (
         <div className="rounded-xl border border-[var(--color-opticore-orange)]/35 bg-orange-50/90 px-4 py-3 text-sm text-black/80">
           <strong className="text-[var(--color-opticore-orange)]">GEC scope.</strong> Listed faculty either have no

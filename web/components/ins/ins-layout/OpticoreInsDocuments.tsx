@@ -2,7 +2,8 @@
 
 import type { ReactNode } from "react";
 import type { InsFacultyCell, InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
-import type { InsRoomSchedule } from "@/lib/ins/build-ins-room-view";
+import type { InsRoomCell, InsRoomSchedule } from "@/lib/ins/build-ins-room-view";
+import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsDay } from "./opticore-ins-constants";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
@@ -34,11 +35,6 @@ function CredLine({ label, value }: { label: string; value?: string | null }) {
       </span>
     </div>
   );
-}
-
-function matchSlot<T extends { time: string }>(daySchedule: T[], slot: string): T | undefined {
-  const start = slot.split("-")[0];
-  return daySchedule.find((c) => c.time.includes(start));
 }
 
 type FacultySchedule = Record<InsDay, InsFacultyCell[]>;
@@ -84,57 +80,6 @@ export function OpticoreInsForm5A({
   clickableScheduleEntryCells = false,
   onScheduleEntryClick,
 }: OpticoreInsForm5AProps) {
-  function renderCell(time: string, day: InsDay) {
-    const classAtTime = matchSlot(schedule[day], time);
-    const isPlaceholder = day === "Monday" && time === "7:00-8:00" && !classAtTime;
-    if (classAtTime) {
-      const inner = (
-        <div className="w-full space-y-0.5 text-xs leading-snug">
-          <div className="font-semibold">{classAtTime.course}</div>
-          <div>{classAtTime.yearSec}</div>
-          <div>{classAtTime.room}</div>
-        </div>
-      );
-      const entryId = classAtTime.scheduleEntryId;
-      const canRequest =
-        readOnly &&
-        clickableScheduleEntryCells &&
-        typeof onScheduleEntryClick === "function" &&
-        Boolean(entryId) &&
-        !classAtTime.vacantGec;
-      const body = canRequest ? (
-        <button
-          type="button"
-          className="w-full text-left rounded-md p-0.5 -m-0.5 transition-[box-shadow,background] hover:bg-[#ff990a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50 cursor-pointer"
-          title="Request schedule change for this class"
-          onClick={() => entryId && onScheduleEntryClick(entryId)}
-        >
-          {inner}
-        </button>
-      ) : (
-        inner
-      );
-      if (classAtTime.vacantGec) {
-        return (
-          <VacantGecSlotHighlight title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
-            {inner}
-          </VacantGecSlotHighlight>
-        );
-      }
-      return body;
-    }
-    if (isPlaceholder) {
-      return (
-        <div className="text-xs leading-relaxed text-neutral-500">
-          <div>Course code</div>
-          <div>Yr. & Sec.</div>
-          <div>Room</div>
-        </div>
-      );
-    }
-    return null;
-  }
-
   return (
     <div className="space-y-8 text-neutral-900">
       <div className="flex flex-col gap-4 border-b border-neutral-300 pb-6 sm:flex-row sm:items-start sm:justify-between">
@@ -256,7 +201,64 @@ export function OpticoreInsForm5A({
       </div>
 
       <OpticoreInsScheduleTableWithSignatures
-        renderCell={renderCell}
+        cellMode="spanned"
+        cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
+        showMondayPlaceholder={!readOnly}
+        renderSpanned={({ items, paperFormRow }) => {
+          if (paperFormRow) {
+            return (
+              <div className="text-xs leading-relaxed text-neutral-500">
+                <div>Course code</div>
+                <div>Yr. & Sec.</div>
+                <div>Room</div>
+              </div>
+            );
+          }
+          return (
+            <div className="w-full space-y-1">
+              {(items as InsFacultyCell[]).map((classAtTime, idx) => {
+                const inner = (
+                  <div className="w-full space-y-0.5 text-xs leading-snug">
+                    <div className="font-semibold">{classAtTime.course}</div>
+                    <div className="text-[10px] text-neutral-600">{classAtTime.time}</div>
+                    <div>{classAtTime.yearSec}</div>
+                    <div>{classAtTime.room}</div>
+                  </div>
+                );
+                const entryId = classAtTime.scheduleEntryId;
+                const canRequest =
+                  readOnly &&
+                  clickableScheduleEntryCells &&
+                  typeof onScheduleEntryClick === "function" &&
+                  Boolean(entryId) &&
+                  !classAtTime.vacantGec;
+                const body = canRequest ? (
+                  <button
+                    type="button"
+                    className="w-full text-left rounded-md p-0.5 -m-0.5 transition-[box-shadow,background] hover:bg-[#ff990a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50 cursor-pointer"
+                    title="Request schedule change for this class"
+                    onClick={() => entryId && onScheduleEntryClick(entryId)}
+                  >
+                    {inner}
+                  </button>
+                ) : (
+                  inner
+                );
+                if (classAtTime.vacantGec) {
+                  return (
+                    <VacantGecSlotHighlight
+                      key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}
+                      title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)"
+                    >
+                      {body}
+                    </VacantGecSlotHighlight>
+                  );
+                }
+                return <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}>{body}</div>;
+              })}
+            </div>
+          );
+        }}
         signatureSlots={insSignatureSlots}
         scheduleApproved={scheduleApproved}
       />
@@ -466,6 +468,8 @@ function RoomForm5CFooterBlock({
 
 type SectionScheduleCell = {
   time: string;
+  startTime?: string;
+  endTime?: string;
   course: string;
   instructor: string;
   room: string;
@@ -497,37 +501,6 @@ export function OpticoreInsForm5B({
   scheduleApproved = false,
   insSignatureSlots = null,
 }: OpticoreInsForm5BProps) {
-  function renderCell(time: string, day: InsDay) {
-    const row = schedule[day].find((c) => c.time.includes(time.split("-")[0]));
-    if (row) {
-      const inner = (
-        <div className="w-full space-y-0.5 text-xs leading-snug">
-          <div className="font-semibold">{row.course}</div>
-          <div>{row.instructor}</div>
-          <div>{row.room}</div>
-        </div>
-      );
-      if (row.vacantGec) {
-        return (
-          <VacantGecSlotHighlight title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
-            {inner}
-          </VacantGecSlotHighlight>
-        );
-      }
-      return inner;
-    }
-    if (day === "Monday" && time === "7:00-8:00") {
-      return (
-        <div className="text-xs leading-relaxed text-neutral-500">
-          <div>Course code</div>
-          <div>Instructor</div>
-          <div>Room</div>
-        </div>
-      );
-    }
-    return null;
-  }
-
   return (
     <div className="space-y-8 text-neutral-900">
       <div className="flex flex-col gap-4 border-b border-neutral-300 pb-6 sm:flex-row sm:items-start sm:justify-between">
@@ -597,7 +570,42 @@ export function OpticoreInsForm5B({
       </div>
 
       <OpticoreInsScheduleTableWithSignatures
-        renderCell={renderCell}
+        cellMode="spanned"
+        cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
+        showMondayPlaceholder={!readOnly}
+        renderSpanned={({ items, paperFormRow }) => {
+          if (paperFormRow) {
+            return (
+              <div className="text-xs leading-relaxed text-neutral-500">
+                <div>Course code</div>
+                <div>Instructor</div>
+                <div>Room</div>
+              </div>
+            );
+          }
+          return (
+            <div className="w-full space-y-1">
+              {(items as SectionScheduleCell[]).map((row, idx) => {
+                const inner = (
+                  <div key={`${row.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug">
+                    <div className="font-semibold">{row.course}</div>
+                    <div className="text-[10px] text-neutral-600">{row.time}</div>
+                    <div>{row.instructor}</div>
+                    <div>{row.room}</div>
+                  </div>
+                );
+                if (row.vacantGec) {
+                  return (
+                    <VacantGecSlotHighlight key={`${row.time}-${idx}`} title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
+                      {inner}
+                    </VacantGecSlotHighlight>
+                  );
+                }
+                return <div key={`${row.time}-${idx}`}>{inner}</div>;
+              })}
+            </div>
+          );
+        }}
         signatureSlots={insSignatureSlots}
         scheduleApproved={scheduleApproved}
         signatureStrip="campusOnly"
@@ -698,39 +706,6 @@ export function OpticoreInsForm5C({
   const review = pickSlot(insSignatureSlots, "review");
   const campus = pickSlot(insSignatureSlots, "campus");
 
-  function renderCell(time: string, day: InsDay) {
-    const classAtTime = matchSlot(schedule[day], time);
-    if (classAtTime) {
-      const inner = (
-        <div className="w-full space-y-0.5 text-xs leading-snug">
-          <div className="font-semibold">{classAtTime.course}</div>
-          <div>{classAtTime.instructor}</div>
-          <div>{classAtTime.yearSec}</div>
-          <div>{classAtTime.room}</div>
-        </div>
-      );
-      if (classAtTime.vacantGec) {
-        return (
-          <VacantGecSlotHighlight title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
-            {inner}
-          </VacantGecSlotHighlight>
-        );
-      }
-      return inner;
-    }
-    if (day === "Monday" && time === "7:00-8:00") {
-      return (
-        <div className="text-xs leading-relaxed text-neutral-500">
-          <div>Course code</div>
-          <div>Instructor</div>
-          <div>Yr. & Sec.</div>
-          <div>Room</div>
-        </div>
-      );
-    }
-    return null;
-  }
-
   return (
     <div className="space-y-8 text-neutral-900">
       <div className="flex flex-col gap-4 border-b border-neutral-300 pb-6 sm:flex-row sm:items-start sm:justify-between">
@@ -775,7 +750,44 @@ export function OpticoreInsForm5C({
       </div>
 
       <OpticoreInsScheduleTableWithSignatures
-        renderCell={renderCell}
+        cellMode="spanned"
+        cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
+        showMondayPlaceholder={!readOnly}
+        renderSpanned={({ items, paperFormRow }) => {
+          if (paperFormRow) {
+            return (
+              <div className="text-xs leading-relaxed text-neutral-500">
+                <div>Course code</div>
+                <div>Instructor</div>
+                <div>Yr. & Sec.</div>
+                <div>Room</div>
+              </div>
+            );
+          }
+          return (
+            <div className="w-full space-y-1">
+              {(items as InsRoomCell[]).map((classAtTime, idx) => {
+                const inner = (
+                  <div key={`${classAtTime.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug">
+                    <div className="font-semibold">{classAtTime.course}</div>
+                    <div className="text-[10px] text-neutral-600">{classAtTime.time}</div>
+                    <div>{classAtTime.instructor}</div>
+                    <div>{classAtTime.yearSec}</div>
+                    <div>{classAtTime.room}</div>
+                  </div>
+                );
+                if (classAtTime.vacantGec) {
+                  return (
+                    <VacantGecSlotHighlight key={`${classAtTime.time}-${idx}`} title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
+                      {inner}
+                    </VacantGecSlotHighlight>
+                  );
+                }
+                return <div key={`${classAtTime.time}-${idx}`}>{inner}</div>;
+              })}
+            </div>
+          );
+        }}
         signatureSlots={insSignatureSlots}
         scheduleApproved={scheduleApproved}
         signatureStrip="none"

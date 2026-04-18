@@ -19,9 +19,18 @@ export default async function FacultyProfilePage() {
             <dt className="text-black/50 font-medium">Email</dt>
             <dd className="text-black/85 break-all">{profile.email}</dd>
           </div>
+          <div>
+            <dt className="text-black/50 font-medium">Employee ID</dt>
+            <dd className="font-semibold text-black tabular-nums">
+              {profile.employeeId?.trim() ? profile.employeeId : "—"}
+            </dd>
+            <p className="text-xs text-black/50 mt-1">
+              Matches the ID your chairman entered in Faculty Profile (used for schedule linking).
+            </p>
+          </div>
         </dl>
         <Link
-          href="/faculty/change-password"
+          href="/account/change-password?next=/faculty/schedule"
           className="inline-flex text-sm font-semibold text-[#780301] hover:underline"
         >
           Change password

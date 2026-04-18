@@ -5,6 +5,9 @@ import type { Room, ScheduleEntry, Section, Subject } from "@/types/db";
 /** `vacantGec` is set when the live row is a CHED GEC/GEE slot still on the TBD placeholder instructor. */
 export type InsFacultyCell = {
   time: string;
+  /** Raw HH:MM from `ScheduleEntry` — enables multi-hour rowspan on INS grids. */
+  startTime?: string;
+  endTime?: string;
   course: string;
   yearSec: string;
   room: string;
@@ -111,6 +114,8 @@ export function buildInsFacultyView(args: {
     const room = args.roomById.get(e.roomId);
     schedule[insDay].push({
       time: scheduleEntryTimeLabel(e.startTime, e.endTime),
+      startTime: e.startTime,
+      endTime: e.endTime,
       course: sub?.code ?? "—",
       yearSec: sec?.name ?? "—",
       room: room?.code ?? "TBA",

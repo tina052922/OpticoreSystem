@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, LogOut, MapPin, User, Menu, X } from "lucide-react";
+import { Bell, KeyRound, LogOut, MapPin, User, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -137,6 +137,12 @@ export function PortalShell({
                   <Link href={profileHref}>Profile</Link>
                 </DropdownMenuItem>
               ) : null}
+              <DropdownMenuItem asChild>
+                <Link href="/account/change-password" className="flex items-center gap-2 cursor-pointer">
+                  <KeyRound className="w-4 h-4 shrink-0 text-black/70" aria-hidden />
+                  Change password
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => void logout()}
                 className="text-red-700 focus:text-red-800 focus:bg-red-50"

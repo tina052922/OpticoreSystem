@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
+import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
+import { insPickSlotRender } from "@/lib/ins/ins-weekly-grid-span";
 import { INS_DAYS, INS_TIME_SLOTS } from "./opticore-ins-constants";
 
 const vLabel = {
@@ -9,27 +11,47 @@ const vLabel = {
 
 const insTableBorder = "border border-neutral-900";
 
+type InsDay = (typeof INS_DAYS)[number];
+
 type Props = {
-  /** Render cell content for each time row and day column */
-  renderCell: (time: string, day: (typeof INS_DAYS)[number]) => ReactNode;
   /** When term is VPAA-approved, show signature images + names in fixed order */
   signatureSlots?: InsSignatureSlot[] | null;
   /** True when schedule rows are locked by VPAA publication */
   scheduleApproved?: boolean;
   /** Form 5C: grid only (signatures in footer). Form 5B: Campus Director column only. */
   signatureStrip?: "full" | "none" | "campusOnly";
-};
+} & (
+  | {
+      cellMode?: "legacy";
+      /** Render cell content for each time row and day column */
+      renderCell: (time: string, day: InsDay) => ReactNode;
+    }
+  | {
+      cellMode: "spanned";
+      /** One entry per plotted class; multi-hour blocks merge rows (Evaluator-style). */
+      cellsByDay: Record<InsDay, InsTimedCell[]>;
+      renderSpanned: (args: {
+        day: InsDay;
+        timeSlotLabel: string;
+        slotIndex: number;
+        rowSpan: number;
+        items: InsTimedCell[];
+        /** Empty Monday 7:00 row — paper form hint lines */
+        paperFormRow?: boolean;
+      }) => ReactNode;
+      /** Monday 7:00–8:00 empty-cell paper template (Forms 5A–5C). */
+      showMondayPlaceholder?: boolean;
+    }
+);
 
 /**
  * Weekly grid + Opticore-style vertical signature columns.
  * Order (left→right): Approved by → Campus Director → Reviewed & Certified → Contract → Prepared by.
  */
-export function OpticoreInsScheduleTableWithSignatures({
-  renderCell,
-  signatureSlots,
-  scheduleApproved = false,
-  signatureStrip = "full",
-}: Props) {
+export function OpticoreInsScheduleTableWithSignatures(props: Props) {
+  const { signatureSlots, scheduleApproved = false, signatureStrip = "full" } = props;
+  const cellMode = props.cellMode ?? "legacy";
+
   return (
     <div className="overflow-x-touch-pan">
       <div className={`flex min-w-0 ${signatureStrip === "none" ? "" : "gap-1"}`}>
@@ -52,20 +74,72 @@ export function OpticoreInsScheduleTableWithSignatures({
             </tr>
           </thead>
           <tbody>
-            {INS_TIME_SLOTS.map((time) => (
+            {INS_TIME_SLOTS.map((time, slotIdx) => (
               <tr key={time}>
                 <td
                   className={`${insTableBorder} px-2 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap align-middle`}
                 >
                   {time}
                 </td>
-                {INS_DAYS.map((day) => (
-                  <td key={`${time}-${day}`} className={`${insTableBorder} p-0 align-middle`}>
-                    <div className="flex min-h-[5rem] flex-col items-center justify-center gap-0.5 px-2 py-3 text-center text-xs leading-snug text-neutral-900">
-                      {renderCell(time, day)}
-                    </div>
-                  </td>
-                ))}
+                {INS_DAYS.map((day) => {
+                  if (cellMode === "spanned" && "cellsByDay" in props) {
+                    const pick = insPickSlotRender(day, slotIdx, props.cellsByDay[day], {
+                      mondayPlaceholderSlot: props.showMondayPlaceholder,
+                    });
+                    if (pick.kind === "skip") {
+                      return null;
+                    }
+                    if (pick.kind === "empty") {
+                      return (
+                        <td key={`${time}-${day}`} className={`${insTableBorder} p-0 align-middle`}>
+                          <div
+                            className="flex min-h-[5rem] flex-col items-center justify-center gap-0.5 px-2 py-3 text-center text-xs leading-snug text-neutral-900"
+                            style={{ minHeight: "5rem" }}
+                          >
+                            {pick.placeholder
+                              ? props.renderSpanned({
+                                  day,
+                                  timeSlotLabel: time,
+                                  slotIndex: slotIdx,
+                                  rowSpan: 1,
+                                  items: [],
+                                  paperFormRow: true,
+                                })
+                              : null}
+                          </div>
+                        </td>
+                      );
+                    }
+                    const { rowSpan, items } = pick;
+                    return (
+                      <td
+                        key={`${time}-${day}`}
+                        rowSpan={rowSpan}
+                        className={`${insTableBorder} p-0 align-stretch`}
+                      >
+                        <div
+                          className="flex h-full min-h-0 flex-col items-center justify-center gap-0.5 px-2 py-3 text-center text-xs leading-snug text-neutral-900"
+                          style={{ minHeight: `${5 * rowSpan}rem` }}
+                        >
+                          {props.renderSpanned({
+                            day,
+                            timeSlotLabel: time,
+                            slotIndex: slotIdx,
+                            rowSpan,
+                            items,
+                          })}
+                        </div>
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={`${time}-${day}`} className={`${insTableBorder} p-0 align-middle`}>
+                      <div className="flex min-h-[5rem] flex-col items-center justify-center gap-0.5 px-2 py-3 text-center text-xs leading-snug text-neutral-900">
+                        {"renderCell" in props ? props.renderCell(time, day) : null}
+                      </div>
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

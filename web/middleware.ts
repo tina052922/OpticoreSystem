@@ -52,6 +52,17 @@ export async function middleware(request: NextRequest) {
       console.error("[middleware] getUser:", authError.message);
     }
 
+    /** Any signed-in role (password change, account utilities) — no single-role lock. */
+    if (path.startsWith("/account")) {
+      if (!user) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/login";
+        url.searchParams.set("next", path);
+        return redirectWithSession(response, url);
+      }
+      return response;
+    }
+
     const requiredRole = requiredRoleForPath(path);
     if (requiredRole) {
       if (!user) {
