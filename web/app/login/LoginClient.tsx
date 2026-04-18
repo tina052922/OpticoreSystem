@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
@@ -17,6 +18,7 @@ export function LoginClient() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,16 +170,27 @@ export function LoginClient() {
             <label htmlFor="password" className="block text-lg font-medium text-[#181818]">
               Password
             </label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
-              required
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364] pr-12"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[#636364] hover:text-[#181818] outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? <Eye className="size-5" aria-hidden /> : <EyeOff className="size-5" aria-hidden />}
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between text-sm">
