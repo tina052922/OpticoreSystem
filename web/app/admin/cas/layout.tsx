@@ -10,6 +10,7 @@ export default async function CasAdminLayout({ children }: { children: React.Rea
   return (
     <CampusIntelligenceShell
       userName={profile.name}
+      profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       navItems={CAS_ADMIN_NAV}
       roleLabel="CAS admin"

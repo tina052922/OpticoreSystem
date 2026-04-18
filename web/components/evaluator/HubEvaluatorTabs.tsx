@@ -8,23 +8,32 @@ export type HubEvaluatorTabsProps = {
   /** `null` = landing (college tiles). */
   collegeSlug: string | null;
   panel: Panel;
+  /**
+   * College Admin hub: Timetabling is only available after a college is selected (no campus-wide jump).
+   * Hrs content lives on the dedicated Hrs tab (`?panel=hrs` on landing, or `&panel=hrs` with a college).
+   */
+  collegeAdminLanding?: boolean;
 };
 
 /**
  * Tab bar shared by College / CAS / DOI Central Hub — matches Campus Intelligence shell styling.
  */
-export function HubEvaluatorTabs({ basePath, collegeSlug, panel }: HubEvaluatorTabsProps) {
+export function HubEvaluatorTabs({ basePath, collegeSlug, panel, collegeAdminLanding = false }: HubEvaluatorTabsProps) {
   const isLanding = !collegeSlug;
-  const collegesActive = isLanding;
+  const collegesActive = isLanding && (!collegeAdminLanding || panel !== "hrs");
   const timetablingActive = !isLanding && panel === "timetabling";
-  const hrsActive = !isLanding && panel === "hrs";
+  const hrsActive = (isLanding && collegeAdminLanding && panel === "hrs") || (!isLanding && panel === "hrs");
 
   const timetablingHref = isLanding
-    ? `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}`
+    ? collegeAdminLanding
+      ? undefined
+      : `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}`
     : `${basePath}?college=${encodeURIComponent(collegeSlug!)}`;
 
   const hrsHref = isLanding
-    ? `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}&panel=hrs`
+    ? collegeAdminLanding
+      ? `${basePath}?panel=hrs`
+      : `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}&panel=hrs`
     : `${basePath}?college=${encodeURIComponent(collegeSlug!)}&panel=hrs`;
 
   const tabClass = (active: boolean) =>
@@ -37,11 +46,20 @@ export function HubEvaluatorTabs({ basePath, collegeSlug, panel }: HubEvaluatorT
       <Link href={basePath} className={tabClass(collegesActive)}>
         Colleges
       </Link>
-      <Link href={timetablingHref} className={tabClass(timetablingActive)}>
-        Timetabling & Optimization
-      </Link>
+      {isLanding && collegeAdminLanding && !timetablingHref ? (
+        <span
+          className={`${tabClass(false)} cursor-not-allowed opacity-50`}
+          title="Select a college below, then open Timetabling & Optimization."
+        >
+          Timetabling & Optimization
+        </span>
+      ) : timetablingHref ? (
+        <Link href={timetablingHref} className={tabClass(timetablingActive)}>
+          Timetabling & Optimization
+        </Link>
+      ) : null}
       <Link href={hrsHref} className={tabClass(hrsActive)}>
-        Hrs-Units-Preps-Remarks
+        Hrs · Units · Preps · Remarks
       </Link>
     </div>
   );

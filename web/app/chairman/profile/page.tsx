@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { AdminProfileCard } from "@/components/admin/AdminProfileCard";
+import { ProfileAvatarUpload } from "@/components/profile/ProfileAvatarUpload";
 import { ProfileSignatureSectionGate } from "@/components/profile/ProfileSignatureSectionGate";
 import { getChairmanSession } from "@/lib/auth/chairman-session";
 import { collegeDisplayName } from "@/lib/college-labels";
@@ -23,6 +24,9 @@ export default async function ChairmanProfilePage() {
       <ChairmanPageHeader title="Profile" subtitle="Account overview — same layout for all OptiCore admin roles." />
 
       <div className="px-6 pb-8">
+        <div className="mb-6">
+          <ProfileAvatarUpload initialUrl={session.profileImageUrl} />
+        </div>
         <AdminProfileCard
           fullName={session.name}
           employeeId={session.authId.slice(0, 8).toUpperCase()}

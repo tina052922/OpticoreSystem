@@ -10,6 +10,7 @@ export default async function GecChairmanLayout({ children }: { children: React.
   return (
     <CampusIntelligenceShell
       userName={profile.name}
+      profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       navItems={GEC_CHAIRMAN_NAV}
       roleLabel="GEC chairman"

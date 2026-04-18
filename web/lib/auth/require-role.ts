@@ -11,6 +11,7 @@ export type AuthProfileRow = {
   collegeId: string | null;
   employeeId?: string | null;
   signatureImageUrl?: string | null;
+  profileImageUrl?: string | null;
 };
 
 /** Session row when route layout already enforced role (avoid duplicate requireRoles in page). */

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
+import { ProfileAvatarUpload } from "@/components/profile/ProfileAvatarUpload";
 import { requireRoles } from "@/lib/auth/require-role";
 
 /** Account summary + quick link to password (shell provides global nav). */
@@ -10,6 +11,7 @@ export default async function FacultyProfilePage() {
     <div>
       <ChairmanPageHeader title="Profile" subtitle="Your OptiCore instructor account." />
       <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-lg space-y-4">
+        <ProfileAvatarUpload initialUrl={profile.profileImageUrl} />
         <dl className="rounded-xl border border-black/10 bg-white p-5 text-sm space-y-3 shadow-sm">
           <div>
             <dt className="text-black/50 font-medium">Name</dt>

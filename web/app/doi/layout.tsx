@@ -14,6 +14,7 @@ export default async function DoiLayout({ children }: { children: React.ReactNod
   return (
     <CampusIntelligenceShell
       userName={session.name}
+      profileImageUrl={session.profileImageUrl}
       userEmail={session.email}
       navItems={DOI_ADMIN_NAV}
       roleLabel="DOI · VPAA"

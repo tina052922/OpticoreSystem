@@ -11,7 +11,7 @@ export const Q = {
   section: "id,programId,name,yearLevel,studentCount",
   subject: "id,code,subcode,title,lecUnits,lecHours,labUnits,labHours,programId,yearLevel",
   room: "id,code,building,floor,capacity,type,collegeId",
-  /** Inbox / INS / hubs — signature URL when needed */
+  /** INS catalog + hubs — signature URL for form signers (omit profileImageUrl: not used on INS and avoids DB errors if column not migrated). */
   userHub:
     "id,email,name,role,collegeId,employeeId,chairmanProgramId,signatureImageUrl",
   /** Includes employeeId — Evaluator plots by Employee ID (join key for instructor self-registration). */

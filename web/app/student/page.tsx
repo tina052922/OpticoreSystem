@@ -11,12 +11,14 @@ export default async function StudentDashboardPage() {
     { label: "Dashboard", href: "/student" },
     { label: "My schedule", href: "/student/schedule" },
     { label: "Announcements", href: "/student/announcements" },
+    { label: "Profile", href: "/student/profile" },
     { label: "Campus navigation", href: "/campus-navigation" },
   ];
 
   return (
     <PortalShell
       userName={profile.name}
+      profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       sidebarBadge="Student"
       navItems={navItems}

@@ -7,6 +7,7 @@ export type DoiSession = {
   name: string;
   role: "doi_admin";
   collegeId: string | null;
+  profileImageUrl?: string | null;
 };
 
 export async function getDoiSession(): Promise<DoiSession | null> {
@@ -30,5 +31,6 @@ export async function getDoiSession(): Promise<DoiSession | null> {
     name: row.name,
     role: "doi_admin",
     collegeId: row.collegeId,
+    profileImageUrl: row.profileImageUrl ?? null,
   };
 }

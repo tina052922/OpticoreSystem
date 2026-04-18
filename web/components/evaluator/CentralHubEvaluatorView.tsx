@@ -49,6 +49,15 @@ import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-i
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import { AlertTriangle } from "lucide-react";
+import { useAccessRequests } from "@/hooks/use-access-requests";
+import {
+  hasApprovedCrossCollegeEvaluatorAccess,
+  pendingCrossCollegeEvaluatorRequest,
+} from "@/lib/evaluator-hub-access";
+import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
+import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
+import { hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
+import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -69,9 +78,18 @@ export type CentralHubEvaluatorViewProps = {
   basePath: string;
   /** DOI Central Hub: campus-wide conflict scan + VPAA approval of the master schedule (all entries including GEC). */
   showDoiGovernance?: boolean;
+  /**
+   * College Admin: landing shows college tiles + Hrs summary; another college's hub requires peer approval
+   * (AccessRequest) before Timetabling. Own college opens Timetabling directly.
+   */
+  hubAccessMode?: "default" | "collegeAdmin";
 };
 
-export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }: CentralHubEvaluatorViewProps) {
+export function CentralHubEvaluatorView({
+  basePath,
+  showDoiGovernance = false,
+  hubAccessMode = "default",
+}: CentralHubEvaluatorViewProps) {
   const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -79,6 +97,35 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   const isCampusWide = collegeSlug?.toLowerCase() === CAMPUS_WIDE_COLLEGE_SLUG;
   const hub = hubCollegeBySlug(collegeSlug);
   const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
+  const landingPanelForTabs = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
+
+  const { requests: accessRequests, reload: reloadAccessRequests } = useAccessRequests(hubAccessMode === "collegeAdmin");
+  const [myCollegeId, setMyCollegeId] = useState<string | null>(null);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [collegeAdminProfileReady, setCollegeAdminProfileReady] = useState(hubAccessMode !== "collegeAdmin");
+  const [accessRequestBusy, setAccessRequestBusy] = useState(false);
+  const [accessRequestErr, setAccessRequestErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (hubAccessMode !== "collegeAdmin") return;
+    let cancelled = false;
+    void (async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) {
+        setCollegeAdminProfileReady(true);
+        return;
+      }
+      const { data: rpc } = await supabase.rpc("auth_get_my_user_row");
+      const row = rpc as { collegeId?: string | null; id?: string } | null;
+      if (cancelled) return;
+      setMyCollegeId(row?.collegeId?.trim() || null);
+      setMyUserId(row?.id?.trim() || null);
+      setCollegeAdminProfileReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hubAccessMode]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
@@ -92,6 +139,8 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   const [colleges, setColleges] = useState<College[]>([]);
 
   const [programId, setProgramId] = useState("");
+  /** College Admin timetabling: filter grid to one section ("" = all sections in department scope). */
+  const [sectionFilterId, setSectionFilterId] = useState("");
 
   const [altOpen, setAltOpen] = useState(false);
   const [altSuggestions, setAltSuggestions] = useState<GASuggestion[]>([]);
@@ -110,13 +159,18 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   const skipPeriodEntryFetchRef = useRef(true);
   const [hubBundleNotice, setHubBundleNotice] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
+  const load = useCallback(async (opts?: { soft?: boolean }) => {
+    const soft = Boolean(opts?.soft);
+    if (!soft) {
+      setLoading(true);
+      setLoadError(null);
+    }
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-      setLoadError("Supabase env missing.");
-      setLoading(false);
+      if (!soft) {
+        setLoadError("Supabase env missing.");
+        setLoading(false);
+      }
       return;
     }
     skipPeriodEntryFetchRef.current = true;
@@ -126,7 +180,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
       .order("startDate", { ascending: false });
     if (e1) {
       setLoadError(e1.message);
-      setLoading(false);
+      if (!soft) setLoading(false);
       return;
     }
     const periodList = (ap ?? []) as AcademicPeriod[];
@@ -155,7 +209,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     const err = e2 || e3 || e4 || e5 || e6 || e7 || e8;
     if (err) {
       setLoadError(err.message);
-      setLoading(false);
+      if (!soft) setLoading(false);
       return;
     }
     setPeriods(periodList);
@@ -174,21 +228,39 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
         : { data: [] as FacultyProfile[], error: null };
     if (efp) {
       setLoadError(efp.message);
-      setLoading(false);
+      if (!soft) setLoading(false);
       return;
     }
     setFacultyProfiles((fpRows ?? []) as FacultyProfile[]);
     setEntries((sch ?? []) as ScheduleEntry[]);
     setColleges((col ?? []) as College[]);
-    setLoading(false);
+    if (!soft) setLoading(false);
   }, [academicPeriodId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const reloadScheduleCatalogSoft = useCallback(() => void load({ soft: true }), [load]);
+
   /** Chairman / GEC saves + Realtime: keep this hub grid aligned with INS Forms without a manual refresh. */
-  useScheduleEntryCrossReload(load, { academicPeriodId, enabled: Boolean(academicPeriodId) });
+  useScheduleEntryCrossReload(reloadScheduleCatalogSoft, {
+    academicPeriodId,
+    enabled: Boolean(academicPeriodId),
+  });
+
+  /**
+   * College Admin: Chairman plots are the same ScheduleEntry rows (Section→Program→college). Soft-refresh
+   * periodically so new sections/subjects appear even if Realtime was not added to supabase_realtime.
+   */
+  useEffect(() => {
+    if (hubAccessMode !== "collegeAdmin" || !academicPeriodId) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void load({ soft: true });
+    }, 90_000);
+    return () => window.clearInterval(id);
+  }, [hubAccessMode, academicPeriodId, load]);
 
   useEffect(() => {
     if (!academicPeriodId) return;
@@ -325,6 +397,64 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     return m;
   }, [programs]);
 
+  const sectionsInDepartmentScope = useMemo(() => {
+    if (!scopeCollegeId) return [];
+    return sections
+      .filter((s) => {
+        const pr = programById.get(s.programId);
+        if (!pr || pr.collegeId !== scopeCollegeId) return false;
+        if (programId && s.programId !== programId) return false;
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [sections, programById, scopeCollegeId, programId]);
+
+  const currentPeriod = useMemo(
+    () => periods.find((p) => p.id === academicPeriodId) ?? null,
+    [periods, academicPeriodId],
+  );
+
+  const effectiveProgramCodeForSummary = useMemo(() => {
+    if (!scopeCollegeId) return "";
+    if (programId.trim()) {
+      return programs.find((p) => p.id === programId)?.code ?? "";
+    }
+    const withProspectus = programsInCollege.find((p) => hasProspectusForProgram(p.code));
+    return withProspectus?.code ?? programsInCollege[0]?.code ?? "";
+  }, [scopeCollegeId, programId, programs, programsInCollege]);
+
+  const effectiveProgramNameForSummary = useMemo(() => {
+    if (programId.trim()) {
+      return programs.find((p) => p.id === programId)?.name ?? null;
+    }
+    const code = effectiveProgramCodeForSummary;
+    return programsInCollege.find((p) => p.code === code)?.name ?? null;
+  }, [programId, programs, programsInCollege, effectiveProgramCodeForSummary]);
+
+  const summaryYearLevelFilter = useMemo(() => {
+    if (!sectionFilterId.trim()) return undefined;
+    const sec = sectionById.get(sectionFilterId);
+    if (!sec) return undefined;
+    return sec.yearLevel;
+  }, [sectionFilterId, sectionById]);
+
+  const plottedSubjectCodesForHub = useMemo(() => {
+    const set = new Set<string>();
+    if (!sectionFilterId.trim() || !academicPeriodId) return set;
+    for (const e of entries) {
+      if (e.academicPeriodId !== academicPeriodId || e.sectionId !== sectionFilterId) continue;
+      const sub = subjectById.get(e.subjectId);
+      if (sub?.code) set.add(normalizeProspectusCode(sub.code));
+    }
+    return set;
+  }, [entries, academicPeriodId, sectionFilterId, subjectById]);
+
+  useEffect(() => {
+    if (!sectionFilterId) return;
+    const ok = sectionsInDepartmentScope.some((s) => s.id === sectionFilterId);
+    if (!ok) setSectionFilterId("");
+  }, [programId, sectionFilterId, sectionsInDepartmentScope]);
+
   const universe = useMemo(() => entries.map(toBlock), [entries]);
 
   const suggestAlternativesForEntry = useCallback(
@@ -417,6 +547,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
         const pr = sec ? programById.get(sec.programId) : null;
         if (pr?.collegeId !== scopeCollegeId) return false;
         if (programId && sec?.programId !== programId) return false;
+        if (sectionFilterId.trim() && e.sectionId !== sectionFilterId) return false;
         return true;
       });
       if (scoped.length === 0) {
@@ -472,6 +603,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     userById,
     collegeNameById,
     suggestAlternativesForEntry,
+    sectionFilterId,
   ]);
 
   const tableRows = useMemo(() => {
@@ -481,6 +613,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
       academicPeriodId,
       scopeCollegeId,
       programId,
+      sectionId: sectionFilterId.trim() || undefined,
       sectionById,
       programById,
       subjectById,
@@ -494,6 +627,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     scopeCollegeId,
     academicPeriodId,
     programId,
+    sectionFilterId,
     sectionById,
     subjectById,
     roomById,
@@ -525,6 +659,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
       if (!pr) return false;
       if (scopeCollegeId && pr.collegeId !== scopeCollegeId) return false;
       if (programId && sec.programId !== programId) return false;
+      if (sectionFilterId.trim() && e.sectionId !== sectionFilterId) return false;
       return true;
     });
     if (!first) {
@@ -639,8 +774,105 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     ],
   );
 
+  /** College Admin: own college opens Timetabling directly; cross-college opens Timetabling after peer approval. */
+  useEffect(() => {
+    if (hubAccessMode !== "collegeAdmin" || !collegeSlug || isCampusWide) return;
+    const h = hubCollegeBySlug(collegeSlug);
+    if (!h?.collegeId || !myCollegeId) return;
+    if (h.collegeId !== myCollegeId) return;
+    if (searchParams.get("panel")) return;
+    router.replace(`${basePath}?college=${encodeURIComponent(collegeSlug)}&panel=timetabling`);
+  }, [hubAccessMode, collegeSlug, isCampusWide, myCollegeId, searchParams, router, basePath]);
+
+  useEffect(() => {
+    if (hubAccessMode !== "collegeAdmin" || !collegeSlug || isCampusWide) return;
+    const h = hubCollegeBySlug(collegeSlug);
+    if (!h?.collegeId || !myCollegeId || !myUserId) return;
+    if (h.collegeId === myCollegeId) return;
+    if (!hasApprovedCrossCollegeEvaluatorAccess(accessRequests, h.collegeId, myUserId)) return;
+    if (searchParams.get("panel") === "timetabling") return;
+    router.replace(`${basePath}?college=${encodeURIComponent(collegeSlug)}&panel=timetabling`);
+  }, [
+    hubAccessMode,
+    collegeSlug,
+    isCampusWide,
+    accessRequests,
+    myCollegeId,
+    myUserId,
+    searchParams,
+    router,
+    basePath,
+  ]);
+
   /* —— Hub: college tiles —— */
   if (!collegeSlug) {
+    if (hubAccessMode === "collegeAdmin") {
+      /** Dedicated Hrs tab only — no college tiles here (same pattern as post-select hub). */
+      if (landingPanelForTabs === "hrs") {
+        return (
+          <div>
+            <ChairmanPageHeader
+              title="Central Hub Evaluator"
+              subtitle="Institutional load summary (sample rows)."
+            />
+            <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
+              <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="hrs" collegeAdminLanding />
+              <HrsUnitsPrepsRemarksTable />
+              <p className="text-[13px] text-black/55 mt-8 text-center">
+                <Link href={basePath} className="font-semibold text-[#780301] hover:underline">
+                  ← Back to college selection
+                </Link>
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          <ChairmanPageHeader
+            title="Central Hub Evaluator"
+            subtitle="Choose a college to open Timetabling & Optimization. Your own college is available immediately; other colleges require approval from that college's admin."
+          />
+          <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
+            <HubEvaluatorTabs
+              basePath={basePath}
+              collegeSlug={null}
+              panel={landingPanelForTabs}
+              collegeAdminLanding
+            />
+            <p className="text-[14px] text-black/70 mb-6 text-center">
+              Select a college below to work with schedules. Use the <strong>Hrs · Units · Preps · Remarks</strong> tab for
+              the load summary.
+            </p>
+            <div id="college-hub-tiles" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {CENTRAL_HUB_COLLEGES.slice(0, 4).map((c) => (
+                <Link
+                  key={c.slug}
+                  href={`${basePath}?college=${c.slug}`}
+                  className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
+                >
+                  {c.name}
+                </Link>
+              ))}
+            </div>
+            {CENTRAL_HUB_COLLEGES[4] ? (
+              <div className="flex justify-center mt-5">
+                <Link
+                  href={`${basePath}?college=${CENTRAL_HUB_COLLEGES[4]!.slug}`}
+                  className="flex items-center justify-center w-full sm:max-w-[calc(50%-10px)] min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
+                >
+                  {CENTRAL_HUB_COLLEGES[4]!.name}
+                </Link>
+              </div>
+            ) : null}
+            <p className="text-[12px] text-black/45 mt-8 text-center">
+              Campus-wide (all colleges) is available to CAS / DOI from their hubs — not from College Admin.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div>
         <ChairmanPageHeader
@@ -702,6 +934,24 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     );
   }
 
+  if (isCampusWide && hubAccessMode === "collegeAdmin") {
+    return (
+      <div>
+        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Campus-wide scope" />
+        <div className="px-4 md:px-8 pb-8 max-w-2xl">
+          <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
+            ← Back to college hub
+          </Link>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-6 text-[14px] text-amber-950">
+            Campus-wide timetabling is not available from the College Admin Central Hub. Use the{" "}
+            <strong>CAS Admin</strong> or <strong>DOI / VPAA</strong> evaluator hubs to review schedules across all
+            colleges.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!isCampusWide && hub && !hub.collegeId) {
     return (
       <div>
@@ -721,14 +971,104 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
     );
   }
 
+  const crossCollegeTargetId = !isCampusWide && hub?.collegeId ? hub.collegeId : null;
+  const needsPeerApproval =
+    hubAccessMode === "collegeAdmin" &&
+    Boolean(crossCollegeTargetId && myCollegeId && myUserId && crossCollegeTargetId !== myCollegeId);
+
+  const crossApproved =
+    needsPeerApproval &&
+    hasApprovedCrossCollegeEvaluatorAccess(accessRequests, crossCollegeTargetId!, myUserId!);
+  const crossPending = needsPeerApproval
+    ? pendingCrossCollegeEvaluatorRequest(accessRequests, crossCollegeTargetId!, myUserId!)
+    : undefined;
+
+  if (hubAccessMode === "collegeAdmin" && collegeSlug && !isCampusWide && hub?.collegeId && !collegeAdminProfileReady) {
+    return (
+      <div>
+        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Loading your session…" />
+        <div className="px-8 py-12 text-sm text-black/60">Please wait.</div>
+      </div>
+    );
+  }
+
+  if (needsPeerApproval && !crossApproved) {
+    return (
+      <div>
+        <ChairmanPageHeader title="Central Hub Evaluator" subtitle={hub?.name ?? "Peer college"} />
+        <div className="px-4 md:px-8 pb-8 max-w-xl">
+          <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
+          <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
+            ← College hub
+          </Link>
+          {crossPending ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-6 text-[14px]">
+              <p className="font-semibold text-amber-950">Approval pending</p>
+              <p className="mt-2 text-black/80">
+                Waiting for a College Admin of <strong>{hub?.abbr}</strong> to approve your access. After approval,
+                return here — you will be moved to <strong>Timetabling & Optimization</strong> automatically.
+              </p>
+              <Button type="button" variant="outline" className="mt-4" onClick={() => void reloadAccessRequests()}>
+                Refresh status
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <p className="font-semibold text-gray-900">Access required</p>
+              <p className="mt-2 text-[14px] text-black/75">
+                Viewing another college&apos;s schedules requires approval from that college&apos;s College Admin.
+                Submit a request; once approved, you can proceed to <strong>Timetabling & Optimization</strong>.
+              </p>
+              {accessRequestErr ? <p className="mt-2 text-sm text-red-700">{accessRequestErr}</p> : null}
+              <Button
+                type="button"
+                className="mt-4 bg-[#780301] hover:bg-[#5a0201] text-white"
+                disabled={accessRequestBusy}
+                onClick={async () => {
+                  if (!crossCollegeTargetId) return;
+                  setAccessRequestErr(null);
+                  setAccessRequestBusy(true);
+                  try {
+                    const res = await fetch("/api/access-requests", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "include",
+                      body: JSON.stringify({
+                        targetCollegeId: crossCollegeTargetId,
+                        scopes: ["evaluator"],
+                        note: "Central Hub Evaluator — cross-college schedule review",
+                      }),
+                    });
+                    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+                    if (!res.ok) {
+                      setAccessRequestErr(json?.error ?? "Request failed");
+                      return;
+                    }
+                    await reloadAccessRequests();
+                  } finally {
+                    setAccessRequestBusy(false);
+                  }
+                }}
+              >
+                {accessRequestBusy ? "Submitting…" : "Request access"}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const collegeRow = scopeCollegeId ? colleges.find((c) => c.id === scopeCollegeId) : null;
+
+  const hubPageSubtitle =
+    hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId
+      ? `Review schedules saved by Program Chairmen for ${collegeRow?.name ?? hub?.name ?? "this college"} — all programs and sections in your department scope.`
+      : "Campus-wide data — narrow by college and department (program).";
 
   return (
     <div>
-      <ChairmanPageHeader
-        title="Central Hub Evaluator"
-        subtitle="Campus-wide data — narrow by college and department (program)."
-      />
+      <ChairmanPageHeader title="Central Hub Evaluator" subtitle={hubPageSubtitle} />
 
       <div className="px-4 md:px-8 pb-8">
         <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
@@ -824,54 +1164,109 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
               />
             ) : null}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-              <label className="block min-w-[200px]">
-                <span className="text-[13px] font-semibold text-black/70">College</span>
-                <select
-                  className="mt-1 w-full h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm"
-                  value={
-                    isCampusWide
-                      ? CAMPUS_WIDE_COLLEGE_SLUG
-                      : scopeCollegeId
-                        ? hubSlugForCollegeId(scopeCollegeId) ?? collegeSlug ?? ""
-                        : collegeSlug ?? ""
-                  }
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const keepHrs = searchParams.get("panel") === "hrs";
-                    const q = keepHrs ? "&panel=hrs" : "";
-                    router.replace(`${basePath}?college=${encodeURIComponent(v)}${q}`);
-                  }}
-                >
-                  <option value={CAMPUS_WIDE_COLLEGE_SLUG}>All colleges (campus-wide)</option>
-                  {CENTRAL_HUB_COLLEGES.map((c) => (
-                    <option key={c.slug} value={c.slug}>
-                      {c.abbr} — {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block min-w-[200px]">
-                <span className="text-[13px] font-semibold text-black/70">Department (program)</span>
-                <select
-                  className="mt-1 w-full h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm"
-                  value={programId}
-                  onChange={(e) => setProgramId(e.target.value)}
-                >
-                  <option value="">All departments</option>
-                  {programsInCollege.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.code} — {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            {hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId ? (
+              <div className="space-y-6 max-w-[1400px] mx-auto mb-6">
+                <p className="text-[12px] text-black/60 leading-relaxed">
+                  This view lists the same <code className="text-[11px] bg-black/[0.05] px-1 rounded">ScheduleEntry</code>{" "}
+                  rows the Chairman saves from the Evaluator — all sections and programs under{" "}
+                  <strong>{collegeRow?.name ?? hub?.name}</strong>. Use Department and Section to narrow the grid; the
+                  summary matches the Chairman Evaluator prospectus when a program has curriculum data.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
+                  <span>Department (program)</span>
+                  <select
+                    className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+                    value={programId}
+                    onChange={(e) => setProgramId(e.target.value)}
+                  >
+                    <option value="">All departments</option>
+                    {programsInCollege.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.code} — {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
+                  <span>Section</span>
+                  <select
+                    className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+                    value={sectionFilterId}
+                    onChange={(e) => setSectionFilterId(e.target.value)}
+                  >
+                    <option value="">All sections</option>
+                    {sectionsInDepartmentScope.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {effectiveProgramCodeForSummary.trim() && hasProspectusForProgram(effectiveProgramCodeForSummary) ? (
+                  <ChairmanProgramProspectusSummaryTable
+                    programCode={effectiveProgramCodeForSummary}
+                    programName={effectiveProgramNameForSummary}
+                    selectedSectionId={sectionFilterId}
+                    yearLevelFilter={summaryYearLevelFilter}
+                    filterSemester={prospectusSemesterFromAcademicPeriod(currentPeriod)}
+                    plottedSubjectCodes={plottedSubjectCodesForHub}
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                <label className="block min-w-[200px]">
+                  <span className="text-[13px] font-semibold text-black/70">College</span>
+                  <select
+                    className="mt-1 w-full h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm"
+                    value={
+                      isCampusWide
+                        ? CAMPUS_WIDE_COLLEGE_SLUG
+                        : scopeCollegeId
+                          ? hubSlugForCollegeId(scopeCollegeId) ?? collegeSlug ?? ""
+                          : collegeSlug ?? ""
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const keepHrs = searchParams.get("panel") === "hrs";
+                      const q = keepHrs ? "&panel=hrs" : "";
+                      router.replace(`${basePath}?college=${encodeURIComponent(v)}${q}`);
+                    }}
+                  >
+                    {hubAccessMode !== "collegeAdmin" ? (
+                      <option value={CAMPUS_WIDE_COLLEGE_SLUG}>All colleges (campus-wide)</option>
+                    ) : null}
+                    {CENTRAL_HUB_COLLEGES.map((c) => (
+                      <option key={c.slug} value={c.slug}>
+                        {c.abbr} — {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block min-w-[200px]">
+                  <span className="text-[13px] font-semibold text-black/70">Department (program)</span>
+                  <select
+                    className="mt-1 w-full h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm"
+                    value={programId}
+                    onChange={(e) => setProgramId(e.target.value)}
+                  >
+                    <option value="">All departments</option>
+                    {programsInCollege.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.code} — {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
               <div className="flex flex-wrap gap-3 items-center">
                 <p className="text-[12px] text-black/55 max-w-md">
-                  Academic term is selected in the sidebar / header. Change it there to filter this grid.
+                  {hubAccessMode === "collegeAdmin"
+                    ? "Term is selected in the header. Conflict scan is for review only — College Admin cannot edit Chairman plots here."
+                    : "Academic term is selected in the sidebar / header. Change it there to filter this grid."}
                 </p>
                 <Button
                   type="button"
@@ -883,14 +1278,16 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                   <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
                   {conflictScanBusy ? "Scanning…" : "Run conflict check"}
                 </Button>
-                <Button
-                  type="button"
-                  className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
-                  disabled={altBusy || loading}
-                  onClick={() => runAlternativeSuggestion()}
-                >
-                  {altBusy ? "Working…" : "Alternative Suggestion"}
-                </Button>
+                {hubAccessMode !== "collegeAdmin" ? (
+                  <Button
+                    type="button"
+                    className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
+                    disabled={altBusy || loading}
+                    onClick={() => runAlternativeSuggestion()}
+                  >
+                    {altBusy ? "Working…" : "Alternative Suggestion"}
+                  </Button>
+                ) : null}
               </div>
             </div>
 
@@ -902,7 +1299,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                   suggestionsByIssueKey={hubConflictGaByIssueKey}
                   busyIssueKey={busyConflictApplyKey}
                   onApplySuggestion={(key, s) => void applyHubConflictSuggestion(key, s)}
-                  allowApply
+                  allowApply={hubAccessMode !== "collegeAdmin"}
                   maxIssues={14}
                   formatSuggestionLabel={(s) =>
                     formatGaSuggestionShortLabel(s, {
@@ -930,8 +1327,17 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
             ) : (
               <>
                 <p className="text-[12px] text-black/60 mb-2">
-                  After <strong>Run conflict check</strong>, overlapping rows are highlighted; click a row to edit time,
-                  room, or instructor, or apply a suggested fix above.
+                  {hubAccessMode === "collegeAdmin" ? (
+                    <>
+                      After <strong>Run conflict check</strong>, overlapping rows are highlighted. This grid is read-only
+                      for College Admin.
+                    </>
+                  ) : (
+                    <>
+                      After <strong>Run conflict check</strong>, overlapping rows are highlighted; click a row to edit
+                      time, room, or instructor, or apply a suggested fix above.
+                    </>
+                  )}
                 </p>
                 <EvaluatorScheduleOverviewTable
                   rows={tableRows}
@@ -940,60 +1346,62 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                   focusRowId={focusEntryId}
                   conflictDetailsByRowId={conflictDetailsByRowId}
                   rowDomIdPrefix="central-eval-row"
-                  onRowClick={(id) => setEditEntryId(id)}
+                  onRowClick={hubAccessMode === "collegeAdmin" ? undefined : (id) => setEditEntryId(id)}
                 />
               </>
             )}
 
-            <DoiScheduleEntryQuickEditDialog
-              open={Boolean(editEntryId)}
-              onOpenChange={(o) => {
-                if (!o) setEditEntryId(null);
-              }}
-              entry={editEntry}
-              rooms={roomsForEdit}
-              instructors={instructorsForEdit}
-              facultyProfileByUserId={facultyProfileByUserId}
-              busy={editBusy}
-              onSave={async (patch) => {
-                if (!editEntryId) return;
-                const savedId = editEntryId;
-                setEditBusy(true);
-                try {
-                  const supabase = createSupabaseBrowserClient();
-                  if (!supabase) throw new Error("Supabase not configured");
-                  const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", savedId);
-                  if (error) throw new Error(error.message);
-                  setEditEntryId(null);
-                  setCampusConflictScan(null);
-                  setHubConflictGaByIssueKey({});
-                  setFocusEntryId(null);
-                  await load();
-                  dispatchInsCatalogReload();
-                  const anchor = entries.find((x) => x.id === savedId);
-                  const sec = anchor ? sectionById.get(anchor.sectionId) : undefined;
-                  const pr = sec ? programById.get(sec.programId) : null;
-                  const sub = anchor ? subjectById.get(anchor.subjectId) : undefined;
-                  void fetch("/api/audit/schedule-write", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      action: "hub.schedule_dialog_edit",
-                      collegeId: pr?.collegeId ?? scopeCollegeId,
-                      academicPeriodId: anchor?.academicPeriodId ?? academicPeriodId,
-                      details: {
-                        entryId: savedId,
-                        subjectCode: sub?.code ?? "",
-                        sectionName: sec?.name ?? "",
-                        patch,
-                      },
-                    }),
-                  });
-                } finally {
-                  setEditBusy(false);
-                }
-              }}
-            />
+            {hubAccessMode !== "collegeAdmin" ? (
+              <DoiScheduleEntryQuickEditDialog
+                open={Boolean(editEntryId)}
+                onOpenChange={(o) => {
+                  if (!o) setEditEntryId(null);
+                }}
+                entry={editEntry}
+                rooms={roomsForEdit}
+                instructors={instructorsForEdit}
+                facultyProfileByUserId={facultyProfileByUserId}
+                busy={editBusy}
+                onSave={async (patch) => {
+                  if (!editEntryId) return;
+                  const savedId = editEntryId;
+                  setEditBusy(true);
+                  try {
+                    const supabase = createSupabaseBrowserClient();
+                    if (!supabase) throw new Error("Supabase not configured");
+                    const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", savedId);
+                    if (error) throw new Error(error.message);
+                    setEditEntryId(null);
+                    setCampusConflictScan(null);
+                    setHubConflictGaByIssueKey({});
+                    setFocusEntryId(null);
+                    await load();
+                    dispatchInsCatalogReload();
+                    const anchor = entries.find((x) => x.id === savedId);
+                    const sec = anchor ? sectionById.get(anchor.sectionId) : undefined;
+                    const pr = sec ? programById.get(sec.programId) : null;
+                    const sub = anchor ? subjectById.get(anchor.subjectId) : undefined;
+                    void fetch("/api/audit/schedule-write", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "hub.schedule_dialog_edit",
+                        collegeId: pr?.collegeId ?? scopeCollegeId,
+                        academicPeriodId: anchor?.academicPeriodId ?? academicPeriodId,
+                        details: {
+                          entryId: savedId,
+                          subjectCode: sub?.code ?? "",
+                          sectionName: sec?.name ?? "",
+                          patch,
+                        },
+                      }),
+                    });
+                  } finally {
+                    setEditBusy(false);
+                  }
+                }}
+              />
+            ) : null}
 
             {altOpen ? (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">

@@ -7,8 +7,10 @@
  * Call this after every successful `ScheduleEntry` write so open tabs refetch without waiting only on Realtime.
  *
  * **Cross-tab:** The window event only reaches the current tab. We also `BroadcastChannel` so other open
- * tabs (e.g. GEC Evaluator + College Admin INS) refetch immediately without relying on Supabase Realtime
- * (`ScheduleEntry` must be added to `supabase_realtime` publication for DB-triggered sync across machines).
+ * tabs (e.g. GEC Evaluator + College Admin INS) refetch immediately without relying on Supabase Realtime.
+ * **Cross-user / cross-browser:** `ScheduleEntry` must be in the `supabase_realtime` publication (see
+ * migration `20260418140000_scheduleentry_supabase_realtime_publication.sql`) so Chairmen’s saves notify
+ * College Admin hubs via `useScheduleEntryCrossReload`.
  */
 export const INS_CATALOG_RELOAD_EVENT = "opticore:ins-catalog-reload";
 

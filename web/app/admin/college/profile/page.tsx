@@ -1,5 +1,6 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { AdminProfileCard } from "@/components/admin/AdminProfileCard";
+import { ProfileAvatarUpload } from "@/components/profile/ProfileAvatarUpload";
 import { ProfileSignatureSectionGate } from "@/components/profile/ProfileSignatureSectionGate";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
 import { collegeDisplayName } from "@/lib/college-labels";
@@ -12,6 +13,9 @@ export default async function CollegeAdminProfilePage() {
     <div>
       <ChairmanPageHeader title="Profile" subtitle="Account overview — same layout for all OptiCore admin roles." />
       <div className="px-6 pb-8">
+        <div className="mb-6">
+          <ProfileAvatarUpload initialUrl={profile.profileImageUrl} />
+        </div>
         <AdminProfileCard
           fullName={profile.name}
           employeeId={profile.id.slice(0, 8).toUpperCase()}
