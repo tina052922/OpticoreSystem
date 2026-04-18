@@ -582,6 +582,17 @@ export function GecCentralHubEvaluatorClient() {
       setEdits({});
       setExtraEntries([]);
       const secForAudit = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
+      const auditRows = toSave.map((r) => {
+        const sub = subjectById.get(r.subjectId);
+        const sec = sectionById.get(r.sectionId);
+        return {
+          subjectCode: sub?.code ?? "—",
+          sectionName: sec?.name ?? "",
+          day: r.day,
+          startTime: r.startTime,
+          endTime: r.endTime,
+        };
+      });
       /** Same-tab + other evaluator shells: notify immediately so INS/evaluators start refetch without waiting on Realtime. */
       dispatchInsCatalogReload();
       void fetch("/api/audit/schedule-write", {
@@ -596,6 +607,7 @@ export function GecCentralHubEvaluatorClient() {
             sectionId: sectionIdFilter || null,
             sectionName: secForAudit?.name ?? "",
             entryIds: toSave.map((r) => r.id),
+            rows: auditRows,
           },
         }),
       });

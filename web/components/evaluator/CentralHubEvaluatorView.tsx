@@ -597,6 +597,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
         const touched = entries.find((e) => e.id === iss.rowA.entryId);
         const sec0 = touched ? sectionById.get(touched.sectionId) : undefined;
         const pr0 = sec0 ? programById.get(sec0.programId) : null;
+        const sub0 = touched ? subjectById.get(touched.subjectId) : undefined;
         void fetch("/api/audit/schedule-write", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -607,6 +608,8 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
             details: {
               entryId: iss.rowA.entryId,
               issueKey,
+              subjectCode: sub0?.code ?? "",
+              sectionName: sec0?.name ?? "",
               applied: {
                 day: s.day,
                 startTime: pad(s.startTime),
@@ -628,6 +631,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
       load,
       entries,
       sectionById,
+      subjectById,
       programById,
       scopeCollegeId,
       academicPeriodId,
@@ -786,6 +790,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                     const anchor = entries.find((x) => x.id === id);
                     const sec = anchor ? sectionById.get(anchor.sectionId) : undefined;
                     const pr = sec ? programById.get(sec.programId) : null;
+                    const sub = anchor ? subjectById.get(anchor.subjectId) : undefined;
                     void fetch("/api/audit/schedule-write", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -793,7 +798,12 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                         action: "hub.schedule_quick_patch",
                         collegeId: pr?.collegeId ?? scopeCollegeId,
                         academicPeriodId: anchor?.academicPeriodId ?? academicPeriodId,
-                        details: { entryId: id, patch },
+                        details: {
+                          entryId: id,
+                          subjectCode: sub?.code ?? "",
+                          sectionName: sec?.name ?? "",
+                          patch,
+                        },
                       }),
                     });
                   },
@@ -963,6 +973,7 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                   const anchor = entries.find((x) => x.id === savedId);
                   const sec = anchor ? sectionById.get(anchor.sectionId) : undefined;
                   const pr = sec ? programById.get(sec.programId) : null;
+                  const sub = anchor ? subjectById.get(anchor.subjectId) : undefined;
                   void fetch("/api/audit/schedule-write", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -970,7 +981,12 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                       action: "hub.schedule_dialog_edit",
                       collegeId: pr?.collegeId ?? scopeCollegeId,
                       academicPeriodId: anchor?.academicPeriodId ?? academicPeriodId,
-                      details: { entryId: savedId, patch },
+                      details: {
+                        entryId: savedId,
+                        subjectCode: sub?.code ?? "",
+                        sectionName: sec?.name ?? "",
+                        patch,
+                      },
                     }),
                   });
                 } finally {
