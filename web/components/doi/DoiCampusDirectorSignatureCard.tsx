@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
-import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
+import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { CampusInsSettings } from "@/types/db";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
@@ -50,9 +50,7 @@ export function DoiCampusDirectorSignatureCard() {
       const j = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(j.error || "Upload failed");
       await load();
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event(INS_CATALOG_RELOAD_EVENT));
-      }
+      dispatchInsCatalogReload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -68,9 +66,7 @@ export function DoiCampusDirectorSignatureCard() {
       const j = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(j.error || "Could not clear");
       await load();
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event(INS_CATALOG_RELOAD_EVENT));
-      }
+      dispatchInsCatalogReload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not clear");
     } finally {

@@ -5,7 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
-import { INS_CATALOG_RELOAD_EVENT } from "@/lib/ins/ins-catalog-reload";
+import { INS_CATALOG_RELOAD_EVENT, subscribeScheduleEntryBroadcast } from "@/lib/ins/ins-catalog-reload";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { enrichCampusConflictIssues, conflictHeadlineShort } from "@/lib/scheduling/conflict-enrichment";
@@ -213,6 +213,9 @@ export function useInsCatalog(args: {
     const handler = () => {
       void load();
     };
+    if (typeof BroadcastChannel !== "undefined") {
+      return subscribeScheduleEntryBroadcast(handler);
+    }
     window.addEventListener(INS_CATALOG_RELOAD_EVENT, handler);
     return () => window.removeEventListener(INS_CATALOG_RELOAD_EVENT, handler);
   }, [load, args.collegeId, args.campusWide]);
