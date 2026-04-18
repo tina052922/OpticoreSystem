@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
-import { detectConflictsSparse, scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
+import { detectConflictsSparse, scanAllSparseScheduleConflicts } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
@@ -502,8 +502,11 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     for (const row of rows) {
       const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId) : undefined;
-      if (!subj) continue;
-      const b = rowToBlock(row, academicPeriodId, subj.id);
+      let b: ScheduleBlock | null = subj ? rowToBlock(row, academicPeriodId, subj.id) : null;
+      if (!b) {
+        const fromDb = allTermScheduleEntries.find((e) => e.id === row.id);
+        if (fromDb && fromDb.academicPeriodId === academicPeriodId) b = scheduleEntryToBlock(fromDb);
+      }
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
@@ -514,7 +517,7 @@ export function BsitChairmanEvaluatorWorksheet({
     setSaveScheduleMsg(null);
     setChairmanEnrichedIssues([]);
     setChairmanGaByIssueKey({});
-    const scan = scanAllScheduleConflicts(mergedBlocksForCampusScan);
+    const scan = scanAllSparseScheduleConflicts(sparseCampusWideUniverse);
     setCampusScanConflictIds(new Set(scan.conflictingEntryIds));
     if (scan.issueSummaries.length === 0) {
       setSaveScheduleMsg("No conflicts — faculty, room, and section times are clear campus-wide for this term.");
@@ -579,6 +582,7 @@ export function BsitChairmanEvaluatorWorksheet({
     }
   }, [
     academicPeriodId,
+    sparseCampusWideUniverse,
     mergedBlocksForCampusScan,
     chairmanCollegeId,
     chairmanProgramId,

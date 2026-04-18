@@ -19,6 +19,44 @@ export type EnrichedCampusIssue = {
   rowB: ConflictRowSnapshot;
 };
 
+/** Counts by conflict dimension for dashboard chips (pairwise issues). */
+export function summarizeConflictIssueTypes(issues: EnrichedCampusIssue[]): {
+  total: number;
+  faculty: number;
+  room: number;
+  section: number;
+} {
+  let faculty = 0;
+  let room = 0;
+  let section = 0;
+  for (const i of issues) {
+    if (i.type === "faculty") faculty += 1;
+    else if (i.type === "room") room += 1;
+    else section += 1;
+  }
+  return { total: issues.length, faculty, room, section };
+}
+
+/** One-line title for compact lists (panel headline). */
+export function conflictHeadlineShort(iss: EnrichedCampusIssue): string {
+  const secA = iss.rowA.what.includes("·") ? iss.rowA.what.split("·")[1]?.trim() ?? "" : "";
+  switch (iss.type) {
+    case "faculty":
+      return `Faculty double-booking: ${iss.rowA.who} at ${iss.rowA.when}`;
+    case "room":
+      return `Room ${iss.rowA.where} occupied: ${iss.rowA.when}`;
+    case "section":
+      return `Section ${secA || "overlap"}: two classes at ${iss.rowA.when}`;
+    default:
+      return iss.rootCause.slice(0, 140);
+  }
+}
+
+export function parseSnapshotSubjectSection(what: string): { subject: string; section: string } {
+  const parts = what.split("·").map((s) => s.trim());
+  return { subject: parts[0] ?? "—", section: parts[1] ?? "—" };
+}
+
 /** JSON shape returned by GET /api/doi/schedule-conflicts */
 export type CampusConflictScanApiPayload = {
   entryCount: number;

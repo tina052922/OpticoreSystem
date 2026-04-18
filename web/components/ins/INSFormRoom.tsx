@@ -220,12 +220,6 @@ export function INSFormRoom({
           <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
             Campus-wide · all colleges
           </span>
-          {insBasePath.includes("/gec") ? (
-            <p className="text-xs text-amber-950 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 max-w-3xl">
-              <strong>Vacant GEC slots</strong> in this room schedule use an{" "}
-              <span className="text-[#c26100] font-semibold">orange outline</span>.
-            </p>
-          ) : null}
         </div>
       ) : (
         <div className="mb-6 max-w-[1200px] mx-auto">

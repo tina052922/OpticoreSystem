@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
@@ -49,6 +49,8 @@ export function CollegeScheduleChangeRequestsClient() {
     suggestedMitigation?: Mitigation | null;
   } | null>(null);
   const [applySuggestedMitigation, setApplySuggestedMitigation] = useState(false);
+  /** Avoid re-running campus check when `requests` refreshes after the same selection. */
+  const autoCheckDoneForSelected = useRef<string | null>(null);
 
   const selected = requests.find((r) => r.id === selectedId) ?? null;
 
@@ -76,18 +78,15 @@ export function CollegeScheduleChangeRequestsClient() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    setCheckResult(null);
-    setAdminNote("");
-    setApplySuggestedMitigation(false);
-  }, [selectedId]);
-
-  async function runConflictCheck() {
-    if (!selected || selected.status !== "pending") return;
+  const runConflictCheck = useCallback(async () => {
+    if (!selectedId) return;
+    const row = requests.find((r) => r.id === selectedId);
+    if (!row || row.status !== "pending") return;
     setBusy("check");
     setCheckResult(null);
+    setError(null);
     try {
-      const res = await fetch(`/api/college/schedule-change-requests/${selected.id}/check-conflicts`, {
+      const res = await fetch(`/api/college/schedule-change-requests/${row.id}/check-conflicts`, {
         method: "POST",
         credentials: "include",
       });
@@ -111,7 +110,23 @@ export function CollegeScheduleChangeRequestsClient() {
     } finally {
       setBusy(null);
     }
-  }
+  }, [selectedId, requests, load]);
+
+  useEffect(() => {
+    setAdminNote("");
+    setApplySuggestedMitigation(false);
+    setCheckResult(null);
+    autoCheckDoneForSelected.current = null;
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const row = requests.find((r) => r.id === selectedId);
+    if (!row || row.status !== "pending") return;
+    if (autoCheckDoneForSelected.current === selectedId) return;
+    autoCheckDoneForSelected.current = selectedId;
+    void runConflictCheck();
+  }, [selectedId, requests, runConflictCheck]);
 
   async function patch(action: "approve" | "reject" | "approve_with_solution") {
     if (!selected || selected.status !== "pending") return;
@@ -339,12 +354,13 @@ export function CollegeScheduleChangeRequestsClient() {
 
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-black" htmlFor="admin-note">
-                          Admin note / suggested mitigation (required for small conflicts or approve with solution)
+                          Admin note (mitigation, approval context, or rejection reason — shown to the instructor when
+                          relevant)
                         </label>
                         <textarea
                           id="admin-note"
                           className="w-full min-h-[88px] rounded-lg border border-black/15 px-3 py-2 text-sm"
-                          placeholder="e.g. move room to Lab 2; or swap with section 2B…"
+                          placeholder="e.g. approve: use Lab 2; reject: schedule is locked until VPAA publishes…"
                           value={adminNote}
                           onChange={(e) => setAdminNote(e.target.value)}
                         />

@@ -1,27 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
 import type { InsFacultyCell, InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
 import type { InsRoomCell, InsRoomSchedule } from "@/lib/ins/build-ins-room-view";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsDay } from "./opticore-ins-constants";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
-
-/** GEC Chairman / campus-wide INS: make unfilled GEC/GEE placeholder slots obvious at a glance. */
-function VacantGecSlotHighlight(props: { title: string; children: ReactNode }) {
-  return (
-    <div
-      className="w-full rounded-md border-[3px] border-[#FF990A] bg-amber-50/95 p-1 shadow-[inset_0_0_0_1px_rgba(180,83,9,0.22)]"
-      title={props.title}
-    >
-      <div className="mb-0.5 text-center text-[7px] font-black uppercase tracking-widest leading-none text-[#a35600]">
-        Vacant GEC
-      </div>
-      {props.children}
-    </div>
-  );
-}
 
 const formDate = () =>
   new Intl.DateTimeFormat("en-PH", { month: "long", day: "numeric", year: "numeric" }).format(new Date());
@@ -244,16 +228,6 @@ export function OpticoreInsForm5A({
                 ) : (
                   inner
                 );
-                if (classAtTime.vacantGec) {
-                  return (
-                    <VacantGecSlotHighlight
-                      key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}
-                      title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)"
-                    >
-                      {body}
-                    </VacantGecSlotHighlight>
-                  );
-                }
                 return <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}>{body}</div>;
               })}
             </div>
@@ -594,13 +568,6 @@ export function OpticoreInsForm5B({
                     <div>{row.room}</div>
                   </div>
                 );
-                if (row.vacantGec) {
-                  return (
-                    <VacantGecSlotHighlight key={`${row.time}-${idx}`} title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
-                      {inner}
-                    </VacantGecSlotHighlight>
-                  );
-                }
                 return <div key={`${row.time}-${idx}`}>{inner}</div>;
               })}
             </div>
@@ -776,13 +743,6 @@ export function OpticoreInsForm5C({
                     <div>{classAtTime.room}</div>
                   </div>
                 );
-                if (classAtTime.vacantGec) {
-                  return (
-                    <VacantGecSlotHighlight key={`${classAtTime.time}-${idx}`} title="Vacant GEC slot (placeholder instructor — assign in Central Hub Evaluator)">
-                      {inner}
-                    </VacantGecSlotHighlight>
-                  );
-                }
                 return <div key={`${classAtTime.time}-${idx}`}>{inner}</div>;
               })}
             </div>

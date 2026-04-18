@@ -6,6 +6,30 @@ import { X } from "lucide-react";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
+function timeToMinutes(t: string): number {
+  const raw = t.trim();
+  const base = raw.length > 5 ? raw.slice(0, 5) : raw;
+  const [h, m] = base.split(":").map((x) => parseInt(x, 10));
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+/** Value for `<input type="time" />` (HH:MM). */
+function toTimeInputValue(t: string): string {
+  const m = timeToMinutes(t);
+  const h = Math.floor(m / 60) % 24;
+  const min = m % 60;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+function addMinutesToTimeInput(start: string, durationMinutes: number): string {
+  const m = timeToMinutes(start) + durationMinutes;
+  const norm = ((m % (24 * 60)) + 24 * 60) % (24 * 60);
+  const h = Math.floor(norm / 60);
+  const min = norm % 60;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
 export type ScheduleEntryOption = {
   id: string;
   label: string;
@@ -84,6 +108,17 @@ export function FacultyScheduleChangeModal({
     setError(null);
     setReason("");
   }, [open, initialScheduleEntryId]);
+
+  /** Match requested slot length to the selected class (e.g. 3h lab → 3h proposed window). */
+  useEffect(() => {
+    if (!open || !scheduleEntryId || entries.length === 0) return;
+    const sel = entries.find((e) => e.id === scheduleEntryId);
+    if (!sel) return;
+    const dur = Math.max(1, timeToMinutes(sel.endTime) - timeToMinutes(sel.startTime));
+    setRequestedDay(sel.day);
+    setRequestedStartTime(toTimeInputValue(sel.startTime));
+    setRequestedEndTime(addMinutesToTimeInput(sel.startTime, dur));
+  }, [open, scheduleEntryId, entries]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -7,6 +7,7 @@ export type AuthUserProfile = {
   name: string;
   role: string;
   collegeId: string | null;
+  employeeId?: string | null;
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
@@ -27,7 +28,7 @@ export async function fetchMyUserRowForAuth(
   const uid = userId.toLowerCase();
   const { data: row, error: rowErr } = await supabase
     .from("User")
-    .select("id,email,name,role,collegeId,chairmanProgramId,signatureImageUrl")
+    .select("id,email,name,role,collegeId,employeeId,chairmanProgramId,signatureImageUrl")
     .eq("id", uid)
     .maybeSingle<AuthUserProfile>();
 

@@ -9,7 +9,7 @@ import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
-import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
+import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import { enrichCampusConflictIssues, type EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
@@ -472,8 +472,11 @@ export function GecCentralHubEvaluatorClient() {
    */
   function runConflictCheck() {
     if (!academicPeriodId) return;
-    const blocks = mergedEntries.filter((e) => e.academicPeriodId === academicPeriodId).map(toBlock);
-    const scan = scanAllScheduleConflicts(blocks);
+    const sparseBlocks = mergedEntries
+      .filter((e) => e.academicPeriodId === academicPeriodId)
+      .map((e) => scheduleEntryToSparseBlock(e))
+      .filter((b): b is NonNullable<typeof b> => b != null);
+    const scan = scanAllSparseScheduleConflicts(sparseBlocks);
     setConflictIds(scan.conflictingEntryIds);
     setConflictSummary(scan.issueSummaries);
 
@@ -490,7 +493,7 @@ export function GecCentralHubEvaluatorClient() {
     );
     setGecEnrichedConflicts(enriched);
 
-    const universe = blocks;
+    const universe = mergedEntries.filter((e) => e.academicPeriodId === academicPeriodId).map(toBlock);
     const gaMap: Record<string, GASuggestion[]> = {};
     /** Search all rooms and all teaching staff campus-wide so suggestions can move across programs when needed. */
     const roomIds = rooms.map((r) => r.id);

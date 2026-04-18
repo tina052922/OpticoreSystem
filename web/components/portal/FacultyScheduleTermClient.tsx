@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import type { InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import { buildPortalFacultyIns5A } from "@/lib/portal/build-portal-ins-forms";
 import { FacultyScheduleChangeModal } from "@/components/faculty/FacultyScheduleChangeModal";
@@ -31,32 +32,44 @@ export function FacultyScheduleTermClient({
   const [changeOpen, setChangeOpen] = useState(false);
   const [initialEntryId, setInitialEntryId] = useState<string | null>(null);
 
+  /** Refetch plotted classes — used on load and when `ScheduleEntry` changes (admin approval, chairman saves, Realtime). */
+  const reloadSchedule = useCallback(async () => {
+    if (!ready || !selectedPeriodId) return;
+    try {
+      const res = await fetch(
+        `/api/portal/faculty-term-data?periodId=${encodeURIComponent(selectedPeriodId)}`,
+        { credentials: "include" },
+      );
+      const j = (await res.json()) as FacultyPayload & { error?: string };
+      if (!res.ok) {
+        setErr(j.error ?? "Could not load schedule.");
+        return;
+      }
+      setRows(j.rows ?? []);
+      setErr(null);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Could not load schedule.");
+    }
+  }, [ready, selectedPeriodId]);
+
+  useScheduleEntryCrossReload(reloadSchedule, {
+    enabled: ready && Boolean(selectedPeriodId),
+    academicPeriodId: selectedPeriodId,
+  });
+
   useEffect(() => {
     if (!ready || !selectedPeriodId) return;
     let cancelled = false;
     setLoading(true);
     setErr(null);
     void (async () => {
-      try {
-        const res = await fetch(
-          `/api/portal/faculty-term-data?periodId=${encodeURIComponent(selectedPeriodId)}`,
-        );
-        const j = (await res.json()) as FacultyPayload & { error?: string };
-        if (!res.ok) {
-          if (!cancelled) setErr(j.error ?? "Could not load schedule.");
-          return;
-        }
-        if (!cancelled) setRows(j.rows ?? []);
-      } catch (e: unknown) {
-        if (!cancelled) setErr(e instanceof Error ? e.message : "Could not load schedule.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await reloadSchedule();
+      if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [ready, selectedPeriodId]);
+  }, [ready, selectedPeriodId, reloadSchedule]);
 
   const built = useMemo(() => {
     const pid = selectedPeriodId ?? "";

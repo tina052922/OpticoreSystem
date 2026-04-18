@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import type { CampusConflictScanApiPayload } from "@/lib/scheduling/conflict-enrichment";
 import type { GASuggestion } from "@/lib/scheduling/types";
 import type { AcademicPeriod, DoiScheduleFinalization, ScheduleEntry } from "@/types/db";
@@ -219,46 +220,14 @@ export function DoiInsFormalApprovalPanel({
             </p>
             <p className="text-gray-700 mt-1">Schedule rows scanned: {conflict.entryCount ?? 0}</p>
             {!noProblemsAcrossCampus && conflict.enrichedIssues && conflict.enrichedIssues.length > 0 ? (
-              <ul className="mt-3 space-y-3 text-gray-900">
-                {conflict.enrichedIssues.map((iss) => (
-                  <li
-                    key={iss.key}
-                    className="rounded-lg border border-amber-300/80 bg-white/90 px-3 py-3 text-[13px] leading-snug shadow-sm"
-                  >
-                    <p className="font-semibold text-gray-950">{iss.rootCause}</p>
-                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
-                      <div className="rounded border border-gray-200 bg-gray-50/80 p-2">
-                        <p className="font-bold text-gray-800 mb-1">Row A</p>
-                        <p>
-                          <span className="text-gray-500">What:</span> {iss.rowA.what}
-                        </p>
-                        <p>
-                          <span className="text-gray-500">When:</span> {iss.rowA.when}
-                        </p>
-                        <p>
-                          <span className="text-gray-500">Where:</span> {iss.rowA.where}
-                        </p>
-                        <p>
-                          <span className="text-gray-500">Who:</span> {iss.rowA.who}
-                        </p>
-                      </div>
-                      <div className="rounded border border-gray-200 bg-gray-50/80 p-2">
-                        <p className="font-bold text-gray-800 mb-1">Row B</p>
-                        <p>
-                          <span className="text-gray-500">What:</span> {iss.rowB.what}
-                        </p>
-                        <p>
-                          <span className="text-gray-500">When:</span> {iss.rowB.when}
-                        </p>
-                        <p>
-                          <span className="text-gray-500">Where:</span> {iss.rowB.where}
-                        </p>
-                        <p>
-                          <span className="text-gray-500">Who:</span> {iss.rowB.who}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-3">
+                <EnrichedConflictIssuesPanel
+                  title="Campus-wide conflict detail"
+                  issues={conflict.enrichedIssues}
+                  allowApply={false}
+                  maxIssues={16}
+                  renderIssueFooter={(iss) => (
+                    <>
                       {gridIntegration?.onFocusEntry ? (
                         <>
                           <Button
@@ -311,10 +280,10 @@ export function DoiInsFormalApprovalPanel({
                           </Button>
                         </>
                       ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </>
+                  )}
+                />
+              </div>
             ) : !noProblemsAcrossCampus && conflict.issueSummaries && conflict.issueSummaries.length > 0 ? (
               <ul className="mt-2 list-disc pl-5 text-gray-800 space-y-1">
                 {conflict.issueSummaries.map((s) => (

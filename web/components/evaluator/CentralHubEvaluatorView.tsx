@@ -19,8 +19,9 @@ import {
   enrichCampusConflictIssues,
   type CampusConflictScanApiPayload,
 } from "@/lib/scheduling/conflict-enrichment";
-import { scanAllScheduleConflicts } from "@/lib/scheduling/conflicts";
+import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
+import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import type {
   AcademicPeriod,
@@ -45,6 +46,8 @@ import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEnt
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
+import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import { AlertTriangle } from "lucide-react";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
@@ -183,6 +186,9 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** Chairman / GEC saves + Realtime: keep this hub grid aligned with INS Forms without a manual refresh. */
+  useScheduleEntryCrossReload(load, { academicPeriodId, enabled: Boolean(academicPeriodId) });
 
   useEffect(() => {
     if (!academicPeriodId) return;
@@ -424,8 +430,10 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
         setHubConflictGaByIssueKey({});
         return;
       }
-      const blocks = scoped.map(toBlock);
-      const scan = scanAllScheduleConflicts(blocks);
+      const sparseBlocks = scoped
+        .map((e) => scheduleEntryToSparseBlock(e))
+        .filter((b): b is NonNullable<typeof b> => b != null);
+      const scan = scanAllSparseScheduleConflicts(sparseBlocks);
       const entryById = new Map(entries.map((e) => [e.id, e]));
       const enriched = enrichCampusConflictIssues(
         scan.issues,
@@ -438,15 +446,15 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
         collegeNameById,
       );
       setCampusConflictScan({
-        entryCount: blocks.length,
+        entryCount: sparseBlocks.length,
         conflictingEntryIds: [...scan.conflictingEntryIds],
         issueSummaries: scan.issueSummaries,
         issues: scan.issues,
         enrichedIssues: enriched,
       });
       const gaMap: Record<string, GASuggestion[]> = {};
-      for (const iss of enriched.slice(0, 8)) {
-        gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 4);
+      for (const iss of enriched.slice(0, 12)) {
+        gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 5);
       }
       setHubConflictGaByIssueKey(gaMap);
     } finally {
@@ -585,11 +593,46 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
         setHubConflictGaByIssueKey({});
         setFocusEntryId(null);
         await load();
+        dispatchInsCatalogReload();
+        const touched = entries.find((e) => e.id === iss.rowA.entryId);
+        const sec0 = touched ? sectionById.get(touched.sectionId) : undefined;
+        const pr0 = sec0 ? programById.get(sec0.programId) : null;
+        void fetch("/api/audit/schedule-write", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "hub.conflict_apply",
+            collegeId: pr0?.collegeId ?? scopeCollegeId,
+            academicPeriodId: touched?.academicPeriodId ?? academicPeriodId,
+            details: {
+              entryId: iss.rowA.entryId,
+              issueKey,
+              applied: {
+                day: s.day,
+                startTime: pad(s.startTime),
+                endTime: pad(s.endTime),
+                roomId: s.roomId,
+                instructorId: s.instructorId,
+              },
+            },
+          }),
+        });
+        /** Re-run the scoped scan so the UI confirms the GA pick did not leave a new overlap in this view. */
+        runScopedConflictScan();
       } finally {
         setBusyConflictApplyKey(null);
       }
     },
-    [campusConflictScan, load],
+    [
+      campusConflictScan,
+      load,
+      entries,
+      sectionById,
+      programById,
+      scopeCollegeId,
+      academicPeriodId,
+      runScopedConflictScan,
+    ],
   );
 
   /* —— Hub: college tiles —— */
@@ -739,6 +782,20 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
                     setCampusConflictScan(null);
                     setFocusEntryId(null);
                     await load();
+                    dispatchInsCatalogReload();
+                    const anchor = entries.find((x) => x.id === id);
+                    const sec = anchor ? sectionById.get(anchor.sectionId) : undefined;
+                    const pr = sec ? programById.get(sec.programId) : null;
+                    void fetch("/api/audit/schedule-write", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "hub.schedule_quick_patch",
+                        collegeId: pr?.collegeId ?? scopeCollegeId,
+                        academicPeriodId: anchor?.academicPeriodId ?? academicPeriodId,
+                        details: { entryId: id, patch },
+                      }),
+                    });
                   },
                   formatGaSuggestion: (s, anchorEntryId) => {
                     const e = entries.find((x) => x.id === anchorEntryId);
@@ -830,19 +887,22 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
             {campusConflictScan && campusConflictScan.enrichedIssues.length > 0 ? (
               <div className="mb-4">
                 <EnrichedConflictIssuesPanel
+                  title="Conflicts & suggested fixes (scoped hub scan)"
                   issues={campusConflictScan.enrichedIssues}
                   suggestionsByIssueKey={hubConflictGaByIssueKey}
                   busyIssueKey={busyConflictApplyKey}
                   onApplySuggestion={(key, s) => void applyHubConflictSuggestion(key, s)}
                   allowApply
-                  formatSuggestionLabel={(s) => {
-                    const room = roomById.get(s.roomId)?.code ?? s.roomId;
-                    const inst = formatUserInstructorLabel(
-                      userById.get(s.instructorId),
-                      facultyProfileByUserId.get(s.instructorId),
-                    );
-                    return `Move to ${room} · ${s.day} ${s.startTime}–${s.endTime} · ${inst}`;
-                  }}
+                  maxIssues={14}
+                  formatSuggestionLabel={(s) =>
+                    formatGaSuggestionShortLabel(s, {
+                      roomCode: roomById.get(s.roomId)?.code ?? s.roomId,
+                      instructorDisplay: formatUserInstructorLabel(
+                        userById.get(s.instructorId),
+                        facultyProfileByUserId.get(s.instructorId),
+                      ),
+                    })
+                  }
                 />
               </div>
             ) : campusConflictScan &&
@@ -887,17 +947,32 @@ export function CentralHubEvaluatorView({ basePath, showDoiGovernance = false }:
               busy={editBusy}
               onSave={async (patch) => {
                 if (!editEntryId) return;
+                const savedId = editEntryId;
                 setEditBusy(true);
                 try {
                   const supabase = createSupabaseBrowserClient();
                   if (!supabase) throw new Error("Supabase not configured");
-                  const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", editEntryId);
+                  const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", savedId);
                   if (error) throw new Error(error.message);
                   setEditEntryId(null);
                   setCampusConflictScan(null);
                   setHubConflictGaByIssueKey({});
                   setFocusEntryId(null);
                   await load();
+                  dispatchInsCatalogReload();
+                  const anchor = entries.find((x) => x.id === savedId);
+                  const sec = anchor ? sectionById.get(anchor.sectionId) : undefined;
+                  const pr = sec ? programById.get(sec.programId) : null;
+                  void fetch("/api/audit/schedule-write", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      action: "hub.schedule_dialog_edit",
+                      collegeId: pr?.collegeId ?? scopeCollegeId,
+                      academicPeriodId: anchor?.academicPeriodId ?? academicPeriodId,
+                      details: { entryId: savedId, patch },
+                    }),
+                  });
                 } finally {
                   setEditBusy(false);
                 }

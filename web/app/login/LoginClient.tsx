@@ -64,7 +64,7 @@ export function LoginClient() {
         const m = signError.message;
         if (/invalid login credentials|invalid email or password/i.test(m)) {
           throw new Error(
-            "Invalid email or password. Instructor self-registration emails a system-generated temporary password—use that exact password, or click Forgot password below. Student accounts use the password you chose at registration.",
+            "Invalid email or password. Login uses the password stored in Supabase Auth—not your OptiCore role in the database. Changing chairman/instructor in public.\"User\" does not change this password. Use Forgot password below, or Dashboard → Authentication → Users to reset. Instructors who self-registered: check email for the temporary password. Students: password from registration.",
           );
         }
         throw signError;
