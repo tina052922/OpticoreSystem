@@ -720,6 +720,13 @@ export function EvaluatorTimetablingPanel({
 
       dispatchInsCatalogReload();
       if (author?.role === "chairman_admin" && effectiveCollegeId) {
+        const auditRows = rows.map((e) => ({
+          subjectCode: subjectCodeById.get(e.subjectId) ?? "—",
+          sectionName: sectionNameById.get(e.sectionId) ?? "",
+          day: e.day,
+          startTime: e.startTime,
+          endTime: e.endTime,
+        }));
         void fetch("/api/audit/schedule-write", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -727,7 +734,7 @@ export function EvaluatorTimetablingPanel({
             action: "chairman.evaluator_save",
             collegeId: effectiveCollegeId,
             academicPeriodId,
-            details: { rowCount: rows.length },
+            details: { rowCount: rows.length, rows: auditRows },
           }),
         });
       }

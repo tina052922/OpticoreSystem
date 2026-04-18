@@ -923,6 +923,8 @@ export function BsitChairmanEvaluatorWorksheet({
             details: {
               entryId: iss.rowA.entryId,
               issueKey,
+              subjectCode: row?.subjectCode ?? "",
+              sectionName: row?.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "",
               applied: {
                 day: s.day,
                 startTime: pad(s.startTime),
@@ -945,6 +947,7 @@ export function BsitChairmanEvaluatorWorksheet({
       chairmanCollegeId,
       academicPeriodId,
       runCampusConflictCheck,
+      sectionNameById,
     ],
   );
 
@@ -1040,6 +1043,16 @@ export function BsitChairmanEvaluatorWorksheet({
 
         const wrote = upserts.length > 0 || removedIds.length > 0;
         if (wrote) {
+          const auditRows = upserts.map((e) => {
+            const plot = rows.find((x) => x.id === e.id);
+            return {
+              subjectCode: plot?.subjectCode ?? "—",
+              sectionName: plot?.sectionId ? (sectionNameById.get(plot.sectionId) ?? "") : "",
+              day: e.day,
+              startTime: e.startTime,
+              endTime: e.endTime,
+            };
+          });
           /** INS forms subscribe to this event via `useInsCatalog` — immediate refresh for all viewers. */
           dispatchInsCatalogReload();
           void fetch("/api/audit/schedule-write", {
@@ -1049,7 +1062,11 @@ export function BsitChairmanEvaluatorWorksheet({
               action: source === "manual" ? "chairman.evaluator_save" : "chairman.evaluator_autosave",
               collegeId: chairmanCollegeId,
               academicPeriodId,
-              details: { upsertCount: upserts.length, deleteCount: removedIds.length },
+              details: {
+                upsertCount: upserts.length,
+                deleteCount: removedIds.length,
+                rows: auditRows,
+              },
             }),
           });
         }
@@ -1067,7 +1084,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById],
   );
 
   useEffect(() => {
