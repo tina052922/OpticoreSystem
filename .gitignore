@@ -26,3 +26,9 @@ Thumbs.db
 
 # Supabase local (if used)
 .supabase/
+
+# Supabase local temp artifacts
+supabase/.temp/
+
+# Local one-off scripts (never commit)
+web/scripts/set-auth-user-password.mjs
