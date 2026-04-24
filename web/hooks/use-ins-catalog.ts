@@ -188,7 +188,14 @@ export function useInsCatalog(args: {
       .channel("ins-schedule-entry")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "ScheduleEntry" },
+        academicPeriodId
+          ? {
+              event: "*",
+              schema: "public",
+              table: "ScheduleEntry",
+              filter: `academicPeriodId=eq.${academicPeriodId}`,
+            }
+          : { event: "*", schema: "public", table: "ScheduleEntry" },
         () => scheduleDebouncedReload(),
       )
       .on(
@@ -201,7 +208,7 @@ export function useInsCatalog(args: {
       if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       void supabase.removeChannel(ch);
     };
-  }, [scheduleDebouncedReload, args.collegeId, args.campusWide]);
+  }, [scheduleDebouncedReload, args.collegeId, args.campusWide, academicPeriodId]);
 
   /**
    * Same-tab refresh when GEC Chairman / Chairman saves `ScheduleEntry` (Realtime may be off).

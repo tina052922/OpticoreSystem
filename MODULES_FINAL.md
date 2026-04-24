@@ -6,6 +6,7 @@ This list is generated from the actual sidebar/navigation configuration (`web/li
 
 - **Login**: `/login`
 - **Register (landing)**: `/register`
+- **Register (auth)**: `/auth/register`
 - **Register (instructor)**: `/register/instructor`
 - **Auth callback**: `/auth/callback`
 - **Change password (account)**: `/account/change-password`
