@@ -35,6 +35,26 @@ This creates tables (including `public."User"`), RLS policies, and sample rows (
 
 ---
 
+## Step 2b — Apply migrations (`supabase/migrations/*`)
+
+This repo also contains incremental SQL migrations under **`supabase/migrations/`** (new features, indexes, RLS updates).
+
+Apply them to your Supabase project using **one** method:
+
+- **Supabase CLI (recommended for dev)**:
+  - Install CLI, then from repo root:
+    - `supabase login`
+    - `supabase link` (select the correct project)
+    - `supabase db push`
+
+- **Supabase Dashboard (SQL Editor)**:
+  - Run the migration files in timestamp order.
+  - If your project already has some changes, only run the missing ones.
+
+If you skip this step, you may see errors like **403 RLS** or missing functions/policies for new modules.
+
+---
+
 ## Step 3 — Get Supabase API keys for the web app
 
 1. In Supabase: **Project Settings** (gear) → **API**.
@@ -72,6 +92,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
 ```
 
 4. Save the file.
+
+If you will use server-side admin APIs (registration helpers), also set:
+
+```env
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+```
+
+Never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser; it must stay server-only.
 
 ---
 
