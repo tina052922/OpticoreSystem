@@ -32,21 +32,7 @@ function sentenceForRow(r: RowSummary): string {
   const slot = st && en ? `${st}–${en}` : st || "unspecified time";
   const sectionBit = sec ? ` to ${sec}` : "";
   const dayBit = day ? ` on ${day}` : "";
-  /** e.g. “Added GEC-RPH to BSIT 3A on Monday at 8:00 AM–9:00 AM.” */
-  return `Added ${code}${sectionBit}${dayBit} at ${slot}.`;
-}
-
-function formatRowSummaries(rows: unknown, intro: string, maxLines = 8): string {
-  if (!Array.isArray(rows) || rows.length === 0) return intro;
-  const lines: string[] = [intro];
-  const slice = rows.slice(0, maxLines) as RowSummary[];
-  for (const r of slice) {
-    lines.push(`• ${sentenceForRow(r)}`);
-  }
-  if (rows.length > maxLines) {
-    lines.push(`• …and ${rows.length - maxLines} more.`);
-  }
-  return lines.join("\n");
+  return `${code}${sectionBit}${dayBit} at ${slot}`;
 }
 
 /** Readable action title for the Action column (English). */
@@ -54,31 +40,31 @@ export function formatAuditActionEnglish(action: string): string {
   const a = action.trim();
   switch (a) {
     case "gec.vacant_slot_save":
-      return "GEC Chairman updated vacant GEC schedule slots";
+      return "Schedule updated";
     case "gec.vacant_schedule_saved":
-      return "GEC Chairman saved vacant GEC assignments (notification log)";
+      return "Schedule updated";
     case "chairman.evaluator_save":
-      return "Program Chairman saved the master schedule";
+      return "Schedule updated";
     case "chairman.evaluator_autosave":
-      return "Program Chairman autosaved schedule drafts";
+      return "Schedule updated";
     case "chairman.conflict_apply":
-      return "Program Chairman applied a suggested fix from the conflict checker";
+      return "Conflict fix applied";
     case "chairman.policy_justification_upsert":
-      return "Program Chairman submitted load-policy justification for VPAA";
+      return "Policy justification submitted";
     case "hub.conflict_apply":
-      return "Campus Hub applied a suggested fix from the conflict checker";
+      return "Conflict fix applied";
     case "hub.schedule_quick_patch":
-      return "Campus Hub quick-edited a schedule row";
+      return "Schedule updated";
     case "hub.schedule_dialog_edit":
-      return "Campus Hub edited a schedule row (dialog)";
+      return "Schedule updated";
     case "schedule.write":
-      return "Schedule entry update";
+      return "Schedule updated";
     case "access_request.submitted":
-      return "Access request submitted";
+      return "Access request";
     case "access_request.approved":
-      return "Access request approved";
+      return "Access request";
     case "access_request.rejected":
-      return "Access request rejected";
+      return "Access request";
     default:
       return a.replace(/\./g, " · ");
   }
@@ -121,55 +107,58 @@ export function formatAuditDetailsEnglish(entry: AuditEntry): string {
 
   const rec = d as Record<string, unknown>;
 
+  const actor =
+    action.startsWith("gec.") ? "GEC Chairman" : action.startsWith("chairman.") ? "Program Chairman" : action === "schedule.write" ? "User" : action.startsWith("hub.") ? "College Admin" : action.startsWith("access_request.") ? "College Admin" : action.startsWith("doi.") ? "DOI Admin" : "User";
+
+  const rows = rec.rows;
+  const firstRow =
+    Array.isArray(rows) && rows.length > 0 ? (rows[0] as RowSummary) : null;
+  const rowCount = pickNum(rec.rowCount) ?? pickNum(rec.upsertCount) ?? null;
+
   if (action === "gec.vacant_slot_save") {
-    const n = pickNum(rec.rowCount) ?? "?";
-    const section = pickStr(rec.sectionName);
-    const rows = rec.rows;
-    const head = `GEC Chairman saved ${n} vacant GEC row(s)${section ? ` for section ${section}` : ""} for the selected term.`;
-    if (Array.isArray(rows) && rows.length > 0) {
-      return formatRowSummaries(rows, head, 10);
+    if (firstRow) {
+      const countBit = rowCount && rowCount > 1 ? ` (${rowCount} changes)` : "";
+      return `${actor} updated ${sentenceForRow(firstRow)}${countBit}.`;
     }
-    return head;
+    return `${actor} updated vacant GEC slots.`;
   }
 
   if (action === "gec.vacant_schedule_saved") {
-    const sec = pickStr(rec.sectionName) ?? "the section";
-    const rc = pickNum(rec.rowCount) ?? "?";
-    const period = pickStr(rec.periodLabel) ?? "the selected term";
-    return `GEC Chairman recorded ${rc} vacant GEC slot change(s) for ${sec} (${period}). College staff can review this in the evaluator and INS forms.`;
+    const sec = pickStr(rec.sectionName);
+    const rc = pickNum(rec.rowCount);
+    const period = pickStr(rec.periodLabel);
+    const bits = [
+      sec ? `for ${sec}` : null,
+      period ? `(${period})` : null,
+      typeof rc === "number" ? `(${rc} changes)` : null,
+    ].filter(Boolean);
+    return `${actor} updated vacant GEC slots${bits.length ? ` ${bits.join(" ")}` : ""}.`;
   }
 
   if (action === "chairman.evaluator_save" || action === "chairman.evaluator_autosave") {
-    const upserts = pickNum(rec.upsertCount);
-    const rowCount = pickNum(rec.rowCount);
-    const dels = pickNum(rec.deleteCount);
-    const count = upserts ?? rowCount ?? 0;
-    const rows = rec.rows;
-    const autosave = action === "chairman.evaluator_autosave";
-    const head = autosave
-      ? `Program Chairman autosaved drafts (${count} row(s) written${dels ? `, ${dels} removed` : ""}).`
-      : `Program Chairman saved the master timetable (${count} row(s) written${dels ? `, ${dels} removed` : ""}).`;
-    if (Array.isArray(rows) && rows.length > 0) {
-      return formatRowSummaries(rows, head, 8);
+    if (firstRow) {
+      const countBit = rowCount && rowCount > 1 ? ` (${rowCount} changes)` : "";
+      return `${actor} updated ${sentenceForRow(firstRow)}${countBit}.`;
     }
-    return head;
+    const upserts = pickNum(rec.upsertCount);
+    const dels = pickNum(rec.deleteCount);
+    const c = typeof upserts === "number" || typeof dels === "number" ? (upserts ?? 0) + (dels ?? 0) : null;
+    return `${actor} updated the schedule${c && c > 1 ? ` (${c} changes)` : ""}.`;
   }
 
   if (action === "chairman.conflict_apply" || action === "hub.conflict_apply") {
     const applied = pickRecord(rec.applied);
     const sub = pickStr(rec.subjectCode) ?? "class";
     const sec = pickStr(rec.sectionName);
-    const who = action === "hub.conflict_apply" ? "Campus Hub" : "Program Chairman";
     if (applied) {
       const day = pickStr(applied.day) ?? "";
       const st = pickStr(applied.startTime) ?? "";
       const et = pickStr(applied.endTime) ?? "";
-      const when =
-        day && st && et ? `${day} at ${formatTimeRangeAmPm(st, et)}` : "a new day and time";
+      const when = day && st && et ? `${day} at ${formatTimeRangeAmPm(st, et)}` : "a new time";
       const target = sec ? `${sub} (${sec})` : sub;
-      return `${who} moved ${target} to ${when} using the conflict checker suggestion.`;
+      return `${actor} moved ${target} to ${when}.`;
     }
-    return `${who} applied a conflict-check suggestion for a schedule row.`;
+    return `${actor} applied a conflict fix.`;
   }
 
   if (action === "hub.schedule_quick_patch" || action === "hub.schedule_dialog_edit") {
@@ -178,24 +167,22 @@ export function formatAuditDetailsEnglish(entry: AuditEntry): string {
     const patch = pickRecord(rec.patch);
     const patchLine = patch ? describePatch(patch) : "schedule fields";
     const place = sec ? `${sub} · ${sec}` : sub;
-    return `Campus Hub updated ${place}: ${patchLine}.`;
+    return `${actor} updated ${place} (${patchLine}).`;
   }
 
   if (action === "chairman.policy_justification_upsert") {
-    return "Chairman saved or updated the faculty load justification text for VPAA / DOI review for this college and term.";
+    return `${actor} submitted a load-policy justification.`;
   }
 
   if (action === "access_request.submitted") {
     const scopes = Array.isArray(rec.scopes) ? (rec.scopes as string[]).join(", ") : "—";
-    const note = pickStr(rec.note);
-    return `Requested access scopes: ${scopes}.${note ? ` Note: ${note}` : ""}`;
+    return `Access requested (${scopes}).`;
   }
 
   if (action === "access_request.approved" || action === "access_request.rejected") {
     const scopes = Array.isArray(rec.scopes) ? (rec.scopes as string[]).join(", ") : "—";
-    const exp = pickStr(rec.expiresAt);
     const verb = action === "access_request.approved" ? "Approved" : "Rejected";
-    return `${verb} access for scopes: ${scopes}.${exp ? ` Expires: ${exp}.` : ""}`;
+    return `${verb} access (${scopes}).`;
   }
 
   try {

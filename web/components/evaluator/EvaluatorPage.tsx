@@ -51,8 +51,7 @@ export function EvaluatorPage({
     return "Hours, units, preps, and remarks (sample institutional summary)";
   }, [tab]);
 
-  const subtitle =
-    "BSIT timetable planning — Mon–Fri, 7:00 AM–5:00 PM. Add rows, plot conflicts, preview INS grid, justify overloads for DOI.";
+  const subtitle = "Timetabling and load summary";
 
   return (
     <div>

@@ -1055,20 +1055,22 @@ export function BsitChairmanEvaluatorWorksheet({
           });
           /** INS forms subscribe to this event via `useInsCatalog` — immediate refresh for all viewers. */
           dispatchInsCatalogReload();
-          void fetch("/api/audit/schedule-write", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: source === "manual" ? "chairman.evaluator_save" : "chairman.evaluator_autosave",
-              collegeId: chairmanCollegeId,
-              academicPeriodId,
-              details: {
-                upsertCount: upserts.length,
-                deleteCount: removedIds.length,
-                rows: auditRows,
-              },
-            }),
-          });
+          if (source === "manual") {
+            void fetch("/api/audit/schedule-write", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "chairman.evaluator_save",
+                collegeId: chairmanCollegeId,
+                academicPeriodId,
+                details: {
+                  upsertCount: upserts.length,
+                  deleteCount: removedIds.length,
+                  rows: auditRows,
+                },
+              }),
+            });
+          }
         }
 
         lastSyncedRowIdsRef.current = new Set(rows.map((r) => r.id));
@@ -1093,7 +1095,7 @@ export function BsitChairmanEvaluatorWorksheet({
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
       void performSchedulePersist("autosave");
-    }, 600);
+    }, 1200);
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };

@@ -53,7 +53,7 @@ export default async function CollegeInsIndexPage({
     <div>
       <ChairmanPageHeader
         title="INS Form"
-        subtitle="Schedule view — Faculty, Section, and Room (same layout as Program Chairman INS forms; college-scoped review)."
+        subtitle="Schedule view"
       />
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-4">
