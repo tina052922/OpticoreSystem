@@ -500,7 +500,7 @@ export function GecCentralHubEvaluatorClient() {
     const instructorIds = users
       .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
       .map((u) => u.id);
-    for (const iss of enriched.slice(0, 10)) {
+    for (const iss of enriched.slice(0, 3)) {
       const entry = mergedEntries.find((e) => e.id === iss.rowA.entryId);
       if (!entry) continue;
       if (roomIds.length === 0 || instructorIds.length === 0) continue;
@@ -512,8 +512,8 @@ export function GecCentralHubEvaluatorClient() {
         excludeEntryId: entry.id,
         roomIds,
         instructorIds,
-        generations: 32,
-        populationSize: 48,
+        generations: 16,
+        populationSize: 24,
       });
       gaMap[iss.key] = sug.slice(0, 5);
     }

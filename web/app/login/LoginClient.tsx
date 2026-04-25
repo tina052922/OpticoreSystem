@@ -52,22 +52,36 @@ export function LoginClient() {
     setLoading(true);
 
     try {
+      const emailNormalized = email.trim().toLowerCase();
+      const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalized);
+      if (!looksLikeEmail) {
+        throw new Error("Invalid email address.");
+      }
+
       const supabase = createSupabaseBrowserClient();
       if (!supabase) {
         throw new Error("Missing Supabase environment variables.");
       }
 
       const { error: signError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: emailNormalized,
         password,
       });
 
       if (signError) {
         const m = signError.message;
         if (/invalid login credentials|invalid email or password/i.test(m)) {
-          throw new Error(
-            "Invalid email or password. Login uses the password stored in Supabase Auth—not your OptiCore role in the database. Changing chairman/instructor in public.\"User\" does not change this password. Use Forgot password below, or Dashboard → Authentication → Users to reset. Instructors who self-registered: check email for the temporary password. Students: password from registration.",
-          );
+          // Supabase intentionally doesn't disclose which field was wrong.
+          // We keep messages user-friendly by checking whether the email exists in our profile table.
+          const { data: profileRow } = await supabase
+            .from("User")
+            .select("id")
+            .eq("email", emailNormalized)
+            .maybeSingle();
+          throw new Error(profileRow?.id ? "Incorrect password." : "Account not found.");
+        }
+        if (/email not confirmed/i.test(m)) {
+          throw new Error("Email not verified.");
         }
         throw signError;
       }
@@ -80,16 +94,15 @@ export function LoginClient() {
           : "";
       if (!role) {
         await supabase.auth.signOut();
-        throw new Error(
-          "No OptiCore profile for this account. Every Auth user needs a row in public.\"User\" with the same id (UUID) as Supabase → Authentication → Users. Run supabase/seed.sql, or from web/ run: node scripts/create-gec-chairman-test.mjs (GEC test). See docs/QA_TESTING_GUIDE.md.",
-        );
+        throw new Error("Account not found.");
       }
       const home = getDefaultHomeForRole(role);
       const target =
         nextParam && nextParam.length > 0 && pathAllowedForRole(role, nextParam) ? nextParam : home;
       window.location.assign(target);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const msg = err instanceof Error ? err.message : "Login failed";
+      setError(msg || "Login failed");
     } finally {
       setLoading(false);
     }

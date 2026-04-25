@@ -99,71 +99,629 @@ The functional requirements of OptiCore will be built around **real workflows** 
 
 ## 4.3 Use Case Diagram (Actors and Roles Using the List of Modules) and GUI Design (Functional System Screenshots)
 
-**Actors** will include: **Chairman Admin**, **College Admin**, **CAS Admin**, **GEC Chairman**, **DOI Admin**, **Instructor**, **Student**, and the **System (OptiCore + Supabase)** as the boundary. Roles and modules will align with **Table 1**. Use case diagrams (to be drawn in UML) will cover authentication, evaluator plotting, inbox forwarding, Central Hub review, access approval, vacant GEC editing, policy justification visibility, and portal consumption. Textual guidance for relationships (**«include»**, **«extend»**) remains in **`docs/USE_CASE_DIAGRAM_GUIDE.md`**.
+**Actors included (per requirement):** **Student**, **Instructor**, **Program Chairman**, **College Admin**, **GEC Chairman**, and **DOI Admin**. The diagrams below use **OptiCore (Web App + Supabase)** as the system boundary and follow UML conventions with straight association lines.
 
-**GUI figures.** The following figures illustrate **functional screens** and **use case diagrams** and should be captured with **sanitized** data. Narrative text for GUI captures is expanded in **`docs/UI_SCREENSHOT_NARRATIVES.md`**.
+**Diagram standards used**
 
-**Figure 1. User interface — Login (`/login`).**  
-*This image will show branding, credentials fields, and the entry point before role-based redirect.*
+- Association lines are straight (actor → use case).
+- Use case names are action-based verb phrases.
+- `<<include>>` = mandatory sub-step reused across flows.
+- `<<extend>>` = optional/conditional behavior (only under a condition).
 
-**Figure 2. Overall use case diagram — OptiCore Campus Intelligence (high level).**  
-*This figure will illustrate major actors and their interaction with the system boundary (scheduling, inbox, hub, access requests, portals).*
+---
 
-**Figure 3. Use case — Chairman forwards draft to College Admin.**  
-*This use case will illustrate the Chairman initiating a **WorkflowInboxMessage** after plotting, referencing INS and Evaluator routes.*
+### Overall Use Case Diagram — OptiCore (Part 1: Administrative Roles)
 
-**Figure 4. User interface — Chairman Evaluator (timetabling).**  
-*This image will show program-scoped plotting, period/program context, and conflict or save feedback.*
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
 
-**Figure 5. User interface — Chairman Inbox (forward to College Admin).**  
-*This image will show the forward action and Sent/Mail context.*
+actor "Program Chairman\n(Chairman Admin)" as Chairman
+actor "College Admin" as College
+actor "GEC Chairman" as GEC
+actor "DOI Admin\n(VPAA/DOI)" as DOI
 
-**Figure 6. Use case — College Admin receives workflow mail and reviews Central Hub.**  
-*This use case will illustrate receipt under Mail, optional download of message text, and hub review of persisted `ScheduleEntry` data.*
+rectangle "OptiCore (Web App + Supabase)" {
+  usecase "Log In" as UC_Login
+  usecase "View Dashboard" as UC_Dashboard
+  usecase "View INS Forms\n(Schedule View)" as UC_INS
+  usecase "Select Semester /\nAcademic Term" as UC_Term
+  usecase "Switch INS Tab\n(Faculty / Section / Room)" as UC_InsTab
 
-**Figure 7. User interface — College Admin Inbox (receive and download).**  
-*This image will show a selected message and the download affordance.*
+  usecase "Manage Evaluator Schedule\n(Plot & Assign)" as UC_ChairEval
+  usecase "Add / Update / Remove\nSchedule Entry" as UC_EditEntry
+  usecase "Run Campus-Wide\nConflict Check" as UC_Conflict
+  usecase "Apply Suggested\nAlternative Slot" as UC_Suggest
+  usecase "Submit Load-Policy\nJustification" as UC_Justify
 
-**Figure 8. User interface — Central Hub Evaluator (Colleges landing).**  
-*This image will show college tiles/buttons for consolidated access.*
+  usecase "View Central Hub Evaluator\n(College Scope)" as UC_CollegeHub
+  usecase "Review Schedule\nChange Requests" as UC_ChangeReq
+  usecase "Notify Instructor\nof Decision" as UC_NotifyInst
 
-**Figure 9. User interface — Central Hub with college selected.**  
-*This image will show timetabling/hub context for one college.*
+  usecase "Request Vacant-Slot\nEditing Access" as UC_RequestAccess
+  usecase "Submit Access Request" as UC_SubmitAccess
+  usecase "View Request Status" as UC_AccessStatus
+  usecase "Manage Vacant GEC Slots\n(Central Hub Evaluator)" as UC_GECVacant
+  usecase "Select College / Program /\nSection" as UC_SelectScope
+  usecase "Add Vacant GEC\nSlot Row" as UC_AddVacantRow
+  usecase "Edit Vacant GEC\nSlot Assignment" as UC_EditVacant
+  usecase "Save Vacant GEC\nSlot Changes" as UC_SaveVacant
 
-**Figure 10. Use case — GEC Chairman requests access for vacant slots.**  
-*This use case will illustrate **AccessRequest** submission to the owning College Admin.*
+  usecase "Review Load-Policy\nJustifications" as UC_DoiReviews
+  usecase "View Policy\nViolations" as UC_Violations
+  usecase "Approve Justification" as UC_ApproveJust
+  usecase "Reject Justification" as UC_RejectJust
 
-**Figure 11. User interface — GEC Request access.**  
-*This image will show scope checkboxes and note field.*
+  usecase "Publish and Lock\nSchedules" as UC_PublishLock
+  usecase "Lock Schedule Entries\nfor Term" as UC_LockTerm
 
-**Figure 12. User interface — College Admin Access requests.**  
-*This image will show approval/rejection of scoped access.*
+  usecase "Manage Faculty Profiles" as UC_FacultyProfile
+  usecase "Manage Subject Codes" as UC_SubjectCodes
+  usecase "Access Campus Navigation" as UC_CampusNav
+  usecase "View Profile /\nManage Account" as UC_Profile
+}
 
-**Figure 13. User interface — GEC Vacant slots.**  
-*This image will show read-only or editable state depending on approval.*
+Chairman -- UC_Login
+Chairman -- UC_Dashboard
+Chairman -- UC_INS
+Chairman -- UC_ChairEval
+Chairman -- UC_FacultyProfile
+Chairman -- UC_SubjectCodes
+Chairman -- UC_CampusNav
+Chairman -- UC_Profile
 
-**Figure 14. User interface — INS Form (schedule view) with filters.**  
-*This image will show live period context and search/filter controls.*
+College -- UC_Login
+College -- UC_Dashboard
+College -- UC_INS
+College -- UC_CollegeHub
+College -- UC_ChangeReq
+College -- UC_FacultyProfile
+College -- UC_SubjectCodes
+College -- UC_CampusNav
+College -- UC_Profile
 
-**Figure 15. User interface — Campus Intelligence dashboard.**  
-*This image will show metrics and charts on the administrative landing.*
+GEC -- UC_Login
+GEC -- UC_Dashboard
+GEC -- UC_INS
+GEC -- UC_RequestAccess
+GEC -- UC_GECVacant
+GEC -- UC_FacultyProfile
+GEC -- UC_SubjectCodes
+GEC -- UC_CampusNav
+GEC -- UC_Profile
 
-**Figure 16. User interface — Responsive navigation (mobile drawer).**  
-*This image will demonstrate sidebar behavior on narrow viewports.*
+DOI -- UC_Login
+DOI -- UC_Dashboard
+DOI -- UC_INS
+DOI -- UC_DoiReviews
+DOI -- UC_PublishLock
+DOI -- UC_CampusNav
+DOI -- UC_Profile
 
-**Figure 17. User interface — DOI Policy reviews.**  
-*This image will list load-policy justifications.*
+UC_INS ..> UC_Term : <<include>>
+UC_INS ..> UC_InsTab : <<include>>
 
-**Figure 18. User interface — Notification bell.**  
-*This image will show unread/read notifications on the admin header.*
+UC_ChairEval ..> UC_EditEntry : <<include>>
+UC_ChairEval ..> UC_Conflict : <<include>>
+UC_Suggest ..> UC_Conflict : <<extend>>
+UC_Justify ..> UC_ChairEval : <<extend>>
 
-**Figure 19. User interface — Administrative profile (avatar).**  
-*This image will show profile access from the avatar menu (for example Chairman or College Admin profile).*
+UC_ChangeReq ..> UC_Conflict : <<include>>
+UC_NotifyInst ..> UC_ChangeReq : <<include>>
 
-**Figure 20. User interface — Faculty or Student portal.**  
-*This image will contrast PortalShell with Campus Intelligence.*
+UC_RequestAccess ..> UC_SubmitAccess : <<include>>
+UC_AccessStatus ..> UC_RequestAccess : <<extend>>
 
-*Additional optional figures may include **Audit log**, **CAS GEC distribution**, **Subject codes**, and **Campus navigation**; see **`docs/UI_SCREENSHOT_NARRATIVES.md`**.*
+UC_GECVacant ..> UC_SelectScope : <<include>>
+UC_GECVacant ..> UC_AddVacantRow : <<include>>
+UC_GECVacant ..> UC_EditVacant : <<include>>
+UC_GECVacant ..> UC_Conflict : <<include>>
+UC_GECVacant ..> UC_SaveVacant : <<include>>
+UC_Suggest ..> UC_GECVacant : <<extend>>
+
+UC_DoiReviews ..> UC_Violations : <<include>>
+UC_ApproveJust ..> UC_DoiReviews : <<extend>>
+UC_RejectJust ..> UC_DoiReviews : <<extend>>
+
+UC_PublishLock ..> UC_LockTerm : <<include>>
+@enduml
+```
+
+**Notes aligned to the current system implementation**
+
+- Schedules are centralized in **`ScheduleEntry`** (the Central Hub reads the same persisted data; the workflow inbox is for coordination, not master data transfer).
+- Conflict checking and suggested alternatives are represented as conditional (`<<extend>>`) actions when conflicts exist.
+
+**UI screenshots (immediately after the diagram):**
+
+![Login — /login](docs/screenshots/overall-admin-login.png)
+
+![Chairman Evaluator — /chairman/evaluator](docs/screenshots/overall-admin-chairman-evaluator.png)
+
+![College Central Hub — /admin/college/evaluator](docs/screenshots/overall-admin-college-hub.png)
+
+![GEC Request Access — /admin/gec/request-access](docs/screenshots/overall-admin-gec-request-access.png)
+
+![DOI Policy Reviews — /doi/reviews](docs/screenshots/overall-admin-doi-policy-reviews.png)
+
+---
+
+### Overall Use Case Diagram — OptiCore (Part 2: Instructor & Student)
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Instructor\n(Faculty)" as Instructor
+actor "Student" as Student
+
+rectangle "OptiCore (Web App + Supabase)" {
+  usecase "Register Account" as UC_Register
+  usecase "Log In" as UC_Login
+  usecase "View Dashboard" as UC_Dashboard
+
+  usecase "View INS Forms\n(Schedule View)" as UC_INS
+  usecase "Select Semester /\nAcademic Term" as UC_Term
+  usecase "Switch INS Tab\n(Faculty / Section / Room)" as UC_InsTab
+  usecase "View Assigned Sections" as UC_AssignedSections
+
+  usecase "View My Schedule" as UC_MySchedule
+  usecase "Request Schedule Change" as UC_RequestChange
+  usecase "Select Schedule Entry" as UC_SelectEntry
+  usecase "Propose New Day/Time\n(Same Duration)" as UC_ProposeTime
+  usecase "Submit Reason" as UC_SubmitReason
+  usecase "Notify College Admin" as UC_NotifyCollege
+
+  usecase "Generate INS Form\nby Section" as UC_GenerateInsBySection
+  usecase "View Announcements" as UC_Announcements
+  usecase "Access Campus Navigation" as UC_CampusNav
+  usecase "Manage Account\n(Change Password / Profile)" as UC_Account
+}
+
+Instructor -- UC_Register
+Instructor -- UC_Login
+Instructor -- UC_Dashboard
+Instructor -- UC_INS
+Instructor -- UC_MySchedule
+Instructor -- UC_Announcements
+Instructor -- UC_CampusNav
+Instructor -- UC_Account
+
+Student -- UC_Register
+Student -- UC_Login
+Student -- UC_Dashboard
+Student -- UC_MySchedule
+Student -- UC_GenerateInsBySection
+Student -- UC_Announcements
+Student -- UC_CampusNav
+Student -- UC_Account
+
+UC_INS ..> UC_Term : <<include>>
+UC_INS ..> UC_InsTab : <<include>>
+UC_INS ..> UC_AssignedSections : <<include>>
+
+UC_MySchedule ..> UC_Term : <<include>>
+UC_RequestChange ..> UC_SelectEntry : <<include>>
+UC_RequestChange ..> UC_ProposeTime : <<include>>
+UC_RequestChange ..> UC_SubmitReason : <<include>>
+UC_RequestChange ..> UC_NotifyCollege : <<include>>
+UC_RequestChange ..> UC_MySchedule : <<extend>>
+
+UC_GenerateInsBySection ..> UC_Term : <<include>>
+@enduml
+```
+
+**UI screenshots (immediately after the diagram):**
+
+![Faculty portal home — /faculty](docs/screenshots/overall-portal-faculty-home.png)
+
+![Faculty my schedule — /faculty/schedule](docs/screenshots/overall-portal-faculty-schedule.png)
+
+![Student portal home — /student](docs/screenshots/overall-portal-student-home.png)
+
+![Student schedule — /student/schedule](docs/screenshots/overall-portal-student-schedule.png)
+
+---
+
+### Student — Use Case Diagram
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Student" as Student
+
+rectangle "OptiCore (Student Portal)" {
+  usecase "Register Account" as UC_Register
+  usecase "Log In" as UC_Login
+  usecase "View Dashboard" as UC_Dashboard
+  usecase "View My Schedule" as UC_Schedule
+  usecase "Generate INS Form\nby Section" as UC_Generate
+  usecase "Select Semester /\nAcademic Term" as UC_Term
+  usecase "View Announcements" as UC_Announcements
+  usecase "Access Campus Navigation" as UC_CampusNav
+  usecase "Manage Account\n(Profile if applicable)" as UC_Account
+}
+
+Student -- UC_Register
+Student -- UC_Login
+Student -- UC_Dashboard
+Student -- UC_Schedule
+Student -- UC_Generate
+Student -- UC_Announcements
+Student -- UC_CampusNav
+Student -- UC_Account
+
+UC_Generate ..> UC_Term : <<include>>
+UC_Schedule ..> UC_Term : <<include>>
+@enduml
+```
+
+**UI screenshots (immediately after the diagram):**
+
+![Student portal home — /student](docs/screenshots/student-home.png)
+
+![Student schedule — /student/schedule](docs/screenshots/student-schedule.png)
+
+![Student announcements — /student/announcements](docs/screenshots/student-announcements.png)
+
+---
+
+### Instructor — Use Case Diagram
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Instructor\n(Faculty)" as Instructor
+
+rectangle "OptiCore (Faculty Portal)" {
+  usecase "Register Account" as UC_Register
+  usecase "Log In" as UC_Login
+  usecase "View Dashboard" as UC_Dashboard
+
+  usecase "View INS Forms\n(Schedule View)" as UC_INS
+  usecase "Select Semester /\nAcademic Term" as UC_Term
+  usecase "Switch INS Tab\n(Faculty / Section / Room)" as UC_InsTab
+  usecase "View Assigned Sections" as UC_AssignedSections
+
+  usecase "View My Schedule" as UC_Schedule
+  usecase "Request Schedule Change" as UC_RequestChange
+  usecase "Select Schedule Entry" as UC_SelectEntry
+  usecase "Propose New Day/Time\n(Same Duration)" as UC_ProposeTime
+  usecase "Submit Reason" as UC_SubmitReason
+  usecase "Notify College Admin" as UC_NotifyCollege
+
+  usecase "View Announcements" as UC_Announcements
+  usecase "Access Campus Navigation" as UC_CampusNav
+  usecase "Manage Account\n(Change Password / Profile)" as UC_Account
+}
+
+Instructor -- UC_Register
+Instructor -- UC_Login
+Instructor -- UC_Dashboard
+Instructor -- UC_INS
+Instructor -- UC_Schedule
+Instructor -- UC_Announcements
+Instructor -- UC_CampusNav
+Instructor -- UC_Account
+
+UC_INS ..> UC_Term : <<include>>
+UC_INS ..> UC_InsTab : <<include>>
+UC_INS ..> UC_AssignedSections : <<include>>
+
+UC_Schedule ..> UC_Term : <<include>>
+UC_RequestChange ..> UC_SelectEntry : <<include>>
+UC_RequestChange ..> UC_ProposeTime : <<include>>
+UC_RequestChange ..> UC_SubmitReason : <<include>>
+UC_RequestChange ..> UC_NotifyCollege : <<include>>
+UC_RequestChange ..> UC_Schedule : <<extend>>
+@enduml
+```
+
+**UI screenshots (immediately after the diagram):**
+
+![Faculty home — /faculty](docs/screenshots/instructor-home.png)
+
+![My schedule — /faculty/schedule](docs/screenshots/instructor-my-schedule.png)
+
+![Announcements — /faculty/announcements](docs/screenshots/instructor-announcements.png)
+
+---
+
+### Program Chairman (Chairman Admin) — Use Case Diagram
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Program Chairman\n(Chairman Admin)" as Chairman
+
+rectangle "OptiCore (Chairman Admin)" {
+  usecase "Log In" as UC_Login
+  usecase "View Dashboard" as UC_Dashboard
+  usecase "View INS Forms\n(Schedule View)" as UC_INS
+  usecase "Select Semester /\nAcademic Term" as UC_Term
+  usecase "Switch INS Tab\n(Faculty / Section / Room)" as UC_InsTab
+
+  usecase "Manage Evaluator Schedule\n(Plot & Assign)" as UC_Evaluator
+  usecase "Add / Update / Remove\nSchedule Entry" as UC_EditEntry
+  usecase "Run Campus-Wide\nConflict Check" as UC_Conflict
+  usecase "Apply Suggested\nAlternative Slot" as UC_Suggest
+  usecase "Submit Load-Policy\nJustification" as UC_Justify
+
+  usecase "Manage Faculty Profiles" as UC_FacultyProfile
+  usecase "Manage Subject Codes" as UC_SubjectCodes
+  usecase "Access Campus Navigation" as UC_CampusNav
+  usecase "View Profile /\nManage Account" as UC_Profile
+}
+
+Chairman -- UC_Login
+Chairman -- UC_Dashboard
+Chairman -- UC_INS
+Chairman -- UC_Evaluator
+Chairman -- UC_FacultyProfile
+Chairman -- UC_SubjectCodes
+Chairman -- UC_CampusNav
+Chairman -- UC_Profile
+
+UC_INS ..> UC_Term : <<include>>
+UC_INS ..> UC_InsTab : <<include>>
+
+UC_Evaluator ..> UC_EditEntry : <<include>>
+UC_Evaluator ..> UC_Conflict : <<include>>
+UC_Suggest ..> UC_Conflict : <<extend>>
+UC_Justify ..> UC_Evaluator : <<extend>>
+@enduml
+```
+
+**Notes aligned to the current system implementation**
+
+- The Chairman’s plotted schedule entries are saved to the centralized **`ScheduleEntry`** repository (not a separate “draft inbox” storage).
+
+**UI screenshots (immediately after the diagram):**
+
+![Chairman dashboard — /chairman/dashboard](docs/screenshots/chairman-dashboard.png)
+
+![INS forms — /chairman/ins/faculty](docs/screenshots/chairman-ins.png)
+
+![Evaluator — /chairman/evaluator](docs/screenshots/chairman-evaluator.png)
+
+---
+
+### College Admin — Use Case Diagram
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "College Admin" as College
+
+rectangle "OptiCore (College Admin)" {
+  usecase "Log In" as UC_Login
+  usecase "View College Dashboard" as UC_Dashboard
+
+  usecase "View INS Forms\n(Schedule View)" as UC_INS
+  usecase "Select Semester /\nAcademic Term" as UC_Term
+  usecase "Switch INS Tab\n(Faculty / Section / Room)" as UC_InsTab
+
+  usecase "View Central Hub Evaluator\n(College Scope)" as UC_Hub
+  usecase "Run Conflict Check\n(Campus-Wide Scan for Term)" as UC_Conflict
+  usecase "Apply Suggested\nAlternative Slot" as UC_Suggest
+
+  usecase "Review Schedule\nChange Requests" as UC_ChangeReq
+  usecase "Approve Schedule Change" as UC_ApproveChange
+  usecase "Reject Schedule Change" as UC_RejectChange
+  usecase "Notify Instructor\nof Decision" as UC_NotifyInst
+
+  usecase "Review Access Requests" as UC_AccessReq
+  usecase "Approve Access Request" as UC_ApproveAccess
+  usecase "Reject Access Request" as UC_RejectAccess
+
+  usecase "View Audit Log" as UC_Audit
+  usecase "Manage Faculty Profiles" as UC_FacultyProfile
+  usecase "Manage Subject Codes" as UC_SubjectCodes
+  usecase "Access Campus Navigation" as UC_CampusNav
+  usecase "View Profile /\nManage Account" as UC_Profile
+}
+
+College -- UC_Login
+College -- UC_Dashboard
+College -- UC_INS
+College -- UC_Hub
+College -- UC_ChangeReq
+College -- UC_AccessReq
+College -- UC_Audit
+College -- UC_FacultyProfile
+College -- UC_SubjectCodes
+College -- UC_CampusNav
+College -- UC_Profile
+
+UC_INS ..> UC_Term : <<include>>
+UC_INS ..> UC_InsTab : <<include>>
+
+UC_Hub ..> UC_Conflict : <<include>>
+UC_Suggest ..> UC_Conflict : <<extend>>
+
+UC_ChangeReq ..> UC_Conflict : <<include>>
+UC_ApproveChange ..> UC_ChangeReq : <<extend>>
+UC_RejectChange ..> UC_ChangeReq : <<extend>>
+UC_NotifyInst ..> UC_ChangeReq : <<include>>
+
+UC_ApproveAccess ..> UC_AccessReq : <<extend>>
+UC_RejectAccess ..> UC_AccessReq : <<extend>>
+@enduml
+```
+
+**Notes aligned to the current system implementation**
+
+- Schedule approvals (change requests) update the centralized schedule data and become visible to other roles on reload / realtime refresh (where enabled).
+
+**UI screenshots (immediately after the diagram):**
+
+![College dashboard — /admin/college](docs/screenshots/college-admin-dashboard.png)
+
+![Central Hub evaluator — /admin/college/evaluator](docs/screenshots/college-admin-hub.png)
+
+![Schedule change requests — /admin/college/schedule-change-requests](docs/screenshots/college-admin-schedule-change-requests.png)
+
+![Access requests — /admin/college/access-requests](docs/screenshots/college-admin-access-requests.png)
+
+---
+
+### GEC Chairman — Use Case Diagram
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "GEC Chairman" as GEC
+
+rectangle "OptiCore (GEC Chairman)" {
+  usecase "Log In" as UC_Login
+  usecase "View Dashboard" as UC_Dashboard
+
+  usecase "View INS Forms\n(Schedule View)" as UC_INS
+  usecase "Select Semester /\nAcademic Term" as UC_Term
+  usecase "Switch INS Tab\n(Faculty / Section / Room)" as UC_InsTab
+
+  usecase "Request Vacant-Slot\nEditing Access" as UC_RequestAccess
+  usecase "Submit Access Request" as UC_SubmitAccess
+  usecase "View Request Status" as UC_Status
+
+  usecase "Manage Vacant GEC Slots\n(Central Hub Evaluator)" as UC_Vacant
+  usecase "Select College / Program /\nSection" as UC_SelectScope
+  usecase "Add Vacant GEC\nSlot Row" as UC_AddRow
+  usecase "Edit Vacant GEC\nSlot Assignment" as UC_Edit
+  usecase "Run Campus-Wide\nConflict Check" as UC_Conflict
+  usecase "Apply Suggested\nAlternative Slot" as UC_Suggest
+  usecase "Save Vacant GEC\nSlot Changes" as UC_Save
+
+  usecase "Manage Faculty Profiles" as UC_FacultyProfile
+  usecase "Manage Subject Codes" as UC_SubjectCodes
+  usecase "Access Campus Navigation" as UC_CampusNav
+  usecase "View Profile /\nManage Account" as UC_Profile
+}
+
+GEC -- UC_Login
+GEC -- UC_Dashboard
+GEC -- UC_INS
+GEC -- UC_RequestAccess
+GEC -- UC_Vacant
+GEC -- UC_FacultyProfile
+GEC -- UC_SubjectCodes
+GEC -- UC_CampusNav
+GEC -- UC_Profile
+
+UC_INS ..> UC_Term : <<include>>
+UC_INS ..> UC_InsTab : <<include>>
+
+UC_RequestAccess ..> UC_SubmitAccess : <<include>>
+UC_Status ..> UC_RequestAccess : <<extend>>
+
+UC_Vacant ..> UC_SelectScope : <<include>>
+UC_Vacant ..> UC_AddRow : <<include>>
+UC_Vacant ..> UC_Edit : <<include>>
+UC_Vacant ..> UC_Conflict : <<include>>
+UC_Vacant ..> UC_Save : <<include>>
+UC_Suggest ..> UC_Conflict : <<extend>>
+@enduml
+```
+
+**UI screenshots (immediately after the diagram):**
+
+![GEC dashboard — /admin/gec](docs/screenshots/gec-dashboard.png)
+
+![Request access — /admin/gec/request-access](docs/screenshots/gec-request-access.png)
+
+![Vacant slots — /admin/gec/vacant-slots](docs/screenshots/gec-vacant-slots.png)
+
+---
+
+### DOI Admin (VPAA/DOI) — Use Case Diagram
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "DOI Admin\n(VPAA/DOI)" as DOI
+
+rectangle "OptiCore (DOI Admin)" {
+  usecase "Log In" as UC_Login
+  usecase "View Dashboard" as UC_Dashboard
+
+  usecase "View INS Forms\n(Schedule View)" as UC_INS
+  usecase "Select Semester /\nAcademic Term" as UC_Term
+  usecase "Switch INS Tab\n(Faculty / Section / Room)" as UC_InsTab
+
+  usecase "View Central Hub Evaluator\n(Campus-Wide)" as UC_Hub
+  usecase "Run Conflict Check\n(Campus-Wide Scan for Term)" as UC_Conflict
+  usecase "Apply Suggested\nAlternative Slot" as UC_Suggest
+
+  usecase "Review Load-Policy\nJustifications" as UC_Reviews
+  usecase "View Policy\nViolations" as UC_Violations
+  usecase "Approve Justification" as UC_Approve
+  usecase "Reject Justification" as UC_Reject
+
+  usecase "Publish and Lock\nSchedules" as UC_PublishLock
+  usecase "Lock Schedule Entries\nfor Term" as UC_LockTerm
+
+  usecase "View Audit Log" as UC_Audit
+  usecase "Access Campus Navigation" as UC_CampusNav
+  usecase "View Profile /\nManage Account" as UC_Profile
+}
+
+DOI -- UC_Login
+DOI -- UC_Dashboard
+DOI -- UC_INS
+DOI -- UC_Hub
+DOI -- UC_Reviews
+DOI -- UC_PublishLock
+DOI -- UC_Audit
+DOI -- UC_CampusNav
+DOI -- UC_Profile
+
+UC_INS ..> UC_Term : <<include>>
+UC_INS ..> UC_InsTab : <<include>>
+
+UC_Hub ..> UC_Conflict : <<include>>
+UC_Suggest ..> UC_Conflict : <<extend>>
+
+UC_Reviews ..> UC_Violations : <<include>>
+UC_Approve ..> UC_Reviews : <<extend>>
+UC_Reject ..> UC_Reviews : <<extend>>
+
+UC_PublishLock ..> UC_LockTerm : <<include>>
+@enduml
+```
+
+**UI screenshots (immediately after the diagram):**
+
+![DOI dashboard — /doi/dashboard](docs/screenshots/doi-dashboard.png)
+
+![DOI evaluator — /doi/evaluator](docs/screenshots/doi-evaluator.png)
+
+![Policy reviews — /doi/reviews](docs/screenshots/doi-policy-reviews.png)
+
+![Schedule hub — /doi/schedule-hub](docs/screenshots/doi-schedule-hub.png)
+
+![Audit log — /doi/audit-log](docs/screenshots/doi-audit-log.png)
 
 ---
 

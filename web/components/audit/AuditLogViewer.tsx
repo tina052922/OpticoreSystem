@@ -47,7 +47,7 @@ export function AuditLogViewer() {
               <th className="p-2">User</th>
               <th className="p-2">Action</th>
               <th className="p-2">Entity</th>
-              <th className="p-2">Details</th>
+              <th className="p-2">Message</th>
             </tr>
           </thead>
           <tbody className="bg-white">
