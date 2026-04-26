@@ -123,6 +123,9 @@ export function GecCentralHubEvaluatorClient() {
   const skipPeriodEntryFetchRef = useRef(true);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutosaveToastAtRef = useRef<number>(0);
+  /** Inline status beside controls (complements global connection toasts). */
+  const [connOnline, setConnOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
+  const [lastDraftSaveAt, setLastDraftSaveAt] = useState<Date | null>(null);
 
   const draftKey = useMemo(() => {
     if (!academicPeriodId || !collegeParam) return "";
@@ -167,6 +170,17 @@ export function GecCentralHubEvaluatorClient() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey]);
+
+  useEffect(() => {
+    const on = () => setConnOnline(true);
+    const off = () => setConnOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -458,6 +472,7 @@ export function GecCentralHubEvaluatorClient() {
         if (toSave.length === 0) return;
         const { error } = await supabase.from("ScheduleEntry").upsert(toSave, { onConflict: "id" });
         if (error) return;
+        setLastDraftSaveAt(new Date());
         const now = Date.now();
         if (now - lastAutosaveToastAtRef.current > 30_000) {
           lastAutosaveToastAtRef.current = now;
@@ -507,6 +522,7 @@ export function GecCentralHubEvaluatorClient() {
           if (toSave.length === 0) return;
           const { error } = await supabase.from("ScheduleEntry").upsert(toSave, { onConflict: "id" });
           if (error) return;
+          setLastDraftSaveAt(new Date());
           toast.success("Draft saved automatically");
         })();
       }, 0);
@@ -1154,6 +1170,19 @@ export function GecCentralHubEvaluatorClient() {
               </Button>
             </>
           ) : null}
+          <div className="ml-auto flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[200px] pb-0.5">
+            <span className="font-semibold text-black/70">
+              {connOnline ? <span className="text-emerald-800">Online</span> : <span className="text-red-800">Offline</span>}
+              <span className="text-black/45 font-normal">
+                {canEditVacant ? " · Autosave ~9s (vacant GEC)" : " · Vacant edit approval required"}
+              </span>
+            </span>
+            <span className="tabular-nums">
+              {lastDraftSaveAt
+                ? `Last draft sync: ${lastDraftSaveAt.toLocaleTimeString()}`
+                : "Last draft sync: —"}
+            </span>
+          </div>
         </div>
 
         {gecEnrichedConflicts.length > 0 ? (

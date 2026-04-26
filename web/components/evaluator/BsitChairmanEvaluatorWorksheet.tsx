@@ -252,6 +252,9 @@ export function BsitChairmanEvaluatorWorksheet({
   const lastAutosaveToastAtRef = useRef<number>(0);
   /** When offline, autosave is deferred; we flush once connection is restored. */
   const lastOfflineEditAtRef = useRef<number>(0);
+  /** Shown in the grid header so testers see autosave + connectivity without opening the console. */
+  const [connOnline, setConnOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
+  const [lastDraftSaveAt, setLastDraftSaveAt] = useState<Date | null>(null);
 
   const [rows, setRows] = useState<PlotRow[]>([]);
   const [justificationText, setJustificationText] = useState("");
@@ -977,6 +980,17 @@ export function BsitChairmanEvaluatorWorksheet({
     });
   }, [rows, academicPeriodId, chairmanCollegeId, chairmanProgramId]);
 
+  useEffect(() => {
+    const on = () => setConnOnline(true);
+    const off = () => setConnOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
   /**
    * Recovery: if DB has no rows yet for this scope, restore from localStorage backup snapshot.
    * This covers sudden power loss / tab crash before a manual save.
@@ -1124,6 +1138,7 @@ export function BsitChairmanEvaluatorWorksheet({
         }
         if (source === "autosave" && wrote) {
           const now = Date.now();
+          setLastDraftSaveAt(new Date());
           /** Avoid spamming autosave toasts on frequent edits. */
           if (now - lastAutosaveToastAtRef.current > 30_000) {
             lastAutosaveToastAtRef.current = now;
@@ -1260,6 +1275,21 @@ export function BsitChairmanEvaluatorWorksheet({
               <Save className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
               {saveScheduleBusy ? "Saving…" : "Save schedule"}
             </Button>
+            <div className="ml-auto flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[200px]">
+              <span className="font-semibold text-black/70">
+                {connOnline ? (
+                  <span className="text-emerald-800">Online</span>
+                ) : (
+                  <span className="text-red-800">Offline</span>
+                )}
+                <span className="text-black/45 font-normal"> · Autosave ~9s</span>
+              </span>
+              <span className="tabular-nums">
+                {lastDraftSaveAt
+                  ? `Last draft sync: ${lastDraftSaveAt.toLocaleTimeString()}`
+                  : "Last draft sync: —"}
+              </span>
+            </div>
           </div>
           {saveScheduleMsg ? (
             <p className="text-[12px] text-black/70 border border-black/10 rounded-lg px-3 py-2 bg-emerald-50/80">
