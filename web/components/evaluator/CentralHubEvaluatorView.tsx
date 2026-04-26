@@ -189,6 +189,28 @@ export function CentralHubEvaluatorView({
       ? supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
       : Promise.resolve({ data: [] as ScheduleEntry[], error: null });
 
+    /**
+     * Performance: When a single college tile is selected, scope the heavy catalog tables to that college.
+     * Campus-wide mode retains full catalog behavior.
+     */
+    const tileCollegeId = isCampusWide ? null : hub?.collegeId?.trim() || null;
+    let programIdsForScope: string[] | null = null;
+    let prePrograms: Program[] | null = null;
+    if (tileCollegeId) {
+      const { data: pr, error: ep } = await supabase
+        .from("Program")
+        .select(Q.program)
+        .eq("collegeId", tileCollegeId)
+        .order("name");
+      if (ep) {
+        setLoadError(ep.message);
+        if (!soft) setLoading(false);
+        return;
+      }
+      prePrograms = (pr ?? []) as Program[];
+      programIdsForScope = prePrograms.map((p) => p.id);
+    }
+
     const [
       { data: prog, error: e2 },
       { data: sec, error: e3 },
@@ -198,11 +220,22 @@ export function CentralHubEvaluatorView({
       { data: sch, error: e7 },
       { data: col, error: e8 },
     ] = await Promise.all([
-      supabase.from("Program").select(Q.program).order("name"),
-      supabase.from("Section").select(Q.section).order("name"),
-      supabase.from("Subject").select(Q.subject).order("code"),
-      supabase.from("Room").select(Q.room).order("code"),
-      supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
+      tileCollegeId ? Promise.resolve({ data: prePrograms ?? ([] as Program[]), error: null }) : supabase.from("Program").select(Q.program).order("name"),
+      tileCollegeId && programIdsForScope && programIdsForScope.length > 0
+        ? supabase.from("Section").select(Q.section).in("programId", programIdsForScope).order("name")
+        : supabase.from("Section").select(Q.section).order("name"),
+      tileCollegeId && programIdsForScope && programIdsForScope.length > 0
+        ? supabase.from("Subject").select(Q.subject).in("programId", programIdsForScope).order("code")
+        : supabase.from("Subject").select(Q.subject).order("code"),
+      tileCollegeId
+        ? supabase.from("Room").select(Q.room).or(`collegeId.eq.${tileCollegeId},collegeId.is.null`).order("code")
+        : supabase.from("Room").select(Q.room).order("code"),
+      tileCollegeId
+        ? supabase
+            .from("User")
+            .select("id,email,name,role,collegeId,employeeId")
+            .or(`collegeId.eq.${tileCollegeId},collegeId.is.null`)
+        : supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
       schPromise,
       supabase.from("College").select(Q.college).order("name"),
     ]);
@@ -241,10 +274,22 @@ export function CentralHubEvaluatorView({
     void load();
   }, [load]);
 
-  const reloadScheduleCatalogSoft = useCallback(() => void load({ soft: true }), [load]);
+  /**
+   * Realtime / cross-tab reload should be lightweight: only refresh term `ScheduleEntry` rows.
+   * Full catalog refresh (Program/Section/Subject/Room/User) is handled by `load()` on mount and by a periodic
+   * soft refresh for College Admin mode.
+   */
+  const reloadScheduleEntriesSoft = useCallback(async () => {
+    if (!academicPeriodId) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    const { data, error } = await supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", academicPeriodId);
+    if (error) return;
+    setEntries((data ?? []) as ScheduleEntry[]);
+  }, [academicPeriodId]);
 
   /** Chairman / GEC saves + Realtime: keep this hub grid aligned with INS Forms without a manual refresh. */
-  useScheduleEntryCrossReload(reloadScheduleCatalogSoft, {
+  useScheduleEntryCrossReload(reloadScheduleEntriesSoft, {
     academicPeriodId,
     enabled: Boolean(academicPeriodId),
   });
@@ -727,7 +772,7 @@ export function CentralHubEvaluatorView({
         setCampusConflictScan(null);
         setHubConflictGaByIssueKey({});
         setFocusEntryId(null);
-        await load();
+        await reloadScheduleEntriesSoft();
         dispatchInsCatalogReload();
         const touched = entries.find((e) => e.id === iss.rowA.entryId);
         const sec0 = touched ? sectionById.get(touched.sectionId) : undefined;
@@ -763,7 +808,7 @@ export function CentralHubEvaluatorView({
     },
     [
       campusConflictScan,
-      load,
+      reloadScheduleEntriesSoft,
       entries,
       sectionById,
       subjectById,

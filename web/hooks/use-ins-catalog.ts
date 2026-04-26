@@ -89,6 +89,30 @@ export function useInsCatalog(args: {
     [semesterFilter],
   );
 
+  /**
+   * Lightweight reload used by Realtime + cross-tab broadcast: only refresh `ScheduleEntry` rows for the active term.
+   * This avoids refetching Programs/Sections/Subjects/Rooms/Users on every save (major lag source).
+   */
+  const loadScheduleEntriesForPeriod = useCallback(
+    async (opts?: { periodId?: string; soft?: boolean }) => {
+      const periodId = (opts?.periodId ?? academicPeriodId ?? "").trim();
+      const soft = Boolean(opts?.soft);
+      if (!periodId) return;
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      if (!soft) setLoading(true);
+      const { data, error } = await supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId);
+      if (error) {
+        setError(error.message);
+        if (!soft) setLoading(false);
+        return;
+      }
+      setEntries((data ?? []) as ScheduleEntry[]);
+      if (!soft) setLoading(false);
+    },
+    [academicPeriodId],
+  );
+
   const load = useCallback(async () => {
     if (!args.collegeId && !args.campusWide) {
       setLoading(false);
@@ -125,6 +149,29 @@ export function useInsCatalog(args: {
     } else {
       periodId = defaultAcademicPeriodId(periodList);
     }
+
+    /**
+     * Performance: When not campus-wide, scope catalog tables to the college’s programs.
+     * This reduces JSON payload significantly and keeps the UI snappy under concurrent usage.
+     */
+    const scopedCollegeId = args.campusWide ? null : args.collegeId?.trim() || null;
+    let programIdsForScope: string[] | null = null;
+    if (scopedCollegeId) {
+      const { data: pr, error: ep } = await supabase
+        .from("Program")
+        .select(Q.program)
+        .eq("collegeId", scopedCollegeId)
+        .order("name");
+      if (ep) {
+        setError(ep.message);
+        setLoading(false);
+        return;
+      }
+      const prList = (pr ?? []) as Program[];
+      setPrograms(prList);
+      programIdsForScope = prList.map((p) => p.id);
+    }
+
     const schPromise = periodId
       ? supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
       : Promise.resolve({ data: [] as ScheduleEntry[], error: null });
@@ -141,13 +188,32 @@ export function useInsCatalog(args: {
       { data: fpIns, error: e10 },
     ] = await Promise.all([
       schPromise,
-      supabase.from("Section").select(Q.section).order("name"),
-      supabase.from("Subject").select(Q.subject).order("code"),
-      supabase.from("Room").select(Q.room).order("code"),
-      supabase.from("Program").select(Q.program).order("name"),
+      scopedCollegeId && programIdsForScope && programIdsForScope.length > 0
+        ? supabase.from("Section").select(Q.section).in("programId", programIdsForScope).order("name")
+        : supabase.from("Section").select(Q.section).order("name"),
+      scopedCollegeId && programIdsForScope && programIdsForScope.length > 0
+        ? supabase.from("Subject").select(Q.subject).in("programId", programIdsForScope).order("code")
+        : supabase.from("Subject").select(Q.subject).order("code"),
+      scopedCollegeId
+        ? supabase.from("Room").select(Q.room).or(`collegeId.eq.${scopedCollegeId},collegeId.is.null`).order("code")
+        : supabase.from("Room").select(Q.room).order("code"),
+      /**
+       * When scoped, `Program` was already loaded above (avoid duplicate fetch); keep as fallback for campus-wide.
+       */
+      scopedCollegeId ? Promise.resolve({ data: [] as Program[], error: null }) : supabase.from("Program").select(Q.program).order("name"),
+      /**
+       * `College` is small; keep as full list (used for labels across INS / campus-wide navigation).
+       */
       supabase.from("College").select(Q.college).order("name"),
-      supabase.from("User").select(Q.userHub),
+      /**
+       * Users are the largest catalog payload; when scoped, limit to the college and global rows.
+       */
+      scopedCollegeId ? supabase.from("User").select(Q.userHub).or(`collegeId.eq.${scopedCollegeId},collegeId.is.null`) : supabase.from("User").select(Q.userHub),
       supabase.from("CampusInsSettings").select(Q.campusInsSettings).eq("id", "default").maybeSingle(),
+      /**
+       * Faculty INS names are used only for label formatting; keep full list for now to avoid RLS edge-cases.
+       * (This is still far smaller than full FacultyProfile rows.)
+       */
       supabase.from("FacultyProfile").select(Q.facultyProfileInsNames),
     ]);
     const err = e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10;
@@ -161,7 +227,10 @@ export function useInsCatalog(args: {
     setSections((sec ?? []) as Section[]);
     setSubjects((sub ?? []) as Subject[]);
     setRooms((rm ?? []) as Room[]);
-    setPrograms((prog ?? []) as Program[]);
+    /**
+     * If scoped, programs were loaded earlier. Otherwise use the campus-wide list.
+     */
+    if (!scopedCollegeId) setPrograms((prog ?? []) as Program[]);
     setColleges((col ?? []) as College[]);
     setUsers((fac ?? []) as User[]);
     setFacultyInsNames((fpIns ?? []) as Pick<FacultyProfile, "userId" | "fullName" | "aka">[]);
@@ -177,8 +246,8 @@ export function useInsCatalog(args: {
   const scheduleDebouncedReload = useCallback(() => {
     if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
     /** Keep INS previews feeling near-real-time while still coalescing bursty DB events. */
-    realtimeDebounceRef.current = setTimeout(() => void load(), 140);
-  }, [load]);
+    realtimeDebounceRef.current = setTimeout(() => void loadScheduleEntriesForPeriod({ soft: true }), 140);
+  }, [loadScheduleEntriesForPeriod]);
 
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
@@ -218,14 +287,14 @@ export function useInsCatalog(args: {
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
     const handler = () => {
-      void load();
+      void loadScheduleEntriesForPeriod({ soft: true });
     };
     if (typeof BroadcastChannel !== "undefined") {
       return subscribeScheduleEntryBroadcast(handler);
     }
     window.addEventListener(INS_CATALOG_RELOAD_EVENT, handler);
     return () => window.removeEventListener(INS_CATALOG_RELOAD_EVENT, handler);
-  }, [load, args.collegeId, args.campusWide]);
+  }, [loadScheduleEntriesForPeriod, args.collegeId, args.campusWide]);
 
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
@@ -234,25 +303,8 @@ export function useInsCatalog(args: {
       skipPeriodEntryFetchRef.current = false;
       return;
     }
-    let cancelled = false;
-    (async () => {
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) return;
-      const { data, error } = await supabase
-        .from("ScheduleEntry")
-        .select(Q.scheduleEntry)
-        .eq("academicPeriodId", academicPeriodId);
-      if (cancelled) return;
-      if (error) {
-        setError(error.message);
-        return;
-      }
-      setEntries((data ?? []) as ScheduleEntry[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [academicPeriodId, args.collegeId, args.campusWide]);
+    void loadScheduleEntriesForPeriod({ periodId: academicPeriodId, soft: true });
+  }, [academicPeriodId, args.collegeId, args.campusWide, loadScheduleEntriesForPeriod]);
 
   useEffect(() => {
     if (semesterFilter) return;

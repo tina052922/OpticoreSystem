@@ -147,6 +147,28 @@ export function EvaluatorTimetablingPanel({
       ? supabase.from("ScheduleLoadJustification").select(Q.scheduleLoadJustification).eq("academicPeriodId", periodId)
       : Promise.resolve({ data: [] as ScheduleLoadJustification[], error: null });
 
+    /**
+     * Performance: Program Chairman timetabling is naturally scoped to one college.
+     * Pull only that college’s programs/sections/subjects/rooms/users instead of the full campus catalog.
+     */
+    const scopeCollegeId = (chairmanCollegeId || collegeId || "").trim() || null;
+    let programIdsForScope: string[] | null = null;
+    let prePrograms: Program[] | null = null;
+    if (scopeCollegeId) {
+      const { data: pr, error: ep } = await supabase
+        .from("Program")
+        .select(Q.program)
+        .eq("collegeId", scopeCollegeId)
+        .order("name");
+      if (ep) {
+        setLoadError(ep.message);
+        setLoading(false);
+        return;
+      }
+      prePrograms = (pr ?? []) as Program[];
+      programIdsForScope = prePrograms.map((p) => p.id);
+    }
+
     const [
       { data: col, error: e2 },
       { data: prog, error: e3 },
@@ -158,11 +180,22 @@ export function EvaluatorTimetablingPanel({
       { data: lj, error: e10 },
     ] = await Promise.all([
       supabase.from("College").select(Q.college).order("name"),
-      supabase.from("Program").select(Q.program).order("name"),
-      supabase.from("Section").select(Q.section).order("name"),
-      supabase.from("Subject").select(Q.subject).order("code"),
-      supabase.from("Room").select(Q.room).order("code"),
-      supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
+      scopeCollegeId ? Promise.resolve({ data: prePrograms ?? ([] as Program[]), error: null }) : supabase.from("Program").select(Q.program).order("name"),
+      scopeCollegeId && programIdsForScope && programIdsForScope.length > 0
+        ? supabase.from("Section").select(Q.section).in("programId", programIdsForScope).order("name")
+        : supabase.from("Section").select(Q.section).order("name"),
+      scopeCollegeId && programIdsForScope && programIdsForScope.length > 0
+        ? supabase.from("Subject").select(Q.subject).in("programId", programIdsForScope).order("code")
+        : supabase.from("Subject").select(Q.subject).order("code"),
+      scopeCollegeId
+        ? supabase.from("Room").select(Q.room).or(`collegeId.eq.${scopeCollegeId},collegeId.is.null`).order("code")
+        : supabase.from("Room").select(Q.room).order("code"),
+      scopeCollegeId
+        ? supabase
+            .from("User")
+            .select("id,email,name,role,collegeId,employeeId")
+            .or(`collegeId.eq.${scopeCollegeId},collegeId.is.null`)
+        : supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
       schPromise,
       ljPromise,
     ]);
@@ -207,8 +240,24 @@ export function EvaluatorTimetablingPanel({
     void load();
   }, [load]);
 
-  /** GEC / chairman / hub saves + Realtime: stay aligned with INS and other evaluator shells. */
-  useScheduleEntryCrossReload(load, { academicPeriodId, enabled: Boolean(academicPeriodId) });
+  /**
+   * GEC / chairman / hub saves + Realtime: lightweight reload (term ScheduleEntry + justifications only).
+   * Full catalog refresh is handled by `load()` on mount and when changing global term scope.
+   */
+  const reloadScheduleEntriesSoft = useCallback(async () => {
+    if (!academicPeriodId) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    const [{ data: sch, error: e1 }, { data: lj, error: e2 }] = await Promise.all([
+      supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", academicPeriodId),
+      supabase.from("ScheduleLoadJustification").select(Q.scheduleLoadJustification).eq("academicPeriodId", academicPeriodId),
+    ]);
+    if (e1 || e2) return;
+    setDbEntries((sch ?? []) as ScheduleEntry[]);
+    setLoadJustifications((lj ?? []) as ScheduleLoadJustification[]);
+  }, [academicPeriodId]);
+
+  useScheduleEntryCrossReload(reloadScheduleEntriesSoft, { academicPeriodId, enabled: Boolean(academicPeriodId) });
 
   useEffect(() => {
     if (!academicPeriodId) return;
