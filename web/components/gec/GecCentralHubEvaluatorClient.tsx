@@ -145,6 +145,29 @@ export function GecCentralHubEvaluatorClient() {
       ? supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
       : Promise.resolve({ data: [] as ScheduleEntry[], error: null });
 
+    /**
+     * Performance: GEC hub normally works within one college tile. When not campus-wide, scope the heavy
+     * catalog tables (program/section/subject/room/user) to the selected college.
+     */
+    /** In this hub, `college` query param stores the DB `College.id` (or "all"). */
+    const tileCollegeId = isCampusWide ? null : (collegeParam?.trim() || null);
+    let programIdsForScope: string[] | null = null;
+    let prePrograms: Program[] | null = null;
+    if (tileCollegeId) {
+      const { data: pr, error: ep } = await supabase
+        .from("Program")
+        .select(Q.program)
+        .eq("collegeId", tileCollegeId)
+        .order("name");
+      if (ep) {
+        setLoadError(ep.message);
+        setLoading(false);
+        return;
+      }
+      prePrograms = (pr ?? []) as Program[];
+      programIdsForScope = prePrograms.map((p) => p.id);
+    }
+
     const [
       { data: col, error: e0 },
       { data: prog, error: e2 },
@@ -155,11 +178,22 @@ export function GecCentralHubEvaluatorClient() {
       { data: sch, error: e7 },
     ] = await Promise.all([
       supabase.from("College").select(Q.college).order("name"),
-      supabase.from("Program").select(Q.program).order("name"),
-      supabase.from("Section").select(Q.section).order("name"),
-      supabase.from("Subject").select(Q.subject).order("code"),
-      supabase.from("Room").select(Q.room).order("code"),
-      supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
+      tileCollegeId ? Promise.resolve({ data: prePrograms ?? ([] as Program[]), error: null }) : supabase.from("Program").select(Q.program).order("name"),
+      tileCollegeId && programIdsForScope && programIdsForScope.length > 0
+        ? supabase.from("Section").select(Q.section).in("programId", programIdsForScope).order("name")
+        : supabase.from("Section").select(Q.section).order("name"),
+      tileCollegeId && programIdsForScope && programIdsForScope.length > 0
+        ? supabase.from("Subject").select(Q.subject).in("programId", programIdsForScope).order("code")
+        : supabase.from("Subject").select(Q.subject).order("code"),
+      tileCollegeId
+        ? supabase.from("Room").select(Q.room).or(`collegeId.eq.${tileCollegeId},collegeId.is.null`).order("code")
+        : supabase.from("Room").select(Q.room).order("code"),
+      tileCollegeId
+        ? supabase
+            .from("User")
+            .select("id,email,name,role,collegeId,employeeId")
+            .or(`collegeId.eq.${tileCollegeId},collegeId.is.null`)
+        : supabase.from("User").select("id,email,name,role,collegeId,employeeId"),
       schPromise,
     ]);
     const err = e0 || e2 || e3 || e4 || e5 || e6 || e7;
@@ -197,8 +231,21 @@ export function GecCentralHubEvaluatorClient() {
     void load();
   }, [load]);
 
+  /**
+   * Program Chairman / hub saves + Realtime: reload should be lightweight (term `ScheduleEntry` only),
+   * not a full catalog refresh (which is expensive and causes UI lag on frequent saves).
+   */
+  const reloadScheduleEntriesSoft = useCallback(async () => {
+    if (!academicPeriodId) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    const { data, error } = await supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", academicPeriodId);
+    if (error) return;
+    setEntries((data ?? []) as ScheduleEntry[]);
+  }, [academicPeriodId]);
+
   /** Program Chairman / hub saves + Realtime: GEC grid & previews stay aligned with INS campus-wide. */
-  useScheduleEntryCrossReload(load, { academicPeriodId, enabled: Boolean(academicPeriodId) });
+  useScheduleEntryCrossReload(reloadScheduleEntriesSoft, { academicPeriodId, enabled: Boolean(academicPeriodId) });
 
   useEffect(() => {
     if (!academicPeriodId) return;
