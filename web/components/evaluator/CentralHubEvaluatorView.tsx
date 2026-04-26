@@ -58,6 +58,7 @@ import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/Ch
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -90,6 +91,7 @@ export function CentralHubEvaluatorView({
   showDoiGovernance = false,
   hubAccessMode = "default",
 }: CentralHubEvaluatorViewProps) {
+  const toast = useOpticoreToast();
   const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -604,6 +606,7 @@ export function CentralHubEvaluatorView({
           enrichedIssues: [],
         });
         setHubConflictGaByIssueKey({});
+        toast.info("No conflicts detected", "No schedule rows in scope to scan.");
         return;
       }
       const sparseBlocks = scoped
@@ -628,6 +631,11 @@ export function CentralHubEvaluatorView({
         issues: scan.issues,
         enrichedIssues: enriched,
       });
+      if (scan.issueSummaries.length === 0) {
+        toast.success("No conflicts detected");
+      } else {
+        toast.info("Conflicts found – see details below", `${scan.issueSummaries.length} issue(s) detected.`);
+      }
       const gaMap: Record<string, GASuggestion[]> = {};
       for (const iss of enriched.slice(0, 12)) {
         gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 5);
@@ -649,6 +657,7 @@ export function CentralHubEvaluatorView({
     collegeNameById,
     suggestAlternativesForEntry,
     sectionFilterId,
+    toast,
   ]);
 
   const tableRows = useMemo(() => {

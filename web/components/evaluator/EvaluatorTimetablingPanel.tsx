@@ -37,6 +37,7 @@ import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-pros
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import {
   formatInstructorPlotOptionLabel,
   formatUserInstructorLabel,
@@ -73,6 +74,7 @@ export function EvaluatorTimetablingPanel({
   chairmanProgramCode = null,
   chairmanProgramName = null,
 }: EvaluatorTimetablingPanelProps) {
+  const toast = useOpticoreToast();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -600,6 +602,11 @@ export function EvaluatorTimetablingPanel({
     setFullConflictSummaries(issueSummaries);
     setFullConflictDetails(issues);
     setFullCheckRan(true);
+    if (issueSummaries.length === 0) {
+      toast.success("No conflicts detected");
+    } else {
+      toast.info("Conflicts found – see details below", `${issueSummaries.length} issue(s) detected.`);
+    }
   }
 
   const slot = TIME_SLOT_OPTIONS[slotIndex] ?? TIME_SLOT_OPTIONS[0]!;
@@ -680,13 +687,18 @@ export function EvaluatorTimetablingPanel({
     const block: ScheduleBlock = { ...candidate, id };
     setLocalDrafts((prev) => [...prev, block]);
     setSaveMsg("Added to local draft. Click “Save to database” to persist.");
+    toast.success("Added to draft", "Click “Save to database” to persist.");
   }
 
   async function saveToDatabase() {
     const supabase = createSupabaseBrowserClient();
-    if (!supabase) return;
+    if (!supabase) {
+      toast.error("Failed to save. Please try again.", "Supabase is not configured.");
+      return;
+    }
     if (!academicPeriodId || !effectiveCollegeId) {
       setSaveMsg("Select academic period and college before saving.");
+      toast.error("Failed to save. Please try again.", "Select academic period and college before saving.");
       return;
     }
     setSaveMsg(null);
@@ -711,6 +723,7 @@ export function EvaluatorTimetablingPanel({
       if (t.length < 12) {
         setJustModalOpen(true);
         setSaveMsg("Faculty load policies are exceeded. Enter a justification for the DOI (min. 12 characters).");
+        toast.error("Failed to save. Please try again.", "Enter a justification for the DOI (min. 12 characters).");
         return;
       }
     }
@@ -723,6 +736,7 @@ export function EvaluatorTimetablingPanel({
       } = await supabase.auth.getUser();
       if (authErr || !user) {
         setSaveMsg("Not signed in.");
+        toast.error("Failed to save. Please try again.", "Not signed in.");
         return;
       }
 
@@ -757,6 +771,7 @@ export function EvaluatorTimetablingPanel({
         );
         if (jErr) {
           setSaveMsg(jErr.message);
+          toast.error("Failed to save. Please try again.", jErr.message);
           return;
         }
       }
@@ -764,6 +779,7 @@ export function EvaluatorTimetablingPanel({
       const { error } = await supabase.from("ScheduleEntry").upsert(rows, { onConflict: "id" });
       if (error) {
         setSaveMsg(error.message);
+        toast.error("Failed to save. Please try again.", error.message);
         return;
       }
 
@@ -810,6 +826,7 @@ export function EvaluatorTimetablingPanel({
           ? "Schedule saved. Load policy justification recorded for DOI review."
           : "Schedule saved.",
       );
+      toast.success("Schedule saved successfully");
     } finally {
       setPolicySaving(false);
     }

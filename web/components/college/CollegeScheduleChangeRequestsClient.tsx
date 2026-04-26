@@ -5,6 +5,7 @@ import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { ScheduleChangeRequest } from "@/types/db";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
 type Mitigation = {
   roomId?: string;
@@ -36,6 +37,7 @@ type Row = ScheduleChangeRequest & {
  * College Admin: review instructor schedule change requests, run conflict check, approve/reject, notify faculty.
  */
 export function CollegeScheduleChangeRequestsClient() {
+  const toast = useOpticoreToast();
   const [requests, setRequests] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,9 +106,16 @@ export function CollegeScheduleChangeRequestsClient() {
         hits: data.hits,
         suggestedMitigation: data.suggestedMitigation ?? null,
       });
+      if ((data.severity ?? "none") === "none") {
+        toast.success("No conflicts detected");
+      } else {
+        toast.info("Conflicts found – see details below", data.summary ?? null);
+      }
       void load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Check failed");
+      const msg = e instanceof Error ? e.message : "Check failed";
+      setError(msg);
+      toast.error("Failed to run conflict check. Please try again.", msg);
     } finally {
       setBusy(null);
     }
@@ -152,6 +161,7 @@ export function CollegeScheduleChangeRequestsClient() {
       if (res.status === 409) {
         setError(data.error ?? "Conflicts too large — approve blocked.");
         setCheckResult({ severity: data.severity, hits: data.hits });
+        toast.error("Request approval blocked", data.error ?? "Conflicts too large — approve blocked.");
         return;
       }
       if (!res.ok) throw new Error(data.error || "Update failed");
@@ -159,8 +169,13 @@ export function CollegeScheduleChangeRequestsClient() {
       setAdminNote("");
       await load();
       dispatchInsCatalogReload();
+      if (action === "approve") toast.success("Request approved");
+      else if (action === "reject") toast.success("Request rejected");
+      else toast.success("Request approved");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Update failed");
+      const msg = e instanceof Error ? e.message : "Update failed";
+      setError(msg);
+      toast.error("Failed to update request. Please try again.", msg);
     } finally {
       setBusy(null);
     }

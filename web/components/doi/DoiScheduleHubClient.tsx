@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { AcademicPeriod, DoiScheduleFinalization } from "@/types/db";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
 type ConflictPayload = {
   entryCount?: number;
@@ -20,6 +21,7 @@ type ConflictPayload = {
  * DOI / VPAA: campus-wide conflict scan, INS form shortcuts, and formal approve/reject with signature.
  */
 export function DoiScheduleHubClient() {
+  const toast = useOpticoreToast();
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
   const [periodId, setPeriodId] = useState("");
   const [loadingPeriods, setLoadingPeriods] = useState(true);
@@ -90,8 +92,13 @@ export function DoiScheduleHubClient() {
       const data = (await res.json()) as ConflictPayload;
       if (!res.ok) throw new Error(data.error || "Check failed");
       setConflict(data);
+      const hasIssues = (data.conflictingEntryIds?.length ?? 0) > 0 || (data.issues?.length ?? 0) > 0;
+      if (!hasIssues) toast.success("No conflicts detected");
+      else toast.info("Conflicts found – see details below", `${data.conflictingEntryIds?.length ?? 0} entries involved.`);
     } catch (e) {
-      setConflictError(e instanceof Error ? e.message : "Check failed");
+      const msg = e instanceof Error ? e.message : "Check failed";
+      setConflictError(msg);
+      toast.error("Failed to run conflict check. Please try again.", msg);
     } finally {
       setConflictBusy(false);
     }
@@ -120,9 +127,14 @@ export function DoiScheduleHubClient() {
       if (action === "approve") {
         setSignedAck(false);
         setSignedByName("");
+        toast.success("Schedule published and locked successfully");
+      } else {
+        toast.success("Schedule decision saved");
       }
     } catch (e) {
-      setDecisionError(e instanceof Error ? e.message : "Update failed");
+      const msg = e instanceof Error ? e.message : "Update failed";
+      setDecisionError(msg);
+      toast.error("Failed to update. Please try again.", msg);
     } finally {
       setDecisionBusy(null);
     }

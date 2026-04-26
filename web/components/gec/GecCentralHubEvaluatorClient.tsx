@@ -58,6 +58,7 @@ import {
 } from "@/lib/evaluator/instructor-employee-id";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -82,6 +83,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  * Vacant GEC placeholders are editable only after one-time `gec_vacant_slots` approval.
  */
 export function GecCentralHubEvaluatorClient() {
+  const toast = useOpticoreToast();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -570,8 +572,10 @@ export function GecCentralHubEvaluatorClient() {
       setSaveMsg("No conflicts detected — faculty, room, and section times are clear for this term.");
       setGecEnrichedConflicts([]);
       setGecGaByIssueKey({});
+      toast.success("No conflicts detected");
     } else {
       setSaveMsg(null);
+      toast.info("Conflicts found – see details below", `${scan.issueSummaries.length} issue(s) detected.`);
     }
   }
 
@@ -602,6 +606,7 @@ export function GecCentralHubEvaluatorClient() {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       setSaveMsg("Supabase not configured.");
+      toast.error("Failed to save. Please try again.", "Supabase is not configured.");
       setSaveBusy(false);
       return;
     }
@@ -619,11 +624,13 @@ export function GecCentralHubEvaluatorClient() {
       }
       if (toSave.length === 0) {
         setSaveMsg("No vacant GEC edits to save.");
+        toast.info("No changes to save");
         return;
       }
       const { error } = await supabase.from("ScheduleEntry").upsert(toSave, { onConflict: "id" });
       if (error) {
         setSaveMsg(error.message);
+        toast.error("Failed to save. Please try again.", error.message);
         return;
       }
       setEdits({});
@@ -664,6 +671,7 @@ export function GecCentralHubEvaluatorClient() {
       dispatchInsCatalogReload();
       router.refresh();
       setSaveMsg(`Saved ${toSave.length} vacant GEC row(s).`);
+      toast.success("Vacant slots updated successfully");
       runConflictCheck();
 
       const sec = secForAudit;
