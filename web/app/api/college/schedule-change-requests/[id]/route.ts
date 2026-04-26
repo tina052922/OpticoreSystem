@@ -76,7 +76,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const now = new Date().toISOString();
 
   if (action === "reject") {
-    await supabase
+    const { error: rejUpdErr } = await supabase
       .from("ScheduleChangeRequest")
       .update({
         status: "rejected" as ScheduleChangeStatus,
@@ -85,6 +85,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         adminSuggestion: adminSuggestion,
       })
       .eq("id", id);
+    if (rejUpdErr) {
+      return NextResponse.json({ error: rejUpdErr.message }, { status: 400 });
+    }
 
     const msg = adminSuggestion
       ? `Rejected. College Admin note: ${adminSuggestion}`
