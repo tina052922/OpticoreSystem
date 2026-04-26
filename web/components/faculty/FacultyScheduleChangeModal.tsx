@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -59,6 +60,7 @@ export function FacultyScheduleChangeModal({
   academicPeriodId,
   initialScheduleEntryId,
 }: FacultyScheduleChangeModalProps) {
+  const toast = useOpticoreToast();
   const [entries, setEntries] = useState<ScheduleEntryOption[]>([]);
   const [periodName, setPeriodName] = useState<string | null>(null);
   const [loadingEntries, setLoadingEntries] = useState(false);
@@ -125,6 +127,7 @@ export function FacultyScheduleChangeModal({
     setError(null);
     if (!scheduleEntryId) {
       setError("Select a class meeting to change.");
+      toast.error("Failed to submit. Please try again.", "Select a class meeting to change.");
       return;
     }
     setSubmitting(true);
@@ -144,8 +147,11 @@ export function FacultyScheduleChangeModal({
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "Request failed");
       setDone(true);
+      toast.success("Request submitted successfully");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setError(msg);
+      toast.error("Failed to submit. Please try again.", msg);
     } finally {
       setSubmitting(false);
     }
