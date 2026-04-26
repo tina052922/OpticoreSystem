@@ -1,0 +1,32 @@
+-- Set the correct OptiCore role when public."User".role is wrong (e.g. instructor vs chairman).
+-- Requires: public."User".id = auth.users.id for that email (see link_auth_user_to_public_user_row.sql).
+--
+-- LOGIN STILL SAYS "Invalid email or password" AFTER UPDATING ROLE?
+-- That error comes from Supabase Auth (password), not from public."User". Updating role does NOT set the login password.
+-- Fix: use the login page "Forgot password", or Dashboard → Authentication → Users → reset password,
+-- or from web/: set RESET_EMAIL / NEW_PASSWORD and run node scripts/set-auth-user-password.mjs
+--
+-- Verify Auth row and public row use the same id (replace email):
+-- select id, email from auth.users where lower(email) = lower('REPLACE_WITH_EMAIL');
+-- select id, email, role from public."User" where lower(email) = lower('REPLACE_WITH_EMAIL');
+--
+-- HOW TO RUN IN SUPABASE SQL EDITOR
+-- 1. Labels like "Program Chairman:" must be commented with -- (otherwise you get: syntax error at or near "Program").
+-- 2. Keep each string on ONE line — do not break the email across lines inside quotes.
+-- 3. Run ONLY ONE of the role updates below (pick program chairman OR GEC chairman, not both).
+
+-- Program chairman (BSIT / department scope): role = 'chairman_admin'
+-- You may also need "chairmanProgramId" and "collegeId" set to valid IDs from your "Program" / "College" tables.
+-- update public."User"
+-- set role = 'chairman_admin'
+-- where lower(email) = lower('REPLACE_WITH_EMAIL');
+
+-- GEC chairman: role = 'gec_chairman'
+-- update public."User"
+-- set role = 'gec_chairman'
+-- where lower(email) = lower('gec.chairman.test@opticore.local');
+
+-- Optional: set or fix employee ID on the same row (must stay unique if not null).
+-- update public."User"
+-- set "employeeId" = 'YOUR_EMPLOYEE_ID'
+-- where lower(email) = lower('REPLACE_WITH_EMAIL');
