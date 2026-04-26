@@ -114,6 +114,8 @@ async function main() {
     console.log("✓ ScheduleChangeRequest table exists");
   }
 
+  console.log("\nAfter migration 20260426120000_schedule_change_request_notifications.sql:");
+  console.log("  Run: npm run verify:scr-notifications  (confirms DB trigger → Notification rows).");
   console.log("\nManual test (dev server on :3000):");
   console.log("  1. Sign in as instructor@opticore.local (seed user; public.User id matches demo instructor).");
   console.log("  2. Open /faculty/schedule — pick term in header, then Request schedule change (or tap a grid cell).");
