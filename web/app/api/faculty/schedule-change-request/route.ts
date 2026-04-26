@@ -15,7 +15,9 @@ const INVALID_SCHEDULE_MSG = "Invalid request – No schedule found for this fac
 
 /**
  * Validates that the schedule entry exists and belongs to the instructor, then creates
- * `ScheduleChangeRequest` + in-app notifications for College Admin and the instructor (no workflow inbox).
+ * `ScheduleChangeRequest`. In-app notifications are created by the DB trigger
+ * `trg_schedule_change_request_notify_insert` (see Supabase migrations) so delivery stays
+ * reliable regardless of Notification RLS from the browser session.
  */
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
@@ -84,32 +86,6 @@ export async function POST(req: Request) {
   if (insErr || !inserted) {
     return NextResponse.json({ error: insErr?.message ?? "Could not save request" }, { status: 400 });
   }
-
-  const { data: subj } = await supabase.from("Subject").select("code").eq("id", (entry as { subjectId: string }).subjectId).maybeSingle();
-  const { data: sec } = await supabase.from("Section").select("name").eq("id", (entry as { sectionId: string }).sectionId).maybeSingle();
-  const code = (subj as { code: string } | null)?.code ?? "—";
-  const secName = (sec as { name: string } | null)?.name ?? "—";
-
-  const title = `Schedule change — ${code} (${secName})`;
-
-  const { data: admins } = await supabase
-    .from("User")
-    .select("id")
-    .eq("role", "college_admin")
-    .eq("collegeId", profile.collegeId);
-  if (admins?.length) {
-    await supabase.from("Notification").insert(
-      admins.map((a) => ({
-        userId: a.id,
-        message: `${title}. ${profile.name} submitted a change request — open Schedule change requests to review.`,
-      })),
-    );
-  }
-
-  await supabase.from("Notification").insert({
-    userId: user.id,
-    message: `Your schedule change request for ${code} (${secName}) was sent to College Admin. You will be notified when it is decided.`,
-  });
 
   return NextResponse.json({ ok: true, id: inserted.id });
 }

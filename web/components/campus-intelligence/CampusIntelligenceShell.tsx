@@ -38,6 +38,7 @@ import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
+import { usePendingScheduleChangeRequestsCount } from "@/hooks/use-pending-schedule-change-requests-count";
 
 const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   LayoutDashboard,
@@ -55,6 +56,9 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   Megaphone,
 };
 
+/** Sidebar link that shows a numeric badge (pending schedule change requests for College Admin). */
+const SCHEDULE_CHANGE_REQUESTS_HREF = "/admin/college/schedule-change-requests";
+
 export type CampusIntelligenceShellProps = {
   children: React.ReactNode;
   userName?: string;
@@ -68,6 +72,11 @@ export type CampusIntelligenceShellProps = {
   profileHref: string;
   /** Kept for layouts that pass it; inbox is only in the sidebar, not the avatar menu. */
   inboxHref?: string;
+  /**
+   * When set (College Admin layout), shows a red/orange pending count badge on
+   * "Schedule change requests" and keeps it updated via Supabase Realtime + polling fallback.
+   */
+  scheduleChangeRequestsBadgeCollegeId?: string | null;
 };
 
 /**
@@ -81,11 +90,13 @@ export function CampusIntelligenceShell({
   navItems,
   roleLabel,
   profileHref,
+  scheduleChangeRequestsBadgeCollegeId = null,
 }: CampusIntelligenceShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const navHrefs = navItems.map((i) => i.href);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const pendingScrCount = usePendingScheduleChangeRequestsCount(scheduleChangeRequestsBadgeCollegeId);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -228,6 +239,8 @@ export function CampusIntelligenceShell({
             {navItems.map((item) => {
               const active = isNavItemActive(pathname, item.href, navHrefs);
               const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
+              const scrBadge =
+                item.href === SCHEDULE_CHANGE_REQUESTS_HREF && pendingScrCount > 0 ? pendingScrCount : null;
               return (
                 <Link
                   key={item.href}
@@ -240,7 +253,20 @@ export function CampusIntelligenceShell({
                   }`}
                 >
                   {Icon ? <Icon className="w-5 h-5 shrink-0" /> : null}
-                  <span className="font-medium text-sm truncate">{item.label}</span>
+                  <span className="font-medium text-sm truncate flex-1 min-w-0">{item.label}</span>
+                  {scrBadge !== null ? (
+                    <span
+                      className={`shrink-0 min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center border ${
+                        active
+                          ? "bg-white text-[#780301] border-white/80"
+                          : "bg-[#DE0602] text-white border-red-900/30"
+                      }`}
+                      title={`${scrBadge} pending request${scrBadge === 1 ? "" : "s"}`}
+                      aria-label={`${scrBadge} pending schedule change requests`}
+                    >
+                      {scrBadge > 99 ? "99+" : scrBadge}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}
