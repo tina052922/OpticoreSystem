@@ -121,6 +121,52 @@ export function GecCentralHubEvaluatorClient() {
   /** Local rows not yet in Supabase — same “Add schedule row” flow as Program Chairman (`BsitChairmanEvaluatorWorksheet`). */
   const [extraEntries, setExtraEntries] = useState<ScheduleEntry[]>([]);
   const skipPeriodEntryFetchRef = useRef(true);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutosaveToastAtRef = useRef<number>(0);
+
+  const draftKey = useMemo(() => {
+    if (!academicPeriodId || !collegeParam) return "";
+    return `opticore:gec-vacant-draft:v1:${academicPeriodId}:${collegeParam}:${sectionIdFilter || "all"}`;
+  }, [academicPeriodId, collegeParam, sectionIdFilter]);
+
+  /** Local backup: survive tab crash / power loss. */
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      localStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          edits,
+          extraEntries,
+        }),
+      );
+    } catch {
+      /* ignore quota */
+    }
+  }, [draftKey, edits, extraEntries]);
+
+  /** Recovery: restore local draft for the current scope (best-effort, non-blocking). */
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const v = JSON.parse(raw) as { version: number; edits?: Record<string, GecPlotEditPatch>; extraEntries?: ScheduleEntry[] };
+      if (v?.version !== 1) return;
+      const hasEdits = v.edits && Object.keys(v.edits).length > 0;
+      const hasExtra = Array.isArray(v.extraEntries) && v.extraEntries.length > 0;
+      if (hasEdits && Object.keys(edits).length === 0) setEdits(v.edits ?? {});
+      if (hasExtra && extraEntries.length === 0) setExtraEntries(v.extraEntries ?? []);
+      if (hasEdits || hasExtra) {
+        toast.info("Recovered unsaved draft", "Restored your last local backup after an interruption.");
+      }
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -388,6 +434,95 @@ export function GecCentralHubEvaluatorClient() {
     sectionById,
     programById,
     subjectById,
+  ]);
+
+  /** Autosave (Supabase draft upsert) — debounced and lightweight. */
+  useEffect(() => {
+    if (!canEditVacant || !academicPeriodId || !collegeParam) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void (async () => {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+        const supabase = createSupabaseBrowserClient();
+        if (!supabase) return;
+        const toSave: ScheduleEntry[] = [];
+        for (const e of [...entries, ...extraEntries]) {
+          if (!vacantGecSourceIds.has(e.id)) continue;
+          const patch = edits[e.id];
+          const isNew = pendingNewEntryIds.has(e.id);
+          const hasPatch = patch && Object.keys(patch).length > 0;
+          if (!isNew && !hasPatch) continue;
+          toSave.push({ ...e, ...patch });
+        }
+        if (toSave.length === 0) return;
+        const { error } = await supabase.from("ScheduleEntry").upsert(toSave, { onConflict: "id" });
+        if (error) return;
+        const now = Date.now();
+        if (now - lastAutosaveToastAtRef.current > 30_000) {
+          lastAutosaveToastAtRef.current = now;
+          toast.success("Draft saved automatically");
+        }
+      })();
+    }, 9000);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [
+    canEditVacant,
+    academicPeriodId,
+    collegeParam,
+    edits,
+    extraEntries,
+    entries,
+    vacantGecSourceIds,
+    pendingNewEntryIds,
+    toast,
+  ]);
+
+  /** Connection restore: flush autosave once immediately (don’t wait for the 9s debounce). */
+  useEffect(() => {
+    const onOnline = () => {
+      if (!canEditVacant || !academicPeriodId || !collegeParam) return;
+      if (Object.keys(edits).length === 0 && extraEntries.length === 0) return;
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      /** Trigger the same autosave effect quickly by scheduling at 0ms. */
+      autosaveTimerRef.current = setTimeout(() => {
+        autosaveTimerRef.current = null;
+        void (async () => {
+          const supabase = createSupabaseBrowserClient();
+          if (!supabase) return;
+          const toSave: ScheduleEntry[] = [];
+          for (const e of [...entries, ...extraEntries]) {
+            if (!vacantGecSourceIds.has(e.id)) continue;
+            const patch = edits[e.id];
+            const isNew = pendingNewEntryIds.has(e.id);
+            const hasPatch = patch && Object.keys(patch).length > 0;
+            if (!isNew && !hasPatch) continue;
+            toSave.push({ ...e, ...patch });
+          }
+          if (toSave.length === 0) return;
+          const { error } = await supabase.from("ScheduleEntry").upsert(toSave, { onConflict: "id" });
+          if (error) return;
+          toast.success("Draft saved automatically");
+        })();
+      }, 0);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [
+    canEditVacant,
+    academicPeriodId,
+    collegeParam,
+    edits,
+    extraEntries,
+    entries,
+    vacantGecSourceIds,
+    pendingNewEntryIds,
+    toast,
   ]);
 
   const programsInCollege = useMemo(() => {

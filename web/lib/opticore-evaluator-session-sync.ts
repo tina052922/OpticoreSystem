@@ -4,6 +4,7 @@
  */
 
 export const EVALUATOR_SESSION_STORAGE_KEY = "opticore-bsit-evaluator-sync-v1";
+export const EVALUATOR_LOCAL_STORAGE_KEY = "opticore-bsit-evaluator-backup-v1";
 
 export type BsitEvaluatorPlotRowSnapshot = {
   id: string;
@@ -38,10 +39,29 @@ export function readEvaluatorSessionSnapshot(): EvaluatorSessionSnapshotV1 | nul
   }
 }
 
+/** Backup snapshot for power loss / browser crash: localStorage survives across tabs & restarts. */
+export function readEvaluatorBackupSnapshot(): EvaluatorSessionSnapshotV1 | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(EVALUATOR_LOCAL_STORAGE_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as EvaluatorSessionSnapshotV1;
+    if (v?.version !== 1 || !v.academicPeriodId || !Array.isArray(v.rows)) return null;
+    return v;
+  } catch {
+    return null;
+  }
+}
+
 export function writeEvaluatorSessionSnapshot(snap: EvaluatorSessionSnapshotV1) {
   if (typeof window === "undefined") return;
   try {
     sessionStorage.setItem(EVALUATOR_SESSION_STORAGE_KEY, JSON.stringify(snap));
+  } catch {
+    /* quota / private mode */
+  }
+  try {
+    localStorage.setItem(EVALUATOR_LOCAL_STORAGE_KEY, JSON.stringify(snap));
   } catch {
     /* quota / private mode */
   }

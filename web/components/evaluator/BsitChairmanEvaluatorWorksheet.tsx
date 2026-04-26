@@ -27,10 +27,11 @@ import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-pros
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
-import { writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
+import { readEvaluatorBackupSnapshot, writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import type { EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
@@ -227,6 +228,7 @@ export function BsitChairmanEvaluatorWorksheet({
   chairmanProgramName = null,
   onPolicySnapshot,
 }: BsitChairmanEvaluatorWorksheetProps) {
+  const toast = useOpticoreToast();
   const searchParams = useSearchParams();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const [sections, setSections] = useState<Section[]>([]);
@@ -247,6 +249,9 @@ export function BsitChairmanEvaluatorWorksheet({
   const [busyChairmanApplyKey, setBusyChairmanApplyKey] = useState<string | null>(null);
   const [conflictDetailLoading, setConflictDetailLoading] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutosaveToastAtRef = useRef<number>(0);
+  /** When offline, autosave is deferred; we flush once connection is restored. */
+  const lastOfflineEditAtRef = useRef<number>(0);
 
   const [rows, setRows] = useState<PlotRow[]>([]);
   const [justificationText, setJustificationText] = useState("");
@@ -973,6 +978,35 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [rows, academicPeriodId, chairmanCollegeId, chairmanProgramId]);
 
   /**
+   * Recovery: if DB has no rows yet for this scope, restore from localStorage backup snapshot.
+   * This covers sudden power loss / tab crash before a manual save.
+   */
+  useEffect(() => {
+    if (!academicPeriodId || !chairmanCollegeId) return;
+    const backup = readEvaluatorBackupSnapshot();
+    if (!backup) return;
+    if (backup.academicPeriodId !== academicPeriodId) return;
+    if (backup.collegeId !== chairmanCollegeId) return;
+    if (backup.programId !== chairmanProgramId) return;
+    if (didHydrateFromDbRef.current && rows.length === 0 && backup.rows.length > 0) {
+      setRows(
+        backup.rows.map((r) => ({
+          id: r.id,
+          sectionId: r.sectionId,
+          students: r.students,
+          subjectCode: r.subjectCode,
+          instructorId: r.instructorId,
+          roomId: r.roomId,
+          startSlotIndex: r.startSlotIndex,
+          day: r.day as BsitEvaluatorWeekday,
+          lockedByDoiAt: null,
+        })),
+      );
+      toast.info("Recovered unsaved draft", "Restored your last local backup after an interruption.");
+    }
+  }, [academicPeriodId, chairmanCollegeId, chairmanProgramId, rows.length, toast]);
+
+  /**
    * Writes worksheet rows to `ScheduleEntry` (same source as INS Faculty / Section / Room).
    * Autosave is debounced; &quot;Save schedule&quot; flushes immediately and dispatches `ins-catalog-reload`.
    */
@@ -982,6 +1016,11 @@ export function BsitChairmanEvaluatorWorksheet({
       if (source === "autosave" && !didHydrateFromDbRef.current) return;
       const supabase = createSupabaseBrowserClient();
       if (!supabase) return;
+      /** Offline guard: queue for later sync (local backup already happens via snapshot). */
+      if (source === "autosave" && typeof navigator !== "undefined" && navigator.onLine === false) {
+        lastOfflineEditAtRef.current = Date.now();
+        return;
+      }
       if (source === "manual") {
         setSaveScheduleBusy(true);
         setSaveScheduleMsg(null);
@@ -1081,13 +1120,34 @@ export function BsitChairmanEvaluatorWorksheet({
               ? "Schedule saved. INS Faculty, Section, and Room views refresh for all users."
               : "Nothing new to save (draft already matches the database).",
           );
+          if (wrote) toast.success("Schedule saved successfully");
+        }
+        if (source === "autosave" && wrote) {
+          const now = Date.now();
+          /** Avoid spamming autosave toasts on frequent edits. */
+          if (now - lastAutosaveToastAtRef.current > 30_000) {
+            lastAutosaveToastAtRef.current = now;
+            toast.success("Draft saved automatically");
+          }
         }
       } finally {
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast],
   );
+
+  /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */
+  useEffect(() => {
+    const onOnline = () => {
+      if (!academicPeriodId) return;
+      if (!didHydrateFromDbRef.current) return;
+      if (rows.length === 0) return;
+      void performSchedulePersist("autosave");
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [academicPeriodId, rows.length, performSchedulePersist]);
 
   useEffect(() => {
     if (!academicPeriodId) return;
@@ -1095,7 +1155,7 @@ export function BsitChairmanEvaluatorWorksheet({
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
       void performSchedulePersist("autosave");
-    }, 1200);
+    }, 9000);
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };

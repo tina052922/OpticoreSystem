@@ -15,6 +15,7 @@ export type OpticoreToast = {
 
 type Ctx = {
   notify: (t: Omit<OpticoreToast, "id"> & { id?: string; durationMs?: number }) => void;
+  dismiss: (id: string) => void;
   success: (title: string, description?: string | null, durationMs?: number) => void;
   error: (title: string, description?: string | null, durationMs?: number) => void;
   info: (title: string, description?: string | null, durationMs?: number) => void;
@@ -44,11 +45,16 @@ export function OpticoreToastProvider({ children }: { children: React.ReactNode 
       const id = t.id ?? uid();
       const durationMs = typeof t.durationMs === "number" ? t.durationMs : 4500;
       setToasts((prev) => {
-        const next = [{ id, variant: t.variant, title: t.title, description: t.description ?? null }, ...prev];
+        const next = [{ id, variant: t.variant, title: t.title, description: t.description ?? null }, ...prev.filter((x) => x.id !== id)];
         return next.slice(0, 4);
       });
-      const timer = window.setTimeout(() => dismiss(id), durationMs);
-      timersRef.current.set(id, timer);
+      /** durationMs <= 0 keeps the toast visible until user dismisses it (e.g. offline banner). */
+      if (durationMs > 0) {
+        const old = timersRef.current.get(id);
+        if (old) window.clearTimeout(old);
+        const timer = window.setTimeout(() => dismiss(id), durationMs);
+        timersRef.current.set(id, timer);
+      }
     },
     [dismiss],
   );
@@ -56,11 +62,12 @@ export function OpticoreToastProvider({ children }: { children: React.ReactNode 
   const api = useMemo<Ctx>(() => {
     return {
       notify,
+      dismiss,
       success: (title, description, durationMs) => notify({ variant: "success", title, description, durationMs }),
       error: (title, description, durationMs) => notify({ variant: "error", title, description, durationMs }),
       info: (title, description, durationMs) => notify({ variant: "info", title, description, durationMs }),
     };
-  }, [notify]);
+  }, [notify, dismiss]);
 
   return (
     <ToastCtx.Provider value={api}>
