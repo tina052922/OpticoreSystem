@@ -87,9 +87,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
       .eq("id", id);
 
     const msg = adminSuggestion
-      ? `Your schedule change request was not approved. Note: ${adminSuggestion}`
-      : "Your schedule change request was reviewed and not approved. Contact College Admin if you need clarification.";
-    await notifyInstructor(supabase, row.instructorId, "Schedule change request rejected", msg);
+      ? `Rejected. College Admin note: ${adminSuggestion}`
+      : "Rejected. Contact College Admin if you need clarification.";
+    const { error: rejNotifErr } = await notifyInstructor(supabase, row.instructorId, "Schedule change request", msg);
+    if (rejNotifErr) {
+      console.error("[schedule-change-requests] reject notification insert failed", rejNotifErr);
+    }
     return NextResponse.json({ ok: true, status: "rejected" });
   }
 
@@ -199,10 +202,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const slotLabel = `${row.requestedDay} ${row.requestedStartTime}–${row.requestedEndTime}`;
   const notifBody =
     finalStatus === "approved_with_solution"
-      ? `Approved with note: ${adminSuggestion ?? "—"} — applied slot: ${slotLabel}.`
+      ? `Approved (with solution). ${adminSuggestion ?? ""} Applied slot: ${slotLabel}.`
       : `Approved. Your class is now scheduled at ${slotLabel}.`;
 
-  await notifyInstructor(supabase, row.instructorId, "Schedule change approved", notifBody);
+  const { error: apprNotifErr } = await notifyInstructor(supabase, row.instructorId, "Schedule change request", notifBody);
+  if (apprNotifErr) {
+    console.error("[schedule-change-requests] approve notification insert failed", apprNotifErr);
+  }
 
   return NextResponse.json({ ok: true, status: finalStatus, severity, hits: hitsEnriched });
 }
@@ -213,7 +219,7 @@ async function notifyInstructor(
   title: string,
   message: string,
 ) {
-  await supabase.from("Notification").insert({
+  return supabase.from("Notification").insert({
     userId: instructorId,
     message: `${title}: ${message}`,
     isRead: false,

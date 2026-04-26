@@ -52,7 +52,8 @@ type FacultyScheduleChangeModalProps = {
 
 /**
  * Request a meeting time change for one of the instructor’s plotted rows.
- * Submits to College Admin (`ScheduleChangeRequest`) + in-app notifications (no separate page).
+ * Submits to College Admin (`ScheduleChangeRequest`). Notifications are created in the database
+ * when the row is inserted (see migration `schedule_change_request_notifications`).
  */
 export function FacultyScheduleChangeModal({
   open,

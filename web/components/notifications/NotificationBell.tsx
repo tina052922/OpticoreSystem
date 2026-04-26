@@ -52,6 +52,16 @@ export function NotificationBell() {
         },
         () => void load(),
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "Notification",
+          filter: `userId=eq.${userId}`,
+        },
+        () => void load(),
+      )
       .subscribe();
     return () => {
       void supabase.removeChannel(ch);

@@ -92,5 +92,6 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ requests: enriched });
+  /** Lets the client subscribe to Realtime / refresh badges without an extra profile round-trip. */
+  return NextResponse.json({ requests: enriched, collegeId: profile.collegeId });
 }

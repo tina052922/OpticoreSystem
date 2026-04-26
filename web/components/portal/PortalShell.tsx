@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, KeyRound, LogOut, MapPin, Menu, X } from "lucide-react";
+import { KeyRound, LogOut, MapPin, Menu, X } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,10 +116,7 @@ export function PortalShell({
             <MapPin className="w-4 h-4 shrink-0" aria-hidden />
             <span className="truncate">Campus Navigation</span>
           </Link>
-          <button type="button" className="relative p-1" aria-label="Notifications">
-            <Bell className="w-6 h-6 text-white" />
-            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-[#FF990A] rounded-full border border-white/30" />
-          </button>
+          <NotificationBell />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

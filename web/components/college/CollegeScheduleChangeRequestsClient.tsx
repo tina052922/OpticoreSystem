@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { ScheduleChangeRequest } from "@/types/db";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type Mitigation = {
   roomId?: string;
@@ -53,17 +54,22 @@ export function CollegeScheduleChangeRequestsClient() {
   const [applySuggestedMitigation, setApplySuggestedMitigation] = useState(false);
   /** Avoid re-running campus check when `requests` refreshes after the same selection. */
   const autoCheckDoneForSelected = useRef<string | null>(null);
+  /** Set from API for Supabase Realtime filter (same college as the signed-in admin). */
+  const [realtimeCollegeId, setRealtimeCollegeId] = useState<string | null>(null);
 
   const selected = requests.find((r) => r.id === selectedId) ?? null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const res = await fetch("/api/college/schedule-change-requests", { credentials: "include" });
-      const data = (await res.json()) as { requests?: Row[]; error?: string };
+      const data = (await res.json()) as { requests?: Row[]; collegeId?: string; error?: string };
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setRequests(data.requests ?? []);
+      if (data.collegeId) setRealtimeCollegeId(data.collegeId);
       setSelectedId((cur) => {
         const list = data.requests ?? [];
         if (cur && list.some((x) => x.id === cur)) return cur;
@@ -72,13 +78,38 @@ export function CollegeScheduleChangeRequestsClient() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** Refresh the list when another admin or an instructor changes requests (requires Realtime on this table). */
+  useEffect(() => {
+    if (!realtimeCollegeId) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    const channel = supabase
+      .channel(`college-scr-workspace:${realtimeCollegeId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ScheduleChangeRequest",
+          filter: `collegeId=eq.${realtimeCollegeId}`,
+        },
+        () => void load({ silent: true }),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [realtimeCollegeId, load]);
 
   const runConflictCheck = useCallback(async () => {
     if (!selectedId) return;
