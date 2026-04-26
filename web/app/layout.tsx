@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ChunkLoadRecovery } from "@/components/ChunkLoadRecovery";
 import { OpticoreToastProvider } from "@/components/alerts/OpticoreToastProvider";
+import { ConnectionToastsMount } from "@/components/alerts/ConnectionToastsMount";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <OpticoreToastProvider>
+          <ConnectionToastsMount />
           <ChunkLoadRecovery />
           {children}
         </OpticoreToastProvider>
