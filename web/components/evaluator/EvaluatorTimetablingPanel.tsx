@@ -105,6 +105,7 @@ export function EvaluatorTimetablingPanel({
   const [previewFocus, setPreviewFocus] = useState<"section" | "room" | "instructor">("section");
   const [conflicts, setConflicts] = useState<ConflictHit[]>([]);
   const [suggestions, setSuggestions] = useState<GASuggestion[]>([]);
+  const [addDraftBusy, setAddDraftBusy] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [justModalOpen, setJustModalOpen] = useState(false);
@@ -696,11 +697,15 @@ export function EvaluatorTimetablingPanel({
 
   async function addPlot() {
     if (!candidate || conflicts.length > 0) return;
+    if (addDraftBusy) return;
+    setAddDraftBusy(true);
+    toast.info("Adding schedule…");
     const id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `local-${Date.now()}`;
     const block: ScheduleBlock = { ...candidate, id };
     setLocalDrafts((prev) => [...prev, block]);
     setSaveMsg("Added to local draft. Click “Save to database” to persist.");
     toast.success("Added to draft", "Click “Save to database” to persist.");
+    window.setTimeout(() => setAddDraftBusy(false), 450);
   }
 
   async function saveToDatabase() {
@@ -1449,10 +1454,10 @@ export function EvaluatorTimetablingPanel({
             <Button
               type="button"
               className="bg-[#ff990a] text-white"
-              disabled={!candidate || conflicts.length > 0}
+              disabled={!candidate || conflicts.length > 0 || addDraftBusy}
               onClick={() => void addPlot()}
             >
-              Add to local draft
+              {addDraftBusy ? "Adding…" : "Add to local draft"}
             </Button>
             <Button
               type="button"
