@@ -1218,18 +1218,26 @@ export function BsitChairmanEvaluatorWorksheet({
           (id) => !currentIds.has(id) && !lockedEntryIdsRef.current.has(id),
         );
 
-        const showSkippedMsg = () => {
-          if (source !== "manual") return;
-          if (skipped.length === 0) return;
+        const buildSkippedDigest = () => {
           const top = skipped.slice(0, 3).map((s) => {
             const sec = s.sectionId ? (sectionNameById.get(s.sectionId) ?? s.sectionId) : "—";
             return `${s.subjectCode || "—"} (${sec}): ${s.reason}`;
           });
           const more = skipped.length > 3 ? ` (+${skipped.length - 3} more)` : "";
-          toast.error("Nothing saved", `${top.join(" · ")}${more}`);
-          setSaveScheduleMsg(
-            `Nothing saved. Fix incomplete rows: ${top.join(" · ")}${more}`,
-          );
+          return { top, more, text: `${top.join(" · ")}${more}` };
+        };
+
+        const showSkippedMsg = (mode: "none_saved" | "partial") => {
+          if (source !== "manual") return;
+          if (skipped.length === 0) return;
+          const d = buildSkippedDigest();
+          if (mode === "none_saved") {
+            toast.error("Nothing saved", d.text);
+            setSaveScheduleMsg(`Nothing saved. Fix incomplete rows: ${d.text}`);
+          } else {
+            toast.info("Some rows were not saved", d.text);
+            setSaveScheduleMsg(`Saved with warnings. Some rows were not saved: ${d.text}`);
+          }
         };
 
         if (removedIds.length > 0) {
@@ -1254,7 +1262,7 @@ export function BsitChairmanEvaluatorWorksheet({
 
         const wrote = upserts.length > 0 || removedIds.length > 0;
         if (!wrote) {
-          showSkippedMsg();
+          showSkippedMsg("none_saved");
         }
         if (wrote) {
           const auditRows = upserts.map((e) => {
@@ -1297,7 +1305,10 @@ export function BsitChairmanEvaluatorWorksheet({
                 ? "Nothing saved. Some rows are incomplete or use subject codes not found in the database."
                 : "Nothing new to save (draft already matches the database).",
           );
-          if (wrote) toast.success("Schedule saved successfully");
+          if (wrote) {
+            toast.success("Schedule saved successfully");
+            if (skipped.length > 0) showSkippedMsg("partial");
+          }
         }
         if (source === "autosave" && wrote) {
           const now = Date.now();
