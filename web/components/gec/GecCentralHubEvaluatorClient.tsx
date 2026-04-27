@@ -119,6 +119,7 @@ export function GecCentralHubEvaluatorClient() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [conflictIds, setConflictIds] = useState<Set<string>>(new Set());
   const [conflictSummary, setConflictSummary] = useState<string[]>([]);
+  const [addRowBusy, setAddRowBusy] = useState(false);
   /** DOI-style enriched pairwise issues + GA alternatives (same engine as Central Hub / VPAA panel). */
   const [gecEnrichedConflicts, setGecEnrichedConflicts] = useState<EnrichedCampusIssue[]>([]);
   const [gecGaByIssueKey, setGecGaByIssueKey] = useState<Record<string, GASuggestion[]>>({});
@@ -867,6 +868,10 @@ export function GecCentralHubEvaluatorClient() {
   }
 
   function addGecScheduleRow() {
+    if (addRowBusy) return;
+    setAddRowBusy(true);
+    toast.info("Adding schedule…");
+    window.setTimeout(() => setAddRowBusy(false), 500);
     if (!canEditVacant || !sectionIdFilter || !academicPeriodId || !plotCollegeId) {
       setSaveMsg("Select a section and ensure vacant-slot access is approved before adding rows.");
       return;
@@ -1311,6 +1316,7 @@ export function GecCentralHubEvaluatorClient() {
                     pickedSubjectId={pickedSubjectId}
                     onAddScheduleRow={addGecScheduleRow}
                     showAddScheduleButton={canEditVacant}
+                    addScheduleRowBusy={addRowBusy}
                     pendingNewEntryIds={pendingNewEntryIds}
                     onRemovePendingEntry={removePendingEntry}
                     onRunConflictCheck={() => runConflictCheck()}

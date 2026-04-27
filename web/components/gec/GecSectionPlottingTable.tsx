@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,6 +55,8 @@ type Props = {
   /** Program Chairman parity: add a new vacant GEC row for this section. */
   onAddScheduleRow?: () => void;
   showAddScheduleButton?: boolean;
+  /** UI feedback: disables the button and shows “Adding…” to prevent double clicks. */
+  addScheduleRowBusy?: boolean;
   /** Locally added rows (not yet persisted) — show remove until saved. */
   pendingNewEntryIds?: Set<string>;
   onRemovePendingEntry?: (entryId: string) => void;
@@ -120,6 +122,7 @@ export function GecSectionPlottingTable({
   pickedSubjectId,
   onAddScheduleRow,
   showAddScheduleButton = false,
+  addScheduleRowBusy = false,
   pendingNewEntryIds = new Set(),
   onRemovePendingEntry,
   onRunConflictCheck,
@@ -131,6 +134,7 @@ export function GecSectionPlottingTable({
   showAlternativeSolutionsHeading = false,
   highlightConflictEntryIds,
 }: Props) {
+  const [localAddBusy, setLocalAddBusy] = useState(false);
   const vacantSourceIds = useMemo(() => {
     const ids = new Set<string>();
     for (const e of entries) {
@@ -222,9 +226,15 @@ export function GecSectionPlottingTable({
             <Button
               type="button"
               className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold shrink-0"
-              onClick={onAddScheduleRow}
+              disabled={addScheduleRowBusy || localAddBusy}
+              onClick={() => {
+                if (addScheduleRowBusy || localAddBusy) return;
+                setLocalAddBusy(true);
+                onAddScheduleRow();
+                window.setTimeout(() => setLocalAddBusy(false), 450);
+              }}
             >
-              + Add schedule row
+              {addScheduleRowBusy || localAddBusy ? "Adding…" : "+ Add schedule row"}
             </Button>
           ) : null}
           {onRunConflictCheck ? (
@@ -261,7 +271,7 @@ export function GecSectionPlottingTable({
       <div className="max-h-[min(70vh,880px)] overflow-auto">
         <div className="overflow-x-auto min-h-0">
         <table className="w-full border-collapse min-w-[1180px]">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-[#ff990a] text-white text-[11px]">
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Major</th>
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Section</th>

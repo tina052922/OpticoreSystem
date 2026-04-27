@@ -255,6 +255,7 @@ export function BsitChairmanEvaluatorWorksheet({
   /** Shown in the grid header so testers see autosave + connectivity without opening the console. */
   const [connOnline, setConnOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
   const [lastDraftSaveAt, setLastDraftSaveAt] = useState<Date | null>(null);
+  const [addRowBusy, setAddRowBusy] = useState(false);
 
   const [rows, setRows] = useState<PlotRow[]>([]);
   const [justificationText, setJustificationText] = useState("");
@@ -497,6 +498,38 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     return set;
   }, [rows, selectedSectionId]);
+
+  /**
+   * Per-section plotted codes (DB + worksheet). Used to keep subject dropdowns clear:
+   * - show remaining (unplotted) subjects as selectable
+   * - keep already scheduled ones visible but grouped/disabled (prevents accidental duplicates)
+   */
+  const plottedCodesBySectionId = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    const add = (sectionId: string, code: string) => {
+      if (!sectionId || !code) return;
+      const key = sectionId.trim();
+      if (!key) return;
+      const c = normalizeProspectusCode(code);
+      if (!c) return;
+      const set = m.get(key) ?? new Set<string>();
+      set.add(c);
+      m.set(key, set);
+    };
+
+    for (const e of allTermScheduleEntries) {
+      if (academicPeriodId && e.academicPeriodId !== academicPeriodId) continue;
+      if (!programSectionIdSet.has(e.sectionId)) continue;
+      const code = subjectCodeById.get(e.subjectId) ?? "";
+      if (code) add(e.sectionId, code);
+    }
+    for (const r of rows) {
+      const p = r.subjectCode ? prospectusByCode(r.subjectCode) : undefined;
+      if (!r.sectionId || !r.subjectCode || !p) continue;
+      add(r.sectionId, r.subjectCode);
+    }
+    return m;
+  }, [allTermScheduleEntries, academicPeriodId, programSectionIdSet, rows, subjectCodeById]);
 
   /**
    * Full `ScheduleBlock` set for the term: DB snapshot + worksheet overlay. Drives the explicit
@@ -796,10 +829,14 @@ export function BsitChairmanEvaluatorWorksheet({
   }
 
   function addRow() {
+    if (addRowBusy) return;
+    setAddRowBusy(true);
+    toast.info("Adding schedule…");
     setRows((prev) => {
       if (prev.some((r) => Boolean(r.lockedByDoiAt))) return prev;
       return [...prev, emptyRow()];
     });
+    window.setTimeout(() => setAddRowBusy(false), 450);
   }
 
   function removeRow(id: string) {
@@ -1249,10 +1286,10 @@ export function BsitChairmanEvaluatorWorksheet({
             <Button
               type="button"
               className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold disabled:opacity-50 disabled:pointer-events-none shrink-0"
-              disabled={schedulePublished}
+              disabled={schedulePublished || addRowBusy}
               onClick={addRow}
             >
-              + Add schedule row
+              {addRowBusy ? "Adding…" : "+ Add schedule row"}
             </Button>
             <Button
               type="button"
@@ -1328,10 +1365,10 @@ export function BsitChairmanEvaluatorWorksheet({
             </div>
           ) : null}
         </div>
-        <div className="max-h-[min(70vh,880px)] overflow-auto">
+          <div className="max-h-[min(70vh,880px)] overflow-auto">
           <div className="overflow-x-auto min-h-0">
           <table className="w-full border-collapse min-w-[1100px]">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-[#ff990a] text-white text-[11px]">
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Major</th>
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Section</th>
@@ -1446,11 +1483,37 @@ export function BsitChairmanEvaluatorWorksheet({
                           }}
                         >
                           <option value="">{!row.sectionId ? "Select section first…" : "Select…"}</option>
-                          {subjectOptions.map((s) => (
-                            <option key={s.code} value={s.code}>
-                              {s.code} — {s.title}
-                            </option>
-                          ))}
+                          {(() => {
+                            const plotted = row.sectionId ? plottedCodesBySectionId.get(row.sectionId) : undefined;
+                            const available = subjectOptions.filter(
+                              (s) => !plotted || !plotted.has(normalizeProspectusCode(s.code)) || s.code === row.subjectCode,
+                            );
+                            const already = subjectOptions.filter(
+                              (s) => plotted && plotted.has(normalizeProspectusCode(s.code)) && s.code !== row.subjectCode,
+                            );
+                            return (
+                              <>
+                                {available.length > 0 ? (
+                                  <optgroup label="Available">
+                                    {available.map((s) => (
+                                      <option key={s.code} value={s.code}>
+                                        {s.code} — {s.title}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ) : null}
+                                {already.length > 0 ? (
+                                  <optgroup label="Already scheduled (read-only)">
+                                    {already.map((s) => (
+                                      <option key={s.code} value={s.code} disabled>
+                                        ✓ {s.code} — {s.title}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ) : null}
+                              </>
+                            );
+                          })()}
                         </select>
                       </td>
                       <td className="border border-black/10 px-2 py-1.5 tabular-nums text-black/80">
