@@ -581,22 +581,11 @@ export function CentralHubEvaluatorView({
     if (!academicPeriodId) return;
     setConflictScanBusy(true);
     try {
-      const scoped = entries.filter((e) => {
-        if (e.academicPeriodId !== academicPeriodId) return false;
-        if (scopeCollegeId == null) {
-          if (programId) {
-            const sec = sectionById.get(e.sectionId);
-            return sec?.programId === programId;
-          }
-          return true;
-        }
-        const sec = sectionById.get(e.sectionId);
-        const pr = sec ? programById.get(sec.programId) : null;
-        if (pr?.collegeId !== scopeCollegeId) return false;
-        if (programId && sec?.programId !== programId) return false;
-        if (sectionFilterId.trim() && e.sectionId !== sectionFilterId) return false;
-        return true;
-      });
+      /**
+       * Conflict scan for College Admin / CAS / GEC / DOI should be campus-wide for the term to avoid missed
+       * conflicts when filters are applied in the UI (department/section filters are for browsing only).
+       */
+      const scoped = entries.filter((e) => e.academicPeriodId === academicPeriodId);
       if (scoped.length === 0) {
         setCampusConflictScan({
           entryCount: 0,
