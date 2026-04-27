@@ -3,7 +3,11 @@
  * (used by DOI API, dashboards, and any role-scoped conflict summaries).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { enrichCampusConflictIssues, type EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
+import {
+  enrichCampusConflictIssues,
+  type EnrichedCampusIssue,
+  buildConflictSummaryLines,
+} from "@/lib/scheduling/conflict-enrichment";
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { College, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
@@ -87,12 +91,14 @@ export async function buildConflictScanPayload(
     collegeNameById,
   );
 
+  const summaries = enrichedIssues.length > 0 ? buildConflictSummaryLines(enrichedIssues, 14) : scan.issueSummaries;
+
   return {
     error: null,
     payload: {
       entryCount: sparseBlocks.length,
       conflictingEntryIds: [...scan.conflictingEntryIds],
-      issueSummaries: scan.issueSummaries,
+      issueSummaries: summaries,
       issues: scan.issues,
       enrichedIssues,
     },

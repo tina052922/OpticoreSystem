@@ -11,7 +11,11 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
-import { enrichCampusConflictIssues, type EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
+import {
+  buildConflictSummaryLines,
+  enrichCampusConflictIssues,
+  type EnrichedCampusIssue,
+} from "@/lib/scheduling/conflict-enrichment";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import type {
@@ -678,7 +682,6 @@ export function GecCentralHubEvaluatorClient() {
       .filter((b): b is NonNullable<typeof b> => b != null);
     const scan = scanAllSparseScheduleConflicts(sparseBlocks);
     setConflictIds(scan.conflictingEntryIds);
-    setConflictSummary(scan.issueSummaries);
 
     const entryById = new Map(mergedEntries.map((e) => [e.id, e]));
     const enriched = enrichCampusConflictIssues(
@@ -692,6 +695,7 @@ export function GecCentralHubEvaluatorClient() {
       collegeNameById,
     );
     setGecEnrichedConflicts(enriched);
+    setConflictSummary(enriched.length > 0 ? buildConflictSummaryLines(enriched, 14) : scan.issueSummaries);
 
     const universe = mergedEntries.filter((e) => e.academicPeriodId === academicPeriodId).map(toBlock);
     const gaMap: Record<string, GASuggestion[]> = {};
@@ -726,7 +730,8 @@ export function GecCentralHubEvaluatorClient() {
       toast.success("No conflicts detected");
     } else {
       setSaveMsg(null);
-      toast.info("Conflicts found – see details below", `${scan.issueSummaries.length} issue(s) detected.`);
+      const summaryCount = (enriched.length > 0 ? buildConflictSummaryLines(enriched, 14).length : scan.issueSummaries.length);
+      toast.info("Conflicts found – see details below", `${summaryCount} issue(s) detected.`);
     }
   }
 
