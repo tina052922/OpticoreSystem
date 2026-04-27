@@ -325,13 +325,23 @@ export function BsitChairmanEvaluatorWorksheet({
     [programSections],
   );
 
+  /**
+   * Subject code → Subject.id mapping.
+   *
+   * Production data can have programId mismatches (chairmanProgramId vs the actual Subject.programId used in seed).
+   * To prevent “Save schedule” from skipping rows, we keep:
+   * - a preferred map scoped to the chairman program (when set)
+   * - a global fallback map across all subjects
+   */
   const subjectIdByCode = useMemo(() => {
-    const m = new Map<string, string>();
+    const scoped = new Map<string, string>();
+    const global = new Map<string, string>();
     for (const s of subjects) {
+      global.set(normalizeProspectusCode(s.code), s.id);
       if (chairmanProgramId && s.programId !== chairmanProgramId) continue;
-      m.set(normalizeProspectusCode(s.code), s.id);
+      scoped.set(normalizeProspectusCode(s.code), s.id);
     }
-    return m;
+    return { scoped, global };
   }, [subjects, chairmanProgramId]);
 
   const subjectCodeById = useMemo(() => {
@@ -654,7 +664,10 @@ export function BsitChairmanEvaluatorWorksheet({
           const sectionId = metaFromDb?.sectionId ?? metaFromRow?.sectionId ?? "";
           const subjectId =
             metaFromDb?.subjectId ??
-            (metaFromRow?.subjectCode ? subjectIdByCode.get(normalizeProspectusCode(metaFromRow.subjectCode)) : undefined) ??
+            (metaFromRow?.subjectCode
+              ? subjectIdByCode.scoped.get(normalizeProspectusCode(metaFromRow.subjectCode)) ??
+                subjectIdByCode.global.get(normalizeProspectusCode(metaFromRow.subjectCode))
+              : undefined) ??
             "";
           if (!sectionId || !subjectId) continue;
           const sug = runRuleBasedGeneticAlgorithm({
@@ -1164,7 +1177,8 @@ export function BsitChairmanEvaluatorWorksheet({
             });
             continue;
           }
-          const subjectId = subjectIdByCode.get(normalizeProspectusCode(row.subjectCode));
+          const codeKey = normalizeProspectusCode(row.subjectCode);
+          const subjectId = subjectIdByCode.scoped.get(codeKey) ?? subjectIdByCode.global.get(codeKey);
           if (!subjectId) {
             skipped.push({
               rowId: row.id,
