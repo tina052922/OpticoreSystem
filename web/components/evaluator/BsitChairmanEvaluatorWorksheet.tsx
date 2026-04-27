@@ -576,32 +576,53 @@ export function BsitChairmanEvaluatorWorksheet({
        * Build conflict detail + GA alternatives locally so the UI always shows solutions immediately after a scan,
        * without depending on an extra API call.
        */
+      const entryById = new Map(allTermScheduleEntries.map((e) => [e.id, e] as const));
+      const rowById = new Map(rows.map((r) => [r.id, r] as const));
+      /**
+       * GA universe needs fully-specified resource ids; keep using the merged blocks (DB + worksheet overlay)
+       * which already omit incomplete rows.
+       */
       const blockById = new Map(mergedBlocksForCampusScan.map((b) => [b.id, b] as const));
       const enriched: EnrichedCampusIssue[] = [];
       const seen = new Set<string>();
 
-      const snapshotFromBlock = (b: ScheduleBlock) => ({
-        entryId: b.id,
-        what: `${subjectCodeById.get(b.subjectId) ?? "—"} · ${sectionNameById.get(b.sectionId) ?? "—"}`,
-        when: `${b.day} ${formatTimeRange(b.startTime, b.endTime)}`,
-        where: roomById.get(b.roomId)?.code ?? "TBA",
-        who: userById.get(b.instructorId)?.name ?? "—",
-        collegeName: "",
-      });
+      const snapshotFromId = (id: string) => {
+        const fromDb = entryById.get(id);
+        if (fromDb) {
+          return {
+            entryId: fromDb.id,
+            what: `${subjectCodeById.get(fromDb.subjectId) ?? "—"} · ${sectionNameById.get(fromDb.sectionId) ?? "—"}`,
+            when: `${fromDb.day} ${formatTimeRange(fromDb.startTime, fromDb.endTime)}`,
+            where: roomById.get(fromDb.roomId)?.code ?? "TBA",
+            who: userById.get(fromDb.instructorId)?.name ?? "—",
+            collegeName: "",
+          };
+        }
+        const r = rowById.get(id);
+        if (!r) return null;
+        const tb = rowTimeBounds(r);
+        const time = tb ? formatTimeRange(tb.start.startTime, tb.endSlot.endTime) : "—";
+        return {
+          entryId: r.id,
+          what: `${r.subjectCode || "—"} · ${sectionNameById.get(r.sectionId) ?? "—"}`,
+          when: `${r.day} ${time}`,
+          where: roomById.get(r.roomId)?.code ?? "TBA",
+          who: userById.get(r.instructorId)?.name ?? "—",
+          collegeName: "",
+        };
+      };
 
       for (const raw of scan.issues) {
         if (!raw.relatedEntryId) continue;
         const t = raw.type;
         if (t !== "faculty" && t !== "room" && t !== "section") continue;
-        const a = blockById.get(raw.entryId);
-        const b = blockById.get(raw.relatedEntryId);
-        if (!a || !b) continue;
-        const sorted = [a.id, b.id].sort();
+        const rowA = snapshotFromId(raw.entryId);
+        const rowB = snapshotFromId(raw.relatedEntryId);
+        if (!rowA || !rowB) continue;
+        const sorted = [rowA.entryId, rowB.entryId].sort();
         const key = `${t}:${sorted[0]}:${sorted[1]}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        const rowA = snapshotFromBlock(a);
-        const rowB = snapshotFromBlock(b);
         const rootCause =
           t === "room"
             ? `Room double-booking: ${rowA.where} has two classes at the same time. (A) ${rowA.what} · ${rowA.who} @ ${rowA.when} vs (B) ${rowB.what} · ${rowB.who} @ ${rowB.when}.`
@@ -624,13 +645,24 @@ export function BsitChairmanEvaluatorWorksheet({
       if (roomIds.length > 0 && instructorIds.length > 0 && mergedBlocksForCampusScan.length > 0) {
         for (const iss of enriched.slice(0, 12)) {
           const block = blockById.get(iss.rowA.entryId);
-          if (!block) continue;
+          /**
+           * Conflicts may involve incomplete rows (missing room/instructor). Suggestions still work:
+           * use the subject+section identity from DB row or worksheet row to search a conflict-free placement.
+           */
+          const metaFromDb = entryById.get(iss.rowA.entryId);
+          const metaFromRow = rowById.get(iss.rowA.entryId);
+          const sectionId = metaFromDb?.sectionId ?? metaFromRow?.sectionId ?? "";
+          const subjectId =
+            metaFromDb?.subjectId ??
+            (metaFromRow?.subjectCode ? subjectIdByCode.get(normalizeProspectusCode(metaFromRow.subjectCode)) : undefined) ??
+            "";
+          if (!sectionId || !subjectId) continue;
           const sug = runRuleBasedGeneticAlgorithm({
             universe: mergedBlocksForCampusScan,
-            sectionId: block.sectionId,
-            subjectId: block.subjectId,
-            academicPeriodId: block.academicPeriodId,
-            excludeEntryId: block.id,
+            sectionId,
+            subjectId,
+            academicPeriodId,
+            excludeEntryId: block?.id,
             roomIds,
             instructorIds,
             generations: 28,
