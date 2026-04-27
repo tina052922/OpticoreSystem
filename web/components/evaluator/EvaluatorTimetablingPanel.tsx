@@ -1334,14 +1334,44 @@ export function EvaluatorTimetablingPanel({
                   </li>
                 ))}
               </ul>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button type="button" className="bg-[#780301] hover:bg-[#5a0201] text-white" onClick={runGA}>
-                  View alternative suggestions (rule-based GA)
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowSuggestions((s) => !s)}>
-                  {showSuggestions ? "Hide" : "Show"} suggestions panel
-                </Button>
-              </div>
+              {suggestions.length > 0 ? (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2">
+                  <div className="text-[12px] font-bold text-amber-950 mb-1">Alternative solutions</div>
+                  <div className="space-y-1.5">
+                    {suggestions.slice(0, 5).map((s, i) => {
+                      const roomCode = roomCodeById.get(s.roomId) ?? s.roomId;
+                      const instLabel = instructorDisplayById.get(s.instructorId) ?? s.instructorId;
+                      const when = `${s.day} ${formatTimeRange(s.startTime, s.endTime)}`;
+                      const label = `Suggested: ${when} in ${roomCode} · ${instLabel}`;
+                      return (
+                        <div
+                          key={`${s.day}-${s.startTime}-${s.roomId}-${s.instructorId}-${i}`}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200/80 bg-white px-2 py-1.5"
+                        >
+                          <div className="text-[11px] text-amber-950/90 min-w-0">
+                            <span className="font-semibold">{label}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 text-[11px] bg-[#ff990a] hover:bg-[#e68a09] text-white shrink-0"
+                            onClick={() => applySuggestion(s)}
+                            title={label}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" className="bg-[#780301] hover:bg-[#5a0201] text-white" onClick={runGA}>
+                    Generate alternatives (rule-based GA)
+                  </Button>
+                </div>
+              )}
             </div>
           ) : candidate ? (
             <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
