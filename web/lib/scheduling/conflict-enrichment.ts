@@ -57,6 +57,42 @@ export function parseSnapshotSubjectSection(what: string): { subject: string; se
   return { subject: parts[0] ?? "—", section: parts[1] ?? "—" };
 }
 
+/**
+ * User-facing one-line summary (matches product requirements: resource + what + who + when).
+ * Used in scan summary banners so users see *which* room/instructor/section is conflicted without opening details.
+ */
+export function conflictSummaryLine(iss: EnrichedCampusIssue): string {
+  const a = iss.rowA;
+  const b = iss.rowB;
+  const pa = parseSnapshotSubjectSection(a.what);
+  const pb = parseSnapshotSubjectSection(b.what);
+
+  if (iss.type === "room") {
+    const room = a.where || b.where || "Room";
+    return `Room ${room} is occupied by ${pb.subject} (${pb.section}) at ${a.when}.`;
+  }
+  if (iss.type === "faculty") {
+    const who = a.who || b.who || "Instructor";
+    return `Instructor ${who} is already assigned to ${pb.subject} (${pb.section}) at ${a.when}.`;
+  }
+  const sec = pa.section || pb.section || "Section";
+  return `Section ${sec} already has ${pb.subject} at ${a.when}.`;
+}
+
+/** Unique, human-readable summaries for toasts/banners. */
+export function buildConflictSummaryLines(issues: EnrichedCampusIssue[], max = 12): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const iss of issues) {
+    const line = conflictSummaryLine(iss);
+    if (seen.has(line)) continue;
+    seen.add(line);
+    out.push(line);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 /** JSON shape returned by GET /api/doi/schedule-conflicts */
 export type CampusConflictScanApiPayload = {
   entryCount: number;

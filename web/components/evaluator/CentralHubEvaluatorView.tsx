@@ -16,6 +16,7 @@ import {
 import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import {
   buildConflictGridHints,
+  buildConflictSummaryLines,
   enrichCampusConflictIssues,
   type CampusConflictScanApiPayload,
 } from "@/lib/scheduling/conflict-enrichment";
@@ -613,17 +614,18 @@ export function CentralHubEvaluatorView({
         programById,
         collegeNameById,
       );
+      const summaryLines = enriched.length > 0 ? buildConflictSummaryLines(enriched, 14) : scan.issueSummaries;
       setCampusConflictScan({
         entryCount: sparseBlocks.length,
         conflictingEntryIds: [...scan.conflictingEntryIds],
-        issueSummaries: scan.issueSummaries,
+        issueSummaries: summaryLines,
         issues: scan.issues,
         enrichedIssues: enriched,
       });
-      if (scan.issueSummaries.length === 0) {
+      if (summaryLines.length === 0) {
         toast.success("No conflicts detected");
       } else {
-        toast.info("Conflicts found – see details below", `${scan.issueSummaries.length} issue(s) detected.`);
+        toast.info("Conflicts found – see details below", `${summaryLines.length} issue(s) detected.`);
       }
       const gaMap: Record<string, GASuggestion[]> = {};
       for (const iss of enriched.slice(0, 12)) {

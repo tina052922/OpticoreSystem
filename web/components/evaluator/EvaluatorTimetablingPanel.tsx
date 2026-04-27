@@ -7,6 +7,7 @@ import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, TIME_SLOT_OPTIONS, WEEKDAYS }
 import { detectConflictsForEntry, scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
+import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import type { ConflictHit, GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import type {
   AcademicPeriod,
@@ -633,6 +634,19 @@ export function EvaluatorTimetablingPanel({
     const hits = detectConflictsForEntry(candidate, universe);
     setConflicts(hits);
   }, [candidate, universe]);
+
+  /** Auto-generate GA suggestions whenever conflicts appear (keeps alternatives actionable without extra clicks). */
+  useEffect(() => {
+    if (!candidate) return;
+    if (conflicts.length === 0) return;
+    // Avoid spamming GA runs if the suggestions already match the current candidate.
+    const sig = `${candidate.sectionId}|${candidate.subjectId}|${candidate.instructorId}|${candidate.roomId}|${candidate.day}|${candidate.startTime}|${candidate.endTime}`;
+    const prevSig = (window as unknown as { __opticore_ga_sig?: string }).__opticore_ga_sig;
+    if (prevSig === sig && suggestions.length > 0) return;
+    (window as unknown as { __opticore_ga_sig?: string }).__opticore_ga_sig = sig;
+    runGA();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate, conflicts.length]);
 
   const previewSectionEntries = useMemo(() => {
     if (!sectionId) return [];
@@ -1295,7 +1309,23 @@ export function EvaluatorTimetablingPanel({
               <ul className="list-disc pl-5 space-y-1 text-red-800">
                 {conflicts.map((c, i) => (
                   <li key={i}>
-                    <span className="uppercase font-bold">{c.type}</span>: {c.message}
+                    <span className="uppercase font-bold">{c.type}</span>:{" "}
+                    {(() => {
+                      const rel = c.withEntryId ? mergedScheduleEntries.find((e) => e.id === c.withEntryId) : null;
+                      if (!rel) return c.message;
+                      const sec = sectionById.get(rel.sectionId);
+                      const sub = subjectById.get(rel.subjectId);
+                      const rm = roomById.get(rel.roomId);
+                      const inst = userById.get(rel.instructorId);
+                      const when = `${rel.day} ${formatTimeRange(rel.startTime, rel.endTime)}`;
+                      if (c.type === "room") {
+                        return `Room ${rm?.code ?? "TBA"} is occupied by ${sub?.code ?? "—"} (${sec?.name ?? "—"}) at ${when}.`;
+                      }
+                      if (c.type === "faculty") {
+                        return `Instructor ${inst?.name ?? "—"} is already assigned to ${sub?.code ?? "—"} (${sec?.name ?? "—"}) at ${when}.`;
+                      }
+                      return `Section ${sec?.name ?? "—"} already has ${sub?.code ?? "—"} at ${when}.`;
+                    })()}
                   </li>
                 ))}
               </ul>
