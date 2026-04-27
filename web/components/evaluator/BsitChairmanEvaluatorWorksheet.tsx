@@ -35,6 +35,7 @@ import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import type { EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
+import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import {
   formatInstructorPlotOptionLabel,
   formatUserInstructorLabel,
@@ -571,57 +572,74 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     setConflictDetailLoading(true);
     try {
-      const res = await fetch("/api/scheduling/scope-conflict-scan", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          academicPeriodId,
-          mode: "chairman_program",
-          collegeId: chairmanCollegeId,
-          programId: chairmanProgramId,
-        }),
+      /**
+       * Build conflict detail + GA alternatives locally so the UI always shows solutions immediately after a scan,
+       * without depending on an extra API call.
+       */
+      const blockById = new Map(mergedBlocksForCampusScan.map((b) => [b.id, b] as const));
+      const enriched: EnrichedCampusIssue[] = [];
+      const seen = new Set<string>();
+
+      const snapshotFromBlock = (b: ScheduleBlock) => ({
+        entryId: b.id,
+        what: `${subjectCodeById.get(b.subjectId) ?? "—"} · ${sectionNameById.get(b.sectionId) ?? "—"}`,
+        when: `${b.day} ${formatTimeRange(b.startTime, b.endTime)}`,
+        where: roomById.get(b.roomId)?.code ?? "TBA",
+        who: userById.get(b.instructorId)?.name ?? "—",
+        collegeName: "",
       });
-      const data = (await res.json()) as { enrichedIssues?: EnrichedCampusIssue[] };
-      if (res.ok && Array.isArray(data.enrichedIssues)) {
-        setChairmanEnrichedIssues(data.enrichedIssues);
-        const enriched = data.enrichedIssues;
-        const gaMap: Record<string, GASuggestion[]> = {};
-        if (chairmanCollegeId && mergedBlocksForCampusScan.length > 0) {
-          const roomIds = rooms
-            .filter((r) => !r.collegeId || r.collegeId === chairmanCollegeId)
-            .map((r) => r.id);
-          const instructorIds = dbInstructors
-            .filter(
-              (u) =>
-                u.collegeId === chairmanCollegeId &&
-                (u.role === "instructor" || u.role === "chairman_admin"),
-            )
-            .map((u) => u.id);
-          for (const iss of enriched.slice(0, 12)) {
-            const block = mergedBlocksForCampusScan.find((b) => b.id === iss.rowA.entryId);
-            if (!block || roomIds.length === 0 || instructorIds.length === 0) continue;
-            const sug = runRuleBasedGeneticAlgorithm({
-              universe: mergedBlocksForCampusScan,
-              sectionId: block.sectionId,
-              subjectId: block.subjectId,
-              academicPeriodId: block.academicPeriodId,
-              excludeEntryId: block.id,
-              roomIds,
-              instructorIds,
-              generations: 32,
-              populationSize: 48,
-            });
-            gaMap[iss.key] = sug.slice(0, 5);
-          }
-        }
-        setChairmanGaByIssueKey(gaMap);
-      } else {
-        setChairmanGaByIssueKey({});
+
+      for (const raw of scan.issues) {
+        if (!raw.relatedEntryId) continue;
+        const t = raw.type;
+        if (t !== "faculty" && t !== "room" && t !== "section") continue;
+        const a = blockById.get(raw.entryId);
+        const b = blockById.get(raw.relatedEntryId);
+        if (!a || !b) continue;
+        const sorted = [a.id, b.id].sort();
+        const key = `${t}:${sorted[0]}:${sorted[1]}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const rowA = snapshotFromBlock(a);
+        const rowB = snapshotFromBlock(b);
+        const rootCause =
+          t === "room"
+            ? `Room double-booking: ${rowA.where} has two classes at the same time. (A) ${rowA.what} · ${rowA.who} @ ${rowA.when} vs (B) ${rowB.what} · ${rowB.who} @ ${rowB.when}.`
+            : t === "faculty"
+              ? `Faculty double-booking: ${rowA.who} is scheduled for two classes at the same time. (A) ${rowA.what} @ ${rowA.when} in ${rowA.where} vs (B) ${rowB.what} @ ${rowB.when} in ${rowB.where}.`
+              : `Section overlap: ${rowA.what.split("·")[1]?.trim() ?? "section"} has two different subjects at the same time. (A) ${rowA.what} @ ${rowA.when} in ${rowA.where} vs (B) ${rowB.what} @ ${rowB.when} in ${rowB.where}.`;
+        enriched.push({ key, type: t, rootCause, rowA, rowB });
       }
-    } catch {
-      setChairmanEnrichedIssues([]);
-      setChairmanGaByIssueKey({});
+
+      setChairmanEnrichedIssues(enriched);
+
+      const gaMap: Record<string, GASuggestion[]> = {};
+      const roomIds = rooms
+        .filter((r) => !chairmanCollegeId || !r.collegeId || r.collegeId === chairmanCollegeId)
+        .map((r) => r.id);
+      const instructorIds = dbInstructors
+        .filter((u) => !chairmanCollegeId || u.collegeId === chairmanCollegeId)
+        .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+        .map((u) => u.id);
+      if (roomIds.length > 0 && instructorIds.length > 0 && mergedBlocksForCampusScan.length > 0) {
+        for (const iss of enriched.slice(0, 12)) {
+          const block = blockById.get(iss.rowA.entryId);
+          if (!block) continue;
+          const sug = runRuleBasedGeneticAlgorithm({
+            universe: mergedBlocksForCampusScan,
+            sectionId: block.sectionId,
+            subjectId: block.subjectId,
+            academicPeriodId: block.academicPeriodId,
+            excludeEntryId: block.id,
+            roomIds,
+            instructorIds,
+            generations: 28,
+            populationSize: 44,
+          });
+          gaMap[iss.key] = sug.slice(0, 5);
+        }
+      }
+      setChairmanGaByIssueKey(gaMap);
     } finally {
       setConflictDetailLoading(false);
     }
@@ -630,9 +648,12 @@ export function BsitChairmanEvaluatorWorksheet({
     sparseProgramUniverse,
     mergedBlocksForCampusScan,
     chairmanCollegeId,
-    chairmanProgramId,
     rooms,
     dbInstructors,
+    roomById,
+    sectionNameById,
+    subjectCodeById,
+    userById,
   ]);
 
   useEffect(() => {
