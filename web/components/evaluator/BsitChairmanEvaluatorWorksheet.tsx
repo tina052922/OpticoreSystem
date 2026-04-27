@@ -1143,13 +1143,47 @@ export function BsitChairmanEvaluatorWorksheet({
         }
 
         const upserts: ScheduleEntry[] = [];
+        const skipped: Array<{ rowId: string; sectionId: string; subjectCode: string; reason: string }> = [];
         for (const row of rows) {
           if (row.lockedByDoiAt) continue;
-          if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) continue;
+          if (!row.sectionId || !row.subjectCode) {
+            skipped.push({
+              rowId: row.id,
+              sectionId: row.sectionId,
+              subjectCode: row.subjectCode,
+              reason: "Pick section and subject code",
+            });
+            continue;
+          }
+          if (!row.instructorId || !row.roomId) {
+            skipped.push({
+              rowId: row.id,
+              sectionId: row.sectionId,
+              subjectCode: row.subjectCode,
+              reason: "Pick instructor and room",
+            });
+            continue;
+          }
           const subjectId = subjectIdByCode.get(normalizeProspectusCode(row.subjectCode));
-          if (!subjectId) continue;
+          if (!subjectId) {
+            skipped.push({
+              rowId: row.id,
+              sectionId: row.sectionId,
+              subjectCode: row.subjectCode,
+              reason: "Subject code not found in database Subject table",
+            });
+            continue;
+          }
           const tb = rowTimeBounds(row);
-          if (!tb) continue;
+          if (!tb) {
+            skipped.push({
+              rowId: row.id,
+              sectionId: row.sectionId,
+              subjectCode: row.subjectCode,
+              reason: "Pick a valid time slot (subject duration may not fit)",
+            });
+            continue;
+          }
           upserts.push({
             id: row.id,
             academicPeriodId,
@@ -1170,11 +1204,26 @@ export function BsitChairmanEvaluatorWorksheet({
           (id) => !currentIds.has(id) && !lockedEntryIdsRef.current.has(id),
         );
 
+        const showSkippedMsg = () => {
+          if (source !== "manual") return;
+          if (skipped.length === 0) return;
+          const top = skipped.slice(0, 3).map((s) => {
+            const sec = s.sectionId ? (sectionNameById.get(s.sectionId) ?? s.sectionId) : "—";
+            return `${s.subjectCode || "—"} (${sec}): ${s.reason}`;
+          });
+          const more = skipped.length > 3 ? ` (+${skipped.length - 3} more)` : "";
+          toast.error("Nothing saved", `${top.join(" · ")}${more}`);
+          setSaveScheduleMsg(
+            `Nothing saved. Fix incomplete rows: ${top.join(" · ")}${more}`,
+          );
+        };
+
         if (removedIds.length > 0) {
           const { error: delErr } = await supabase.from("ScheduleEntry").delete().in("id", removedIds);
           if (delErr) {
             setLoadError(delErr.message);
             if (source === "manual") setSaveScheduleMsg(delErr.message);
+            if (source === "manual") toast.error("Failed to save. Please try again.", delErr.message);
             return;
           }
         }
@@ -1184,11 +1233,15 @@ export function BsitChairmanEvaluatorWorksheet({
           if (upErr) {
             setLoadError(upErr.message);
             if (source === "manual") setSaveScheduleMsg(upErr.message);
+            if (source === "manual") toast.error("Failed to save. Please try again.", upErr.message);
             return;
           }
         }
 
         const wrote = upserts.length > 0 || removedIds.length > 0;
+        if (!wrote) {
+          showSkippedMsg();
+        }
         if (wrote) {
           const auditRows = upserts.map((e) => {
             const plot = rows.find((x) => x.id === e.id);
@@ -1226,7 +1279,9 @@ export function BsitChairmanEvaluatorWorksheet({
           setSaveScheduleMsg(
             wrote
               ? "Schedule saved. INS Faculty, Section, and Room views refresh for all users."
-              : "Nothing new to save (draft already matches the database).",
+              : skipped.length > 0
+                ? "Nothing saved. Some rows are incomplete or use subject codes not found in the database."
+                : "Nothing new to save (draft already matches the database).",
           );
           if (wrote) toast.success("Schedule saved successfully");
         }
