@@ -441,15 +441,19 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [facultyProfiles]);
 
   /**
-   * Campus-wide sparse universe: all `ScheduleEntry` rows for the term from Supabase, with worksheet rows
-   * overriding same ids so edits compare against every other section / program / room / instructor.
+   * Program-scoped sparse universe (Program Chairman): all `ScheduleEntry` rows for the term that belong to
+   * the chairman’s program, with worksheet rows overriding same ids.
+   *
+   * College Admin / GEC / DOI use campus-wide scans elsewhere; this worksheet is intentionally program-level
+   * to match the Program Chairman role scope.
    */
-  const sparseCampusWideUniverse = useMemo((): SparseScheduleBlock[] => {
+  const sparseProgramUniverse = useMemo((): SparseScheduleBlock[] => {
     if (!academicPeriodId) return [];
     const worksheetIds = new Set(rows.map((r) => r.id));
     const byId = new Map<string, SparseScheduleBlock>();
     for (const e of allTermScheduleEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
+      if (!programSectionIdSet.has(e.sectionId)) continue;
       if (worksheetIds.has(e.id)) continue;
       const sp = scheduleEntryToSparse(e);
       if (sp) byId.set(e.id, sp);
@@ -459,14 +463,14 @@ export function BsitChairmanEvaluatorWorksheet({
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows]);
+  }, [allTermScheduleEntries, academicPeriodId, rows, programSectionIdSet]);
 
   const conflictForRow = useCallback(
     (row: PlotRow): { faculty: string; room: string; section: string } => {
       if (!academicPeriodId) return { faculty: "—", room: "—", section: "—" };
       const candidate = rowToSparseBlock(row, academicPeriodId);
       if (!candidate) return { faculty: "—", room: "—", section: "—" };
-      const hits = detectConflictsSparse(candidate, sparseCampusWideUniverse, candidate.id);
+      const hits = detectConflictsSparse(candidate, sparseProgramUniverse, candidate.id);
       const fac = hits.some((h) => h.type === "faculty");
       const room = hits.some((h) => h.type === "room");
       const sec = hits.some((h) => h.type === "section");
@@ -476,7 +480,7 @@ export function BsitChairmanEvaluatorWorksheet({
         section: !candidate.sectionId ? "—" : sec ? "Yes" : "No",
       };
     },
-    [academicPeriodId, sparseCampusWideUniverse],
+    [academicPeriodId, sparseProgramUniverse],
   );
 
   /**
@@ -525,12 +529,12 @@ export function BsitChairmanEvaluatorWorksheet({
     setSaveScheduleMsg(null);
     setChairmanEnrichedIssues([]);
     setChairmanGaByIssueKey({});
-    const scan = scanAllSparseScheduleConflicts(sparseCampusWideUniverse);
+    const scan = scanAllSparseScheduleConflicts(sparseProgramUniverse);
     setCampusScanConflictIds(new Set(scan.conflictingEntryIds));
     if (scan.issueSummaries.length === 0) {
-      setSaveScheduleMsg("No conflicts — faculty, room, and section times are clear campus-wide for this term.");
+      setSaveScheduleMsg("No conflicts — faculty, room, and section times are clear within this program for this term.");
     } else {
-      setSaveScheduleMsg(`Campus-wide scan: ${scan.conflictingEntryIds.size} row(s) involved in conflicts.`);
+      setSaveScheduleMsg(`Program scan: ${scan.conflictingEntryIds.size} row(s) involved in conflicts.`);
     }
     setConflictDetailLoading(true);
     try {
@@ -590,7 +594,7 @@ export function BsitChairmanEvaluatorWorksheet({
     }
   }, [
     academicPeriodId,
-    sparseCampusWideUniverse,
+    sparseProgramUniverse,
     mergedBlocksForCampusScan,
     chairmanCollegeId,
     chairmanProgramId,
