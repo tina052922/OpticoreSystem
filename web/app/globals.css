@@ -38,14 +38,14 @@ body {
 
 @media print {
   :root {
-    --ins-row-h: 2.2rem;
+    --ins-row-h: 1.85rem;
   }
   body {
     background: white;
   }
   @page {
     size: auto;
-    margin: 10mm;
+    margin: 8mm;
   }
   .no-print {
     display: none !important;

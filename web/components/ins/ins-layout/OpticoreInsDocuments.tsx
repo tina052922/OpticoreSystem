@@ -65,8 +65,8 @@ export function OpticoreInsForm5A({
   onScheduleEntryClick,
 }: OpticoreInsForm5AProps) {
   return (
-    <div className="space-y-8 text-neutral-900">
-      <div className="flex flex-col gap-4 border-b border-neutral-300 pb-6 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-8 print:space-y-4 text-neutral-900">
+      <div className="flex flex-col gap-4 print:gap-2 border-b border-neutral-300 pb-6 print:pb-3 sm:flex-row sm:items-start sm:justify-between">
         <h3 className="order-2 text-center text-base font-bold uppercase tracking-wide sm:order-1 sm:text-left sm:text-lg">
           Cebu Technological University
         </h3>
@@ -94,7 +94,7 @@ export function OpticoreInsForm5A({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-x-10 gap-y-4 text-sm md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-10 gap-y-4 print:gap-y-2 text-sm md:grid-cols-2">
         <div className="flex flex-wrap items-end gap-3 md:col-span-2">
           <span className="shrink-0">Name:</span>
           {readOnly ? (
@@ -242,7 +242,7 @@ export function OpticoreInsForm5A({
         scheduleApproved={scheduleApproved}
       />
 
-      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-3">
+      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-2.5">
         <div className="mb-4 text-center text-sm font-bold uppercase tracking-wide">Summary of Courses</div>
         <div className="mb-2 border-b border-neutral-900 pb-2 text-xs font-semibold">
           <div className="grid grid-cols-4 gap-2">
@@ -309,7 +309,7 @@ export function OpticoreInsForm5A({
             ))}
         </div>
 
-        <div className="mt-6 print:mt-4 border-t border-neutral-900 pt-4 print:pt-3">
+        <div className="mt-6 print:mt-3 border-t border-neutral-900 pt-4 print:pt-2.5">
           <div className="grid grid-cols-1 gap-x-10 gap-y-4 text-sm md:grid-cols-2">
             <div className="space-y-4">
               {readOnly ? (
@@ -475,8 +475,8 @@ export function OpticoreInsForm5B({
   insSignatureSlots = null,
 }: OpticoreInsForm5BProps) {
   return (
-    <div className="space-y-8 text-neutral-900">
-      <div className="flex flex-col gap-4 border-b border-neutral-300 pb-6 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-8 print:space-y-4 text-neutral-900">
+      <div className="flex flex-col gap-4 print:gap-2 border-b border-neutral-300 pb-6 print:pb-3 sm:flex-row sm:items-start sm:justify-between">
         <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg">
           Cebu Technological University
         </h3>
@@ -672,8 +672,8 @@ export function OpticoreInsForm5C({
   const campus = pickSlot(insSignatureSlots, "campus");
 
   return (
-    <div className="space-y-8 text-neutral-900">
-      <div className="flex flex-col gap-4 border-b border-neutral-300 pb-6 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-8 print:space-y-4 text-neutral-900">
+      <div className="flex flex-col gap-4 print:gap-2 border-b border-neutral-300 pb-6 print:pb-3 sm:flex-row sm:items-start sm:justify-between">
         <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg">
           Cebu Technological University
         </h3>
