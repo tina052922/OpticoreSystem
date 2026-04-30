@@ -38,14 +38,32 @@ body {
 
 @media print {
   :root {
-    --ins-row-h: 1.85rem;
+    --ins-row-h: 1.65rem;
   }
   body {
     background: white;
   }
+  /**
+   * INS print isolation:
+   * Print ONLY `.print-only` content (the official INS paper form), and hide all page chrome.
+   * This ensures print preview starts at "CEBU TECHNOLOGICAL UNIVERSITY" (no headers/tabs/filters before it).
+   */
+  body * {
+    visibility: hidden !important;
+  }
+  .print-only,
+  .print-only * {
+    visibility: visible !important;
+  }
+  .print-only {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
   @page {
     size: auto;
-    margin: 8mm;
+    margin: 6mm;
   }
   .no-print {
     display: none !important;

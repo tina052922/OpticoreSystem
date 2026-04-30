@@ -372,7 +372,7 @@ export function INSFormRoom({
         </div>
       </div>
 
-      <div className="hidden print:block print-paper">
+      <div className="print-only hidden print:block print-paper">
         <OpticoreInsForm5C
           roomAssignment={displayRoom}
           schedule={displaySchedule}

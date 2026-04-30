@@ -371,7 +371,7 @@ export function INSFormSection({
         </div>
       </div>
 
-      <div className="hidden print:block print-paper">
+      <div className="print-only hidden print:block print-paper">
         <OpticoreInsForm5B
           degreeAndYear={displayAssignment}
           adviser=""
