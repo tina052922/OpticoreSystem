@@ -199,8 +199,8 @@ export function OpticoreInsForm5A({
             );
           }
           return (
-            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto pr-1">
-              {(items as InsFacultyCell[]).map((classAtTime, idx) => {
+            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto print:overflow-hidden pr-1">
+              {(items as InsFacultyCell[]).slice(0, 3).map((classAtTime, idx) => {
                 const inner = (
                   <div className="w-full space-y-0.5 text-xs leading-snug break-words">
                     <div className="font-semibold break-words">{classAtTime.course}</div>
@@ -230,6 +230,11 @@ export function OpticoreInsForm5A({
                 );
                 return <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}>{body}</div>;
               })}
+              {(items as InsFacultyCell[]).length > 3 ? (
+                <div className="text-[10px] text-neutral-600 print:text-[9px]">
+                  +{(items as InsFacultyCell[]).length - 3} more…
+                </div>
+              ) : null}
             </div>
           );
         }}
@@ -558,8 +563,8 @@ export function OpticoreInsForm5B({
             );
           }
           return (
-            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto pr-1">
-              {(items as SectionScheduleCell[]).map((row, idx) => {
+            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto print:overflow-hidden pr-1">
+              {(items as SectionScheduleCell[]).slice(0, 3).map((row, idx) => {
                 const inner = (
                   <div key={`${row.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug break-words">
                     <div className="font-semibold break-words">{row.course}</div>
@@ -570,6 +575,11 @@ export function OpticoreInsForm5B({
                 );
                 return <div key={`${row.time}-${idx}`}>{inner}</div>;
               })}
+              {(items as SectionScheduleCell[]).length > 3 ? (
+                <div className="text-[10px] text-neutral-600 print:text-[9px]">
+                  +{(items as SectionScheduleCell[]).length - 3} more…
+                </div>
+              ) : null}
             </div>
           );
         }}
@@ -732,8 +742,8 @@ export function OpticoreInsForm5C({
             );
           }
           return (
-            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto pr-1">
-              {(items as InsRoomCell[]).map((classAtTime, idx) => {
+            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto print:overflow-hidden pr-1">
+              {(items as InsRoomCell[]).slice(0, 3).map((classAtTime, idx) => {
                 const inner = (
                   <div key={`${classAtTime.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug break-words">
                     <div className="font-semibold break-words">{classAtTime.course}</div>
@@ -745,6 +755,11 @@ export function OpticoreInsForm5C({
                 );
                 return <div key={`${classAtTime.time}-${idx}`}>{inner}</div>;
               })}
+              {(items as InsRoomCell[]).length > 3 ? (
+                <div className="text-[10px] text-neutral-600 print:text-[9px]">
+                  +{(items as InsRoomCell[]).length - 3} more…
+                </div>
+              ) : null}
             </div>
           );
         }}

@@ -32,3 +32,6 @@ supabase/.temp/
 
 # Local one-off scripts (never commit)
 web/scripts/set-auth-user-password.mjs
+
+# Figma export workspace (source-only, not part of runtime build)
+Landingpage/

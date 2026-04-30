@@ -76,14 +76,15 @@ export function BsitProspectusSummaryTable({
           : "All year levels";
 
   return (
-    <div className={`rounded-xl border border-black/10 bg-white shadow-[0px_4px_4px_rgba(0,0,0,0.08)] overflow-hidden ${className}`}>
-      <div className="bg-[#780301] text-white px-4 py-3">
-        <h3 className="text-sm font-bold tracking-tight">Summary of Subjects (GEC-by Year Level).</h3>
-        <p className="text-[11px] text-white/85 mt-1">
-          Program: <strong>{label}</strong> · Scope: <strong>{scopeLabel}</strong> (year from the selected section name;
-          semester from the current term when detected). Click a row to select a code for vacant GEC slots below. Register
-          curricula in{" "}
-          <code className="rounded bg-white/15 px-1">lib/chairman/prospectus-registry.ts</code>.
+    <div className={`border border-black/10 bg-white ${className}`}>
+      <div className="px-4 py-3 border-b border-black/10">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h3 className="text-sm font-bold text-[#780301]">Summary of Subjects (GEC)</h3>
+          <span className="text-xs text-black/55">· Program: {label}</span>
+          <span className="text-xs text-black/55">· Scope: {scopeLabel}</span>
+        </div>
+        <p className="text-[11px] text-black/50 mt-1">
+          Click a code to prefill vacant GEC slot plotting. Plotted status reflects the current section/term scope.
         </p>
       </div>
       {!programCode.trim() ? (
@@ -99,77 +100,48 @@ export function BsitProspectusSummaryTable({
           </p>
         </div>
       ) : (
-        <div className="max-h-[min(58vh,720px)] overflow-y-auto">
-          <table className="w-full border-collapse text-[11px]">
-            <thead className="sticky top-0 z-[1]">
-              <tr className="bg-[#ff990a] text-white">
-                <th className="border border-black/10 px-2 py-2 text-left font-bold w-[88px]">Year level</th>
-                <th className="border border-black/10 px-2 py-2 text-left font-bold w-[72px]">Sem</th>
-                <th className="border border-black/10 px-2 py-2 text-left font-bold">Code</th>
-                <th className="border border-black/10 px-2 py-2 text-left font-bold">Title</th>
-                <th className="border border-black/10 px-2 py-2 text-right font-bold w-[52px]">Lec U</th>
-                <th className="border border-black/10 px-2 py-2 text-right font-bold w-[52px]">Lab U</th>
-                {plottedSubjectCodes ? (
-                  <th className="border border-black/10 px-2 py-2 text-left font-bold w-[88px]">Status</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {groups.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={plottedSubjectCodes ? 7 : 6}
-                    className="border border-black/10 px-3 py-8 text-center text-[12px] text-black/55"
-                  >
-                    No GEC subjects found for the selected year level / semester scope.
-                  </td>
-                </tr>
-              ) : null}
-              {groups.map((g) =>
-                g.subjects.map((s, i) => (
-                  <tr
-                    key={`${g.yearLevel}-${s.code}-${s.semester}`}
-                    className={`cursor-pointer transition-colors ${
-                      activeCode === s.code
-                        ? "bg-emerald-100 ring-1 ring-emerald-400"
-                        : i % 2 === 0
-                          ? "bg-white"
-                          : "bg-black/[0.02]"
-                    } hover:bg-amber-50/80`}
-                    onClick={() => pick(s.code)}
-                  >
-                    {i === 0 ? (
-                      <td
-                        rowSpan={g.subjects.length}
-                        className="border border-black/10 px-2 py-1.5 align-top font-semibold text-black/80 whitespace-nowrap bg-black/[0.03]"
+        <div className="px-4 py-3 text-[12px] leading-relaxed">
+          {groups.length === 0 ? (
+            <div className="text-[12px] text-black/55 py-6">No GEC subjects found for the selected scope.</div>
+          ) : null}
+          {groups.map((g) => {
+            const MAX_LINES = 16;
+            const lines = g.subjects.slice(0, MAX_LINES);
+            const more = g.subjects.length - lines.length;
+            return (
+              <div key={String(g.yearLevel)} className="mb-2">
+                <div className="font-semibold text-black/70 text-[11px]">Year {g.yearLevel}</div>
+                <div className="mt-1 space-y-1">
+                  {lines.map((s) => {
+                    const plotted = Boolean(plottedSubjectCodes?.has(normalizeProspectusCode(s.code)));
+                    const active = activeCode === s.code;
+                    return (
+                      <button
+                        key={`${s.code}-${s.semester}`}
+                        type="button"
+                        className={`w-full text-left rounded px-1 py-0.5 transition-colors ${
+                          active ? "bg-amber-50" : plotted ? "bg-emerald-50" : ""
+                        } hover:bg-amber-50/70`}
+                        onClick={() => pick(s.code)}
+                        title={s.title}
                       >
-                        Year {g.yearLevel}
-                      </td>
-                    ) : null}
-                    <td className="border border-black/10 px-2 py-1.5 text-black/75 text-[10px] font-medium whitespace-nowrap">
-                      {s.semester === 1 ? "1st" : "2nd"}
-                    </td>
-                    <td className="border border-black/10 px-2 py-1.5 font-mono font-semibold text-[#780301]">{s.code}</td>
-                    <td className="border border-black/10 px-2 py-1.5 text-black/85">{s.title}</td>
-                    <td className="border border-black/10 px-2 py-1.5 text-right tabular-nums">{s.lecUnits}</td>
-                    <td className="border border-black/10 px-2 py-1.5 text-right tabular-nums">{s.labUnits}</td>
-                    {plottedSubjectCodes ? (
-                      <td className="border border-black/10 px-2 py-1.5 text-[10px]">
-                        {plottedSubjectCodes.has(normalizeProspectusCode(s.code)) ? (
-                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-900">
+                        <span className="font-mono font-semibold text-[#780301]">{s.code}</span>{" "}
+                        <span className="text-black/50 text-[11px]">({s.semester === 1 ? "1st" : "2nd"} sem)</span>
+                        {plotted ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-900 font-semibold text-[11px] ml-2">
                             <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
                             Plotted
                           </span>
-                        ) : (
-                          <span className="text-black/45">—</span>
-                        )}
-                      </td>
-                    ) : null}
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
+                        ) : null}
+                        <div className="text-[11px] text-black/65 line-clamp-1">{s.title}</div>
+                      </button>
+                    );
+                  })}
+                  {more > 0 ? <div className="text-[11px] text-black/45">… and {more} more</div> : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
