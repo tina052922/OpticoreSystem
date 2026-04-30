@@ -39,6 +39,7 @@ import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
+import { PolicyJustificationModal } from "@/components/evaluator/PolicyJustificationModal";
 import {
   formatInstructorPlotOptionLabel,
   formatUserInstructorLabel,
@@ -708,7 +709,7 @@ export function EvaluatorTimetablingPanel({
     window.setTimeout(() => setAddDraftBusy(false), 450);
   }
 
-  async function saveToDatabase() {
+  async function saveToDatabase(opts?: { skipJustificationPrompt?: boolean }) {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       toast.error("Failed to save. Please try again.", "Supabase is not configured.");
@@ -736,14 +737,15 @@ export function EvaluatorTimetablingPanel({
 
     const hasAnyViolation = policyEvaluation.hasAnyViolation;
 
-    if (hasAnyViolation) {
-      const t = justificationText.trim();
-      if (t.length < 12) {
-        setJustModalOpen(true);
-        setSaveMsg("Faculty load policies are exceeded. Enter a justification for the DOI (min. 12 characters).");
-        toast.error("Failed to save. Please try again.", "Enter a justification for the DOI (min. 12 characters).");
-        return;
-      }
+    if (hasAnyViolation && !opts?.skipJustificationPrompt) {
+      setJustModalOpen(true);
+      setSaveMsg("Faculty load policies are exceeded. Proceed with a justification to save anyway.");
+      return;
+    }
+    if (hasAnyViolation && justificationText.trim().length < 12) {
+      setJustModalOpen(true);
+      setSaveMsg("Enter a justification for DOI/VPAA review (min. 12 characters).");
+      return;
     }
 
     setPolicySaving(true);
@@ -1586,42 +1588,17 @@ export function EvaluatorTimetablingPanel({
         </div>
       ) : null}
 
-      {justModalOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
-          <div
-            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl space-y-4 border border-black/10"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="just-modal-title"
-          >
-            <h2 id="just-modal-title" className="text-lg font-semibold">
-              Faculty load justification
-            </h2>
-            <p className="text-sm text-black/70">
-              This timetable exceeds Faculty Manual teaching-load rules. Enter a short justification for the DOI (minimum
-              12 characters). Saving will record it with the schedule.
-            </p>
-            <textarea
-              className="w-full min-h-[120px] rounded-lg border border-black/20 px-3 py-2 text-sm"
-              value={justificationText}
-              onChange={(e) => setJustificationText(e.target.value)}
-            />
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setJustModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-[#780301] text-white"
-                disabled={policySaving || justificationText.trim().length < 12}
-                onClick={() => void saveToDatabase()}
-              >
-                Save with justification
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <PolicyJustificationModal
+        open={justModalOpen}
+        title="Policy justification"
+        promptText="This assignment exceeds the faculty load policy. Do you want to proceed with justification?"
+        value={justificationText}
+        minLength={12}
+        saving={policySaving}
+        onChange={setJustificationText}
+        onCancel={() => setJustModalOpen(false)}
+        onSave={() => saveToDatabase({ skipJustificationPrompt: true })}
+      />
     </div>
   );
 }

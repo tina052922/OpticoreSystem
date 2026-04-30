@@ -38,6 +38,7 @@ export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/college", icon: "LayoutDashboard" },
   { label: "INS Form (Schedule View)", href: "/admin/college/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/college/evaluator", icon: "ClipboardList" },
+  { label: "Policy justifications", href: "/admin/college/policy-reviews", icon: "Scale" },
   { label: "Schedule change requests", href: "/admin/college/schedule-change-requests", icon: "ClipboardList" },
   { label: "Access requests", href: "/admin/college/access-requests", icon: "KeyRound" },
   { label: "Audit log", href: "/admin/college/audit-log", icon: "History" },
