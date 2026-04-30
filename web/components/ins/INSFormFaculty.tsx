@@ -155,7 +155,7 @@ export function INSFormFaculty({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       {!lockedInstructorId && !campusWide ? (
-        <div className="mb-6 max-w-[1200px] mx-auto">
+        <div className="mb-6 max-w-[1200px] mx-auto no-print">
           <CampusScopeFilters
             variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
             chairmanCollegeId={chairmanCollegeId ?? null}
@@ -166,7 +166,7 @@ export function INSFormFaculty({
         </div>
       ) : null}
       {campusWide ? (
-        <div className="mb-4 max-w-[1200px] mx-auto space-y-2">
+        <div className="mb-4 max-w-[1200px] mx-auto space-y-2 no-print">
           <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
             Campus-wide · all colleges
           </span>
@@ -174,7 +174,7 @@ export function INSFormFaculty({
       ) : null}
 
       <div className="max-w-[1200px] mx-auto space-y-4">
-        <div>
+        <div className="no-print">
           <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
           <p className="text-gray-600 text-sm">
             Official INS forms — Program by Teacher (5A), Section (5B), Room (5C). Faculty view reflects{" "}
@@ -193,7 +193,7 @@ export function INSFormFaculty({
           : null}
 
         {!hideInnerInsTabs ? (
-          <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+          <div className="flex gap-2 border-b border-gray-200 flex-wrap no-print">
             {[
               { label: "INS Faculty", href: `${insBasePath}/faculty` },
               { label: "INS Section", href: `${insBasePath}/section` },
@@ -225,20 +225,22 @@ export function INSFormFaculty({
         ) : null}
 
         {useLiveData && live.error ? (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{live.error}</p>
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">{live.error}</p>
         ) : null}
         {useLiveData && live.periodLabel ? (
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-gray-600 no-print">
             Live term: <strong>{live.periodLabel}</strong>
             {live.loading ? " · Loading…" : null}
           </p>
         ) : null}
 
         {useLiveData && live.termPublishLocked && live.periodLabel ? (
-          <InsPublishedBanner periodLabel={live.periodLabel} />
+          <div className="no-print">
+            <InsPublishedBanner periodLabel={live.periodLabel} />
+          </div>
         ) : null}
 
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
           <div className="w-full lg:max-w-md space-y-1">
             {useLiveData ? (
               lockedInstructorId ? (
@@ -320,7 +322,7 @@ export function INSFormFaculty({
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 print:p-4 shadow-sm print-paper print:shadow-none">
+        <div className="print-area bg-white rounded-lg border border-gray-200 p-8 md:p-10 print:p-0 shadow-sm print-paper print:shadow-none">
           <OpticoreInsForm5A
             facultyName={displayFacultyName}
             schedule={displaySchedule}

@@ -216,13 +216,13 @@ export function INSFormRoom({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       {campusWide ? (
-        <div className="mb-4 max-w-[1200px] mx-auto space-y-2">
+        <div className="mb-4 max-w-[1200px] mx-auto space-y-2 no-print">
           <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
             Campus-wide · all colleges
           </span>
         </div>
       ) : (
-        <div className="mb-6 max-w-[1200px] mx-auto">
+        <div className="mb-6 max-w-[1200px] mx-auto no-print">
           <CampusScopeFilters
             variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
             chairmanCollegeId={chairmanCollegeId ?? null}
@@ -234,7 +234,7 @@ export function INSFormRoom({
       )}
 
       <div className="max-w-[1200px] mx-auto space-y-4">
-        <div>
+        <div className="no-print">
           <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
           <p className="text-gray-600 text-sm">
             Room utilization (5C). Search rooms that have classes this term; a unique match loads that room&apos;s
@@ -243,7 +243,7 @@ export function INSFormRoom({
         </div>
 
         {!hideInnerInsTabs ? (
-          <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+          <div className="flex gap-2 border-b border-gray-200 flex-wrap no-print">
             {[
               { label: "INS Faculty", href: `${insBasePath}/faculty` },
               { label: "INS Section", href: `${insBasePath}/section` },
@@ -266,29 +266,33 @@ export function INSFormRoom({
         ) : null}
 
         {useLiveData && insBasePath ? (
-          <InsEntityGroupingStrip
-            insBasePath={insBasePath}
-            facultyCount={catalog.instructorOptions.length}
-            sectionCount={catalog.sectionOptions.length}
-            roomCount={catalog.roomOptions.length}
-          />
+          <div className="no-print">
+            <InsEntityGroupingStrip
+              insBasePath={insBasePath}
+              facultyCount={catalog.instructorOptions.length}
+              sectionCount={catalog.sectionOptions.length}
+              roomCount={catalog.roomOptions.length}
+            />
+          </div>
         ) : null}
 
         {useLiveData && catalog.error ? (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{catalog.error}</p>
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">{catalog.error}</p>
         ) : null}
         {useLiveData && catalog.periodLabel ? (
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-gray-600 no-print">
             Live term: <strong>{catalog.periodLabel}</strong>
             {catalog.loading ? " · Loading…" : null}
           </p>
         ) : null}
 
         {useLiveData && catalog.termPublishLocked && catalog.periodLabel ? (
-          <InsPublishedBanner periodLabel={catalog.periodLabel} />
+          <div className="no-print">
+            <InsPublishedBanner periodLabel={catalog.periodLabel} />
+          </div>
         ) : null}
 
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
           {useLiveData ? (
             <InsScheduleEntitySearch
               label="Room (search)"
@@ -356,7 +360,7 @@ export function INSFormRoom({
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 print:p-4 shadow-sm print-paper print:shadow-none">
+        <div className="print-area bg-white rounded-lg border border-gray-200 p-8 md:p-10 print:p-0 shadow-sm print-paper print:shadow-none">
           <OpticoreInsForm5C
             roomAssignment={displayRoom}
             schedule={displaySchedule}
