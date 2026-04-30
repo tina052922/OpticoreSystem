@@ -431,6 +431,14 @@ export function BsitChairmanEvaluatorWorksheet({
   /** Any row published for this term — RLS blocks chairman mutations; worksheet stays read-only. */
   const schedulePublished = useMemo(() => rows.some((r) => Boolean(r.lockedByDoiAt)), [rows]);
 
+  /**
+   * Evaluator grid behavior: when the user selects a section, show only that section's rows.
+   * This prevents "carry-over" confusion where previously plotted rows from other sections remain visible.
+   */
+  const visibleRows = useMemo(() => {
+    return selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : rows;
+  }, [rows, selectedSectionId]);
+
   const roomCodeById = useMemo(() => {
     const m = new Map<string, string>();
     itLabsWithFallback.forEach((r) => m.set(r.id, r.code));
@@ -891,7 +899,10 @@ export function BsitChairmanEvaluatorWorksheet({
     toast.info("Adding schedule…");
     setRows((prev) => {
       if (prev.some((r) => Boolean(r.lockedByDoiAt))) return prev;
-      return [...prev, emptyRow()];
+      const base = emptyRow();
+      /** UX: if the user selected a section filter, prefill it for new rows. */
+      const next = selectedSectionId ? { ...base, sectionId: selectedSectionId } : base;
+      return [...prev, next];
     });
     window.setTimeout(() => setAddRowBusy(false), 450);
   }
@@ -1523,14 +1534,16 @@ export function BsitChairmanEvaluatorWorksheet({
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {visibleRows.length === 0 ? (
                 <tr>
                   <td colSpan={14} className="px-4 py-10 text-center text-[13px] text-black/50">
-                    No rows yet. Click &quot;Add schedule row&quot; to plot BSIT sections (Mon–Fri, 7:00 AM–5:00 PM).
+                    {selectedSectionId
+                      ? "No schedule rows for this section yet. Click “Add schedule row” to start plotting."
+                      : "No rows yet. Click “Add schedule row” to plot BSIT sections (Mon–Fri, 7:00 AM–5:00 PM)."}
                   </td>
                 </tr>
               ) : (
-                rows.map((row, i) => {
+                visibleRows.map((row, i) => {
                   const pr = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
                   const dur = pr ? scheduleDurationSlots(pr) : 1;
                   const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;

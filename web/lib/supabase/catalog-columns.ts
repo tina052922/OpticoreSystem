@@ -20,10 +20,10 @@ export const Q = {
   scheduleLoadJustification:
     "id,academicPeriodId,collegeId,authorUserId,authorName,authorEmail,justification,violationsSnapshot,createdAt,updatedAt,doiDecision,doiReviewedAt,doiReviewedById,doiReviewNote",
   /** Policy / evaluator loads (name + policy fields) */
-  facultyProfilePolicy: "id,userId,fullName,status,designation,ratePerHour",
+  facultyProfilePolicy: "id,userId,fullName,status,designation,ratePerHour,advisorySectionId",
   /** INS 5A credentials block + form summary (+ `aka` for printed name rules) */
   facultyProfileIns:
-    "id,userId,fullName,aka,bsDegree,msDegree,doctoralDegree,major1,major2,major3,minor1,minor2,minor3,specialTraining,designation,production,extension,research",
+    "id,userId,fullName,aka,advisorySectionId,bsDegree,msDegree,doctoralDegree,major1,major2,major3,minor1,minor2,minor3,specialTraining,designation,production,extension,research",
   /** Lightweight: INS catalog dropdowns / cell labels (AKA vs full name) */
   facultyProfileInsNames: "userId,fullName,aka",
   notification: "id,userId,message,isRead,createdAt",
@@ -36,7 +36,7 @@ export const Q = {
     "id,academicPeriodId,status,signedByName,signedAt,signedAcknowledged,publishedAt,decidedById,decidedAt,notes,createdAt,updatedAt",
   /** Faculty profile workspace (full row for list + edit) */
   facultyProfileRow:
-    "id,userId,fullName,aka,bsDegree,msDegree,doctoralDegree,major1,major2,major3,minor1,minor2,minor3,research,extension,production,specialTraining,status,designation,ratePerHour",
+    "id,userId,fullName,aka,advisorySectionId,bsDegree,msDegree,doctoralDegree,major1,major2,major3,minor1,minor2,minor3,research,extension,production,specialTraining,status,designation,ratePerHour",
 } as const;
 
 export function defaultAcademicPeriodId(periods: readonly { id: string; isCurrent: boolean }[]): string {

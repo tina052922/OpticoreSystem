@@ -74,6 +74,8 @@ export interface FacultyProfile {
   userId: string;
   fullName: string;
   aka: string | null;
+  /** Optional: section this faculty advises (set by chairman/college admin). */
+  advisorySectionId?: string | null;
   bsDegree: string | null;
   msDegree: string | null;
   doctoralDegree: string | null;
