@@ -199,14 +199,14 @@ export function OpticoreInsForm5A({
             );
           }
           return (
-            <div className="w-full space-y-1">
+            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto pr-1">
               {(items as InsFacultyCell[]).map((classAtTime, idx) => {
                 const inner = (
-                  <div className="w-full space-y-0.5 text-xs leading-snug">
-                    <div className="font-semibold">{classAtTime.course}</div>
+                  <div className="w-full space-y-0.5 text-xs leading-snug break-words">
+                    <div className="font-semibold break-words">{classAtTime.course}</div>
                     <div className="text-[10px] text-neutral-600">{classAtTime.time}</div>
-                    <div>{classAtTime.yearSec}</div>
-                    <div>{classAtTime.room}</div>
+                    <div className="break-words">{classAtTime.yearSec}</div>
+                    <div className="break-words">{classAtTime.room}</div>
                   </div>
                 );
                 const entryId = classAtTime.scheduleEntryId;
@@ -558,14 +558,14 @@ export function OpticoreInsForm5B({
             );
           }
           return (
-            <div className="w-full space-y-1">
+            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto pr-1">
               {(items as SectionScheduleCell[]).map((row, idx) => {
                 const inner = (
-                  <div key={`${row.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug">
-                    <div className="font-semibold">{row.course}</div>
+                  <div key={`${row.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug break-words">
+                    <div className="font-semibold break-words">{row.course}</div>
                     <div className="text-[10px] text-neutral-600">{row.time}</div>
-                    <div>{row.instructor}</div>
-                    <div>{row.room}</div>
+                    <div className="break-words">{row.instructor}</div>
+                    <div className="break-words">{row.room}</div>
                   </div>
                 );
                 return <div key={`${row.time}-${idx}`}>{inner}</div>;
@@ -732,15 +732,15 @@ export function OpticoreInsForm5C({
             );
           }
           return (
-            <div className="w-full space-y-1">
+            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto pr-1">
               {(items as InsRoomCell[]).map((classAtTime, idx) => {
                 const inner = (
-                  <div key={`${classAtTime.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug">
-                    <div className="font-semibold">{classAtTime.course}</div>
+                  <div key={`${classAtTime.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug break-words">
+                    <div className="font-semibold break-words">{classAtTime.course}</div>
                     <div className="text-[10px] text-neutral-600">{classAtTime.time}</div>
-                    <div>{classAtTime.instructor}</div>
-                    <div>{classAtTime.yearSec}</div>
-                    <div>{classAtTime.room}</div>
+                    <div className="break-words">{classAtTime.instructor}</div>
+                    <div className="break-words">{classAtTime.yearSec}</div>
+                    <div className="break-words">{classAtTime.room}</div>
                   </div>
                 );
                 return <div key={`${classAtTime.time}-${idx}`}>{inner}</div>;

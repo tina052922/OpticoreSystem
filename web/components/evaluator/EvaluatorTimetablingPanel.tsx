@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
-import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, TIME_SLOT_OPTIONS, WEEKDAYS } from "@/lib/scheduling/constants";
+import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, WEEKDAYS } from "@/lib/scheduling/constants";
 import { detectConflictsForEntry, scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
@@ -611,7 +611,44 @@ export function EvaluatorTimetablingPanel({
     }
   }
 
-  const slot = TIME_SLOT_OPTIONS[slotIndex] ?? TIME_SLOT_OPTIONS[0]!;
+  /**
+   * Timetabling plotter: compute end time from the selected subject's contact hours (lec+lab).
+   * This keeps INS hours/week + conflict spans consistent (e.g., a 3-unit lecture should not be forced into 2 hours).
+   */
+  const startTimeOptions = useMemo(() => {
+    // Hourly starts from 07:00 up to 18:00 (end-time clamped below).
+    return Array.from({ length: 12 }, (_, i) => {
+      const h = 7 + i;
+      const hh = String(h).padStart(2, "0");
+      return { label: `${hh}:00`, startTime: `${hh}:00` };
+    });
+  }, []);
+
+  const subjectContactHours = useMemo(() => {
+    const s = subjectById.get(subjectId);
+    const raw = (s?.lecHours ?? 0) + (s?.labHours ?? 0);
+    // Default to 2 hours if catalog is missing contact hours (keeps UI usable).
+    const hrs = raw > 0 ? raw : 2;
+    // Most schedules are whole-hour blocks in CTU grids; round up to avoid under-scheduling.
+    return Math.max(1, Math.ceil(hrs));
+  }, [subjectById, subjectId]);
+
+  const slotStart = startTimeOptions[slotIndex]?.startTime ?? startTimeOptions[0]!.startTime;
+  const slot = useMemo(() => {
+    const [hStr, mStr] = slotStart.split(":");
+    const h = parseInt(hStr ?? "7", 10);
+    const m = parseInt(mStr ?? "0", 10);
+    const endH = h + subjectContactHours;
+    // Clamp to 19:00 end to stay within the plotting day window.
+    const clampedEndH = Math.min(endH, 19);
+    const hhEnd = String(clampedEndH).padStart(2, "0");
+    const endTime = `${hhEnd}:${String(m).padStart(2, "0")}`;
+    return {
+      label: `${slotStart} – ${endTime} (${subjectContactHours}h)`,
+      startTime: slotStart,
+      endTime,
+    };
+  }, [slotStart, subjectContactHours]);
 
   const candidate = useMemo((): ScheduleBlock | null => {
     if (!academicPeriodId || !sectionId || !subjectId || !instructorId || !roomId) return null;
@@ -687,9 +724,7 @@ export function EvaluatorTimetablingPanel({
 
   function applySuggestion(s: GASuggestion) {
     setDay(s.day);
-    const idx = TIME_SLOT_OPTIONS.findIndex(
-      (t) => t.startTime === s.startTime && t.endTime === s.endTime,
-    );
+    const idx = startTimeOptions.findIndex((t) => t.startTime === s.startTime);
     if (idx >= 0) setSlotIndex(idx);
     setRoomId(s.roomId);
     setInstructorId(s.instructorId);
@@ -1301,8 +1336,8 @@ export function EvaluatorTimetablingPanel({
                 value={slotIndex}
                 onChange={(e) => setSlotIndex(parseInt(e.target.value, 10))}
               >
-                {TIME_SLOT_OPTIONS.map((t, i) => (
-                  <option key={t.label} value={i}>
+                {startTimeOptions.map((t, i) => (
+                  <option key={t.startTime} value={i}>
                     {t.label}
                   </option>
                 ))}
