@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
-import type { FacultyProfile, User } from "@/types/db";
+import type { FacultyProfile, Program, Section, User } from "@/types/db";
 
 /**
  * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
@@ -66,19 +66,26 @@ export function FacultyProfileWorkspace({
   const [specialTraining, setSpecialTraining] = useState("");
   const [status, setStatus] = useState("Organic");
   const [designation, setDesignation] = useState("");
+  const [advisorySectionId, setAdvisorySectionId] = useState("");
 
   const [rows, setRows] = useState<ListRow[]>([]);
   const [facultyListSearch, setFacultyListSearch] = useState("");
-  const [editState, setEditState] = useState<Record<string, { status: string; designation: string }>>({});
+  const [editState, setEditState] = useState<
+    Record<string, { status: string; designation: string; advisorySectionId: string }>
+  >({});
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
 
   const loadFaculty = useCallback(async () => {
     if (!collegeId) {
       setRows([]);
+      setSections([]);
+      setPrograms([]);
       return;
     }
     const supabase = createSupabaseBrowserClient();
@@ -133,16 +140,33 @@ export function FacultyProfileWorkspace({
     }
 
     const ids = list.map((u) => u.id);
-    const { data: profs, error: pErr } = await supabase
-      .from("FacultyProfile")
-      .select(Q.facultyProfileRow)
-      .in("userId", ids);
+    const [profsRes, progRes] = await Promise.all([
+      supabase.from("FacultyProfile").select(Q.facultyProfileRow).in("userId", ids),
+      supabase.from("Program").select(Q.program).eq("collegeId", collegeId).order("name"),
+    ]);
     setLoadingList(false);
-    if (pErr) {
-      setError(pErr.message);
+    if (profsRes.error) {
+      setError(profsRes.error.message);
       return;
     }
-    const byUser = new Map((profs as FacultyProfile[] | null)?.map((p) => [p.userId, p]) ?? []);
+    if (progRes.error) {
+      setError(progRes.error.message);
+      return;
+    }
+    setPrograms((progRes.data ?? []) as Program[]);
+
+    const programIds = (progRes.data ?? []).map((p) => p.id);
+    const secRes =
+      programIds.length > 0
+        ? await supabase.from("Section").select(Q.section).in("programId", programIds).order("name")
+        : { data: [] as Section[], error: null };
+    if (secRes.error) {
+      setError(secRes.error.message);
+      return;
+    }
+    setSections((secRes.data ?? []) as Section[]);
+
+    const byUser = new Map((profsRes.data as FacultyProfile[] | null)?.map((p) => [p.userId, p]) ?? []);
     setRows(
       list.map((u) => ({
         user: { id: u.id, name: u.name, employeeId: u.employeeId },
@@ -162,6 +186,7 @@ export function FacultyProfileWorkspace({
         next[user.id] = {
           status: profile?.status ?? "Organic",
           designation: profile?.designation ?? "",
+          advisorySectionId: profile?.advisorySectionId ?? "",
         };
       }
       return next;
@@ -198,11 +223,12 @@ export function FacultyProfileWorkspace({
     const name = row.profile?.fullName ?? row.user.name;
     const statusVal = draft.status.trim() || null;
     const designationVal = draft.designation.trim() || null;
+    const advisorySectionIdVal = draft.advisorySectionId.trim() || null;
 
     if (row.profile) {
       const { error: uErr } = await supabase
         .from("FacultyProfile")
-        .update({ status: statusVal, designation: designationVal })
+        .update({ status: statusVal, designation: designationVal, advisorySectionId: advisorySectionIdVal })
         .eq("id", row.profile.id);
       setSavingRowId(null);
       if (uErr) {
@@ -215,6 +241,7 @@ export function FacultyProfileWorkspace({
         fullName: name,
         status: statusVal,
         designation: designationVal,
+        advisorySectionId: advisorySectionIdVal,
         ratePerHour: null,
       });
       setSavingRowId(null);
@@ -315,6 +342,7 @@ export function FacultyProfileWorkspace({
       userId: id,
       fullName: nameTrim,
       aka: aka.trim() || null,
+      advisorySectionId: advisorySectionId.trim() || null,
       bsDegree: bsDegree.trim() || null,
       msDegree: msDegree.trim() || null,
       doctoralDegree: doctoralDegree.trim() || null,
@@ -364,8 +392,15 @@ export function FacultyProfileWorkspace({
     setSpecialTraining("");
     setStatus("Organic");
     setDesignation("");
+    setAdvisorySectionId("");
     void loadFaculty();
   }
+
+  const sectionNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    sections.forEach((s) => m.set(s.id, s.name));
+    return m;
+  }, [sections]);
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6 max-h-[min(85vh,1200px)] overflow-y-auto">
@@ -520,6 +555,25 @@ export function FacultyProfileWorkspace({
               <div className="text-sm font-medium">Administrative Designation</div>
               <Input placeholder="Instructor I" value={designation} onChange={(e) => setDesignation(e.target.value)} disabled={!collegeId} />
             </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Advisory (Assigned Section)</div>
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={advisorySectionId}
+                onChange={(e) => setAdvisorySectionId(e.target.value)}
+                disabled={!collegeId}
+              >
+                <option value="">— None —</option>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-black/50 leading-relaxed">
+                Saved on the faculty profile as <code className="bg-black/[0.04] px-1 rounded">advisorySectionId</code>.
+              </p>
+            </div>
           </div>
 
           <div className="mt-8 space-y-3">
@@ -538,6 +592,7 @@ export function FacultyProfileWorkspace({
                     <th className="border border-black/10 px-2 py-2 text-left">Employee ID</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Status</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Designation</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Advisory</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Program</th>
                     {enableFacultyListEdit ? (
                       <th className="border border-black/10 px-2 py-2 text-left w-28">Save</th>
@@ -548,7 +603,7 @@ export function FacultyProfileWorkspace({
                   {!collegeId ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 6 : 5}
+                        colSpan={enableFacultyListEdit ? 7 : 6}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No college in scope.
@@ -557,7 +612,7 @@ export function FacultyProfileWorkspace({
                   ) : rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 6 : 5}
+                        colSpan={enableFacultyListEdit ? 7 : 6}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No instructors in the database for this college yet.
@@ -566,7 +621,7 @@ export function FacultyProfileWorkspace({
                   ) : filteredRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 6 : 5}
+                        colSpan={enableFacultyListEdit ? 7 : 6}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No faculty match &quot;{facultyListSearch.trim()}&quot;.
@@ -577,6 +632,7 @@ export function FacultyProfileWorkspace({
                       const draft = editState[user.id] ?? {
                         status: profile?.status ?? "Organic",
                         designation: profile?.designation ?? "",
+                        advisorySectionId: profile?.advisorySectionId ?? "",
                       };
                       return (
                         <tr key={user.id}>
@@ -617,6 +673,31 @@ export function FacultyProfileWorkspace({
                               />
                             ) : (
                               (profile?.designation ?? "—")
+                            )}
+                          </td>
+                          <td className="border border-black/10 px-2 py-2 align-top">
+                            {enableFacultyListEdit ? (
+                              <select
+                                className="w-full min-h-9 rounded-md border border-gray-300 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+                                value={draft.advisorySectionId}
+                                onChange={(e) =>
+                                  setEditState((s) => ({
+                                    ...s,
+                                    [user.id]: { ...draft, advisorySectionId: e.target.value },
+                                  }))
+                                }
+                              >
+                                <option value="">— None —</option>
+                                {sections.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : profile?.advisorySectionId ? (
+                              (sectionNameById.get(profile.advisorySectionId) ?? "—")
+                            ) : (
+                              "—"
                             )}
                           </td>
                           <td className="border border-black/10 px-2 py-2">{programLabel}</td>
@@ -688,14 +769,75 @@ export function FacultyProfileWorkspace({
                   <th className="border border-black/10 px-2 py-2 text-left">Adviser</th>
                   <th className="border border-black/10 px-2 py-2 text-left">Section</th>
                   <th className="border border-black/10 px-2 py-2 text-left">Students</th>
+                  {enableFacultyListEdit ? (
+                    <th className="border border-black/10 px-2 py-2 text-left w-28">Save</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="text-[12px]">
-                <tr>
-                  <td colSpan={3} className="border border-black/10 px-2 py-6 text-center text-black/45">
-                    Advisory data is not stored in this release — use the Profile tab to manage faculty records.
-                  </td>
-                </tr>
+                {filteredRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={enableFacultyListEdit ? 4 : 3}
+                      className="border border-black/10 px-2 py-6 text-center text-black/45"
+                    >
+                      {rows.length === 0 ? "No data — add faculty on the Profile tab." : "No rows match your search."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRows.map(({ user, profile }) => {
+                    const draft = editState[user.id] ?? {
+                      status: profile?.status ?? "Organic",
+                      designation: profile?.designation ?? "",
+                      advisorySectionId: profile?.advisorySectionId ?? "",
+                    };
+                    const sec = draft.advisorySectionId ? sections.find((s) => s.id === draft.advisorySectionId) : null;
+                    return (
+                      <tr key={user.id}>
+                        <td className="border border-black/10 px-2 py-2">{profile?.fullName ?? user.name}</td>
+                        <td className="border border-black/10 px-2 py-2 align-top">
+                          {enableFacultyListEdit ? (
+                            <select
+                              className="w-full min-h-9 rounded-md border border-gray-300 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+                              value={draft.advisorySectionId}
+                              onChange={(e) =>
+                                setEditState((s) => ({
+                                  ...s,
+                                  [user.id]: { ...draft, advisorySectionId: e.target.value },
+                                }))
+                              }
+                            >
+                              <option value="">— None —</option>
+                              {sections.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : profile?.advisorySectionId ? (
+                            (sectionNameById.get(profile.advisorySectionId) ?? "—")
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="border border-black/10 px-2 py-2 tabular-nums">{sec?.studentCount ?? "—"}</td>
+                        {enableFacultyListEdit ? (
+                          <td className="border border-black/10 px-2 py-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="bg-[#ff990a] text-white hover:bg-[#e68a09] h-8 text-[11px]"
+                              disabled={savingRowId === user.id}
+                              onClick={() => void saveFacultyEdits(user.id)}
+                            >
+                              {savingRowId === user.id ? "…" : "Save"}
+                            </Button>
+                          </td>
+                        ) : null}
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

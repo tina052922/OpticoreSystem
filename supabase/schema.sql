@@ -56,6 +56,7 @@ create table if not exists public."FacultyProfile" (
   "userId" text not null unique references public."User"(id) on delete cascade,
   "fullName" text not null,
   aka text,
+  "advisorySectionId" text references public."Section"(id) on delete set null,
   "bsDegree" text,
   "msDegree" text,
   "doctoralDegree" text,
