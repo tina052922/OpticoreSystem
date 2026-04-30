@@ -242,62 +242,56 @@ export function OpticoreInsForm5A({
         scheduleApproved={scheduleApproved}
       />
 
-      <div className="min-h-[14rem] border border-neutral-900 p-4 md:p-6">
+      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-3">
         <div className="mb-4 text-center text-sm font-bold uppercase tracking-wide">Summary of Courses</div>
-        <div className="mb-3 grid grid-cols-4 gap-2 border-b border-neutral-900 pb-3 text-xs font-semibold">
-          <span>No. of Students</span>
-          <span>Course code</span>
-          <span>Descriptive Title</span>
-          <span>Degree/Yr/Sec</span>
+        <div className="mb-2 border-b border-neutral-900 pb-2 text-xs font-semibold">
+          <div className="grid grid-cols-4 gap-2">
+            <span>No. of Students</span>
+            <span>Course code</span>
+            <span>Descriptive Title</span>
+            <span>Degree/Yr/Sec</span>
+          </div>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1 print:space-y-0.5">
           {courses.length === 0 && readOnly ? (
             <div className="grid grid-cols-4 gap-2 text-xs text-neutral-800">
-              <span className="min-h-[2.25rem] border border-neutral-400 bg-neutral-50 px-2 py-2">—</span>
-              <span className="min-h-[2.25rem] border border-neutral-400 bg-neutral-50 px-2 py-2">—</span>
-              <span className="min-h-[2.25rem] border border-neutral-400 bg-neutral-50 px-2 py-2 col-span-2 text-left leading-snug">
+              <span className="min-h-[1.4rem] px-1 py-1">—</span>
+              <span className="min-h-[1.4rem] px-1 py-1">—</span>
+              <span className="min-h-[1.4rem] px-1 py-1 col-span-2 text-left leading-snug">
                 No courses plotted for this faculty in the selected term. Use Evaluator to add schedule rows.
               </span>
             </div>
           ) : (
             courses.map((c, idx) => (
-              <div key={idx} className="grid grid-cols-4 gap-2 text-xs">
+              <div key={idx} className="grid grid-cols-4 gap-2 text-xs border-b border-black/10 last:border-b-0">
                 {readOnly ? (
                   <>
-                    <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
-                      {c.students}
-                    </span>
-                    <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
-                      {c.code}
-                    </span>
-                    <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
-                      {c.title}
-                    </span>
-                    <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
-                      {c.degreeYrSec}
-                    </span>
+                    <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.students}</span>
+                    <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.code}</span>
+                    <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.title}</span>
+                    <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.degreeYrSec}</span>
                   </>
                 ) : (
                   <>
                     <input
                       type="text"
                       defaultValue={String(c.students)}
-                      className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                      className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
                     />
                     <input
                       type="text"
                       defaultValue={c.code}
-                      className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                      className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
                     />
                     <input
                       type="text"
                       defaultValue={c.title}
-                      className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                      className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
                     />
                     <input
                       type="text"
                       defaultValue={c.degreeYrSec}
-                      className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                      className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
                     />
                   </>
                 )}
@@ -306,16 +300,16 @@ export function OpticoreInsForm5A({
           )}
           {!readOnly &&
             Array.from({ length: Math.max(0, 4 - courses.length) }).map((_, i) => (
-              <div key={`e-${i}`} className="grid grid-cols-4 gap-2 text-xs">
-                <input type="text" className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
-                <input type="text" className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
-                <input type="text" className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
-                <input type="text" className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
+              <div key={`e-${i}`} className="grid grid-cols-4 gap-2 text-xs border-b border-black/10 last:border-b-0">
+                <input type="text" className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none" />
+                <input type="text" className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none" />
+                <input type="text" className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none" />
+                <input type="text" className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none" />
               </div>
             ))}
         </div>
 
-        <div className="mt-8 border-t border-neutral-900 pt-6">
+        <div className="mt-6 print:mt-4 border-t border-neutral-900 pt-4 print:pt-3">
           <div className="grid grid-cols-1 gap-x-10 gap-y-4 text-sm md:grid-cols-2">
             <div className="space-y-4">
               {readOnly ? (
@@ -588,45 +582,39 @@ export function OpticoreInsForm5B({
         signatureStrip="campusOnly"
       />
 
-      <div className="min-h-[14rem] border border-neutral-900 p-4 md:p-6">
+      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-3">
         <div className="mb-4 text-center text-sm font-bold uppercase tracking-wide">Summary of Courses</div>
-        <div className="mb-3 grid grid-cols-4 gap-2 border-b border-neutral-900 pb-3 text-xs font-semibold">
-          <span>No. of Students</span>
-          <span>Course code</span>
-          <span>Descriptive Title</span>
-          <span>Degree/Yr/Sec</span>
+        <div className="mb-2 border-b border-neutral-900 pb-2 text-xs font-semibold">
+          <div className="grid grid-cols-4 gap-2">
+            <span>No. of Students</span>
+            <span>Course code</span>
+            <span>Descriptive Title</span>
+            <span>Degree/Yr/Sec</span>
+          </div>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1 print:space-y-0.5">
           {courses.map((c, idx) => (
-            <div key={idx} className="grid grid-cols-4 gap-2 text-xs">
+            <div key={idx} className="grid grid-cols-4 gap-2 text-xs border-b border-black/10 last:border-b-0">
               {readOnly ? (
                 <>
-                  <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
-                    {c.students}
-                  </span>
-                  <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
-                    {c.code}
-                  </span>
-                  <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
-                    {c.title}
-                  </span>
-                  <span className="flex min-h-[2.25rem] items-center border border-neutral-400 bg-white px-2 py-2">
-                    {c.degreeYrSec}
-                  </span>
+                  <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.students}</span>
+                  <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.code}</span>
+                  <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.title}</span>
+                  <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.degreeYrSec}</span>
                 </>
               ) : (
                 <>
                   <input
                     type="text"
                     defaultValue={String(c.students)}
-                    className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
                   />
-                  <input type="text" defaultValue={c.code} className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
-                  <input type="text" defaultValue={c.title} className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2" />
+                  <input type="text" defaultValue={c.code} className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none" />
+                  <input type="text" defaultValue={c.title} className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none" />
                   <input
                     type="text"
                     defaultValue={c.degreeYrSec}
-                    className="min-h-[2.25rem] border border-neutral-400 bg-white px-2 py-2"
+                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
                   />
                 </>
               )}
