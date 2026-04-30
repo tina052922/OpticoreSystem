@@ -59,6 +59,27 @@ export function useScheduleEntryCrossReload(
     };
   }, [enabled, academicPeriodId]);
 
+  /**
+   * Cross-user reflection fallback:
+   * When Supabase Realtime isn't delivering `ScheduleEntry` events (common when the publication is missing),
+   * periodically refetch the term rows. This keeps Central Hub / GEC hub aligned with INS without lag.
+   */
+  useEffect(() => {
+    if (!enabled || !academicPeriodId) return;
+    let stopped = false;
+    const tick = () => {
+      if (stopped) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void loadRef.current();
+    };
+    const jitterMs = 350 + Math.round(Math.random() * 800);
+    const id = window.setInterval(tick, 20_000 + jitterMs);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+    };
+  }, [enabled, academicPeriodId]);
+
   useEffect(() => {
     if (!enabled || !academicPeriodId) return;
     const supabase = createSupabaseBrowserClient();

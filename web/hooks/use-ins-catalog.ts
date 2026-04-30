@@ -249,6 +249,30 @@ export function useInsCatalog(args: {
     realtimeDebounceRef.current = setTimeout(() => void loadScheduleEntriesForPeriod({ soft: true }), 140);
   }, [loadScheduleEntriesForPeriod]);
 
+  /**
+   * Cross-user reflection fallback:
+   * If Supabase Realtime is misconfigured (e.g., `ScheduleEntry` not in `supabase_realtime` publication),
+   * other users won't receive `postgres_changes` events. A lightweight periodic refresh keeps INS views
+   * consistent without forcing heavy catalog reloads.
+   */
+  useEffect(() => {
+    if (!args.collegeId && !args.campusWide) return;
+    if (!academicPeriodId) return;
+    let stopped = false;
+    const tick = () => {
+      if (stopped) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void loadScheduleEntriesForPeriod({ soft: true });
+    };
+    /** Small jitter to avoid thundering herd if many clients are open. */
+    const jitterMs = 400 + Math.round(Math.random() * 900);
+    const id = window.setInterval(tick, 18_000 + jitterMs);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+    };
+  }, [args.collegeId, args.campusWide, academicPeriodId, loadScheduleEntriesForPeriod]);
+
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
     const supabase = createSupabaseBrowserClient();
