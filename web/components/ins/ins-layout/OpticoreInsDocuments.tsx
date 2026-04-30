@@ -474,6 +474,10 @@ export function OpticoreInsForm5B({
   scheduleApproved = false,
   insSignatureSlots = null,
 }: OpticoreInsForm5BProps) {
+  const PRINT_MAX_SUMMARY_ROWS = 8;
+  const shownCourses = readOnly ? courses.slice(0, PRINT_MAX_SUMMARY_ROWS) : courses;
+  const hiddenCourseCount = readOnly ? Math.max(0, courses.length - shownCourses.length) : 0;
+
   return (
     <div className="space-y-8 print:space-y-4 text-neutral-900">
       <div className="flex flex-col gap-4 print:gap-2 border-b border-neutral-300 pb-6 print:pb-3 sm:flex-row sm:items-start sm:justify-between">
@@ -503,7 +507,7 @@ export function OpticoreInsForm5B({
         </div>
       </div>
 
-      <div className="space-y-4 text-sm">
+      <div className="space-y-4 print:space-y-2 text-sm">
         <div className="flex items-end gap-3">
           <span className="shrink-0">Degree and Year:</span>
           {readOnly ? (
@@ -582,7 +586,7 @@ export function OpticoreInsForm5B({
         signatureStrip="campusOnly"
       />
 
-      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-3">
+      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-2.5">
         <div className="mb-4 text-center text-sm font-bold uppercase tracking-wide">Summary of Courses</div>
         <div className="mb-2 border-b border-neutral-900 pb-2 text-xs font-semibold">
           <div className="grid grid-cols-4 gap-2">
@@ -593,7 +597,7 @@ export function OpticoreInsForm5B({
           </div>
         </div>
         <div className="space-y-1 print:space-y-0.5">
-          {courses.map((c, idx) => (
+          {shownCourses.map((c, idx) => (
             <div key={idx} className="grid grid-cols-4 gap-2 text-xs border-b border-black/10 last:border-b-0">
               {readOnly ? (
                 <>
@@ -620,6 +624,9 @@ export function OpticoreInsForm5B({
               )}
             </div>
           ))}
+          {readOnly && hiddenCourseCount > 0 ? (
+            <div className="text-[10px] text-neutral-600 pt-1">+{hiddenCourseCount} more course(s)…</div>
+          ) : null}
         </div>
       </div>
 
@@ -756,7 +763,8 @@ export function OpticoreInsForm5C({
         signatureStrip="none"
       />
 
-      <div className="mt-12 grid grid-cols-1 gap-x-16 gap-y-12 border-t border-neutral-200 pt-12 md:grid-cols-2">
+      {/* Screen footer (spacious). Print uses a compact signature-line footer below. */}
+      <div className="mt-12 grid grid-cols-1 gap-x-16 gap-y-12 border-t border-neutral-200 pt-12 md:grid-cols-2 print:hidden">
         <div className="space-y-12">
           <RoomForm5CFooterBlock
             title="Prepared by:"
@@ -778,6 +786,25 @@ export function OpticoreInsForm5C({
             slot={campus}
             scheduleApproved={scheduleApproved}
           />
+        </div>
+      </div>
+
+      {/* Print-only footer: compact signature lines (one page). */}
+      <div className="hidden print:grid grid-cols-3 gap-6 border-t border-neutral-900 pt-4 text-[11px]">
+        <div className="text-center">
+          <div className="mb-6 border-b border-neutral-900" />
+          <div className="font-semibold">Prepared by:</div>
+          <div className="text-[10px] text-neutral-700">Program Coordinator/Chair</div>
+        </div>
+        <div className="text-center">
+          <div className="mb-6 border-b border-neutral-900" />
+          <div className="font-semibold">Reviewed, Certified True and Correct:</div>
+          <div className="text-[10px] text-neutral-700">Director/Dean</div>
+        </div>
+        <div className="text-center">
+          <div className="mb-6 border-b border-neutral-900" />
+          <div className="font-semibold">Approved:</div>
+          <div className="text-[10px] text-neutral-700">Campus Director</div>
         </div>
       </div>
     </div>
