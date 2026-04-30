@@ -1,5 +1,6 @@
 import type { FacultyProfile, ScheduleEntry, Subject, User } from "@/types/db";
 import { FACULTY_POLICY_CONSTANTS } from "./constants";
+import { designationTeachingCapHours } from "@/lib/faculty/designation-system";
 
 function parseTimeToMinutes(t: string): number {
   const [h, m] = t.split(":").map((x) => parseInt(x, 10));
@@ -44,21 +45,7 @@ export type FacultyLoadRow = {
   violations: FacultyPolicyViolation[];
 };
 
-/** Reduced teaching caps (hours/week) from designation keywords — Faculty Manual designated loads. */
-export function designationTeachingCapHours(designation: string | null | undefined): number | null {
-  if (!designation) return null;
-  const d = designation.toLowerCase();
-  if (d.includes("university director")) return 6;
-  if (d.includes("campus director") && !d.includes("assistant")) return 6;
-  if (d.includes("dean of instruction")) return 9;
-  if (d.includes("college dean") || d.includes("associate dean")) return d.includes("associate") ? 12 : 9;
-  if (d.includes("department chair") || d.includes("chairperson")) return 15;
-  if (d.includes("college secretary")) return 15;
-  if (d.includes("faculty regent")) return 9;
-  if (d.includes("faculty president") || d.includes("campus faculty president")) return 15;
-  if (d.includes("assistant campus director")) return 9;
-  return null;
-}
+// NOTE: `designationTeachingCapHours` now lives in `@/lib/faculty/designation-system` so UI + policy checks match.
 
 type FacultyContext = {
   name: string;
