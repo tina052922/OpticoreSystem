@@ -36,6 +36,7 @@ This list is generated from the actual sidebar/navigation configuration (`web/li
   - Section: `/admin/college/ins/section`
   - Room: `/admin/college/ins/room`
 - **Central Hub Evaluator**: `/admin/college/evaluator`
+- **Policy justifications**: `/admin/college/policy-reviews`
 - **Schedule Change Requests (Approve/Reject)**: `/admin/college/schedule-change-requests`
 - **Access Requests (Approve/Reject)**: `/admin/college/access-requests`
 - **Audit Log**: `/admin/college/audit-log`

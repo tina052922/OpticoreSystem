@@ -7,6 +7,7 @@ import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecCurriculumSubjectCode } from "@/lib
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { FacultyProfile, Program, Section, User } from "@/types/db";
+import { computeRatePerHour, DESIGNATION_POLICIES, getDesignationPolicyByLabel } from "@/lib/faculty/designation-system";
 
 /**
  * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
@@ -224,11 +225,23 @@ export function FacultyProfileWorkspace({
     const statusVal = draft.status.trim() || null;
     const designationVal = draft.designation.trim() || null;
     const advisorySectionIdVal = draft.advisorySectionId.trim() || null;
+    const ratePerHourVal = row.profile
+      ? computeRatePerHour(row.profile)
+      : null;
 
     if (row.profile) {
       const { error: uErr } = await supabase
         .from("FacultyProfile")
-        .update({ status: statusVal, designation: designationVal, advisorySectionId: advisorySectionIdVal })
+        .update({
+          status: statusVal,
+          designation: designationVal,
+          advisorySectionId: advisorySectionIdVal,
+          /**
+           * Keep stored rate aligned with degree fields. Evaluator uses this for “Rate per Hour” column.
+           * (Degree edits happen in the Profile tab; list edits are for quick governance fields.)
+           */
+          ratePerHour: ratePerHourVal,
+        })
         .eq("id", row.profile.id);
       setSavingRowId(null);
       if (uErr) {
@@ -338,6 +351,12 @@ export function FacultyProfileWorkspace({
       return;
     }
 
+    const computedRate = computeRatePerHour({
+      bsDegree: bsDegree.trim() || null,
+      msDegree: msDegree.trim() || null,
+      doctoralDegree: doctoralDegree.trim() || null,
+    } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree">);
+
     const { error: pIns } = await supabase.from("FacultyProfile").insert({
       userId: id,
       fullName: nameTrim,
@@ -358,7 +377,7 @@ export function FacultyProfileWorkspace({
       specialTraining: specialTraining.trim() || null,
       status: status.trim() || null,
       designation: designation.trim() || null,
-      ratePerHour: null,
+      ratePerHour: computedRate,
     });
 
     if (pIns) {
@@ -553,7 +572,34 @@ export function FacultyProfileWorkspace({
             </div>
             <div className="space-y-1">
               <div className="text-sm font-medium">Administrative Designation</div>
-              <Input placeholder="Instructor I" value={designation} onChange={(e) => setDesignation(e.target.value)} disabled={!collegeId} />
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={designation}
+                onChange={(e) => setDesignation(e.target.value)}
+                disabled={!collegeId}
+              >
+                <option value="">Regular Faculty (no designation)</option>
+                {DESIGNATION_POLICIES.filter((d) => d.key !== "Regular Faculty").map((d) => (
+                  <option key={d.key} value={d.label}>
+                    {d.label} ({d.hoursPerWeekMin}–{d.hoursPerWeekMax} hrs/wk)
+                  </option>
+                ))}
+              </select>
+              {(() => {
+                const pol = getDesignationPolicyByLabel(designation) ?? DESIGNATION_POLICIES.find((d) => d.key === "Regular Faculty")!;
+                const rate = computeRatePerHour({
+                  bsDegree: bsDegree.trim() || null,
+                  msDegree: msDegree.trim() || null,
+                  doctoralDegree: doctoralDegree.trim() || null,
+                } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree">);
+                return (
+                  <div className="text-[11px] text-black/55 leading-relaxed">
+                    Teaching load: <strong>{pol.hoursPerWeekMin}–{pol.hoursPerWeekMax} hrs/week</strong>
+                    {" · "}
+                    Rate/hour (highest degree): <strong>{rate != null ? `₱${rate}` : "—"}</strong>
+                  </div>
+                );
+              })()}
             </div>
             <div className="space-y-1">
               <div className="text-sm font-medium">Advisory (Assigned Section)</div>
@@ -660,9 +706,8 @@ export function FacultyProfileWorkspace({
                           </td>
                           <td className="border border-black/10 px-2 py-2 align-top">
                             {enableFacultyListEdit ? (
-                              <Input
-                                className="h-9 text-[12px]"
-                                placeholder="e.g. Instructor I"
+                              <select
+                                className="w-full min-h-9 rounded-md border border-gray-300 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
                                 value={draft.designation}
                                 onChange={(e) =>
                                   setEditState((s) => ({
@@ -670,7 +715,14 @@ export function FacultyProfileWorkspace({
                                     [user.id]: { ...draft, designation: e.target.value },
                                   }))
                                 }
-                              />
+                              >
+                                <option value="">Regular Faculty (no designation)</option>
+                                {DESIGNATION_POLICIES.filter((d) => d.key !== "Regular Faculty").map((d) => (
+                                  <option key={d.key} value={d.label}>
+                                    {d.label}
+                                  </option>
+                                ))}
+                              </select>
                             ) : (
                               (profile?.designation ?? "—")
                             )}
