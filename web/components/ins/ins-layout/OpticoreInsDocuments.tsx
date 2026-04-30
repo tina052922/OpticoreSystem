@@ -199,7 +199,7 @@ export function OpticoreInsForm5A({
             );
           }
           return (
-            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto print:overflow-hidden pr-1">
+            <div className="w-full space-y-1 pr-1">
               {(items as InsFacultyCell[]).slice(0, 3).map((classAtTime, idx) => {
                 const inner = (
                   <div className="w-full space-y-0.5 text-xs leading-snug break-words">
@@ -563,7 +563,7 @@ export function OpticoreInsForm5B({
             );
           }
           return (
-            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto print:overflow-hidden pr-1">
+            <div className="w-full space-y-1 pr-1">
               {(items as SectionScheduleCell[]).slice(0, 3).map((row, idx) => {
                 const inner = (
                   <div key={`${row.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug break-words">
@@ -742,7 +742,7 @@ export function OpticoreInsForm5C({
             );
           }
           return (
-            <div className="w-full space-y-1 max-h-[7.5rem] overflow-y-auto print:overflow-hidden pr-1">
+            <div className="w-full space-y-1 pr-1">
               {(items as InsRoomCell[]).slice(0, 3).map((classAtTime, idx) => {
                 const inner = (
                   <div key={`${classAtTime.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug break-words">
