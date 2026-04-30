@@ -215,26 +215,26 @@ export function INSFormRoom({
 
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
-      {campusWide ? (
-        <div className="mb-4 max-w-[1200px] mx-auto space-y-2 no-print">
-          <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
-            Campus-wide · all colleges
-          </span>
-        </div>
-      ) : (
-        <div className="mb-6 max-w-[1200px] mx-auto no-print">
-          <CampusScopeFilters
-            variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
-            chairmanCollegeId={chairmanCollegeId ?? null}
-            chairmanProgramId={chairmanProgramId}
-            chairmanProgramCode={chairmanProgramCode}
-            chairmanProgramName={chairmanProgramName}
-          />
-        </div>
-      )}
+      <div className="no-print">
+        {campusWide ? (
+          <div className="mb-4 max-w-[1200px] mx-auto space-y-2">
+            <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
+              Campus-wide · all colleges
+            </span>
+          </div>
+        ) : (
+          <div className="mb-6 max-w-[1200px] mx-auto">
+            <CampusScopeFilters
+              variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
+              chairmanCollegeId={chairmanCollegeId ?? null}
+              chairmanProgramId={chairmanProgramId}
+              chairmanProgramCode={chairmanProgramCode}
+              chairmanProgramName={chairmanProgramName}
+            />
+          </div>
+        )}
 
-      <div className="max-w-[1200px] mx-auto space-y-4">
-        <div className="no-print">
+        <div className="max-w-[1200px] mx-auto space-y-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
           <p className="text-gray-600 text-sm">
             Room utilization (5C). Search rooms that have classes this term; a unique match loads that room&apos;s
@@ -360,7 +360,7 @@ export function INSFormRoom({
           </div>
         </div>
 
-        <div className="print-area bg-white rounded-lg border border-gray-200 p-8 md:p-10 print:p-0 shadow-sm print-paper print:shadow-none">
+        <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 shadow-sm print-paper print:shadow-none">
           <OpticoreInsForm5C
             roomAssignment={displayRoom}
             schedule={displaySchedule}
@@ -370,6 +370,17 @@ export function INSFormRoom({
             semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
           />
         </div>
+      </div>
+
+      <div className="hidden print:block print-paper">
+        <OpticoreInsForm5C
+          roomAssignment={displayRoom}
+          schedule={displaySchedule}
+          scheduleApproved={useLiveData && catalog.termPublishLocked}
+          insSignatureSlots={useLiveData ? insSignatureSlots : null}
+          readOnly
+          semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
+        />
       </div>
     </div>
   );

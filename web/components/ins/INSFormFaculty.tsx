@@ -154,190 +154,209 @@ export function INSFormFaculty({
 
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
-      {!lockedInstructorId && !campusWide ? (
-        <div className="mb-6 max-w-[1200px] mx-auto no-print">
-          <CampusScopeFilters
-            variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
-            chairmanCollegeId={chairmanCollegeId ?? null}
-            chairmanProgramId={chairmanProgramId}
-            chairmanProgramCode={chairmanProgramCode}
-            chairmanProgramName={chairmanProgramName}
-          />
-        </div>
-      ) : null}
-      {campusWide ? (
-        <div className="mb-4 max-w-[1200px] mx-auto space-y-2 no-print">
-          <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
-            Campus-wide · all colleges
-          </span>
-        </div>
-      ) : null}
-
-      <div className="max-w-[1200px] mx-auto space-y-4">
-        <div className="no-print">
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
-          <p className="text-gray-600 text-sm">
-            Official INS forms — Program by Teacher (5A), Section (5B), Room (5C). Faculty view reflects{" "}
-            <strong>Evaluator / ScheduleEntry</strong> data when a college is in scope (updates via Supabase
-            Realtime).
-          </p>
-        </div>
-
-        {doiApprovalSlot
-          ? doiApprovalSlot({
-              periodId: live.academicPeriodId,
-              periods: live.periods,
-              onPeriodIdChange: live.setAcademicPeriodId,
-              reloadCatalog: live.reload,
-            })
-          : null}
-
-        {!hideInnerInsTabs ? (
-          <div className="flex gap-2 border-b border-gray-200 flex-wrap no-print">
-            {[
-              { label: "INS Faculty", href: `${insBasePath}/faculty` },
-              { label: "INS Section", href: `${insBasePath}/section` },
-              { label: "INS Room", href: `${insBasePath}/room` },
-            ].map((t) => {
-              const active = pathname === t.href;
-              return (
-                <Link
-                  key={t.href}
-                  href={t.href}
-                  className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
-                    active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
-                  }`}
-                >
-                  {t.label}
-                </Link>
-              );
-            })}
+      <div className="no-print">
+        {!lockedInstructorId && !campusWide ? (
+          <div className="mb-6 max-w-[1200px] mx-auto">
+            <CampusScopeFilters
+              variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
+              chairmanCollegeId={chairmanCollegeId ?? null}
+              chairmanProgramId={chairmanProgramId}
+              chairmanProgramCode={chairmanProgramCode}
+              chairmanProgramName={chairmanProgramName}
+            />
+          </div>
+        ) : null}
+        {campusWide ? (
+          <div className="mb-4 max-w-[1200px] mx-auto space-y-2">
+            <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
+              Campus-wide · all colleges
+            </span>
           </div>
         ) : null}
 
-        {useLiveData && !lockedInstructorId && insBasePath ? (
-          <InsEntityGroupingStrip
-            insBasePath={insBasePath}
-            facultyCount={live.instructorOptions.length}
-            sectionCount={live.sectionOptions.length}
-            roomCount={live.roomOptions.length}
-          />
-        ) : null}
-
-        {useLiveData && live.error ? (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">{live.error}</p>
-        ) : null}
-        {useLiveData && live.periodLabel ? (
-          <p className="text-xs text-gray-600 no-print">
-            Live term: <strong>{live.periodLabel}</strong>
-            {live.loading ? " · Loading…" : null}
-          </p>
-        ) : null}
-
-        {useLiveData && live.termPublishLocked && live.periodLabel ? (
-          <div className="no-print">
-            <InsPublishedBanner periodLabel={live.periodLabel} />
-          </div>
-        ) : null}
-
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
-          <div className="w-full lg:max-w-md space-y-1">
-            {useLiveData ? (
-              lockedInstructorId ? (
-                <div className="rounded-lg border border-[var(--color-opticore-orange)]/30 bg-[var(--color-opticore-orange)]/10 px-3 py-2">
-                  <p className="text-xs font-semibold text-black/60 uppercase tracking-wide">Your teaching load</p>
-                  <p className="text-sm font-medium text-black">{displayFacultyName}</p>
-                </div>
-              ) : (
-                <>
-                  <InsScheduleEntitySearch
-                    label="Faculty / instructor (search)"
-                    placeholder="Type name — schedule updates when one match"
-                    options={live.instructorOptions}
-                    selectedId={live.selectedInstructorId}
-                    onSelectedIdChange={live.setSelectedInstructorId}
-                    disabled={live.loading || live.instructorOptions.length === 0}
-                    listId="ins-faculty-list"
-                  />
-                  {!live.loading && live.instructorOptions.length === 0 ? (
-                    <p className="text-xs text-amber-800">No faculty with classes this term yet — use Evaluator to plot.</p>
-                  ) : null}
-                </>
-              )
-            ) : (
-              <p className="text-sm text-gray-500">Demo mode: set a college scope (Chairman or College Admin) for live data.</p>
-            )}
+        <div className="max-w-[1200px] mx-auto space-y-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
+            <p className="text-gray-600 text-sm">
+              Official INS forms — Program by Teacher (5A), Section (5B), Room (5C). Faculty view reflects{" "}
+              <strong>Evaluator / ScheduleEntry</strong> data when a college is in scope (updates via Supabase
+              Realtime).
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 justify-end">
-            <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
-              Run Conflict Check
-            </Button>
+          {doiApprovalSlot
+            ? doiApprovalSlot({
+                periodId: live.academicPeriodId,
+                periods: live.periods,
+                onPeriodIdChange: live.setAcademicPeriodId,
+                reloadCatalog: live.reload,
+              })
+            : null}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="bg-white" aria-label="More actions">
-                  <MoreHorizontal className="w-5 h-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={handleDownload}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Download INS Form
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void onShare()}>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share INS Form
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => window.print()}>
-                  <Printer className="w-4 h-4 mr-2" />
-                  Print INS Form
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+          {!hideInnerInsTabs ? (
+            <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+              {[
+                { label: "INS Faculty", href: `${insBasePath}/faculty` },
+                { label: "INS Section", href: `${insBasePath}/section` },
+                { label: "INS Room", href: `${insBasePath}/room` },
+              ].map((t) => {
+                const active = pathname === t.href;
+                return (
                   <Link
-                    href={
-                      insBasePath.includes("/college")
-                        ? "/admin/college/evaluator"
-                        : insBasePath.includes("/cas")
-                          ? "/admin/cas/evaluator"
-                          : insBasePath.includes("/gec")
-                            ? "/admin/gec/evaluator"
-                            : insBasePath.includes("/doi")
-                              ? "/doi/evaluator"
-                              : insBasePath.includes("/faculty")
-                                ? "/faculty"
-                                : "/chairman/evaluator"
-                    }
-                    className="cursor-pointer"
+                    key={t.href}
+                    href={t.href}
+                    className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
+                      active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                    }`}
                   >
-                    {insBasePath.includes("/faculty") ? "Faculty home" : "Open Evaluator"}
+                    {t.label}
                   </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                );
+              })}
+            </div>
+          ) : null}
 
-            <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
-              Print / PDF
-            </Button>
+          {useLiveData && !lockedInstructorId && insBasePath ? (
+            <InsEntityGroupingStrip
+              insBasePath={insBasePath}
+              facultyCount={live.instructorOptions.length}
+              sectionCount={live.sectionOptions.length}
+              roomCount={live.roomOptions.length}
+            />
+          ) : null}
+
+          {useLiveData && live.error ? (
+            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{live.error}</p>
+          ) : null}
+          {useLiveData && live.periodLabel ? (
+            <p className="text-xs text-gray-600">
+              Live term: <strong>{live.periodLabel}</strong>
+              {live.loading ? " · Loading…" : null}
+            </p>
+          ) : null}
+
+          {useLiveData && live.termPublishLocked && live.periodLabel ? (
+            <InsPublishedBanner periodLabel={live.periodLabel} />
+          ) : null}
+
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="w-full lg:max-w-md space-y-1">
+              {useLiveData ? (
+                lockedInstructorId ? (
+                  <div className="rounded-lg border border-[var(--color-opticore-orange)]/30 bg-[var(--color-opticore-orange)]/10 px-3 py-2">
+                    <p className="text-xs font-semibold text-black/60 uppercase tracking-wide">Your teaching load</p>
+                    <p className="text-sm font-medium text-black">{displayFacultyName}</p>
+                  </div>
+                ) : (
+                  <>
+                    <InsScheduleEntitySearch
+                      label="Faculty / instructor (search)"
+                      placeholder="Type name — schedule updates when one match"
+                      options={live.instructorOptions}
+                      selectedId={live.selectedInstructorId}
+                      onSelectedIdChange={live.setSelectedInstructorId}
+                      disabled={live.loading || live.instructorOptions.length === 0}
+                      listId="ins-faculty-list"
+                    />
+                    {!live.loading && live.instructorOptions.length === 0 ? (
+                      <p className="text-xs text-amber-800">
+                        No faculty with classes this term yet — use Evaluator to plot.
+                      </p>
+                    ) : null}
+                  </>
+                )
+              ) : (
+                <p className="text-sm text-gray-500">
+                  Demo mode: set a college scope (Chairman or College Admin) for live data.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 justify-end">
+              <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
+                Run Conflict Check
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="bg-white" aria-label="More actions">
+                    <MoreHorizontal className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={handleDownload}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download INS Form
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void onShare()}>
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Share INS Form
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.print()}>
+                    <Printer className="w-4 h-4 mr-2" />
+                    Print INS Form
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href={
+                        insBasePath.includes("/college")
+                          ? "/admin/college/evaluator"
+                          : insBasePath.includes("/cas")
+                            ? "/admin/cas/evaluator"
+                            : insBasePath.includes("/gec")
+                              ? "/admin/gec/evaluator"
+                              : insBasePath.includes("/doi")
+                                ? "/doi/evaluator"
+                                : insBasePath.includes("/faculty")
+                                  ? "/faculty"
+                                  : "/chairman/evaluator"
+                      }
+                      className="cursor-pointer"
+                    >
+                      {insBasePath.includes("/faculty") ? "Faculty home" : "Open Evaluator"}
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
+                Print / PDF
+              </Button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 shadow-sm print-paper print:shadow-none">
+            <OpticoreInsForm5A
+              facultyName={displayFacultyName}
+              schedule={displaySchedule}
+              courses={displayCourses}
+              readOnly={
+                Boolean(lockedInstructorId && facultyPortalIns) ||
+                Boolean(useLiveData && live.termPublishLocked)
+              }
+              semesterLabel={useLiveData ? live.periodLabel : undefined}
+              scheduleApproved={Boolean(useLiveData && live.termPublishLocked)}
+              insSignatureSlots={useLiveData ? live.insSignatureSlots : null}
+              facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
+              facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
+            />
           </div>
         </div>
+      </div>
 
-        <div className="print-area bg-white rounded-lg border border-gray-200 p-8 md:p-10 print:p-0 shadow-sm print-paper print:shadow-none">
-          <OpticoreInsForm5A
-            facultyName={displayFacultyName}
-            schedule={displaySchedule}
-            courses={displayCourses}
-            readOnly={
-              Boolean(lockedInstructorId && facultyPortalIns) ||
-              Boolean(useLiveData && live.termPublishLocked)
-            }
-            semesterLabel={useLiveData ? live.periodLabel : undefined}
-            scheduleApproved={Boolean(useLiveData && live.termPublishLocked)}
-            insSignatureSlots={useLiveData ? live.insSignatureSlots : null}
-            facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
-            facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
-          />
-        </div>
+      {/* Print-only: always render the official paper-style INS form (no page chrome, no editable boxes). */}
+      <div className="hidden print:block print-paper">
+        <OpticoreInsForm5A
+          facultyName={displayFacultyName}
+          schedule={displaySchedule}
+          courses={displayCourses}
+          readOnly
+          semesterLabel={useLiveData ? live.periodLabel : undefined}
+          scheduleApproved={Boolean(useLiveData && live.termPublishLocked)}
+          insSignatureSlots={useLiveData ? live.insSignatureSlots : null}
+          facultyCredentials={useLiveData ? live.facultyCredentials : null}
+          facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
+        />
       </div>
     </div>
   );
