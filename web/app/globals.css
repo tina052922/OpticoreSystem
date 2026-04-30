@@ -21,6 +21,14 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/**
+ * INS printing: keep official forms within one bond paper page.
+ * Screen uses larger row height for readability; print tightens spacing.
+ */
+:root {
+  --ins-row-h: 5rem;
+}
+
 /* Wider tables: horizontal pan on touch without accidental vertical scroll hijack */
 .overflow-x-touch-pan {
   overflow-x: auto;
@@ -29,6 +37,9 @@ body {
 }
 
 @media print {
+  :root {
+    --ins-row-h: 2.2rem;
+  }
   body {
     background: white;
   }

@@ -356,7 +356,7 @@ export function INSFormRoom({
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm md:p-10 print-paper print:shadow-none">
+        <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 print:p-4 shadow-sm print-paper print:shadow-none">
           <OpticoreInsForm5C
             roomAssignment={displayRoom}
             schedule={displaySchedule}

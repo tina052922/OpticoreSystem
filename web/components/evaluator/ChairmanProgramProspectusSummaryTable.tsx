@@ -75,29 +75,16 @@ export function ChairmanProgramProspectusSummaryTable({
   }, [yearLevelFilter, filterSemester]);
 
   return (
-    <div
-      className={`rounded-xl border border-black/10 bg-white shadow-[0px_4px_4px_rgba(0,0,0,0.08)] overflow-hidden ${className}`}
-    >
-      <div className="bg-[#780301] text-white px-4 py-3">
-        <h3 className="text-sm font-bold tracking-tight">Summary of Subjects.</h3>
-        <p className="text-[11px] text-white/85 mt-1">
-          Program: <strong>{label}</strong>
-          {scopeDescription ? (
-            <>
-              {" "}
-              · Showing <strong>{scopeDescription}</strong> (from the selected section and current term). Major and GEC
-              courses for that scope only. Curricula:{" "}
-              <code className="rounded bg-white/15 px-1">lib/chairman/prospectus-registry.ts</code>.
-            </>
-          ) : (
-            <>
-              {" "}
-              · Pick a section (e.g. BSIT 3A) to filter this list to that year level. Semester narrows further when the
-              term maps to 1st/2nd in{" "}
-              <code className="rounded bg-white/15 px-1">prospectusSemesterFromAcademicPeriod</code>.
-            </>
-          )}
-        </p>
+    <div className={`border border-black/10 bg-white ${className}`}>
+      <div className="px-4 py-3 border-b border-black/10">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h3 className="text-sm font-bold text-[#780301]">Summary of Subjects</h3>
+          <span className="text-xs text-black/55">· Program: {label}</span>
+          {scopeDescription ? <span className="text-xs text-black/55">· {scopeDescription}</span> : null}
+        </div>
+        {!scopeDescription ? (
+          <p className="text-[11px] text-black/50 mt-1">Pick a section to scope this list to that year level (and term semester when detected).</p>
+        ) : null}
       </div>
       {!programCode.trim() ? (
         <p className="text-sm text-black/55 px-4 py-8">No program code in scope.</p>
@@ -123,84 +110,62 @@ export function ChairmanProgramProspectusSummaryTable({
           No prospectus rows for {scopeDescription ?? `year ${yearLevelFilter}`}. Try another term or check the registry.
         </p>
       ) : (
-        <div className="max-h-[360px] overflow-y-auto">
-          <table className="w-full border-collapse text-[11px]">
-            <thead className="sticky top-0 z-[1]">
-              <tr className="bg-[#ff990a] text-white">
-                <th className="border border-black/10 px-2 py-2 text-left font-bold min-w-[120px]">Year · Sem</th>
-                <th className="border border-black/10 px-2 py-2 text-left font-bold w-[72px]">Track</th>
-                <th className="border border-black/10 px-2 py-2 text-left font-bold">Code</th>
-                <th className="border border-black/10 px-2 py-2 text-left font-bold">Title</th>
-                <th className="border border-black/10 px-2 py-2 text-right font-bold w-[52px]">Lec U</th>
-                <th className="border border-black/10 px-2 py-2 text-right font-bold w-[52px]">Lab U</th>
-                <th className="border border-black/10 px-2 py-2 text-left font-bold w-[100px]">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((g) =>
-                g.subjects.map((s, i) => {
-                  const n = normalizeProspectusCode(s.code);
-                  const plotted =
-                    Boolean(selectedSectionId) && plottedSubjectCodes.has(n);
-                  const pulse =
-                    plotted &&
-                    lastPlottedSubjectCode &&
-                    normalizeProspectusCode(lastPlottedSubjectCode) === n;
-                  const isGec = isGecCurriculumSubjectCode(s.code);
-                  const rowActive = activeCode === s.code;
-                  return (
-                    <tr
-                      key={`${g.key}-${s.code}`}
-                      className={`transition-colors ${
-                        plotted
-                          ? pulse
-                            ? "bg-emerald-100 ring-2 ring-[#ff990a]/90"
-                            : "bg-emerald-50/95 ring-1 ring-emerald-300/80"
-                          : rowActive
-                            ? "bg-amber-50/90 ring-1 ring-[#ff990a]"
-                            : i % 2 === 0
-                              ? "bg-white"
-                              : "bg-black/[0.02]"
-                      }`}
-                      onClick={() => setActiveCode((c) => (c === s.code ? null : s.code))}
+        <div className="px-4 py-3 text-[12px] leading-relaxed">
+          {groups.map((g) => {
+            const lines = g.subjects.map((s) => {
+              const n = normalizeProspectusCode(s.code);
+              const plotted = Boolean(selectedSectionId) && plottedSubjectCodes.has(n);
+              const pulse =
+                plotted && lastPlottedSubjectCode && normalizeProspectusCode(lastPlottedSubjectCode) === n;
+              const rowActive = activeCode === s.code;
+              const isGec = isGecCurriculumSubjectCode(s.code);
+              return {
+                key: `${g.key}-${s.code}`,
+                code: s.code,
+                title: s.title,
+                plotted,
+                pulse,
+                active: rowActive,
+                track: isGec ? "GEC" : "Major",
+              };
+            });
+
+            const MAX_LINES = 18;
+            const clipped = lines.slice(0, MAX_LINES);
+            const more = lines.length - clipped.length;
+
+            return (
+              <div key={g.key} className="mb-2">
+                <div className="font-semibold text-black/70 text-[11px]">{g.label}</div>
+                <div className="mt-1 space-y-1">
+                  {clipped.map((l) => (
+                    <button
+                      key={l.key}
+                      type="button"
+                      className={`w-full text-left rounded px-1 py-0.5 transition-colors ${
+                        l.plotted ? (l.pulse ? "bg-emerald-100" : "bg-emerald-50") : l.active ? "bg-amber-50" : ""
+                      } hover:bg-amber-50/70`}
+                      onClick={() => setActiveCode((c) => (c === l.code ? null : l.code))}
+                      title={l.title}
                     >
-                      {i === 0 ? (
-                        <td
-                          rowSpan={g.subjects.length}
-                          className="border border-black/10 px-2 py-1.5 align-top font-semibold text-black/80 whitespace-nowrap bg-black/[0.03]"
-                        >
-                          {g.label}
-                        </td>
+                      <span className="font-mono font-semibold text-[#780301]">{l.code}</span>{" "}
+                      <span className="text-black/55 text-[11px]">({l.track})</span>{" "}
+                      {selectedSectionId && l.plotted ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-900 font-semibold text-[11px] ml-2">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                          Plotted
+                        </span>
                       ) : null}
-                      <td className="border border-black/10 px-2 py-1.5 text-[10px] font-semibold whitespace-nowrap">
-                        {isGec ? (
-                          <span className="text-[#780301]">GEC</span>
-                        ) : (
-                          <span className="text-black/70">Major</span>
-                        )}
-                      </td>
-                      <td className="border border-black/10 px-2 py-1.5 font-mono font-semibold text-[#780301]">{s.code}</td>
-                      <td className="border border-black/10 px-2 py-1.5 text-black/85">{s.title}</td>
-                      <td className="border border-black/10 px-2 py-1.5 text-right tabular-nums">{s.lecUnits}</td>
-                      <td className="border border-black/10 px-2 py-1.5 text-right tabular-nums">{s.labUnits}</td>
-                      <td className="border border-black/10 px-2 py-1.5">
-                        {!selectedSectionId ? (
-                          <span className="text-black/40 text-[10px]">Pick a section</span>
-                        ) : plotted ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-900 font-semibold text-[10px]">
-                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                            Plotted
-                          </span>
-                        ) : (
-                          <span className="text-black/45 text-[10px]">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                }),
-              )}
-            </tbody>
-          </table>
+                      <div className="text-[11px] text-black/65 line-clamp-1">{l.title}</div>
+                    </button>
+                  ))}
+                  {more > 0 ? (
+                    <div className="text-[11px] text-black/45">… and {more} more</div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,119 +1,159 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Download, LogIn, MapPin, Sparkles } from "lucide-react";
+import { BarChart3, Calendar, Cloud, LogIn, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 
 /**
- * Public home: unauthenticated landing — matches OptiCore red header + orange CTAs.
+ * Public home: unauthenticated landing.
+ * Updated to match the Figma Landingpage layout (Home / About / Features + CTA), adapted to Next.js.
  */
 export function PublicLandingPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-opticore-bg)]">
-      <header
-        className="w-full flex-none flex items-center justify-between px-4 md:px-10 py-4 md:py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.2)]"
-        style={{ background: "linear-gradient(90deg, #780301 0%, #DE0602 100%)" }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full overflow-hidden ring-2 ring-white/25 bg-white shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={CTU_LOGO_PNG} alt="" className="h-full w-full object-cover" />
-          </div>
-          <div className="text-white min-w-0">
-            <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wide opacity-90">Cebu Technological University · Argao</p>
-            <p className="text-lg sm:text-xl font-bold truncate">OptiCore</p>
-            <p className="text-[11px] sm:text-xs opacity-85 hidden sm:block">Campus Intelligence System</p>
-          </div>
-        </div>
-        <Button
-          asChild
-          className="bg-white text-[#780301] hover:bg-white/90 font-semibold shadow-md shrink-0"
-        >
-          <Link href="/login">
-            <LogIn className="w-4 h-4 mr-2" />
-            Log in
-          </Link>
-        </Button>
-      </header>
-
-      <main className="flex-1">
-        <section className="max-w-4xl mx-auto px-4 py-12 md:py-16 text-center space-y-4">
-          <p className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-opticore-orange)]">
-            <Sparkles className="w-4 h-4" />
-            Smart scheduling & campus insight
-          </p>
-          <h1 className="text-3xl md:text-4xl font-bold text-black tracking-tight">
-            Welcome to OptiCore
-          </h1>
-          <p className="text-base md:text-lg text-black/70 max-w-2xl mx-auto leading-relaxed">
-            Coordinate timetables, faculty load, and campus workflows for CTU Argao — built for chairs, admins, faculty, and students.
-          </p>
-        </section>
-
-        <section className="max-w-5xl mx-auto px-4 pb-10 space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <article className="rounded-2xl bg-white border border-black/10 shadow-[0px_4px_12px_rgba(0,0,0,0.06)] p-6 md:p-8 flex flex-col">
-              <div className="h-11 w-11 rounded-xl bg-[var(--color-opticore-orange)]/15 flex items-center justify-center text-[var(--color-opticore-orange)] mb-4">
-                <MapPin className="w-6 h-6" />
-              </div>
-              <h2 className="text-xl font-bold text-black mb-2">Campus Navigation</h2>
-              <p className="text-sm text-black/65 leading-relaxed flex-1 mb-6">
-                Explore buildings, offices, and key locations. Open the interactive campus map and plan your visit or class routes.
-              </p>
-              <Button asChild className="w-full sm:w-auto bg-[var(--color-opticore-orange)] hover:bg-[#e88909] text-white font-semibold">
-                <Link href="/campus-navigation">
-                  Open campus navigation
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Link>
-              </Button>
-            </article>
-
-            <article className="rounded-2xl bg-white border border-black/10 shadow-[0px_4px_12px_rgba(0,0,0,0.06)] p-6 md:p-8 flex flex-col">
-              <div className="h-11 w-11 rounded-xl bg-[var(--color-opticore-orange)]/15 flex items-center justify-center text-[var(--color-opticore-orange)] mb-4">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <h2 className="text-xl font-bold text-black mb-2">About OptiCore</h2>
-              <p className="text-sm text-black/65 leading-relaxed flex-1 mb-6">
-                OptiCore is CTU Argao&apos;s Campus Intelligence System: schedule plotting, INS-style forms, access workflows, and dashboards that keep academic operations transparent and aligned with institutional policy.
-              </p>
-              <p className="text-xs text-black/45">
-                Authorized users sign in with their campus credentials to access role-specific tools.
-              </p>
-            </article>
-          </div>
-
-          <div className="rounded-2xl bg-white border border-black/10 shadow-[0px_4px_12px_rgba(0,0,0,0.06)] p-6 md:p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-            <div>
-              <h2 className="text-lg font-bold text-black mb-1">Sign in to the web app</h2>
-              <p className="text-sm text-black/65">Faculty, students, and staff use the secure login to reach their dashboards.</p>
+    <div className="min-h-screen bg-white">
+      <nav className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-b border-black/10 z-50">
+        <div className="max-w-6xl mx-auto px-4 h-[72px] flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-11 w-11 rounded-full overflow-hidden bg-white ring-1 ring-black/10 shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={CTU_LOGO_PNG} alt="" className="h-full w-full object-cover" />
             </div>
-            <Button asChild size="lg" className="bg-[#780301] hover:bg-[#5a0201] text-white font-semibold shrink-0">
+            <span className="font-bold text-xl text-[#a30000] truncate">OptiCore</span>
+          </div>
+          <div className="flex items-center gap-5 sm:gap-8">
+            <a href="#home" className="text-[#a30000] font-medium text-sm sm:text-base hover:opacity-80">
+              Home
+            </a>
+            <a href="#about" className="text-[#a30000] text-sm sm:text-base hover:opacity-80">
+              About
+            </a>
+            <a href="#features" className="text-[#a30000] text-sm sm:text-base hover:opacity-80">
+              Features
+            </a>
+            <Button asChild className="bg-[#a30000] hover:bg-[#8b0000] text-white font-semibold rounded-full px-5">
               <Link href="/login">
                 <LogIn className="w-4 h-4 mr-2" />
-                Log in
+                Sign in
               </Link>
             </Button>
           </div>
+        </div>
+      </nav>
 
-          <div className="rounded-2xl border border-dashed border-[var(--color-opticore-orange)]/50 bg-[var(--color-opticore-orange)]/5 p-6 md:p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <Download className="w-6 h-6 text-[var(--color-opticore-orange)] shrink-0 mt-0.5" />
-              <div>
-                <h2 className="text-lg font-bold text-black mb-1">Download / Install OptiCore</h2>
-                <p className="text-sm text-black/65">
-                  A mobile app and PWA install option will be available in a future release. You&apos;ll install from here when published.
-                </p>
-              </div>
-            </div>
-            <Button type="button" variant="outline" className="border-[var(--color-opticore-orange)] text-[#780301] shrink-0" disabled>
-              Coming soon
+      <section
+        id="home"
+        className="relative w-full pt-[72px] min-h-[calc(100vh-72px)] overflow-hidden"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, rgba(222,6,2,0.18) 0%, rgba(120,3,1,0.55) 100%)",
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-[rgba(120,3,1,0.78)] via-[rgba(120,3,1,0.55)] to-transparent" />
+        <div className="relative z-10 max-w-6xl mx-auto px-6 py-16 md:py-24">
+          <h1 className="text-5xl md:text-7xl font-bold text-white drop-shadow-[0_6px_4px_rgba(0,0,0,0.65)]">
+            OptiCore
+          </h1>
+          <h2 className="mt-4 text-2xl md:text-4xl font-semibold text-white drop-shadow-md">
+            Campus Intelligence System
+          </h2>
+          <p className="mt-6 text-base md:text-xl text-white/95 max-w-3xl leading-relaxed font-medium">
+            Coordinate timetables, faculty load, and campus workflows for CTU Argao — built for chairs, admins, faculty,
+            and students.
+          </p>
+          <div className="mt-10 flex flex-wrap gap-3">
+            <Button asChild size="lg" className="bg-white text-[#780301] hover:bg-white/90 font-bold rounded-full">
+              <Link href="/login">Get Started</Link>
+            </Button>
+            <Button asChild size="lg" className="bg-[#ff990a] hover:bg-[#e88909] text-white font-semibold rounded-full">
+              <Link href="/campus-navigation">Campus navigation</Link>
             </Button>
           </div>
-        </section>
-      </main>
+        </div>
+      </section>
 
-      <footer className="border-t border-black/10 py-6 text-center text-xs text-black/45">
+      <section id="about" className="py-16 md:py-20 px-6 bg-white">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+          <div className="order-2 lg:order-1 rounded-2xl border border-black/10 bg-[var(--color-opticore-bg)] p-6">
+            <div className="text-sm font-semibold text-black/60 uppercase tracking-wide">What it does</div>
+            <ul className="mt-3 space-y-2 text-sm text-black/75">
+              <li>Centralized schedule plotting with conflict checks</li>
+              <li>INS-style Faculty / Section / Room forms</li>
+              <li>Approval workflows (including GEC vacant-slot editing)</li>
+              <li>Policy justification when overload/violations occur</li>
+            </ul>
+          </div>
+          <div className="order-1 lg:order-2">
+            <h2 className="text-4xl md:text-5xl font-bold text-[#780301] mb-4">About Us</h2>
+            <h3 className="text-xl md:text-2xl text-[#780301] mb-6">Campus Intelligence System</h3>
+            <p className="text-base md:text-lg text-[#780301]/85 leading-relaxed">
+              OptiCore is CTU Argao&apos;s Campus Intelligence System: schedule plotting, INS-style forms, access workflows,
+              and dashboards that keep academic operations transparent and aligned with institutional policy.
+            </p>
+            <div className="mt-8">
+              <Button type="button" disabled className="bg-[#a30000] text-white rounded-full px-6 py-6 text-base">
+                Download App (coming soon)
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" className="py-16 md:py-20 px-6 bg-gradient-to-br from-orange-50/50 to-red-50/30">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-4xl md:text-5xl font-bold text-[#780301]">Features</h2>
+            <p className="mt-3 text-base md:text-lg text-[#780301]/75">
+              Everything you need to manage campus operations efficiently
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              {
+                icon: Calendar,
+                title: "Smart Scheduling",
+                desc: "Plot schedules with conflict checking across faculty, rooms, and sections.",
+              },
+              {
+                icon: Users,
+                title: "Faculty Management",
+                desc: "Track loads, designations, and assignments; generate INS-compliant outputs.",
+              },
+              {
+                icon: Cloud,
+                title: "Synchronization",
+                desc: "Consistent schedule data across roles (Chairman, GEC, College, DOI, Faculty).",
+              },
+              {
+                icon: BarChart3,
+                title: "Dashboards",
+                desc: "Campus Intelligence views for conflicts, activity, and term status.",
+              },
+            ].map((f) => {
+              const Icon = f.icon;
+              return (
+                <div key={f.title} className="bg-white rounded-2xl p-6 border border-red-100 shadow-sm">
+                  <div className="w-12 h-12 rounded-full bg-[#780301] flex items-center justify-center mb-4">
+                    <Icon className="w-6 h-6 text-white" strokeWidth={2.5} />
+                  </div>
+                  <h3 className="text-xl font-bold text-[#780301]">{f.title}</h3>
+                  <p className="mt-2 text-sm text-[#780301]/80 leading-relaxed">{f.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-10 flex justify-center">
+            <Button asChild size="lg" className="bg-[#a30000] hover:bg-[#8b0000] text-white font-semibold rounded-full px-7">
+              <Link href="/login">
+                <LogIn className="w-4 h-4 mr-2" />
+                Sign in to continue
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-black/10 py-6 text-center text-xs text-black/50">
         © {new Date().getFullYear()} Cebu Technological University · OptiCore Campus Intelligence System
       </footer>
     </div>
