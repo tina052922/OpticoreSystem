@@ -53,7 +53,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
   const cellMode = props.cellMode ?? "legacy";
 
   return (
-    <div className="overflow-x-touch-pan">
+    <div className="overflow-x-auto sm:overflow-visible">
       <div className={`flex min-w-0 ${signatureStrip === "none" ? "" : "gap-1"}`}>
         <table className={`flex-1 min-w-0 w-full table-fixed border-collapse ${insTableBorder}`}>
           <thead>
