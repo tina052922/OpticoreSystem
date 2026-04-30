@@ -464,12 +464,11 @@ export function EvaluatorTimetablingPanel({
   const mergedEntriesForPolicy = useMemo((): ScheduleEntry[] => {
     if (!academicPeriodId || !effectiveCollegeId) return [];
     const inCollege = (sId: string) => sectionToCollegeId(sId) === effectiveCollegeId;
-    const inChairmanProgram = (sId: string) => {
-      if (!chairmanProgramId) return true;
-      const sec = sections.find((s) => s.id === sId);
-      return sec?.programId === chairmanProgramId;
-    };
-    const keep = (sId: string) => inCollege(sId) && inChairmanProgram(sId);
+    /**
+     * Faculty load is computed across the full college scope for the selected term.
+     * Do NOT filter by chairman program — instructors can be shared across programs; all roles should see consistent Hours/Week.
+     */
+    const keep = (sId: string) => inCollege(sId);
     const fromDb = dbEntries.filter(
       (e) => e.academicPeriodId === academicPeriodId && keep(e.sectionId),
     );
@@ -494,8 +493,6 @@ export function EvaluatorTimetablingPanel({
     academicPeriodId,
     effectiveCollegeId,
     sectionToCollegeId,
-    chairmanProgramId,
-    sections,
   ]);
 
   const policyEvaluation = useMemo(() => {

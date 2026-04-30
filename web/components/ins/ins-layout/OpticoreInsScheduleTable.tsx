@@ -183,7 +183,8 @@ function InsSignatureStrip({
 }) {
   const fallback = variant === "campusOnly" ? FALLBACK_CAMPUS_ONLY : FALLBACK_SLOTS;
   const slots = signatureSlots ?? fallback;
-  const colWidth = variant === "campusOnly" ? "w-[7rem]" : "w-[5.75rem]";
+  // Keep the signature strip narrow (paper form style) — no big boxed placeholders.
+  const colWidth = variant === "campusOnly" ? "w-[4.5rem]" : "w-[4.75rem]";
 
   return (
     <div className="hidden md:flex shrink-0 gap-0">
@@ -192,24 +193,24 @@ function InsSignatureStrip({
           key={s.key}
           className={`flex ${colWidth} flex-col items-stretch border border-neutral-900 border-l-0 bg-white first:border-l`}
         >
-          <div className="flex min-h-[11rem] flex-col items-center justify-between gap-2 bg-neutral-50 px-1 py-3">
+          <div className="flex-1 flex flex-col items-center justify-between px-1 py-2">
             <div className="text-[9px] font-semibold leading-tight text-neutral-900" style={vLabel}>
               {s.lineTitle}
             </div>
-            {scheduleApproved && s.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
-              <img src={s.imageUrl} alt="" className="max-h-16 w-full object-contain object-bottom" />
-            ) : (
-              <div
-                className="h-14 w-full rounded-sm border border-dashed border-neutral-400 bg-white"
-                title={scheduleApproved ? "No signature on file — upload in Profile" : "Pending publication"}
-              />
-            )}
-          </div>
-          <div className="border-t border-neutral-200 bg-white px-1 py-2">
-            <div className="mb-1 text-center text-[8px] leading-tight text-neutral-600">{s.lineSubtitle}</div>
-            <div className="line-clamp-3 text-center text-[9px] font-medium leading-tight text-neutral-900">
-              {s.signerName}
+            <div className="w-full pt-2 pb-1">
+              <div className="min-h-[3.25rem] flex items-end justify-center">
+                {scheduleApproved && s.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
+                  <img src={s.imageUrl} alt="" className="max-h-12 w-full object-contain object-bottom" />
+                ) : null}
+              </div>
+              <div className="border-b border-neutral-900" />
+              <div className="mt-1 text-center text-[8px] leading-tight text-neutral-700">{s.lineSubtitle}</div>
+              {scheduleApproved && s.signerName ? (
+                <div className="mt-0.5 text-center text-[8px] font-medium leading-tight text-neutral-900 line-clamp-2">
+                  {s.signerName}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
