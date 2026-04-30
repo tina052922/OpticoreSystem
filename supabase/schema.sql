@@ -780,7 +780,7 @@ to authenticated
 using (
   public.is_doi_admin()
   or (
-    public.is_chairman_admin()
+    (public.is_chairman_admin() or public.is_college_admin())
     and "collegeId" = public.current_user_college_id()
   )
 );

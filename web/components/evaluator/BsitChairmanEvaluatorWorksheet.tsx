@@ -34,6 +34,7 @@ import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-re
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
+import { PolicyJustificationModal } from "@/components/evaluator/PolicyJustificationModal";
 import type { EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
 import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import {
@@ -266,8 +267,7 @@ export function BsitChairmanEvaluatorWorksheet({
   /** Brief highlight in the prospectus summary when a new subject is plotted for the selected section. */
   const [lastPlottedSubjectFlash, setLastPlottedSubjectFlash] = useState<string | null>(null);
   const plottedSnapshotRef = useRef<string>("");
-  const [policyPromptOpen, setPolicyPromptOpen] = useState(false);
-  const wasPolicyViolatingRef = useRef(false);
+  const [policyJustificationModalOpen, setPolicyJustificationModalOpen] = useState(false);
   const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
   /** IDs loaded with `lockedByDoiAt` — never send DELETE for these if they disappear from state (e.g. scope change). */
   const lockedEntryIdsRef = useRef<Set<string>>(new Set());
@@ -795,31 +795,21 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const showJustification = policyRows.hasAnyViolation;
 
-  /** First transition into a load-policy violation while plotting — prompt the chairman to document rationale for DOI. */
-  useEffect(() => {
-    const v = policyRows.hasAnyViolation;
-    if (v && !wasPolicyViolatingRef.current) {
-      setPolicyPromptOpen(true);
-    }
-    wasPolicyViolatingRef.current = v;
-    if (!v) setPolicyPromptOpen(false);
-  }, [policyRows.hasAnyViolation]);
-
   /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
   const saveLoadJustificationForDoi = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase || !academicPeriodId || !chairmanCollegeId) {
       setJustificationMsg("Select a term and ensure your college is in scope.");
-      return;
+      return false;
     }
     const t = justificationText.trim();
     if (t.length < 12) {
       setJustificationMsg("Enter at least 12 characters for VPAA review.");
-      return;
+      return false;
     }
     if (!policyRows.hasAnyViolation) {
       setJustificationMsg("No load-policy violations detected; a justification is not required.");
-      return;
+      return false;
     }
     setJustificationSaving(true);
     setJustificationMsg(null);
@@ -830,7 +820,7 @@ export function BsitChairmanEvaluatorWorksheet({
       } = await supabase.auth.getUser();
       if (authErr || !user) {
         setJustificationMsg("Not signed in.");
-        return;
+        return false;
       }
       const author = dbInstructors.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
@@ -858,7 +848,7 @@ export function BsitChairmanEvaluatorWorksheet({
       );
       if (jErr) {
         setJustificationMsg(jErr.message);
-        return;
+        return false;
       }
       dispatchInsCatalogReload();
       void fetch("/api/audit/schedule-write", {
@@ -872,6 +862,7 @@ export function BsitChairmanEvaluatorWorksheet({
         }),
       });
       setJustificationMsg("Justification saved for DOI / VPAA review.");
+      return true;
     } finally {
       setJustificationSaving(false);
     }
@@ -1443,6 +1434,18 @@ export function BsitChairmanEvaluatorWorksheet({
                   clearTimeout(autosaveTimerRef.current);
                   autosaveTimerRef.current = null;
                 }
+                if (policyRows.hasAnyViolation) {
+                  const t = justificationText.trim();
+                  if (t.length < 12) {
+                    setPolicyJustificationModalOpen(true);
+                    return;
+                  }
+                  void saveLoadJustificationForDoi().then((ok) => {
+                    if (!ok) return;
+                    return performSchedulePersist("manual");
+                  });
+                  return;
+                }
                 void performSchedulePersist("manual");
               }}
             >
@@ -1832,50 +1835,22 @@ export function BsitChairmanEvaluatorWorksheet({
         </div>
       ) : null}
 
-      {policyPromptOpen && showJustification ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
-          <div
-            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl space-y-4 border border-amber-200"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="policy-prompt-title"
-          >
-            <h2 id="policy-prompt-title" className="text-lg font-semibold text-amber-950">
-              Faculty load policy notice
-            </h2>
-            <p className="text-sm text-black/75 leading-relaxed">
-              The current draft exceeds one or more faculty merit / load rules (e.g. weekly teaching cap). Please enter a
-              short justification — it is stored with{" "}
-              <strong className="text-black/85">ScheduleLoadJustification</strong> and appears on the DOI Admin{" "}
-              <strong className="text-black/85">Policy reviews</strong> page.
-            </p>
-            <textarea
-              className="w-full min-h-[100px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
-              value={justificationText}
-              disabled={schedulePublished}
-              onChange={(e) => setJustificationText(e.target.value)}
-              placeholder="e.g. Approved overload; staffing gap; consolidated sections…"
-            />
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setPolicyPromptOpen(false)}
-              >
-                I&apos;ll use the form below
-              </Button>
-              <Button
-                type="button"
-                className="bg-[#780301] text-white hover:bg-[#5a0201]"
-                disabled={schedulePublished || justificationSaving || justificationText.trim().length < 12}
-                onClick={() => void saveLoadJustificationForDoi().then(() => setPolicyPromptOpen(false))}
-              >
-                Save justification for DOI
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <PolicyJustificationModal
+        open={policyJustificationModalOpen && showJustification}
+        title="Policy justification"
+        promptText="This assignment exceeds the faculty load policy. Do you want to proceed with justification?"
+        value={justificationText}
+        minLength={12}
+        saving={justificationSaving || saveScheduleBusy}
+        onChange={setJustificationText}
+        onCancel={() => setPolicyJustificationModalOpen(false)}
+        onSave={async () => {
+          const ok = await saveLoadJustificationForDoi();
+          if (!ok) return;
+          setPolicyJustificationModalOpen(false);
+          await performSchedulePersist("manual");
+        }}
+      />
     </div>
   );
 }
