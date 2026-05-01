@@ -9,8 +9,8 @@ export const Q = {
   college: "id,code,name,campusDirectorUserId,contractSignerUserId",
   program: "id,code,name,collegeId",
   section: "id,programId,name,yearLevel,studentCount",
-  subject: "id,code,subcode,title,lecUnits,lecHours,labUnits,labHours,programId,yearLevel",
-  room: "id,code,building,floor,capacity,type,collegeId",
+  subject: "id,code,subcode,title,lecUnits,lecHours,labUnits,labHours,programId,yearLevel,semester,prerequisiteNote",
+  room: "id,code,building,floor,capacity,type,collegeId,imagePath,displayName",
   /** INS catalog + hubs — signature URL for form signers (omit profileImageUrl: not used on INS and avoids DB errors if column not migrated). */
   userHub:
     "id,email,name,role,collegeId,employeeId,chairmanProgramId,signatureImageUrl",
@@ -18,7 +18,7 @@ export const Q = {
   userChairmanScope: "id,email,name,role,collegeId,employeeId",
   campusInsSettings: "id,campusDirectorSignatureImageUrl,updatedAt",
   scheduleLoadJustification:
-    "id,academicPeriodId,collegeId,authorUserId,authorName,authorEmail,justification,violationsSnapshot,createdAt,updatedAt,doiDecision,doiReviewedAt,doiReviewedById,doiReviewNote",
+    "id,academicPeriodId,collegeId,authorUserId,authorName,authorEmail,facultyUserId,scheduleEntryId,justification,violationsSnapshot,createdAt,updatedAt,doiDecision,doiReviewedAt,doiReviewedById,doiReviewNote",
   /** Policy / evaluator loads (name + policy fields) */
   facultyProfilePolicy: "id,userId,fullName,status,designation,ratePerHour,advisorySectionId",
   /** INS 5A credentials block + form summary (+ `aka` for printed name rules) */

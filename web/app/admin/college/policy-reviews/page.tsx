@@ -80,6 +80,18 @@ export default async function CollegePolicyReviewsPage() {
                   <span className="font-medium">{r.authorName}</span>
                   {r.authorEmail ? <span className="text-black/60"> ({r.authorEmail})</span> : null}
                 </div>
+                {r.facultyUserId ? (
+                  <div className="text-xs text-black/55">
+                    <span className="font-semibold text-black/60">Instructor: </span>
+                    <span className="font-mono">{r.facultyUserId}</span>
+                  </div>
+                ) : null}
+                {r.scheduleEntryId ? (
+                  <div className="text-xs text-black/55">
+                    <span className="font-semibold text-black/60">Schedule entry: </span>
+                    <span className="font-mono">{r.scheduleEntryId}</span>
+                  </div>
+                ) : null}
                 <div className="text-sm text-black/80 whitespace-pre-wrap border-t border-black/5 pt-3">
                   {r.justification}
                 </div>

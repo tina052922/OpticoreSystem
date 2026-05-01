@@ -72,8 +72,9 @@ export function useScheduleEntryCrossReload(
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       void loadRef.current();
     };
+    /** 8s + jitter: keeps hubs aligned if Realtime publication is missing, without hammering PostgREST. */
     const jitterMs = 350 + Math.round(Math.random() * 800);
-    const id = window.setInterval(tick, 20_000 + jitterMs);
+    const id = window.setInterval(tick, 8_000 + jitterMs);
     return () => {
       stopped = true;
       window.clearInterval(id);

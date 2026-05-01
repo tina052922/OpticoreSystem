@@ -105,6 +105,10 @@ export interface Subject {
   labHours: number;
   programId: string;
   yearLevel: number;
+  /** Official prospectus semester when seeded (1 or 2). */
+  semester?: number | null;
+  /** Curriculum prerequisite line (mirrors catalog tables). */
+  prerequisiteNote?: string | null;
 }
 
 export interface Room {
@@ -115,6 +119,10 @@ export interface Room {
   capacity: number | null;
   type: string | null;
   collegeId: string | null;
+  /** Optional campus navigation image (path under public/, e.g. campus/navigation/FABLab.HEIC). */
+  imagePath?: string | null;
+  /** Optional label when different from room code (e.g. Dean's Office). */
+  displayName?: string | null;
 }
 
 export interface ScheduleEntry {
@@ -140,6 +148,10 @@ export interface ScheduleLoadJustification {
   authorUserId: string;
   authorName: string;
   authorEmail: string | null;
+  /** Instructor whose load triggered this submission (nullable for legacy college-wide rows). */
+  facultyUserId?: string | null;
+  /** Representative schedule row for VPAA traceability (nullable). */
+  scheduleEntryId?: string | null;
   justification: string;
   violationsSnapshot: unknown | null;
   createdAt: string;

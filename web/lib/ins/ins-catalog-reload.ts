@@ -18,21 +18,22 @@ const SCHEDULE_BROADCAST = "opticore-schedule-entry-sync";
 
 export function dispatchInsCatalogReload(): void {
   if (typeof window === "undefined") return;
-  let usedBc = false;
+  /** Cross-tab ping (Central Hub, INS in other tabs). */
   try {
     if (typeof BroadcastChannel !== "undefined") {
       const bc = new BroadcastChannel(SCHEDULE_BROADCAST);
       bc.postMessage({ t: Date.now() });
       bc.close();
-      usedBc = true;
     }
   } catch {
     /* ignore */
   }
-  /** Fallback when BroadcastChannel is unavailable (older browsers / SSR handoff). */
-  if (!usedBc) {
-    window.dispatchEvent(new Event(INS_CATALOG_RELOAD_EVENT));
-  }
+  /**
+   * Same-tab listeners (`useInsCatalog`, legacy hooks): always fire the window event as well.
+   * BroadcastChannel delivery to the posting document is not guaranteed across browsers; this avoids
+   * stale INS Faculty / Section / Room grids after a Chairman save.
+   */
+  window.dispatchEvent(new Event(INS_CATALOG_RELOAD_EVENT));
 }
 
 /** Subscribe to cross-tab schedule reload pings (same browser profile). Returns unsubscribe. */
