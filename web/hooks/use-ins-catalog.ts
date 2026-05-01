@@ -8,7 +8,11 @@ import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { INS_CATALOG_RELOAD_EVENT, subscribeScheduleEntryBroadcast } from "@/lib/ins/ins-catalog-reload";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
-import { enrichCampusConflictIssues, conflictHeadlineShort } from "@/lib/scheduling/conflict-enrichment";
+import {
+  enrichCampusConflictIssues,
+  conflictHeadlineShort,
+  conflictSummaryLine,
+} from "@/lib/scheduling/conflict-enrichment";
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
@@ -654,10 +658,7 @@ export function useInsCatalog(args: {
       .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
       .map((u) => u.id);
 
-    const lines: string[] = [
-      `Scanned ${termRows.length} schedule row(s) for this term (full campus master data).`,
-      "",
-    ];
+    const lines: string[] = [`Scanned ${termRows.length} schedule row(s) this term.`, ""];
 
     const seen = new Set<string>();
     let n = 0;
@@ -667,7 +668,7 @@ export function useInsCatalog(args: {
       seen.add(iss.key);
       n += 1;
       lines.push(`• ${conflictHeadlineShort(iss)}`);
-      lines.push(`  ${iss.rootCause}`);
+      lines.push(`  ${conflictSummaryLine(iss)}`);
 
       const entry = entryById.get(iss.rowA.entryId);
       if (entry && roomIds.length > 0 && instructorIds.length > 0) {
@@ -690,7 +691,7 @@ export function useInsCatalog(args: {
             userById.get(best.instructorId),
             facultyProfileByUserId.get(best.instructorId),
           );
-          lines.push(`  Suggested fix: ${formatGaSuggestionShortLabel(best, { roomCode: rc, instructorDisplay: inst })}`);
+          lines.push(`  Option: ${formatGaSuggestionShortLabel(best, { roomCode: rc, instructorDisplay: inst })}`);
         }
       }
       lines.push("");
@@ -752,7 +753,7 @@ export function useInsCatalog(args: {
         if (aE?.instructorId !== instructorId && bE?.instructorId !== instructorId) continue;
         seen.add(iss.key);
         n += 1;
-        lines.push(`${conflictHeadlineShort(iss)} — ${iss.rootCause}`);
+        lines.push(conflictSummaryLine(iss));
         const entry = aE?.instructorId === instructorId ? aE : bE;
         if (entry && roomIds.length > 0 && instructorIds.length > 0) {
           const universeForGa = termRows.map(toScheduleBlock);
@@ -775,7 +776,7 @@ export function useInsCatalog(args: {
               facultyProfileByUserId.get(best.instructorId),
             );
             lines.push(
-              `Suggested fix: ${formatGaSuggestionShortLabel(best, { roomCode: rc, instructorDisplay: inst })}`,
+              `Option: ${formatGaSuggestionShortLabel(best, { roomCode: rc, instructorDisplay: inst })}`,
             );
           }
         }
