@@ -61,6 +61,8 @@ body {
     left: 0;
     top: 0;
     width: 100%;
+    /* Win over screen `hidden` / `display:none` in all engines */
+    display: block !important;
   }
   @page {
     size: A4 portrait;

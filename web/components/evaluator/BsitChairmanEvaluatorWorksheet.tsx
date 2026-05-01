@@ -316,7 +316,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const [lastPlottedSubjectFlash, setLastPlottedSubjectFlash] = useState<string | null>(null);
   const plottedSnapshotRef = useRef<string>("");
   const [policyJustificationModalOpen, setPolicyJustificationModalOpen] = useState(false);
-  /** Distinguish save-time vs in-grid assignment gate (Gwyneth overload before persisting). */
+  /** Distinguish save-time vs in-grid assignment gate when load policy requires VPAA justification. */
   const [policyModalReason, setPolicyModalReason] = useState<"save" | "assign">("save");
   /**
    * After upsert, cross-reload can briefly return a stale row (day/slot) before read-your-writes catches up.

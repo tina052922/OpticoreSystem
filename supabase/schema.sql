@@ -492,12 +492,20 @@ for select
 to authenticated
 using (
   public.is_college_admin()
-  and exists (
-    select 1
-    from public."Section" s
-    join public."Program" p on p.id = s."programId"
-    where s.id = "ScheduleEntry"."sectionId"
-      and p."collegeId" = public.current_user_college_id()
+  and (
+    exists (
+      select 1
+      from public."Section" s
+      join public."Program" p on p.id = s."programId"
+      where s.id = "ScheduleEntry"."sectionId"
+        and p."collegeId" = public.current_user_college_id()
+    )
+    or exists (
+      select 1
+      from public."User" u
+      where u.id = "ScheduleEntry"."instructorId"
+        and u."collegeId" = public.current_user_college_id()
+    )
   )
 );
 
@@ -520,16 +528,24 @@ for select
 to authenticated
 using (
   public.is_chairman_admin()
-  and exists (
-    select 1
-    from public."Section" s
-    join public."Program" p on p.id = s."programId"
-    where s.id = "ScheduleEntry"."sectionId"
-      and p."collegeId" = public.current_user_college_id()
-      and (
-        public.current_user_chairman_program_id() is null
-        or p.id = public.current_user_chairman_program_id()
-      )
+  and (
+    exists (
+      select 1
+      from public."Section" s
+      join public."Program" p on p.id = s."programId"
+      where s.id = "ScheduleEntry"."sectionId"
+        and p."collegeId" = public.current_user_college_id()
+        and (
+          public.current_user_chairman_program_id() is null
+          or p.id = public.current_user_chairman_program_id()
+        )
+    )
+    or exists (
+      select 1
+      from public."User" u
+      where u.id = "ScheduleEntry"."instructorId"
+        and u."collegeId" = public.current_user_college_id()
+    )
   )
 );
 

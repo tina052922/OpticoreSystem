@@ -245,8 +245,8 @@ export function INSFormFaculty({
             >
               <p className="font-semibold">Schedule conflicts involving this instructor</p>
               <p className="text-xs text-amber-950/85">
-                The form below stays printable; resolve clashes in the Evaluator when possible. Suggested fixes mirror
-                the campus conflict check.
+                The form below stays printable. Resolve overlaps in the Evaluator; optional rescheduling ideas come from
+                the same campus scan as &quot;Run conflict check&quot;.
               </p>
               <ul className="list-disc pl-5 text-xs space-y-1">
                 {live.insConflictLinesForFaculty.map((line, i) => (
