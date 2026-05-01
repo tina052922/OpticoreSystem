@@ -18,6 +18,11 @@ import type { FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustific
 import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  normalizeScheduleEntryDayForEvaluator,
+  normalizeSlotHHMM,
+  startSlotIndexFromScheduleEntryStartTime,
+} from "@/lib/chairman/evaluator-schedule-hydration";
+import {
   BSIT_PROGRAM_CODE,
   normalizeProspectusCode,
   scheduleDurationSlots,
@@ -158,6 +163,54 @@ function rowToBlock(row: PlotRow, academicPeriodId: string, subjectIdForRow: str
   };
 }
 
+/** Campus-wide policy merge: persisted term rows + worksheet overlay (same rules as the `mergedEntriesForCollegePolicy` memo). */
+function buildWorksheetPolicyScheduleEntries(args: {
+  rows: PlotRow[];
+  allTermScheduleEntries: ScheduleEntry[];
+  academicPeriodId: string;
+  programId: string;
+  programCodeForSummary: string;
+}): ScheduleEntry[] {
+  const { rows, allTermScheduleEntries, academicPeriodId, programId, programCodeForSummary } = args;
+  const worksheetIds = new Set(rows.map((r) => r.id));
+  const byId = new Map<string, ScheduleEntry>();
+
+  for (const e of allTermScheduleEntries) {
+    if (e.academicPeriodId !== academicPeriodId) continue;
+    if (worksheetIds.has(e.id)) continue;
+    byId.set(e.id, e);
+  }
+
+  for (const row of rows) {
+    let entry: ScheduleEntry | null = null;
+    const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
+    if (subj) {
+      const b = rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary);
+      if (b) {
+        entry = {
+          id: row.id,
+          academicPeriodId,
+          subjectId: subj.id,
+          instructorId: row.instructorId,
+          sectionId: row.sectionId,
+          roomId: row.roomId,
+          day: row.day,
+          startTime: b.startTime,
+          endTime: b.endTime,
+          status: "draft",
+        };
+      }
+    }
+    if (!entry) {
+      const fromDb = allTermScheduleEntries.find((e) => e.id === row.id);
+      if (fromDb && fromDb.academicPeriodId === academicPeriodId) entry = fromDb;
+    }
+    if (entry) byId.set(row.id, entry);
+  }
+
+  return [...byId.values()];
+}
+
 /** Normalize DB time strings for sparse overlap checks (matches GEC `GecSectionPlottingTable`). */
 function hhmmSchedule(t: string): string {
   const s = t.trim();
@@ -263,6 +316,15 @@ export function BsitChairmanEvaluatorWorksheet({
   const [lastPlottedSubjectFlash, setLastPlottedSubjectFlash] = useState<string | null>(null);
   const plottedSnapshotRef = useRef<string>("");
   const [policyJustificationModalOpen, setPolicyJustificationModalOpen] = useState(false);
+  /** Distinguish save-time vs in-grid assignment gate (Gwyneth overload before persisting). */
+  const [policyModalReason, setPolicyModalReason] = useState<"save" | "assign">("save");
+  /**
+   * After upsert, cross-reload can briefly return a stale row (day/slot) before read-your-writes catches up.
+   * Prefer local day + slot for a few seconds so Friday (etc.) does not snap back to Monday.
+   */
+  const postPersistUiMergeRef = useRef<{ until: number; ids: Set<string> } | null>(null);
+  /** Plot row waiting for VPAA justification before applying instructor/day/slot overload. */
+  const policyAssignGateRef = useRef<PlotRow | null>(null);
   /** Two-step Building → Room UX (not persisted — `ScheduleEntry` still stores `roomId` only). */
   const [roomBuildingByRowId, setRoomBuildingByRowId] = useState<Record<string, string>>({});
   const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
@@ -775,43 +837,13 @@ export function BsitChairmanEvaluatorWorksheet({
    */
   const mergedEntriesForCollegePolicy = useMemo((): ScheduleEntry[] => {
     if (!academicPeriodId) return [];
-    const worksheetIds = new Set(rows.map((r) => r.id));
-    const byId = new Map<string, ScheduleEntry>();
-
-    for (const e of allTermScheduleEntries) {
-      if (e.academicPeriodId !== academicPeriodId) continue;
-      if (worksheetIds.has(e.id)) continue;
-      byId.set(e.id, e);
-    }
-
-    for (const row of rows) {
-      let entry: ScheduleEntry | null = null;
-      const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
-      if (subj) {
-        const b = rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary);
-        if (b) {
-          entry = {
-            id: row.id,
-            academicPeriodId,
-            subjectId: subj.id,
-            instructorId: row.instructorId,
-            sectionId: row.sectionId,
-            roomId: row.roomId,
-            day: row.day,
-            startTime: b.startTime,
-            endTime: b.endTime,
-            status: "draft",
-          };
-        }
-      }
-      if (!entry) {
-        const fromDb = allTermScheduleEntries.find((e) => e.id === row.id);
-        if (fromDb && fromDb.academicPeriodId === academicPeriodId) entry = fromDb;
-      }
-      if (entry) byId.set(row.id, entry);
-    }
-
-    return [...byId.values()];
+    return buildWorksheetPolicyScheduleEntries({
+      rows,
+      allTermScheduleEntries,
+      academicPeriodId,
+      programId,
+      programCodeForSummary,
+    });
   }, [academicPeriodId, allTermScheduleEntries, rows, programId, programCodeForSummary]);
 
   const policyRows = useMemo(() => {
@@ -852,7 +884,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const showJustification = policyRows.hasAnyViolation;
 
   /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
-  const saveLoadJustificationForDoi = useCallback(async () => {
+  const saveLoadJustificationForDoi = useCallback(
+    async (rowsSnapshot?: PlotRow[]) => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase || !academicPeriodId || !chairmanCollegeId) {
       setJustificationMsg("Select a term and ensure your college is in scope.");
@@ -863,7 +896,23 @@ export function BsitChairmanEvaluatorWorksheet({
       setJustificationMsg("Enter at least 12 characters for VPAA review.");
       return false;
     }
-    if (!policyRows.hasAnyViolation) {
+    const rowsForJustif = rowsSnapshot ?? rows;
+    const mergedForJustif = buildWorksheetPolicyScheduleEntries({
+      rows: rowsForJustif,
+      allTermScheduleEntries,
+      academicPeriodId,
+      programId,
+      programCodeForSummary,
+    });
+    const polJustif = evaluateFacultyLoadsForCollege(
+      mergedForJustif,
+      subjectByIdForPolicy,
+      userById,
+      profileByUserId,
+      chairmanCollegeId,
+      (sid) => sectionToCollegeId(sid),
+    );
+    if (!polJustif.hasAnyViolation) {
       setJustificationMsg("No load-policy violations detected; a justification is not required.");
       return false;
     }
@@ -880,7 +929,7 @@ export function BsitChairmanEvaluatorWorksheet({
       }
       const author = dbInstructors.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
-      const violators = policyRows.rows.filter((r) => r.violations.length > 0);
+      const violators = polJustif.rows.filter((r) => r.violations.length > 0);
       const snapRows = violators.map(
         (r) =>
           `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
@@ -893,7 +942,7 @@ export function BsitChairmanEvaluatorWorksheet({
         .eq("collegeId", chairmanCollegeId)
         .is("facultyUserId", null);
       for (const v of violators) {
-        const plottedForFaculty = rows.filter(
+        const plottedForFaculty = rowsForJustif.filter(
           (r) => r.instructorId === v.instructorId && rowFullyPlotted(r, programCodeForSummary),
         );
         const scheduleEntryId = plottedForFaculty[0]?.id ?? null;
@@ -914,7 +963,7 @@ export function BsitChairmanEvaluatorWorksheet({
           justification: t,
           violationsSnapshot: {
             summary: snapRows.join("\n"),
-            detail: policyRows.rows,
+            detail: polJustif.rows,
             scheduleEntryIds: plottedForFaculty.map((r) => r.id),
             facultyWeeklyHours: v.weeklyTotalContactHours,
           },
@@ -944,23 +993,88 @@ export function BsitChairmanEvaluatorWorksheet({
     } finally {
       setJustificationSaving(false);
     }
-  }, [academicPeriodId, chairmanCollegeId, justificationText, policyRows, dbInstructors, rows, programCodeForSummary]);
+  },
+  [
+    academicPeriodId,
+    chairmanCollegeId,
+    justificationText,
+    dbInstructors,
+    rows,
+    allTermScheduleEntries,
+    programId,
+    programCodeForSummary,
+    subjectByIdForPolicy,
+    userById,
+    profileByUserId,
+    sectionToCollegeId,
+  ],
+);
 
+  function computePatchedPlotRow(row: PlotRow, patch: Partial<PlotRow>): PlotRow {
+    const next = { ...row, ...patch };
+    const p = next.subjectCode ? prospectusRowForProgram(programCodeForSummary, next.subjectCode) : undefined;
+    if (p) {
+      const d = scheduleDurationSlots(p);
+      const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
+      if (next.startSlotIndex > maxS) return { ...next, startSlotIndex: maxS };
+    }
+    return next;
+  }
+
+  /** Low-level row update (no policy gate) — use for fields that do not affect contact hours. */
   function updateRow(id: string, patch: Partial<PlotRow>) {
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
         if (r.lockedByDoiAt) return r;
-        const next = { ...r, ...patch };
-        const p = next.subjectCode ? prospectusRowForProgram(programCodeForSummary, next.subjectCode) : undefined;
-        if (p) {
-          const d = scheduleDurationSlots(p);
-          const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
-          if (next.startSlotIndex > maxS) return { ...next, startSlotIndex: maxS };
-        }
-        return next;
+        return computePatchedPlotRow(r, patch);
       }),
     );
+  }
+
+  /**
+   * Before applying instructor/day/slot/subject/room changes on a fully plotted row, ensure overload policy:
+   * if the hypothetical campus-wide load violates caps, require justification (same modal as Save).
+   */
+  function commitRowPatch(id: string, patch: Partial<PlotRow>) {
+    const row = rows.find((r) => r.id === id);
+    if (!row || row.lockedByDoiAt) return;
+    const candidate = computePatchedPlotRow(row, patch);
+    const loadKeys: (keyof PlotRow)[] = ["instructorId", "subjectCode", "startSlotIndex", "day", "roomId"];
+    const affectsLoad = loadKeys.some((k) => patch[k] !== undefined && patch[k] !== row[k]);
+    if (
+      affectsLoad &&
+      chairmanCollegeId &&
+      rowFullyPlotted(candidate, programCodeForSummary) &&
+      candidate.instructorId
+    ) {
+      const hypotheticalRows = rows.map((r) => (r.id === id ? candidate : r));
+      const merged = buildWorksheetPolicyScheduleEntries({
+        rows: hypotheticalRows,
+        allTermScheduleEntries,
+        academicPeriodId,
+        programId,
+        programCodeForSummary,
+      });
+      const pol = evaluateFacultyLoadsForCollege(
+        merged,
+        subjectByIdForPolicy,
+        userById,
+        profileByUserId,
+        chairmanCollegeId,
+        (sid) => sectionToCollegeId(sid),
+      );
+      const hit = pol.rows.find(
+        (x) => x.instructorId === candidate.instructorId && x.violations.length > 0,
+      );
+      if (hit && justificationText.trim().length < 12) {
+        policyAssignGateRef.current = candidate;
+        setPolicyModalReason("assign");
+        setPolicyJustificationModalOpen(true);
+        return;
+      }
+    }
+    updateRow(id, patch);
   }
 
   function addRow() {
@@ -1021,20 +1135,27 @@ export function BsitChairmanEvaluatorWorksheet({
     const slotIndexByStartTime = new Map<string, number>();
     for (let i = 0; i < BSIT_EVALUATOR_TIME_SLOTS.length; i++) {
       const t = BSIT_EVALUATOR_TIME_SLOTS[i];
-      if (t) slotIndexByStartTime.set(t.startTime, i);
+      if (t) {
+        slotIndexByStartTime.set(t.startTime, i);
+        slotIndexByStartTime.set(normalizeSlotHHMM(t.startTime), i);
+      }
     }
 
-    const nextRows: PlotRow[] = relevant.map((e) => ({
-      id: e.id,
-      sectionId: e.sectionId,
-      students: "",
-      subjectCode: subjectCodeById.get(e.subjectId) ?? "",
-      instructorId: e.instructorId,
-      roomId: e.roomId,
-      startSlotIndex: slotIndexByStartTime.get(e.startTime) ?? 0,
-      day: (BSIT_EVALUATOR_WEEKDAYS.includes(e.day as BsitEvaluatorWeekday) ? (e.day as BsitEvaluatorWeekday) : "Monday"),
-      lockedByDoiAt: e.lockedByDoiAt ?? null,
-    }));
+    const nextRows: PlotRow[] = relevant.map((e) => {
+      const normStart = normalizeSlotHHMM(e.startTime);
+      const slotIdx = slotIndexByStartTime.get(normStart) ?? slotIndexByStartTime.get(e.startTime) ?? startSlotIndexFromScheduleEntryStartTime(e.startTime);
+      return {
+        id: e.id,
+        sectionId: e.sectionId,
+        students: "",
+        subjectCode: subjectCodeById.get(e.subjectId) ?? "",
+        instructorId: e.instructorId,
+        roomId: e.roomId,
+        startSlotIndex: slotIdx,
+        day: normalizeScheduleEntryDayForEvaluator(e.day),
+        lockedByDoiAt: e.lockedByDoiAt ?? null,
+      };
+    });
 
     didHydrateFromDbRef.current = true;
     lastSyncedRowIdsRef.current = new Set(nextRows.map((r) => r.id));
@@ -1042,7 +1163,18 @@ export function BsitChairmanEvaluatorWorksheet({
     setRows((prev) => {
       const dbIds = new Set(nextRows.map((r) => r.id));
       const pending = prev.filter((r) => !dbIds.has(r.id) && !r.lockedByDoiAt);
-      return [...nextRows, ...pending];
+      const guard = postPersistUiMergeRef.current;
+      const now = Date.now();
+      const mergedDb = nextRows.map((nr) => {
+        if (guard && now < guard.until && guard.ids.has(nr.id)) {
+          const local = prev.find((p) => p.id === nr.id);
+          if (local && !local.lockedByDoiAt) {
+            return { ...nr, day: local.day, startSlotIndex: local.startSlotIndex };
+          }
+        }
+        return nr;
+      });
+      return [...mergedDb, ...pending];
     });
 
     if (chairmanCollegeId) {
@@ -1339,6 +1471,14 @@ export function BsitChairmanEvaluatorWorksheet({
           showSkippedMsg("none_saved");
         }
         if (wrote) {
+          postPersistUiMergeRef.current = {
+            until: Date.now() + 3200,
+            ids: new Set(upserts.map((u) => u.id)),
+          };
+          window.setTimeout(() => {
+            const g = postPersistUiMergeRef.current;
+            if (g && Date.now() >= g.until) postPersistUiMergeRef.current = null;
+          }, 3300);
           const auditRows = upserts.map((e) => {
             const plot = rows.find((x) => x.id === e.id);
             return {
@@ -1520,6 +1660,7 @@ export function BsitChairmanEvaluatorWorksheet({
                 if (policyRows.hasAnyViolation) {
                   const t = justificationText.trim();
                   if (t.length < 12) {
+                    setPolicyModalReason("save");
                     setPolicyJustificationModalOpen(true);
                     return;
                   }
@@ -1667,7 +1808,7 @@ export function BsitChairmanEvaluatorWorksheet({
                               if (!s || s.yearLevel !== yl) subjectCode = "";
                               else if (sem != null && s.semester !== sem) subjectCode = "";
                             }
-                            updateRow(row.id, { sectionId, subjectCode });
+                            commitRowPatch(row.id, { sectionId, subjectCode });
                           }}
                         >
                           <option value="">Select…</option>
@@ -1706,7 +1847,7 @@ export function BsitChairmanEvaluatorWorksheet({
                               const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
                               if (startSlotIndex > maxS) startSlotIndex = maxS;
                             }
-                            updateRow(row.id, { subjectCode, startSlotIndex });
+                            commitRowPatch(row.id, { subjectCode, startSlotIndex });
                           }}
                         >
                           <option value="">{!row.sectionId ? "Select section first…" : "Select…"}</option>
@@ -1754,7 +1895,7 @@ export function BsitChairmanEvaluatorWorksheet({
                           className={selectClass}
                           value={row.instructorId}
                           disabled={rowReadOnly}
-                          onChange={(e) => updateRow(row.id, { instructorId: e.target.value })}
+                          onChange={(e) => commitRowPatch(row.id, { instructorId: e.target.value })}
                           aria-label="Instructor"
                         >
                           <option value="">Select instructor…</option>
@@ -1789,7 +1930,7 @@ export function BsitChairmanEvaluatorWorksheet({
                                     return next;
                                   });
                                   if (!b) {
-                                    updateRow(row.id, { roomId: "" });
+                                    commitRowPatch(row.id, { roomId: "" });
                                     return;
                                   }
                                   const keep =
@@ -1797,7 +1938,7 @@ export function BsitChairmanEvaluatorWorksheet({
                                     roomsForEvaluatorGrid.some(
                                       (r) => r.id === row.roomId && roomBuildingKey(r) === b,
                                     );
-                                  if (!keep) updateRow(row.id, { roomId: "" });
+                                  if (!keep) commitRowPatch(row.id, { roomId: "" });
                                 }}
                               >
                                 <option value="">Building…</option>
@@ -1819,7 +1960,7 @@ export function BsitChairmanEvaluatorWorksheet({
                                     ...prev,
                                     [row.id]: r ? roomBuildingKey(r) : prev[row.id] ?? "",
                                   }));
-                                  updateRow(row.id, { roomId: id });
+                                  commitRowPatch(row.id, { roomId: id });
                                 }}
                               >
                                 <option value="">{buildingValue ? "Room…" : "Select building first"}</option>
@@ -1853,7 +1994,7 @@ export function BsitChairmanEvaluatorWorksheet({
                             aria-label="First hour start slot"
                             value={effectiveStart}
                             disabled={rowReadOnly}
-                            onChange={(e) => updateRow(row.id, { startSlotIndex: parseInt(e.target.value, 10) })}
+                            onChange={(e) => commitRowPatch(row.id, { startSlotIndex: parseInt(e.target.value, 10) })}
                           >
                             {BSIT_EVALUATOR_TIME_SLOTS.slice(0, maxStart + 1).map((t, idx) => (
                               <option key={`${idx}-${t.label}`} value={idx}>
@@ -1875,7 +2016,7 @@ export function BsitChairmanEvaluatorWorksheet({
                           className={selectClass}
                           value={row.day}
                           disabled={rowReadOnly}
-                          onChange={(e) => updateRow(row.id, { day: e.target.value as BsitEvaluatorWeekday })}
+                          onChange={(e) => commitRowPatch(row.id, { day: e.target.value as BsitEvaluatorWeekday })}
                         >
                           {BSIT_EVALUATOR_WEEKDAYS.map((d) => (
                             <option key={d} value={d}>
@@ -1981,15 +2122,34 @@ export function BsitChairmanEvaluatorWorksheet({
       ) : null}
 
       <PolicyJustificationModal
-        open={policyJustificationModalOpen && showJustification}
-        title="Policy justification"
-        promptText="This assignment exceeds the faculty load policy. Do you want to proceed with justification?"
+        open={policyJustificationModalOpen && (policyModalReason === "assign" || showJustification)}
+        title={policyModalReason === "assign" ? "Overload: justify before assigning" : "Policy justification"}
+        promptText={
+          policyModalReason === "assign"
+            ? "This assignment pushes the instructor past the faculty load policy. Enter a justification for DOI/VPAA review, then the assignment will be kept and saved."
+            : "This assignment exceeds the faculty load policy. Do you want to proceed with justification?"
+        }
+        confirmButtonLabel={policyModalReason === "assign" ? "Record justification & apply assignment" : undefined}
         value={justificationText}
         minLength={12}
         saving={justificationSaving || saveScheduleBusy}
         onChange={setJustificationText}
-        onCancel={() => setPolicyJustificationModalOpen(false)}
+        onCancel={() => {
+          policyAssignGateRef.current = null;
+          setPolicyJustificationModalOpen(false);
+        }}
         onSave={async () => {
+          const pendingAssign = policyAssignGateRef.current;
+          if (pendingAssign) {
+            policyAssignGateRef.current = null;
+            const nextRows = rows.map((r) => (r.id === pendingAssign.id ? pendingAssign : r));
+            setRows(nextRows);
+            const ok = await saveLoadJustificationForDoi(nextRows);
+            if (!ok) return;
+            setPolicyJustificationModalOpen(false);
+            await performSchedulePersist("manual");
+            return;
+          }
           const ok = await saveLoadJustificationForDoi();
           if (!ok) return;
           setPolicyJustificationModalOpen(false);

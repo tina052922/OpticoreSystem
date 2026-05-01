@@ -14,6 +14,8 @@ export type PolicyJustificationModalProps = {
   open: boolean;
   title?: string;
   promptText?: string;
+  /** Overrides the primary button label (e.g. assign gate vs save-with-justification). */
+  confirmButtonLabel?: string;
   value: string;
   minLength?: number;
   saving?: boolean;
@@ -26,6 +28,7 @@ export function PolicyJustificationModal({
   open,
   title = "Policy justification",
   promptText = "This assignment exceeds the faculty load policy. Do you want to proceed with justification?",
+  confirmButtonLabel,
   value,
   minLength = 12,
   saving = false,
@@ -92,7 +95,7 @@ export function PolicyJustificationModal({
             disabled={saving || invalid}
             onClick={() => void onSave()}
           >
-            {saving ? "Saving…" : "Save with justification"}
+            {saving ? "Saving…" : confirmButtonLabel ?? "Save with justification"}
           </Button>
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
+import { normalizeSlotHHMM, startSlotIndexFromScheduleEntryStartTime } from "@/lib/chairman/evaluator-schedule-hydration";
 import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
 import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
@@ -76,12 +77,14 @@ type Props = {
 };
 
 function hhmm(t: string): string {
-  return t.trim().length > 5 ? t.trim().slice(0, 5) : t.trim();
+  return normalizeSlotHHMM(t);
 }
 
+/** Align GEC grid with Program Chairman: tolerate "7:00" vs "07:00" and seconds from Postgres. */
 function startSlotIndexFromEntry(e: ScheduleEntry): number {
   const h = hhmm(e.startTime);
-  return BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === h);
+  const idx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === h);
+  return idx >= 0 ? idx : startSlotIndexFromScheduleEntryStartTime(e.startTime);
 }
 
 function entryToSparse(e: ScheduleEntry): SparseScheduleBlock | null {
