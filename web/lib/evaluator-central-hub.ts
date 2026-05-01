@@ -29,7 +29,8 @@ export const CENTRAL_HUB_COLLEGES: HubCollege[] = [
     slug: "cafe",
     abbr: "CAFE",
     name: "College of Agriculture, Forestry, & Environmental Science",
-    collegeId: null,
+    /** Matches `supabase/seed.sql` — `public."College".id` for BS Environmental Science / CAFE. */
+    collegeId: "col-cafe",
   },
   {
     slug: "chmt",

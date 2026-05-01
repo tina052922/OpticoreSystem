@@ -176,6 +176,20 @@ export function scheduleEntryToSparseBlock(e: ScheduleEntry): SparseScheduleBloc
   };
 }
 
+/** Dense plotter block → sparse (Chairman worksheet campus scan uses merged DB + draft blocks). */
+export function scheduleBlockToSparseBlock(b: ScheduleBlock): SparseScheduleBlock {
+  return {
+    id: b.id,
+    academicPeriodId: b.academicPeriodId,
+    day: b.day,
+    startTime: hhmmForConflict(b.startTime),
+    endTime: hhmmForConflict(b.endTime),
+    instructorId: b.instructorId?.trim() ? b.instructorId : null,
+    sectionId: b.sectionId?.trim() ? b.sectionId : null,
+    roomId: b.roomId?.trim() ? b.roomId : null,
+  };
+}
+
 /**
  * Campus-wide / full-term scan using sparse semantics (aligned with grid columns and worksheet preview).
  * Prefer this over {@link scanAllScheduleConflicts} when data may omit instructor/room or use placeholder ids.

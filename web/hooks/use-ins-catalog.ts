@@ -57,6 +57,12 @@ export function useInsCatalog(args: {
    * at least one class (so Section/Room INS tabs show peers in shared sections, not the whole college).
    */
   instructorPortalUserId?: string | null;
+  /**
+   * INS Form 5A (faculty-by-name): include every program in the college for the term.
+   * When false, a chairman `programId` limits rows to that program only (Section/Room forms stay scoped).
+   * Shared instructors must see the same Hours/Week as Evaluator policy (full college load).
+   */
+  ignoreProgramScope?: boolean;
 }) {
   const semesterFilter = useSemesterFilterOptional();
   /** Fallback when `SemesterFilterProvider` is not mounted (e.g. isolated tests). */
@@ -388,7 +394,7 @@ export function useInsCatalog(args: {
         const pr = programById.get(sec.programId);
         if (!pr) return false;
         if (pr.collegeId !== args.collegeId) return false;
-        if (args.programId && sec.programId !== args.programId) return false;
+        if (args.programId && !args.ignoreProgramScope && sec.programId !== args.programId) return false;
         return true;
       });
     }
@@ -404,6 +410,7 @@ export function useInsCatalog(args: {
     args.collegeId,
     args.programId,
     args.campusWide,
+    args.ignoreProgramScope,
     args.instructorPortalUserId,
     sectionById,
     programById,

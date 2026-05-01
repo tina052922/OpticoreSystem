@@ -65,21 +65,21 @@ export function OpticoreInsForm5A({
   onScheduleEntryClick,
 }: OpticoreInsForm5AProps) {
   return (
-    <div className="space-y-8 print:space-y-4 text-neutral-900">
-      <div className="flex flex-col gap-4 print:gap-2 border-b border-neutral-300 pb-6 print:pb-3 sm:flex-row sm:items-start sm:justify-between">
-        <h3 className="order-2 text-center text-base font-bold uppercase tracking-wide sm:order-1 sm:text-left sm:text-lg">
+    <div className="space-y-8 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+      <div className="flex flex-col gap-4 print:gap-1 border-b border-neutral-300 pb-6 print:pb-1.5 sm:flex-row sm:items-start sm:justify-between">
+        <h3 className="order-2 text-center text-base font-bold uppercase tracking-wide sm:order-1 sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
           Cebu Technological University
         </h3>
-        <div className="order-1 text-right text-sm sm:order-2">
+        <div className="order-1 text-right text-sm sm:order-2 print:text-[7.5pt]">
           <div className="font-semibold">INS FORM 5A</div>
           <div>{formDate()}</div>
           <div>Revision: 2</div>
         </div>
       </div>
 
-      <div className="space-y-2 text-center">
-        <h4 className="text-xl font-bold uppercase tracking-wide">Program by Teacher</h4>
-        <div className="text-sm">Day Program</div>
+      <div className="space-y-2 print:space-y-0 text-center">
+        <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">Program by Teacher</h4>
+        <div className="text-sm print:text-[7.5pt]">Day Program</div>
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">{semesterLabel ?? "____ Semester, AY ____"}</span>
@@ -94,7 +94,7 @@ export function OpticoreInsForm5A({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-x-10 gap-y-4 print:gap-y-2 text-sm md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-10 gap-y-4 print:gap-y-0.5 print:gap-x-4 text-sm md:grid-cols-2 print:text-[7.5pt]">
         <div className="flex flex-wrap items-end gap-3 md:col-span-2">
           <span className="shrink-0">Name:</span>
           {readOnly ? (
@@ -231,7 +231,7 @@ export function OpticoreInsForm5A({
                 return <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}>{body}</div>;
               })}
               {(items as InsFacultyCell[]).length > 3 ? (
-                <div className="text-[10px] text-neutral-600 print:text-[9px]">
+                <div className="text-[10px] text-neutral-600 print:hidden">
                   +{(items as InsFacultyCell[]).length - 3} more…
                 </div>
               ) : null}
@@ -242,17 +242,19 @@ export function OpticoreInsForm5A({
         scheduleApproved={scheduleApproved}
       />
 
-      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-2.5">
-        <div className="mb-4 text-center text-sm font-bold uppercase tracking-wide">Summary of Courses</div>
-        <div className="mb-2 border-b border-neutral-900 pb-2 text-xs font-semibold">
-          <div className="grid grid-cols-4 gap-2">
+      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-1.5 ins-print-avoid-break">
+        <div className="mb-4 print:mb-1 text-center text-sm font-bold uppercase tracking-wide print:text-[8pt]">
+          Summary of Courses
+        </div>
+        <div className="mb-2 print:mb-0.5 border-b border-neutral-900 pb-2 print:pb-0.5 text-xs font-semibold print:text-[7.5pt]">
+          <div className="grid grid-cols-4 gap-2 print:gap-0.5">
             <span>No. of Students</span>
             <span>Course code</span>
             <span>Descriptive Title</span>
             <span>Degree/Yr/Sec</span>
           </div>
         </div>
-        <div className="space-y-1 print:space-y-0.5">
+        <div className="space-y-1 print:space-y-0 print:leading-tight">
           {courses.length === 0 && readOnly ? (
             <div className="grid grid-cols-4 gap-2 text-xs text-neutral-800">
               <span className="min-h-[1.4rem] px-1 py-1">—</span>
@@ -263,13 +265,24 @@ export function OpticoreInsForm5A({
             </div>
           ) : (
             courses.map((c, idx) => (
-              <div key={idx} className="grid grid-cols-4 gap-2 text-xs border-b border-black/10 last:border-b-0">
+              <div
+                key={idx}
+                className="grid grid-cols-4 gap-2 print:gap-0.5 text-xs border-b border-black/10 last:border-b-0 print:text-[7pt]"
+              >
                 {readOnly ? (
                   <>
-                    <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.students}</span>
-                    <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.code}</span>
-                    <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.title}</span>
-                    <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.degreeYrSec}</span>
+                    <span className="flex min-h-[1.4rem] print:min-h-0 items-center bg-white px-1 py-1 print:py-0">
+                      {c.students}
+                    </span>
+                    <span className="flex min-h-[1.4rem] print:min-h-0 items-center bg-white px-1 py-1 print:py-0">
+                      {c.code}
+                    </span>
+                    <span className="flex min-h-[1.4rem] print:min-h-0 items-center bg-white px-1 py-1 print:py-0 leading-snug">
+                      {c.title}
+                    </span>
+                    <span className="flex min-h-[1.4rem] print:min-h-0 items-center bg-white px-1 py-1 print:py-0">
+                      {c.degreeYrSec}
+                    </span>
                   </>
                 ) : (
                   <>
@@ -309,8 +322,8 @@ export function OpticoreInsForm5A({
             ))}
         </div>
 
-        <div className="mt-6 print:mt-3 border-t border-neutral-900 pt-4 print:pt-2.5">
-          <div className="grid grid-cols-1 gap-x-10 gap-y-4 text-sm md:grid-cols-2">
+        <div className="mt-6 print:mt-1.5 border-t border-neutral-900 pt-4 print:pt-1">
+          <div className="grid grid-cols-1 gap-x-10 gap-y-4 print:gap-y-0.5 text-sm md:grid-cols-2 print:text-[7.5pt]">
             <div className="space-y-4">
               {readOnly ? (
                 <>
@@ -474,17 +487,17 @@ export function OpticoreInsForm5B({
   scheduleApproved = false,
   insSignatureSlots = null,
 }: OpticoreInsForm5BProps) {
-  const PRINT_MAX_SUMMARY_ROWS = 8;
-  const shownCourses = readOnly ? courses.slice(0, PRINT_MAX_SUMMARY_ROWS) : courses;
-  const hiddenCourseCount = readOnly ? Math.max(0, courses.length - shownCourses.length) : 0;
+  /** Print layout is compact (see `ins-print-one-page`); list every row — do not truncate the summary table. */
+  const shownCourses = courses;
+  const hiddenCourseCount = 0;
 
   return (
-    <div className="space-y-8 print:space-y-4 text-neutral-900">
-      <div className="flex flex-col gap-4 print:gap-2 border-b border-neutral-300 pb-6 print:pb-3 sm:flex-row sm:items-start sm:justify-between">
-        <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg">
+    <div className="space-y-8 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+      <div className="flex flex-col gap-4 print:gap-1 border-b border-neutral-300 pb-6 print:pb-1.5 sm:flex-row sm:items-start sm:justify-between">
+        <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
           Cebu Technological University
         </h3>
-        <div className="text-right text-sm">
+        <div className="text-right text-sm print:text-[7.5pt]">
           <div className="font-semibold">INS FORM 5B</div>
           <div>{formDate()}</div>
           <div>Revision: 2</div>
@@ -574,7 +587,7 @@ export function OpticoreInsForm5B({
                 return <div key={`${row.time}-${idx}`}>{inner}</div>;
               })}
               {(items as SectionScheduleCell[]).length > 3 ? (
-                <div className="text-[10px] text-neutral-600 print:text-[9px]">
+                <div className="text-[10px] text-neutral-600 print:hidden">
                   +{(items as SectionScheduleCell[]).length - 3} more…
                 </div>
               ) : null}
@@ -679,21 +692,21 @@ export function OpticoreInsForm5C({
   const campus = pickSlot(insSignatureSlots, "campus");
 
   return (
-    <div className="space-y-8 print:space-y-4 text-neutral-900">
-      <div className="flex flex-col gap-4 print:gap-2 border-b border-neutral-300 pb-6 print:pb-3 sm:flex-row sm:items-start sm:justify-between">
-        <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg">
+    <div className="space-y-8 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+      <div className="flex flex-col gap-4 print:gap-1 border-b border-neutral-300 pb-6 print:pb-1.5 sm:flex-row sm:items-start sm:justify-between">
+        <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
           Cebu Technological University
         </h3>
-        <div className="text-right text-sm">
+        <div className="text-right text-sm print:text-[7.5pt]">
           <div className="font-semibold">INS FORM 5C</div>
           <div>{formDate()}</div>
           <div>Revision: 2</div>
         </div>
       </div>
 
-      <div className="space-y-2 text-center">
-        <h4 className="text-xl font-bold uppercase tracking-wide">Room Utilization</h4>
-        <div className="text-sm">Day Program</div>
+      <div className="space-y-2 print:space-y-0 text-center">
+        <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">Room Utilization</h4>
+        <div className="text-sm print:text-[7.5pt]">Day Program</div>
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">{semesterLabel ?? "____ Semester, AY ____"}</span>
@@ -751,7 +764,7 @@ export function OpticoreInsForm5C({
                 return <div key={`${classAtTime.time}-${idx}`}>{inner}</div>;
               })}
               {(items as InsRoomCell[]).length > 3 ? (
-                <div className="text-[10px] text-neutral-600 print:text-[9px]">
+                <div className="text-[10px] text-neutral-600 print:hidden">
                   +{(items as InsRoomCell[]).length - 3} more…
                 </div>
               ) : null}

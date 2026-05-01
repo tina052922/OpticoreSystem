@@ -202,7 +202,9 @@ on conflict (id) do update set
 
 -- CTU Argao: CAFE / BS Environmental Science + campus rooms (requires migration 20260501120000_* for semester, imagePath, SLJ columns).
 
-insert into public."College" (id, code, name) values ('col-cafe', 'CAFE', 'College of Forestry and Environmental Sciences') on conflict (code) do nothing;
+insert into public."College" (id, code, name)
+values ('col-cafe', 'CAFE', 'College of Agriculture, Forestry, & Environmental Science')
+on conflict (code) do nothing;
 insert into public."Program" (id, code, name, "collegeId") values ('prog-bs-envsci', 'BSENVS', 'Bachelor of Science in Environmental Science', 'col-cafe') on conflict (code) do nothing;
 insert into public."Section" (id, "programId", name, "yearLevel", "studentCount") values ('sec-bsenvs-1a', 'prog-bs-envsci', 'BSENVS-1A', 1, 32) on conflict (id) do nothing;
 insert into public."Section" (id, "programId", name, "yearLevel", "studentCount") values ('sec-bsenvs-1b', 'prog-bs-envsci', 'BSENVS-1B', 1, 32) on conflict (id) do nothing;

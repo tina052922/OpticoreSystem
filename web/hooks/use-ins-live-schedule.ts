@@ -28,7 +28,8 @@ export function useInsLiveSchedule(args: {
   /** Faculty portal: narrow INS catalog to this instructor’s sections/programs. */
   instructorPortalUserId?: string | null;
 }) {
-  const catalog = useInsCatalog(args);
+  /** Form 5A totals must match faculty portal + Evaluator (cross-program teaching in one college). */
+  const catalog = useInsCatalog({ ...args, ignoreProgramScope: true });
   const [selectedInstructorId, setSelectedInstructorId] = useState(args.lockedInstructorId ?? "");
   const [facultyProfile, setFacultyProfile] = useState<FacultyProfile | null>(null);
 
