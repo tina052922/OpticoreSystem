@@ -24,7 +24,7 @@ export function LoginContainer({ children }: LoginContainerProps) {
         <img
           src="/login/campus-photo.png"
           alt=""
-          className="relative z-[1] w-full h-full max-h-[38vh] object-contain object-center"
+          className="relative z-[1] w-full h-full max-h-[38vh] object-contain object-[78%_center]"
         />
         <div
           className="absolute inset-0 z-[2] pointer-events-none"
@@ -46,7 +46,7 @@ export function LoginContainer({ children }: LoginContainerProps) {
           <img
             src="/login/campus-photo.png"
             alt=""
-            className="max-h-full max-w-full w-auto h-auto object-contain object-center"
+            className="max-h-full max-w-full w-auto h-auto object-contain object-[78%_center]"
           />
         </div>
         {/* Translucent maroon wash — darker at top, lighter toward bottom */}

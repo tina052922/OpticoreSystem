@@ -60,6 +60,7 @@ function toInsDay(day: string): InsDay | null {
 
 /**
  * Build INS Form 5A schedule grid + course list for one instructor from live `ScheduleEntry` rows.
+ * Pass only that instructor’s rows for the term (may span multiple colleges); hours match My Schedule + policy.
  */
 export function buildInsFacultyView(args: {
   entries: ScheduleEntry[];

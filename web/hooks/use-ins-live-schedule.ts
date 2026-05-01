@@ -67,7 +67,7 @@ export function useInsLiveSchedule(args: {
       const collegeRow = collegeId ? catalog.colleges.find((c) => c.id === collegeId) ?? null : null;
       return { collegeId, programId, collegeRow };
     }
-    const termList = catalog.scopedEntries.filter(
+    const termList = catalog.entries.filter(
       (e) => e.academicPeriodId === catalog.academicPeriodId && e.instructorId === selectedInstructorId,
     );
     if (termList.length === 0) {
@@ -126,6 +126,18 @@ export function useInsLiveSchedule(args: {
     };
   }, [facultyProfile]);
 
+  /**
+   * Form 5A grid + Hours/Week must use every `ScheduleEntry` for this instructor in the term (all colleges /
+   * programs), matching `/api/portal/faculty-term-data` + My Schedule — not `scopedEntries`, which is limited to the
+   * viewer college’s program graph for Section/Room INS pickers.
+   */
+  const entriesForInsFacultyView = useMemo(() => {
+    if (!catalog.academicPeriodId || !selectedInstructorId) return [];
+    return catalog.entries.filter(
+      (e) => e.academicPeriodId === catalog.academicPeriodId && e.instructorId === selectedInstructorId,
+    );
+  }, [catalog.entries, catalog.academicPeriodId, selectedInstructorId]);
+
   const { schedule, courses, teachingMetrics } = useMemo(() => {
     if (!catalog.academicPeriodId || !selectedInstructorId) {
       const empty: InsFacultySchedule = {
@@ -145,7 +157,7 @@ export function useInsLiveSchedule(args: {
       };
     }
     return buildInsFacultyView({
-      entries: catalog.scopedEntries,
+      entries: entriesForInsFacultyView,
       academicPeriodId: catalog.academicPeriodId,
       instructorId: selectedInstructorId,
       sectionById: catalog.sectionById,
@@ -153,7 +165,7 @@ export function useInsLiveSchedule(args: {
       roomById: catalog.roomById,
     });
   }, [
-    catalog.scopedEntries,
+    entriesForInsFacultyView,
     catalog.academicPeriodId,
     selectedInstructorId,
     catalog.sectionById,

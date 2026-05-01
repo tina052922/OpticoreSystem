@@ -125,15 +125,19 @@ function collectViolations(
 
 /**
  * Aggregates weekly teaching contact from timetable rows and tests CTU Faculty Manual–aligned rules.
- * Only entries whose section maps to `collegeId` are included.
+ *
+ * **Campus-wide totals:** every row in `entries` counts toward its instructor’s weekly contact (same universe as
+ * `getInstructorScheduleRows` / INS Form 5A / faculty My Schedule). `collegeId` and `sectionToCollegeId` are kept
+ * for call-site compatibility; overload policy is evaluated on the instructor’s **full** plotted load, not a
+ * single-college slice.
  */
 export function evaluateFacultyLoadsForCollege(
   entries: ScheduleEntry[],
   subjectsById: Map<string, Subject>,
   userById: Map<string, User>,
   profileByUserId: Map<string, FacultyProfile>,
-  collegeId: string,
-  sectionToCollegeId: (sectionId: string) => string | null,
+  _collegeId: string,
+  _sectionToCollegeId: (sectionId: string) => string | null,
 ): { rows: FacultyLoadRow[]; hasAnyViolation: boolean } {
   const byInstructor = new Map<
     string,
@@ -141,7 +145,6 @@ export function evaluateFacultyLoadsForCollege(
   >();
 
   for (const e of entries) {
-    if (sectionToCollegeId(e.sectionId) !== collegeId) continue;
     const sub = subjectsById.get(e.subjectId);
     const dur = slotDurationHours(e.startTime, e.endTime);
     const { lec, lab } = lectureLabSplitHours(sub, dur);
