@@ -155,25 +155,26 @@ export async function PATCH(req: Request) {
     const rows: { userId: string; message: string }[] = [{ userId: r.authorUserId, message: chairMsg }];
     const notifyWarnings: string[] = [];
 
-    // College Admins must be informed when VPAA approves, so they can align published schedules and hub workflows.
-    if (decision === "accepted") {
-      const [instructorLabel, scheduleHint] = await Promise.all([resolveInstructorLabel(admin), resolveScheduleHint(admin)]);
-      const collegeAdminMsg = `VPAA/DOI approved a faculty load policy justification for ${instructorLabel} for ${periodName} (${collegeName})${scheduleHint}.${note ? ` VPAA note: ${note}` : ""}`;
+    // College admins stay aligned with the VPAA queue: notify on both accept and reject (chair always gets `chairMsg` above).
+    const [instructorLabel, scheduleHint] = await Promise.all([resolveInstructorLabel(admin), resolveScheduleHint(admin)]);
+    const collegeAdminMsg =
+      decision === "accepted"
+        ? `VPAA/DOI approved a faculty load policy justification for ${instructorLabel} for ${periodName} (${collegeName})${scheduleHint}.${note ? ` VPAA note: ${note}` : ""}`
+        : `VPAA/DOI rejected a faculty load policy justification for ${instructorLabel} for ${periodName} (${collegeName})${scheduleHint}.${note ? ` VPAA note: ${note}` : ""}`;
 
-      const { data: collegeAdmins, error: admErr } = await admin
-        .from("User")
-        .select("id")
-        .eq("role", "college_admin")
-        .eq("collegeId", r.collegeId);
+    const { data: collegeAdmins, error: admErr } = await admin
+      .from("User")
+      .select("id")
+      .eq("role", "college_admin")
+      .eq("collegeId", r.collegeId);
 
-      if (admErr) {
-        notifyWarnings.push(`College admin notification skipped (lookup failed): ${admErr.message}`);
-      } else {
-        for (const u of collegeAdmins ?? []) {
-          const id = (u as { id: string }).id;
-          if (id && id !== r.authorUserId) {
-            rows.push({ userId: id, message: collegeAdminMsg });
-          }
+    if (admErr) {
+      notifyWarnings.push(`College admin notification skipped (lookup failed): ${admErr.message}`);
+    } else {
+      for (const u of collegeAdmins ?? []) {
+        const id = (u as { id: string }).id;
+        if (id && id !== r.authorUserId) {
+          rows.push({ userId: id, message: collegeAdminMsg });
         }
       }
     }

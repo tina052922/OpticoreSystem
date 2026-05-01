@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ScheduleLoadJustification } from "@/types/db";
 import { Button } from "@/components/ui/button";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export type DoiPolicyReviewRowVM = ScheduleLoadJustification & {
   collegeName: string;
@@ -26,11 +27,30 @@ function decisionBadgeClass(d: ScheduleLoadJustification["doiDecision"]): string
   return "bg-black/[0.04] text-black/60 border-black/10";
 }
 
-function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
+function mergeVm(base: DoiPolicyReviewRowVM, updated: ScheduleLoadJustification): DoiPolicyReviewRowVM {
+  return {
+    ...base,
+    ...updated,
+    collegeName: base.collegeName,
+    periodName: base.periodName,
+    facultyName: base.facultyName,
+    facultyWeeklyHours: base.facultyWeeklyHours,
+  };
+}
+
+function ReviewCard({
+  row,
+  onRowUpdated,
+}: {
+  row: DoiPolicyReviewRowVM;
+  onRowUpdated: (next: DoiPolicyReviewRowVM) => void;
+}) {
   const router = useRouter();
   const [note, setNote] = useState(row.doiReviewNote ?? "");
   const [busy, setBusy] = useState<"accepted" | "rejected" | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+
+  const pending = row.doiDecision == null || row.doiDecision === "pending";
 
   async function submit(decision: "accepted" | "rejected") {
     setBusy(decision);
@@ -45,12 +65,19 @@ function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
           note: note.trim() || null,
         }),
       });
-      const data = (await res.json().catch(() => null)) as { error?: string; warning?: string } | null;
+      const data = (await res.json().catch(() => null)) as {
+        justification?: ScheduleLoadJustification;
+        error?: string;
+        warning?: string;
+      } | null;
       if (!res.ok) {
         setMsg(data?.error ?? "Request failed.");
         return;
       }
-      if (data && "warning" in data && typeof data.warning === "string") {
+      if (data?.justification) {
+        onRowUpdated(mergeVm(row, data.justification));
+      }
+      if (data?.warning) {
         setMsg(data.warning);
       }
       router.refresh();
@@ -61,7 +88,6 @@ function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
 
   const snap = row.violationsSnapshot as { facultyWeeklyHours?: number | null } | null;
   const hours = row.facultyWeeklyHours ?? (snap?.facultyWeeklyHours ?? null);
-  const pending = row.doiDecision == null || row.doiDecision === "pending";
   const facultyLabel = (row.facultyName ?? "").trim() || (row.facultyUserId ? "Selected instructor" : "Instructor");
 
   return (
@@ -80,6 +106,12 @@ function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
           {decisionLabel(row.doiDecision ?? null)}
         </span>
       </div>
+      {row.doiReviewedAt ? (
+        <p className="text-xs text-black/55">
+          <span className="font-semibold text-black/60">Reviewed: </span>
+          {new Date(row.doiReviewedAt).toLocaleString()}
+        </p>
+      ) : null}
       <div className="rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2">
         <div className="text-sm font-semibold text-[#181818]">
           {facultyLabel}
@@ -103,42 +135,70 @@ function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
       <div className="text-sm text-black/80 whitespace-pre-wrap border-t border-black/5 pt-3">{row.justification}</div>
       {row.doiReviewNote && !pending ? (
         <div className="text-xs text-black/55">
-          <span className="font-semibold">Your note: </span>
+          <span className="font-semibold">VPAA note: </span>
           {row.doiReviewNote}
         </div>
       ) : null}
 
-      <div className="border-t border-black/5 pt-3 space-y-2">
-        <label className="block text-[12px] font-medium text-black/70">Optional note (visible to the chair)</label>
-        <textarea
-          className="w-full min-h-[72px] rounded-lg border border-black/15 bg-white px-3 py-2 text-sm"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Write a short note if needed."
-        />
-        {msg ? <p className="text-xs text-amber-800">{msg}</p> : null}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            className="bg-emerald-700 hover:bg-emerald-800 text-white"
-            disabled={busy !== null}
-            onClick={() => void submit("accepted")}
-          >
-            {busy === "accepted" ? "Saving…" : "Accept justification"}
-          </Button>
-          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void submit("rejected")}>
-            {busy === "rejected" ? "Saving…" : "Reject"}
-          </Button>
+      {pending ? (
+        <div className="border-t border-black/5 pt-3 space-y-2">
+          <label className="block text-[12px] font-medium text-black/70">Optional note (visible to chair and college)</label>
+          <textarea
+            className="w-full min-h-[72px] rounded-lg border border-black/15 bg-white px-3 py-2 text-sm"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Write a short note if needed."
+          />
+          {msg ? <p className="text-xs text-amber-800">{msg}</p> : null}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white"
+              disabled={busy !== null}
+              onClick={() => void submit("accepted")}
+            >
+              {busy === "accepted" ? "Saving…" : "Accept justification"}
+            </Button>
+            <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void submit("rejected")}>
+              {busy === "rejected" ? "Saving…" : "Reject"}
+            </Button>
+          </div>
+          <p className="text-[11px] text-black/45 leading-relaxed">
+            The chairman and college admins are notified immediately. This list and the college view update in real time.
+          </p>
         </div>
-        <p className="text-[11px] text-black/45 leading-relaxed">
-          Choosing <strong>Accept</strong> or <strong>Reject</strong> updates the chair’s page right away.
-        </p>
-      </div>
+      ) : (
+        <p className="text-xs text-black/50 border-t border-black/5 pt-3">Decision recorded — no further action.</p>
+      )}
     </li>
   );
 }
 
-export function DoiPolicyReviewsClient({ rows }: { rows: DoiPolicyReviewRowVM[] }) {
+export function DoiPolicyReviewsClient({ rows: initialRows }: { rows: DoiPolicyReviewRowVM[] }) {
+  const router = useRouter();
+  const [rows, setRows] = useState<DoiPolicyReviewRowVM[]>(initialRows);
+
+  useEffect(() => {
+    setRows(initialRows);
+  }, [initialRows]);
+
+  // Campus-wide queue: any change (new submission or VPAA decision) should refresh server props; local state merges PATCH response for instant UI.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    const channel = supabase
+      .channel("doi-policy-slj-all")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ScheduleLoadJustification" },
+        () => router.refresh(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [router]);
+
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
@@ -150,7 +210,11 @@ export function DoiPolicyReviewsClient({ rows }: { rows: DoiPolicyReviewRowVM[] 
   return (
     <ul className="space-y-4">
       {rows.map((r) => (
-        <ReviewCard key={r.id} row={r} />
+        <ReviewCard
+          key={r.id}
+          row={r}
+          onRowUpdated={(next) => setRows((prev) => prev.map((x) => (x.id === next.id ? next : x)))}
+        />
       ))}
     </ul>
   );
