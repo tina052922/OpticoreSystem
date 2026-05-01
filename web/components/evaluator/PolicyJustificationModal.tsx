@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * Shown when saving a schedule would violate faculty load rules (Evaluator / Chairman worksheet).
+ * **Trigger:** total weekly contact hours for an instructor (all programs in the college, current term) exceed
+ * the policy cap (e.g. regular organic faculty over 24 hrs/wk, part-time over part-time cap, or over designation cap).
+ * Enter at least `minLength` characters, confirm, then save proceeds and `ScheduleLoadJustification` rows are written.
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 

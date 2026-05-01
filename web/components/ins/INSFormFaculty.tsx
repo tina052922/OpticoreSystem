@@ -46,6 +46,14 @@ const DEMO_COURSES = [
   { students: 40, code: "IT 203", title: "Data Structures", degreeYrSec: "BSIT 2A" },
 ];
 
+/**
+ * Faculty INS (Form 5A) uses `useInsLiveSchedule` with **college-wide** schedule rows for the selected instructor
+ * so **Hours/Week** matches the faculty portal and chairman evaluator policy (cross-program load).
+ *
+ * **Policy justification (manual test):** overload the same instructor in the **Evaluator** (all their sections
+ * across programs) past the cap; on Save, the justification modal should open. INS totals should reflect the
+ * same entries after refresh — if they differ, hard-refresh and confirm migrations + `ignoreProgramScope` deploy.
+ */
 export type INSFormFacultyProps = {
   insBasePath?: string;
   chairmanCollegeId?: string | null;

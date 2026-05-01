@@ -17,6 +17,7 @@ import {
   formatUserInstructorLabel,
   type InstructorPlotOption,
 } from "@/lib/evaluator/instructor-employee-id";
+import { roomBuildingKey, roomsInBuilding, sortedBuildingLabels } from "@/lib/evaluator/room-by-building";
 import type { FacultyProfile, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 
 const selectClass =
@@ -135,6 +136,9 @@ export function GecSectionPlottingTable({
   highlightConflictEntryIds,
 }: Props) {
   const [localAddBusy, setLocalAddBusy] = useState(false);
+  /** Per entry row: building filter for two-step room pick (not persisted). */
+  const [roomBuildingByEntryId, setRoomBuildingByEntryId] = useState<Record<string, string>>({});
+  const gecBuildingLabels = useMemo(() => sortedBuildingLabels(rooms), [rooms]);
   const vacantSourceIds = useMemo(() => {
     const ids = new Set<string>();
     for (const e of entries) {
@@ -278,7 +282,7 @@ export function GecSectionPlottingTable({
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Students</th>
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Subject</th>
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Instructor</th>
-              <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Room</th>
+              <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Building / Room</th>
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Time</th>
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Day</th>
               <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Faculty conflict</th>
@@ -388,20 +392,69 @@ export function GecSectionPlottingTable({
                         </span>
                       )}
                     </td>
-                    <td className="border border-black/10 px-1 py-1 min-w-[120px]">
+                    <td className="border border-black/10 px-1 py-1 min-w-[130px] align-top">
                       {editable ? (
-                        <select
-                          className={selectClass}
-                          value={merged.roomId}
-                          onChange={(ev) => patchEdit(e.id, { roomId: ev.target.value })}
-                        >
-                          <option value="">Select room…</option>
-                          {rooms.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.code}
-                            </option>
-                          ))}
-                        </select>
+                        (() => {
+                          const picked = merged.roomId ? rooms.find((r) => r.id === merged.roomId) : undefined;
+                          const inferred = picked ? roomBuildingKey(picked) : "";
+                          const buildingVal = roomBuildingByEntryId[e.id] ?? inferred;
+                          const inB = buildingVal ? roomsInBuilding(rooms, buildingVal) : [];
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <select
+                                className={selectClass}
+                                value={buildingVal}
+                                aria-label="Building"
+                                onChange={(ev) => {
+                                  const b = ev.target.value;
+                                  setRoomBuildingByEntryId((prev) => {
+                                    const next = { ...prev };
+                                    if (!b) delete next[e.id];
+                                    else next[e.id] = b;
+                                    return next;
+                                  });
+                                  if (!b) {
+                                    patchEdit(e.id, { roomId: "" });
+                                    return;
+                                  }
+                                  const keep =
+                                    merged.roomId &&
+                                    rooms.some((r) => r.id === merged.roomId && roomBuildingKey(r) === b);
+                                  if (!keep) patchEdit(e.id, { roomId: "" });
+                                }}
+                              >
+                                <option value="">Building…</option>
+                                {gecBuildingLabels.map((b) => (
+                                  <option key={b} value={b}>
+                                    {b}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                className={selectClass}
+                                value={merged.roomId}
+                                disabled={!buildingVal}
+                                aria-label="Room"
+                                onChange={(ev) => {
+                                  const rid = ev.target.value;
+                                  const r = rooms.find((x) => x.id === rid);
+                                  setRoomBuildingByEntryId((prev) => ({
+                                    ...prev,
+                                    [e.id]: r ? roomBuildingKey(r) : prev[e.id] ?? "",
+                                  }));
+                                  patchEdit(e.id, { roomId: rid });
+                                }}
+                              >
+                                <option value="">{buildingVal ? "Room…" : "Select building first"}</option>
+                                {inB.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.code}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })()
                       ) : (
                         <span>{rooms.find((r) => r.id === merged.roomId)?.code ?? "—"}</span>
                       )}
