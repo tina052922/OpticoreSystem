@@ -5,7 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, WEEKDAYS } from "@/lib/scheduling/constants";
 import { detectConflictsForEntry, scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
-import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
+import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "@/lib/scheduling/facultyPolicies";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import type { ConflictHit, GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
@@ -611,7 +611,9 @@ export function EvaluatorTimetablingPanel({
   }, [dbEntries, localDrafts, academicPeriodId, effectiveCollegeId]);
 
   const policyEvaluation = useMemo(() => {
-    if (!effectiveCollegeId) return { rows: [], hasAnyViolation: false };
+    if (!effectiveCollegeId) {
+      return { rows: [], hasAnyViolation: false, hasTeachingLoadJustificationViolation: false };
+    }
     return evaluateFacultyLoadsForCollege(
       mergedEntriesForPolicy,
       subjectById,
@@ -877,14 +879,14 @@ export function EvaluatorTimetablingPanel({
       status: "draft" as const,
     }));
 
-    const hasAnyViolation = policyEvaluation.hasAnyViolation;
+    const needsTeachingJustification = policyEvaluation.hasTeachingLoadJustificationViolation;
 
-    if (hasAnyViolation && !opts?.skipJustificationPrompt) {
+    if (needsTeachingJustification && !opts?.skipJustificationPrompt) {
       setJustModalOpen(true);
-      setSaveMsg("Faculty load policies are exceeded. Proceed with a justification to save anyway.");
+      setSaveMsg("Teaching hours are above the allowed weekly load. Add a short explanation to save.");
       return;
     }
-    if (hasAnyViolation && justificationText.trim().length < 12) {
+    if (needsTeachingJustification && justificationText.trim().length < 12) {
       setJustModalOpen(true);
       setSaveMsg("Enter a justification for DOI/VPAA review (min. 12 characters).");
       return;
@@ -905,8 +907,8 @@ export function EvaluatorTimetablingPanel({
       const author = collegeUsers.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
 
-      if (hasAnyViolation) {
-        const violators = policyEvaluation.rows.filter((r) => r.violations.length > 0);
+      if (needsTeachingJustification) {
+        const violators = policyEvaluation.rows.filter((r) => rowNeedsTeachingLoadJustification(r));
         const snapRows = violators.map(
           (r) =>
             `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
@@ -1002,7 +1004,7 @@ export function EvaluatorTimetablingPanel({
       setJustModalOpen(false);
       await load();
       setSaveMsg(
-        hasAnyViolation
+        needsTeachingJustification
           ? "Schedule saved. Load policy justification recorded for DOI review."
           : "Schedule saved.",
       );
@@ -1021,8 +1023,8 @@ export function EvaluatorTimetablingPanel({
       setSaveMsg("Enter at least 12 characters explaining the overload for DOI review.");
       return;
     }
-    if (!policyEvaluation.hasAnyViolation) {
-      setSaveMsg("No policy violations detected for this college and term.");
+    if (!policyEvaluation.hasTeachingLoadJustificationViolation) {
+      setSaveMsg("No teaching load overage detected for this college and term.");
       return;
     }
     setPolicySaving(true);
@@ -1038,7 +1040,7 @@ export function EvaluatorTimetablingPanel({
       }
       const author = collegeUsers.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
-      const violators = policyEvaluation.rows.filter((r) => r.violations.length > 0);
+      const violators = policyEvaluation.rows.filter((r) => rowNeedsTeachingLoadJustification(r));
       const snapRows = violators.map(
         (r) =>
           `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,

@@ -67,18 +67,38 @@ function buildFacultyContext(
   };
 }
 
-function collectViolations(
+/** Violation codes that mean “teaching hours exceed this person’s allowed weekly load” (designation / regular / part-time). */
+export const TEACHING_LOAD_JUSTIFICATION_CODES = new Set<string>([
+  "PARTTIME_WEEKLY_OVER_CAP",
+  "OVER_DESIGNATION_TEACHING_CAP",
+  "OVER_STANDARD_TEACHING_LOAD",
+]);
+
+export function rowNeedsTeachingLoadJustification(row: FacultyLoadRow): boolean {
+  return row.violations.some((v) => TEACHING_LOAD_JUSTIFICATION_CODES.has(v.code));
+}
+
+/**
+ * Part-time detection must NOT use a naive `.includes("part")` — that matches the substring inside “**depart**ment”
+ * and wrongly flags Organic faculty, which then triggers false overload / justification flows.
+ */
+function isPartTimeFacultyStatus(status: string | null | undefined): boolean {
+  const s = (status ?? "").trim().toLowerCase();
+  if (!s) return false;
+  if (s === "part-time" || s === "part time") return true;
+  return /^part[-\s]?time\b/i.test(s);
+}
+
+/** Weekly teaching-contact cap violations only — these gate the VPAA justification modal. */
+function collectTeachingLoadCapViolations(
   ctx: FacultyContext,
   weeklyTotal: number,
-  weeklyLec: number,
-  weeklyLab: number,
 ): FacultyPolicyViolation[] {
   const v: FacultyPolicyViolation[] = [];
   const C = FACULTY_POLICY_CONSTANTS;
 
   const desCap = designationTeachingCapHours(ctx.designation);
-  /** Aligns with `FacultyProfile.status`: canonical `Part-time` or any legacy string containing "part". */
-  const partTime = (ctx.status ?? "").toLowerCase().includes("part");
+  const partTime = isPartTimeFacultyStatus(ctx.status);
 
   if (partTime && weeklyTotal > C.PARTTIME_MAX_WEEKLY_HOURS + 1e-6) {
     v.push({
@@ -98,6 +118,14 @@ function collectViolations(
       message: `Teaching contact (${weeklyTotal.toFixed(1)} hrs/wk) exceeds standard ${C.STANDARD_WEEKLY_TEACHING_HOURS} hrs/week (undergraduate norm).`,
     });
   }
+
+  return v;
+}
+
+/** Secondary checks (lab/lecture mix, resident reference) — informative only; do not force load justification. */
+function collectSecondaryPolicyViolations(weeklyTotal: number, weeklyLec: number, weeklyLab: number): FacultyPolicyViolation[] {
+  const v: FacultyPolicyViolation[] = [];
+  const C = FACULTY_POLICY_CONSTANTS;
 
   if (weeklyLab > C.MAX_WEEKLY_LAB_CONTACT_HOURS + 1e-6) {
     v.push({
@@ -138,7 +166,7 @@ export function evaluateFacultyLoadsForCollege(
   profileByUserId: Map<string, FacultyProfile>,
   _collegeId: string,
   _sectionToCollegeId: (sectionId: string) => string | null,
-): { rows: FacultyLoadRow[]; hasAnyViolation: boolean } {
+): { rows: FacultyLoadRow[]; hasAnyViolation: boolean; hasTeachingLoadJustificationViolation: boolean } {
   const byInstructor = new Map<
     string,
     { total: number; lec: number; lab: number }
@@ -157,13 +185,17 @@ export function evaluateFacultyLoadsForCollege(
 
   const rows: FacultyLoadRow[] = [];
   let hasAnyViolation = false;
+  let hasTeachingLoadJustificationViolation = false;
 
   for (const [instructorId, hrs] of byInstructor) {
     const ctx = buildFacultyContext(instructorId, userById, profileByUserId);
     const desCap = designationTeachingCapHours(ctx.designation);
     const effectiveTeachingCap = desCap ?? FACULTY_POLICY_CONSTANTS.STANDARD_WEEKLY_TEACHING_HOURS;
-    const violations = collectViolations(ctx, hrs.total, hrs.lec, hrs.lab);
+    const teaching = collectTeachingLoadCapViolations(ctx, hrs.total);
+    const secondary = collectSecondaryPolicyViolations(hrs.total, hrs.lec, hrs.lab);
+    const violations = [...teaching, ...secondary];
     if (violations.length > 0) hasAnyViolation = true;
+    if (teaching.length > 0) hasTeachingLoadJustificationViolation = true;
     rows.push({
       instructorId,
       instructorName: ctx.name,
@@ -178,5 +210,5 @@ export function evaluateFacultyLoadsForCollege(
   }
 
   rows.sort((a, b) => a.instructorName.localeCompare(b.instructorName));
-  return { rows, hasAnyViolation };
+  return { rows, hasAnyViolation, hasTeachingLoadJustificationViolation };
 }

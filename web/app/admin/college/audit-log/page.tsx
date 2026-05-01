@@ -9,7 +9,7 @@ export default function CollegeAuditLogPage() {
         subtitle="Timestamped record of access requests, inbox shares, forwards, and other workflow actions for your college."
       />
       <div className="px-8 pb-10 max-w-6xl">
-        <AuditLogViewer />
+        <AuditLogViewer auditUnreadScope="college" />
       </div>
     </div>
   );

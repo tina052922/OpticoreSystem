@@ -10,7 +10,7 @@ import {
   scheduleBlockToSparseBlock,
 } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
-import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
+import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "@/lib/scheduling/facultyPolicies";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
@@ -927,7 +927,11 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const policyRows = useMemo(() => {
     if (!academicPeriodId || !chairmanCollegeId) {
-      return { hasAnyViolation: false, rows: [] as ReturnType<typeof evaluateFacultyLoadsForCollege>["rows"] };
+      return {
+        hasAnyViolation: false,
+        hasTeachingLoadJustificationViolation: false,
+        rows: [] as ReturnType<typeof evaluateFacultyLoadsForCollege>["rows"],
+      };
     }
     return evaluateFacultyLoadsForCollege(
       mergedEntriesForCollegePolicy,
@@ -960,7 +964,8 @@ export function BsitChairmanEvaluatorWorksheet({
     });
   }, [policyRows, facultyProfiles, onPolicySnapshot]);
 
-  const showJustification = policyRows.hasAnyViolation;
+  /** VPAA justification modal only when weekly teaching contact exceeds this instructor’s allowed load. */
+  const showJustification = policyRows.hasTeachingLoadJustificationViolation;
 
   /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
   const saveLoadJustificationForDoi = useCallback(
@@ -991,8 +996,8 @@ export function BsitChairmanEvaluatorWorksheet({
       chairmanCollegeId,
       (sid) => sectionToCollegeId(sid),
     );
-    if (!polJustif.hasAnyViolation) {
-      setJustificationMsg("No load-policy violations detected; a justification is not required.");
+    if (!polJustif.hasTeachingLoadJustificationViolation) {
+      setJustificationMsg("No teaching load overage detected; a justification is not required.");
       return false;
     }
     setJustificationSaving(true);
@@ -1008,7 +1013,7 @@ export function BsitChairmanEvaluatorWorksheet({
       }
       const author = dbInstructors.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
-      const violators = polJustif.rows.filter((r) => r.violations.length > 0);
+      const violators = polJustif.rows.filter((r) => rowNeedsTeachingLoadJustification(r));
       const snapRows = violators.map(
         (r) =>
           `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
@@ -1147,7 +1152,7 @@ export function BsitChairmanEvaluatorWorksheet({
         (sid) => sectionToCollegeId(sid),
       );
       const hit = pol.rows.find(
-        (x) => x.instructorId === candidate.instructorId && x.violations.length > 0,
+        (x) => x.instructorId === candidate.instructorId && rowNeedsTeachingLoadJustification(x),
       );
       if (hit && justificationText.trim().length < 12) {
         policyAssignGateRef.current = candidate;
@@ -1796,7 +1801,7 @@ export function BsitChairmanEvaluatorWorksheet({
                   clearTimeout(autosaveTimerRef.current);
                   autosaveTimerRef.current = null;
                 }
-                if (policyRows.hasAnyViolation) {
+                if (policyRows.hasTeachingLoadJustificationViolation) {
                   const t = justificationText.trim();
                   if (t.length < 12) {
                     setPolicyModalReason("save");

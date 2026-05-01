@@ -20,6 +20,8 @@ type Props = {
   scheduleApproved?: boolean;
   /** Form 5C: grid only (signatures in footer). Form 5B: Campus Director column only. */
   signatureStrip?: "full" | "none" | "campusOnly";
+  /** Form 5B print: tighter vertical signature column so one-page bond layout is not clipped. */
+  compactSignaturePrint?: boolean;
 } & (
   | {
       cellMode?: "legacy";
@@ -49,7 +51,7 @@ type Props = {
  * Order (left→right): Approved by → Campus Director → Reviewed & Certified → Contract → Prepared by.
  */
 export function OpticoreInsScheduleTableWithSignatures(props: Props) {
-  const { signatureSlots, scheduleApproved = false, signatureStrip = "full" } = props;
+  const { signatureSlots, scheduleApproved = false, signatureStrip = "full", compactSignaturePrint = false } = props;
   const cellMode = props.cellMode ?? "legacy";
 
   return (
@@ -153,6 +155,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
             signatureSlots={signatureSlots}
             scheduleApproved={scheduleApproved}
             variant={signatureStrip === "campusOnly" ? "campusOnly" : "full"}
+            compactPrint={compactSignaturePrint}
           />
         ) : null}
       </div>
@@ -176,15 +179,18 @@ function InsSignatureStrip({
   signatureSlots,
   scheduleApproved,
   variant = "full",
+  compactPrint = false,
 }: {
   signatureSlots?: InsSignatureSlot[] | null;
   scheduleApproved: boolean;
   variant?: "full" | "campusOnly";
+  compactPrint?: boolean;
 }) {
   const fallback = variant === "campusOnly" ? FALLBACK_CAMPUS_ONLY : FALLBACK_SLOTS;
   const slots = signatureSlots ?? fallback;
   // Keep the signature strip narrow (paper form style) — no big boxed placeholders.
-  const colWidth = variant === "campusOnly" ? "w-[4.5rem]" : "w-[4.75rem]";
+  const colWidth =
+    variant === "campusOnly" ? (compactPrint ? "w-[4rem]" : "w-[4.5rem]") : compactPrint ? "w-[4.25rem]" : "w-[4.75rem]";
 
   return (
     <div className="hidden shrink-0 gap-0 md:flex print:flex">
@@ -193,21 +199,38 @@ function InsSignatureStrip({
           key={s.key}
           className={`flex ${colWidth} flex-col items-stretch border border-neutral-900 border-l-0 bg-white first:border-l`}
         >
-          <div className="flex-1 flex flex-col items-center justify-between px-1 py-2">
-            <div className="text-[9px] font-semibold leading-tight text-neutral-900" style={vLabel}>
+          <div
+            className={`flex-1 flex flex-col items-center justify-between px-1 ${compactPrint ? "py-1 print:py-0.5 print:px-0.5" : "py-2"}`}
+          >
+            <div
+              className={`font-semibold leading-tight text-neutral-900 ${compactPrint ? "text-[8px] print:text-[6.5pt]" : "text-[9px]"}`}
+              style={vLabel}
+            >
               {s.lineTitle}
             </div>
-            <div className="w-full pt-2 pb-1">
-              <div className="min-h-[3.25rem] flex items-end justify-center">
+            <div className={`w-full ${compactPrint ? "pt-1 pb-0 print:pt-0.5" : "pt-2 pb-1"}`}>
+              <div
+                className={`flex items-end justify-center ${compactPrint ? "min-h-[2.5rem] print:min-h-[1.6rem]" : "min-h-[3.25rem]"}`}
+              >
                 {scheduleApproved && s.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
-                  <img src={s.imageUrl} alt="" className="max-h-12 w-full object-contain object-bottom" />
+                  <img
+                    src={s.imageUrl}
+                    alt=""
+                    className={`w-full object-contain object-bottom ${compactPrint ? "max-h-10 print:max-h-7" : "max-h-12"}`}
+                  />
                 ) : null}
               </div>
               <div className="border-b border-neutral-900" />
-              <div className="mt-1 text-center text-[8px] leading-tight text-neutral-700">{s.lineSubtitle}</div>
+              <div
+                className={`mt-1 text-center leading-tight text-neutral-700 ${compactPrint ? "text-[7px] print:text-[6pt]" : "text-[8px]"}`}
+              >
+                {s.lineSubtitle}
+              </div>
               {scheduleApproved && s.signerName ? (
-                <div className="mt-0.5 text-center text-[8px] font-medium leading-tight text-neutral-900 line-clamp-2">
+                <div
+                  className={`mt-0.5 text-center font-medium leading-tight text-neutral-900 line-clamp-2 ${compactPrint ? "text-[7px] print:text-[6pt]" : "text-[8px]"}`}
+                >
                   {s.signerName}
                 </div>
               ) : null}
