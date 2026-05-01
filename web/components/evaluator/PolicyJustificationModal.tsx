@@ -38,15 +38,21 @@ export function PolicyJustificationModal({
 }: PolicyJustificationModalProps) {
   const [touched, setTouched] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  /** Only reset validation + focus when the dialog opens, not on every parent re-render while `open` stays true. */
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
+      wasOpenRef.current = false;
       setTouched(false);
       return;
     }
-    setTouched(false);
-    const id = window.setTimeout(() => textareaRef.current?.focus(), 50);
-    return () => window.clearTimeout(id);
+    if (!wasOpenRef.current) {
+      wasOpenRef.current = true;
+      setTouched(false);
+      const id = window.setTimeout(() => textareaRef.current?.focus(), 50);
+      return () => window.clearTimeout(id);
+    }
   }, [open]);
 
   const trimmed = value.trim();

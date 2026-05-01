@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -99,6 +100,11 @@ export function INSFormFaculty({
       facultyPortalIns && lockedInstructorId ? lockedInstructorId : null,
   });
 
+  /** College Admin + DOI: allow one-click GA apply; chairmen use the Evaluator for edits. */
+  const enableInsAltApply =
+    (campusWide || insBasePath.includes("/college")) && useLiveData && !live.termPublishLocked;
+  const [insAltBusy, setInsAltBusy] = useState(false);
+
   const displaySchedule = useLiveData ? live.schedule : DEMO_SCHEDULE;
   const displayCourses = useLiveData ? live.courses : DEMO_COURSES;
   const displayFacultyName = useLiveData ? live.selectedFacultyDisplayName : "Dr. Maria Santos (demo)";
@@ -157,6 +163,25 @@ export function INSFormFaculty({
       alert("No instructor, room, or section time conflicts detected for this term (full campus scan).");
     } else {
       alert(`Conflict check\n\n${detail}`);
+    }
+  }
+
+  async function applyFirstInsAlternative() {
+    if (!live.selectedInstructorId) {
+      alert("Select a faculty member first.");
+      return;
+    }
+    const id = live.getFirstConflictingEntryIdForInstructor(live.selectedInstructorId);
+    if (!id) {
+      alert("No conflicting schedule row found for this instructor.");
+      return;
+    }
+    setInsAltBusy(true);
+    try {
+      const r = await live.applyInsConflictAlternative(id);
+      alert(r.message);
+    } finally {
+      setInsAltBusy(false);
     }
   }
 
@@ -253,6 +278,24 @@ export function INSFormFaculty({
                   <li key={i}>{line}</li>
                 ))}
               </ul>
+              {enableInsAltApply ? (
+                <div className="pt-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-red-400/80 bg-white text-red-950 hover:bg-red-50"
+                    disabled={insAltBusy || !live.selectedInstructorId}
+                    onClick={() => void applyFirstInsAlternative()}
+                  >
+                    {insAltBusy ? "Applying…" : "Apply alternative solution (first conflict)"}
+                  </Button>
+                  <p className="mt-1 text-[10px] text-amber-950/80">
+                    Updates one overlapping row using the same rule-based resolver as the chairman evaluator. Resolve
+                    any remaining conflicts in the Evaluator if needed.
+                  </p>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {useLiveData && live.periodLabel ? (
@@ -300,6 +343,17 @@ export function INSFormFaculty({
             </div>
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
+              {enableInsAltApply && live.insConflictLinesForFaculty.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
+                  disabled={insAltBusy || !live.selectedInstructorId}
+                  onClick={() => void applyFirstInsAlternative()}
+                >
+                  {insAltBusy ? "Applying…" : "Apply alternative"}
+                </Button>
+              ) : null}
               <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
                 Run Conflict Check
               </Button>
@@ -366,6 +420,7 @@ export function INSFormFaculty({
               insSignatureSlots={useLiveData ? live.insSignatureSlots : null}
               facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
               facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
+              conflictingScheduleEntryIds={useLiveData ? live.insConflictingEntryIds : null}
             />
           </div>
         </div>
@@ -383,6 +438,7 @@ export function INSFormFaculty({
           insSignatureSlots={useLiveData ? live.insSignatureSlots : null}
           facultyCredentials={useLiveData ? live.facultyCredentials : null}
           facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
+          conflictingScheduleEntryIds={useLiveData ? live.insConflictingEntryIds : null}
         />
       </div>
     </div>

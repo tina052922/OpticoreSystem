@@ -115,6 +115,8 @@ export function EvaluatorTimetablingPanel({
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [justModalOpen, setJustModalOpen] = useState(false);
   const [justificationText, setJustificationText] = useState("");
+  /** One VPAA justification fetch per term+college while the modal is closed (not on every soft reload). */
+  const justificationScopeHydratedRef = useRef<string | null>(null);
   const [policySaving, setPolicySaving] = useState(false);
   const [altOpen, setAltOpen] = useState(false);
   const [altBusy, setAltBusy] = useState(false);
@@ -367,6 +369,40 @@ export function EvaluatorTimetablingPanel({
   /** Chairman scope is fixed from the server; avoids one frame where collegeId state has not synced yet. */
   const effectiveCollegeId = chairmanCollegeId || collegeId;
 
+  /**
+   * Load saved justification text when term/college changes only — never when `loadJustifications` refreshes
+   * from Realtime/soft reload (that was clearing the modal textarea mid-typing).
+   */
+  useEffect(() => {
+    if (justModalOpen) return;
+    if (!effectiveCollegeId || !academicPeriodId) {
+      justificationScopeHydratedRef.current = null;
+      setJustificationText("");
+      return;
+    }
+    const scopeKey = `${academicPeriodId}|${effectiveCollegeId}`;
+    if (justificationScopeHydratedRef.current === scopeKey) return;
+    justificationScopeHydratedRef.current = scopeKey;
+    let cancelled = false;
+    void (async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data: ljRows } = await supabase
+        .from("ScheduleLoadJustification")
+        .select(Q.scheduleLoadJustification)
+        .eq("academicPeriodId", academicPeriodId)
+        .eq("collegeId", effectiveCollegeId)
+        .order("updatedAt", { ascending: false })
+        .limit(1);
+      if (cancelled) return;
+      const lj = (ljRows ?? [])[0] as ScheduleLoadJustification | undefined;
+      setJustificationText(lj?.justification ?? "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [academicPeriodId, effectiveCollegeId, justModalOpen]);
+
   const programsInCollege = useMemo(() => {
     let list = programs.filter((p) => !effectiveCollegeId || p.collegeId === effectiveCollegeId);
     if (chairmanProgramId) list = list.filter((p) => p.id === chairmanProgramId);
@@ -585,13 +621,6 @@ export function EvaluatorTimetablingPanel({
       (sid) => sectionToCollegeId(sid),
     );
   }, [mergedEntriesForPolicy, subjectById, userById, profileByUserId, effectiveCollegeId, sectionToCollegeId]);
-
-  useEffect(() => {
-    const j = loadJustifications.find(
-      (x) => x.academicPeriodId === academicPeriodId && x.collegeId === effectiveCollegeId,
-    );
-    setJustificationText(j?.justification ?? "");
-  }, [academicPeriodId, effectiveCollegeId, loadJustifications]);
 
   const majorsForProgram = useMemo(() => {
     if (!programId) return [] as string[];

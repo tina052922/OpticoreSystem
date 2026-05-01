@@ -14,6 +14,7 @@ export type InsRoomCell = {
   yearSec: string;
   room: string;
   vacantGec?: boolean;
+  scheduleEntryId?: string;
 };
 
 export type InsRoomSchedule = Record<InsDay, InsRoomCell[]>;
@@ -62,6 +63,7 @@ export function buildInsRoomView(args: {
       yearSec: sec?.name ?? "—",
       room: room?.code ?? "TBA",
       vacantGec: isGecVacantScheduleEntry(e, args.subjectById),
+      scheduleEntryId: e.id,
     });
   }
 

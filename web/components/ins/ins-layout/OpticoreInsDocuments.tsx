@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { InsFacultyCell, InsFacultyFormSummary } from "@/lib/ins/build-ins-faculty-view";
 import type { InsRoomCell, InsRoomSchedule } from "@/lib/ins/build-ins-room-view";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
@@ -17,6 +18,25 @@ function CredLine({ label, value }: { label: string; value?: string | null }) {
       <span className="min-h-[1.5rem] flex-1 break-words border-b border-neutral-900 text-neutral-900">
         {value?.trim() ? value : "—"}
       </span>
+    </div>
+  );
+}
+
+/** On-screen tint for `ScheduleEntry` ids flagged by the campus conflict scan; print layout stays clean. */
+function InsConflictCellShell({
+  entryId,
+  conflictingIds,
+  children,
+}: {
+  entryId?: string | null;
+  conflictingIds?: ReadonlySet<string> | null;
+  children: ReactNode;
+}) {
+  const mark = Boolean(entryId && conflictingIds?.has(entryId));
+  if (!mark) return <>{children}</>;
+  return (
+    <div className="rounded-md ring-1 ring-red-500/50 bg-red-50/55 print:ring-0 print:bg-transparent px-0.5 -mx-0.5">
+      {children}
     </div>
   );
 }
@@ -48,6 +68,8 @@ export type OpticoreInsForm5AProps = {
   /** My Schedule (faculty portal): cells with `scheduleEntryId` become buttons to request a change. */
   clickableScheduleEntryCells?: boolean;
   onScheduleEntryClick?: (scheduleEntryId: string) => void;
+  /** Term-wide conflict scan: matching cells get a light red highlight on screen. */
+  conflictingScheduleEntryIds?: ReadonlySet<string> | null;
 };
 
 /** INS FORM 5A — Program by Teacher (Opticore-CampusIntelligence layout + editable fields). */
@@ -63,9 +85,10 @@ export function OpticoreInsForm5A({
   facultyFormSummary = null,
   clickableScheduleEntryCells = false,
   onScheduleEntryClick,
+  conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5AProps) {
   return (
-    <div className="space-y-8 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+    <div className="space-y-5 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
       <div className="flex flex-col gap-4 print:gap-1 border-b border-neutral-300 pb-6 print:pb-1.5 sm:flex-row sm:items-start sm:justify-between">
         <h3 className="order-2 text-center text-base font-bold uppercase tracking-wide sm:order-1 sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
           Cebu Technological University
@@ -230,7 +253,13 @@ export function OpticoreInsForm5A({
                 ) : (
                   inner
                 );
-                return <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}>{body}</div>;
+                return (
+                  <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}>
+                    <InsConflictCellShell entryId={entryId} conflictingIds={conflictingScheduleEntryIds}>
+                      {body}
+                    </InsConflictCellShell>
+                  </div>
+                );
               })}
               {(items as InsFacultyCell[]).length > 3 ? (
                 <div className="text-[10px] text-neutral-600 print:hidden">
@@ -244,11 +273,14 @@ export function OpticoreInsForm5A({
         scheduleApproved={scheduleApproved}
       />
 
-      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-1.5 ins-print-avoid-break">
-        <div className="mb-4 print:mb-1 text-center text-sm font-bold uppercase tracking-wide print:text-[8pt]">
+      {/**
+       * Compact “Summary of Courses” on screen so the weekly grid above stays the visual focus; full table still prints.
+       */}
+      <div className="min-h-0 max-h-[11rem] sm:max-h-[12rem] overflow-y-auto overscroll-contain print:max-h-none print:overflow-visible border border-neutral-900 p-2 md:p-3 print:p-1.5 ins-print-avoid-break">
+        <div className="mb-2 print:mb-1 text-center text-xs font-bold uppercase tracking-wide print:text-[8pt]">
           Summary of Courses
         </div>
-        <div className="mb-2 print:mb-0.5 border-b border-neutral-900 pb-2 print:pb-0.5 text-xs font-semibold print:text-[7.5pt]">
+        <div className="mb-1.5 print:mb-0.5 border-b border-neutral-900 pb-1.5 print:pb-0.5 text-[11px] font-semibold print:text-[7.5pt]">
           <div className="grid grid-cols-4 gap-2 print:gap-0.5">
             <span>No. of Students</span>
             <span>Course code</span>
@@ -324,9 +356,9 @@ export function OpticoreInsForm5A({
             ))}
         </div>
 
-        <div className="mt-6 print:mt-1.5 border-t border-neutral-900 pt-4 print:pt-1">
-          <div className="grid grid-cols-1 gap-x-10 gap-y-4 print:gap-y-0.5 text-sm md:grid-cols-2 print:text-[7.5pt]">
-            <div className="space-y-4">
+        <div className="mt-3 print:mt-1.5 border-t border-neutral-900 pt-2 print:pt-1">
+          <div className="grid grid-cols-1 gap-x-10 gap-y-2 print:gap-y-0.5 text-sm md:grid-cols-2 print:text-[7.5pt]">
+            <div className="space-y-2">
               {readOnly ? (
                 <>
                   <CredLine
@@ -359,7 +391,7 @@ export function OpticoreInsForm5A({
                 </>
               )}
             </div>
-            <div className="space-y-4">
+            <div className="space-y-2">
               {readOnly ? (
                 <>
                   <CredLine label="Administrative Designation" value={facultyFormSummary?.administrativeDesignation} />
@@ -462,6 +494,7 @@ type SectionScheduleCell = {
   instructor: string;
   room: string;
   vacantGec?: boolean;
+  scheduleEntryId?: string;
 };
 type SectionSchedule = Record<InsDay, SectionScheduleCell[]>;
 
@@ -475,6 +508,7 @@ export type OpticoreInsForm5BProps = {
   semesterLabel?: string;
   scheduleApproved?: boolean;
   insSignatureSlots?: InsSignatureSlot[] | null;
+  conflictingScheduleEntryIds?: ReadonlySet<string> | null;
 };
 
 /** INS FORM 5B — Program by Section */
@@ -488,13 +522,14 @@ export function OpticoreInsForm5B({
   semesterLabel,
   scheduleApproved = false,
   insSignatureSlots = null,
+  conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5BProps) {
   /** Print layout is compact (see `ins-print-one-page`); list every row — do not truncate the summary table. */
   const shownCourses = courses;
   const hiddenCourseCount = 0;
 
   return (
-    <div className="space-y-8 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+    <div className="space-y-5 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
       <div className="flex flex-col gap-4 print:gap-1 border-b border-neutral-300 pb-6 print:pb-1.5 sm:flex-row sm:items-start sm:justify-between">
         <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
           Cebu Technological University
@@ -579,14 +614,20 @@ export function OpticoreInsForm5B({
             <div className="w-full space-y-1 pr-1">
               {(items as SectionScheduleCell[]).slice(0, 3).map((row, idx) => {
                 const inner = (
-                  <div key={`${row.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug break-words">
+                  <div className="w-full space-y-0.5 text-xs leading-snug break-words">
                     <div className="font-semibold break-words">{row.course}</div>
                     <div className="text-[10px] text-neutral-600">{row.time}</div>
                     <div className="break-words">{row.instructor}</div>
                     <div className="break-words">{row.room}</div>
                   </div>
                 );
-                return <div key={`${row.time}-${idx}`}>{inner}</div>;
+                return (
+                  <div key={row.scheduleEntryId ?? `${row.time}-${idx}`}>
+                    <InsConflictCellShell entryId={row.scheduleEntryId} conflictingIds={conflictingScheduleEntryIds}>
+                      {inner}
+                    </InsConflictCellShell>
+                  </div>
+                );
               })}
               {(items as SectionScheduleCell[]).length > 3 ? (
                 <div className="text-[10px] text-neutral-600 print:hidden">
@@ -601,9 +642,9 @@ export function OpticoreInsForm5B({
         signatureStrip="campusOnly"
       />
 
-      <div className="min-h-[14rem] print:min-h-0 border border-neutral-900 p-4 md:p-6 print:p-2.5">
-        <div className="mb-4 text-center text-sm font-bold uppercase tracking-wide">Summary of Courses</div>
-        <div className="mb-2 border-b border-neutral-900 pb-2 text-xs font-semibold">
+      <div className="min-h-0 max-h-[11rem] sm:max-h-[12rem] overflow-y-auto overscroll-contain print:max-h-none print:overflow-visible border border-neutral-900 p-2 md:p-3 print:p-2.5">
+        <div className="mb-2 text-center text-xs font-bold uppercase tracking-wide">Summary of Courses</div>
+        <div className="mb-1.5 border-b border-neutral-900 pb-1.5 text-[11px] font-semibold">
           <div className="grid grid-cols-4 gap-2">
             <span>No. of Students</span>
             <span>Course code</span>
@@ -678,6 +719,7 @@ export type OpticoreInsForm5CProps = {
   insSignatureSlots?: InsSignatureSlot[] | null;
   readOnly?: boolean;
   semesterLabel?: string;
+  conflictingScheduleEntryIds?: ReadonlySet<string> | null;
 };
 
 /** INS FORM 5C — Room utilization */
@@ -688,13 +730,14 @@ export function OpticoreInsForm5C({
   insSignatureSlots = null,
   readOnly = false,
   semesterLabel,
+  conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5CProps) {
   const prepared = pickSlot(insSignatureSlots, "prepared");
   const review = pickSlot(insSignatureSlots, "review");
   const campus = pickSlot(insSignatureSlots, "campus");
 
   return (
-    <div className="space-y-8 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+    <div className="space-y-5 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
       <div className="flex flex-col gap-4 print:gap-1 border-b border-neutral-300 pb-6 print:pb-1.5 sm:flex-row sm:items-start sm:justify-between">
         <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
           Cebu Technological University
@@ -755,7 +798,7 @@ export function OpticoreInsForm5C({
             <div className="w-full space-y-1 pr-1">
               {(items as InsRoomCell[]).slice(0, 3).map((classAtTime, idx) => {
                 const inner = (
-                  <div key={`${classAtTime.time}-${idx}`} className="w-full space-y-0.5 text-xs leading-snug break-words">
+                  <div className="w-full space-y-0.5 text-xs leading-snug break-words">
                     <div className="font-semibold break-words">{classAtTime.course}</div>
                     <div className="text-[10px] text-neutral-600">{classAtTime.time}</div>
                     <div className="break-words">{classAtTime.instructor}</div>
@@ -763,7 +806,16 @@ export function OpticoreInsForm5C({
                     <div className="break-words">{classAtTime.room}</div>
                   </div>
                 );
-                return <div key={`${classAtTime.time}-${idx}`}>{inner}</div>;
+                return (
+                  <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}>
+                    <InsConflictCellShell
+                      entryId={classAtTime.scheduleEntryId}
+                      conflictingIds={conflictingScheduleEntryIds}
+                    >
+                      {inner}
+                    </InsConflictCellShell>
+                  </div>
+                );
               })}
               {(items as InsRoomCell[]).length > 3 ? (
                 <div className="text-[10px] text-neutral-600 print:hidden">
