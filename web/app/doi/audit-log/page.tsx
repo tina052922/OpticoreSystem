@@ -9,7 +9,7 @@ export default function DoiAuditLogPage() {
         subtitle="Campus-wide audit trail (RLS): schedules workflow, access requests, and inbox actions."
       />
       <div className="px-8 pb-10 max-w-6xl">
-        <AuditLogViewer />
+        <AuditLogViewer auditUnreadScope="doi" />
       </div>
     </div>
   );

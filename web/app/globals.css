@@ -66,7 +66,7 @@ body {
   }
   @page {
     size: A4 portrait;
-    margin: 5mm;
+    margin: 4mm;
   }
   .no-print {
     display: none !important;
@@ -104,6 +104,25 @@ body {
   }
   .ins-print-one-page table th {
     background: #f5f5f5 !important;
+  }
+
+  /**
+   * INS Form 5B (Program by Section): denser than 5A/5C — weekly grid + course summary + signature strip on one short bond/A4.
+   */
+  .ins-print-form-5b {
+    --ins-row-h: 0.48rem;
+  }
+  .ins-print-form-5b.ins-print-one-page {
+    font-size: 6.6pt !important;
+    line-height: 1.06 !important;
+  }
+  .ins-print-form-5b.ins-print-one-page h3 {
+    font-size: 8pt !important;
+    margin: 0 0 0.08rem 0 !important;
+  }
+  .ins-print-form-5b.ins-print-one-page h4 {
+    font-size: 8.75pt !important;
+    margin: 0.06rem 0 !important;
   }
 }
 

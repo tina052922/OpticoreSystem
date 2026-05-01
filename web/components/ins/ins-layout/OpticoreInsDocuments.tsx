@@ -544,8 +544,8 @@ export function OpticoreInsForm5B({
   const hiddenCourseCount = 0;
 
   return (
-    <div className="space-y-5 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
-      <div className="flex flex-col gap-4 print:gap-1 border-b border-neutral-300 pb-6 print:pb-1.5 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-5 print:space-y-1 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+      <div className="flex flex-col gap-4 print:gap-0.5 border-b border-neutral-300 pb-6 print:pb-1 sm:flex-row sm:items-start sm:justify-between">
         <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
           Cebu Technological University
         </h3>
@@ -556,9 +556,11 @@ export function OpticoreInsForm5B({
         </div>
       </div>
 
-      <div className="space-y-2 text-center">
-        <h4 className="text-xl font-bold uppercase tracking-wide">Program by Section</h4>
-        <div className="text-sm">Day Program</div>
+      <div className="space-y-2 print:space-y-0 text-center">
+        <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
+          Program by Section
+        </h4>
+        <div className="text-sm print:text-[7.5pt]">Day Program</div>
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">{semesterLabel ?? "____ Semester, AY ____"}</span>
@@ -572,7 +574,7 @@ export function OpticoreInsForm5B({
         </div>
       </div>
 
-      <div className="space-y-4 print:space-y-2 text-sm">
+      <div className="space-y-4 print:space-y-1 text-sm print:text-[7.5pt]">
         <div className="flex items-end gap-3">
           <span className="shrink-0">Degree and Year:</span>
           {readOnly ? (
@@ -614,6 +616,7 @@ export function OpticoreInsForm5B({
       <OpticoreInsScheduleTableWithSignatures
         cellMode="spanned"
         cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
+        compactSignaturePrint
         showMondayPlaceholder={!readOnly}
         renderSpanned={({ items, paperFormRow }) => {
           if (paperFormRow) {
@@ -626,12 +629,12 @@ export function OpticoreInsForm5B({
             );
           }
           return (
-            <div className="w-full space-y-1 pr-1">
+            <div className="w-full space-y-1 pr-1 print:space-y-0 print:pr-0.5">
               {(items as SectionScheduleCell[]).slice(0, 3).map((row, idx) => {
                 const inner = (
-                  <div className="w-full space-y-0.5 text-xs leading-snug break-words">
+                  <div className="w-full space-y-0.5 print:space-y-0 text-xs print:text-[6.5pt] leading-snug break-words">
                     <div className="font-semibold break-words">{row.course}</div>
-                    <div className="text-[10px] text-neutral-600">{row.time}</div>
+                    <div className="text-[10px] text-neutral-600 print:text-[6pt]">{row.time}</div>
                     <div className="break-words">{row.instructor}</div>
                     <div className="break-words">{row.room}</div>
                   </div>
@@ -657,9 +660,11 @@ export function OpticoreInsForm5B({
         signatureStrip="campusOnly"
       />
 
-      <div className="min-h-0 max-h-[11rem] sm:max-h-[12rem] overflow-y-auto overscroll-contain print:max-h-none print:overflow-visible border border-neutral-900 p-2 md:p-3 print:p-2.5">
-        <div className="mb-2 text-center text-xs font-bold uppercase tracking-wide">Summary of Courses</div>
-        <div className="mb-1.5 border-b border-neutral-900 pb-1.5 text-[11px] font-semibold">
+      <div className="min-h-0 max-h-[11rem] sm:max-h-[12rem] overflow-y-auto overscroll-contain print:max-h-none print:overflow-visible border border-neutral-900 p-2 md:p-3 print:p-1 print:mb-0">
+        <div className="mb-2 print:mb-0.5 text-center text-xs font-bold uppercase tracking-wide print:text-[7pt]">
+          Summary of Courses
+        </div>
+        <div className="mb-1.5 print:mb-0.5 border-b border-neutral-900 pb-1.5 print:pb-0.5 text-[11px] font-semibold print:text-[7pt]">
           <div className="grid grid-cols-4 gap-2">
             <span>No. of Students</span>
             <span>Course code</span>
@@ -667,15 +672,26 @@ export function OpticoreInsForm5B({
             <span>Degree/Yr/Sec</span>
           </div>
         </div>
-        <div className="space-y-1 print:space-y-0.5">
+        <div className="space-y-1 print:space-y-0">
           {shownCourses.map((c, idx) => (
-            <div key={idx} className="grid grid-cols-4 gap-2 text-xs border-b border-black/10 last:border-b-0">
+            <div
+              key={idx}
+              className="grid grid-cols-4 gap-2 print:gap-1 text-xs border-b border-black/10 last:border-b-0 print:text-[6.5pt]"
+            >
               {readOnly ? (
                 <>
-                  <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.students}</span>
-                  <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.code}</span>
-                  <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.title}</span>
-                  <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1">{c.degreeYrSec}</span>
+                  <span className="flex min-h-[1.4rem] print:min-h-0 print:py-0.5 items-center bg-white px-1 py-1">
+                    {c.students}
+                  </span>
+                  <span className="flex min-h-[1.4rem] print:min-h-0 print:py-0.5 items-center bg-white px-1 py-1">
+                    {c.code}
+                  </span>
+                  <span className="flex min-h-[1.4rem] print:min-h-0 print:py-0.5 items-center bg-white px-1 py-1">
+                    {c.title}
+                  </span>
+                  <span className="flex min-h-[1.4rem] print:min-h-0 print:py-0.5 items-center bg-white px-1 py-1">
+                    {c.degreeYrSec}
+                  </span>
                 </>
               ) : (
                 <>

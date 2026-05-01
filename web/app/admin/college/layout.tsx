@@ -16,7 +16,8 @@ export default async function CollegeAdminLayout({ children }: { children: React
       roleLabel="College admin · CTE"
       profileHref="/admin/college/profile"
       scheduleChangeRequestsBadgeCollegeId={profile.collegeId}
-      auditLogBadge
+      accessRequestsBadgeCollegeId={profile.collegeId}
+      auditLogUnreadScope="college"
     >
       {children}
     </CampusIntelligenceShell>

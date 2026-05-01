@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatAuditActionEnglish, formatAuditDetailsEnglish } from "@/lib/audit/format-audit-entry";
+import { markAuditLogPageSeen } from "@/hooks/use-audit-log-unread-count";
 
 export type AuditEntry = {
   id: string;
@@ -15,7 +16,12 @@ export type AuditEntry = {
   createdAt: string;
 };
 
-export function AuditLogViewer() {
+export type AuditLogViewerProps = {
+  /** Must match `auditLogUnreadScope` on `CampusIntelligenceShell` so the sidebar badge clears after a visit. */
+  auditUnreadScope?: string;
+};
+
+export function AuditLogViewer({ auditUnreadScope = "college" }: AuditLogViewerProps) {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +34,9 @@ export function AuditLogViewer() {
       return;
     }
     setEntries(data?.entries ?? []);
-  }, []);
+    // Successful load ⇒ user can see current trail; treat as “read” for badge purposes.
+    markAuditLogPageSeen(auditUnreadScope);
+  }, [auditUnreadScope]);
 
   useEffect(() => {
     void load();

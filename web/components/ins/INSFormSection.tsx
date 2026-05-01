@@ -439,7 +439,8 @@ export function INSFormSection({
         </div>
       </div>
 
-      <div className="print-only hidden print:block print-paper ins-print-one-page ins-print-avoid-break">
+      {/* `ins-print-form-5b`: print CSS in globals.css — single bond page for section grid + summary + signatures */}
+      <div className="print-only hidden print:block print-paper ins-print-one-page ins-print-form-5b ins-print-avoid-break">
         <OpticoreInsForm5B
           degreeAndYear={displayAssignment}
           adviser=""

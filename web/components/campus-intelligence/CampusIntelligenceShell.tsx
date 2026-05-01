@@ -40,7 +40,8 @@ import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
 import { usePendingScheduleChangeRequestsCount } from "@/hooks/use-pending-schedule-change-requests-count";
 import { usePendingPolicyReviewsCount } from "@/hooks/use-pending-policy-reviews-count";
-import { useRecentAuditLogCount } from "@/hooks/use-recent-audit-log-count";
+import { usePendingAccessRequestsCount } from "@/hooks/use-pending-access-requests-count";
+import { useAuditLogUnreadCount } from "@/hooks/use-audit-log-unread-count";
 
 const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   LayoutDashboard,
@@ -60,6 +61,7 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
 
 /** Sidebar link that shows a numeric badge (pending schedule change requests for College Admin). */
 const SCHEDULE_CHANGE_REQUESTS_HREF = "/admin/college/schedule-change-requests";
+const COLLEGE_ACCESS_REQUESTS_HREF = "/admin/college/access-requests";
 const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
 const COLLEGE_AUDIT_LOG_HREF = "/admin/college/audit-log";
 const DOI_AUDIT_LOG_HREF = "/doi/audit-log";
@@ -82,10 +84,15 @@ export type CampusIntelligenceShellProps = {
    * "Schedule change requests" and keeps it updated via Supabase Realtime + polling fallback.
    */
   scheduleChangeRequestsBadgeCollegeId?: string | null;
+  /** College Admin: pending access requests for this college hub. */
+  accessRequestsBadgeCollegeId?: string | null;
   /** DOI layout: shows a badge on "Policy reviews" when items are waiting for review. */
   policyReviewsBadge?: boolean;
-  /** Optional badge on Audit log (simple “recent activity” hint; uses local polling only). */
-  auditLogBadge?: boolean;
+  /**
+   * Sidebar badge: audit rows newer than the last time this scope’s audit log page was opened.
+   * Use `"college"` vs `"doi"` so College and DOI admins don’t share the same “last seen” timestamp.
+   */
+  auditLogUnreadScope?: string | null;
 };
 
 /**
@@ -100,20 +107,24 @@ export function CampusIntelligenceShell({
   roleLabel,
   profileHref,
   scheduleChangeRequestsBadgeCollegeId = null,
+  accessRequestsBadgeCollegeId = null,
   policyReviewsBadge = false,
-  auditLogBadge = false,
+  auditLogUnreadScope = null,
 }: CampusIntelligenceShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const navHrefs = navItems.map((i) => i.href);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pendingScrCount = usePendingScheduleChangeRequestsCount(scheduleChangeRequestsBadgeCollegeId);
+  const pendingAccessCount = usePendingAccessRequestsCount(accessRequestsBadgeCollegeId);
   const pendingPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
   const showPolicyBadge = policyReviewsBadge && pendingPolicyReviews > 0;
 
-  // Lightweight “recent activity” indicator (kept intentionally simple to avoid heavy queries).
-  const recentAuditCount = useRecentAuditLogCount({ windowHours: 24, enabled: auditLogBadge });
-  const showAuditBadge = auditLogBadge && recentAuditCount > 0;
+  const auditUnreadCount = useAuditLogUnreadCount({
+    enabled: Boolean(auditLogUnreadScope?.trim()),
+    storageScope: auditLogUnreadScope?.trim() || "default",
+  });
+  const showAuditBadge = Boolean(auditLogUnreadScope?.trim()) && auditUnreadCount > 0;
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -258,12 +269,14 @@ export function CampusIntelligenceShell({
               const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
               const scrBadge =
                 item.href === SCHEDULE_CHANGE_REQUESTS_HREF && pendingScrCount > 0 ? pendingScrCount : null;
+              const accessBadge =
+                item.href === COLLEGE_ACCESS_REQUESTS_HREF && pendingAccessCount > 0 ? pendingAccessCount : null;
               const policyBadge = item.href === DOI_POLICY_REVIEWS_HREF && showPolicyBadge ? pendingPolicyReviews : null;
               const auditBadge =
                 (item.href === COLLEGE_AUDIT_LOG_HREF || item.href === DOI_AUDIT_LOG_HREF) && showAuditBadge
-                  ? recentAuditCount
+                  ? auditUnreadCount
                   : null;
-              const badge = policyBadge ?? scrBadge ?? auditBadge ?? null;
+              const badge = policyBadge ?? scrBadge ?? accessBadge ?? auditBadge ?? null;
               return (
                 <Link
                   key={item.href}
@@ -288,15 +301,19 @@ export function CampusIntelligenceShell({
                         policyBadge !== null
                           ? `${badge} item${badge === 1 ? "" : "s"} waiting for review`
                           : scrBadge !== null
-                            ? `${badge} pending request${badge === 1 ? "" : "s"}`
-                            : `${badge} recent activit${badge === 1 ? "y" : "ies"}`
+                            ? `${badge} pending schedule change request${badge === 1 ? "" : "s"}`
+                            : accessBadge !== null
+                              ? `${badge} pending access request${badge === 1 ? "" : "s"}`
+                              : `${badge} new audit entr${badge === 1 ? "y" : "ies"} since last visit`
                       }
                       aria-label={
                         policyBadge !== null
                           ? `${badge} policy reviews pending`
                           : scrBadge !== null
                             ? `${badge} pending schedule change requests`
-                            : `${badge} recent audit log items`
+                            : accessBadge !== null
+                              ? `${badge} pending access requests`
+                              : `${badge} unread audit log items`
                       }
                     >
                       {badge > 99 ? "99+" : badge}

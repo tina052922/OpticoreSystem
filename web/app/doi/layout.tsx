@@ -20,7 +20,7 @@ export default async function DoiLayout({ children }: { children: React.ReactNod
       roleLabel="DOI · VPAA"
       profileHref="/doi/profile"
       policyReviewsBadge
-      auditLogBadge
+      auditLogUnreadScope="doi"
     >
       {children}
     </CampusIntelligenceShell>
