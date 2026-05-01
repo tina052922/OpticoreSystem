@@ -11,7 +11,11 @@
  */
 import { useEffect, useRef, useCallback } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { INS_CATALOG_RELOAD_EVENT, subscribeScheduleEntryBroadcast } from "@/lib/ins/ins-catalog-reload";
+import {
+  INS_CATALOG_RELOAD_EVENT,
+  subscribeScheduleEntryBroadcast,
+  type InsCatalogReloadDetail,
+} from "@/lib/ins/ins-catalog-reload";
 
 export function useScheduleEntryCrossReload(
   load: () => void | Promise<void>,
@@ -42,7 +46,7 @@ export function useScheduleEntryCrossReload(
 
   useEffect(() => {
     if (!enabled) return;
-    const onCatalogEvent = () => scheduleCatalogReload();
+    const onCatalogEvent = (_detail?: InsCatalogReloadDetail) => scheduleCatalogReload();
     if (typeof BroadcastChannel !== "undefined") {
       const unsub = subscribeScheduleEntryBroadcast(onCatalogEvent);
       return () => {
@@ -53,13 +57,14 @@ export function useScheduleEntryCrossReload(
         unsub();
       };
     }
-    window.addEventListener(INS_CATALOG_RELOAD_EVENT, onCatalogEvent);
+    const onWindowReload = (_ev: Event) => onCatalogEvent();
+    window.addEventListener(INS_CATALOG_RELOAD_EVENT, onWindowReload);
     return () => {
       if (catalogDebounceRef.current) {
         clearTimeout(catalogDebounceRef.current);
         catalogDebounceRef.current = null;
       }
-      window.removeEventListener(INS_CATALOG_RELOAD_EVENT, onCatalogEvent);
+      window.removeEventListener(INS_CATALOG_RELOAD_EVENT, onWindowReload);
     };
   }, [enabled, scheduleCatalogReload]);
 

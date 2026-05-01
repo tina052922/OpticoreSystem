@@ -1628,8 +1628,8 @@ export function BsitChairmanEvaluatorWorksheet({
               endTime: e.endTime,
             };
           });
-          /** INS forms subscribe to this event via `useInsCatalog` — immediate refresh for all viewers. */
-          dispatchInsCatalogReload();
+          /** INS forms subscribe to this event via `useInsCatalog` — include period id so other pages refresh the correct term immediately. */
+          dispatchInsCatalogReload({ academicPeriodId });
           if (source === "manual") {
             void fetch("/api/audit/schedule-write", {
               method: "POST",

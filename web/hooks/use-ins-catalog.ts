@@ -8,6 +8,7 @@ import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
   dispatchInsCatalogReload,
   INS_CATALOG_RELOAD_EVENT,
+  type InsCatalogReloadDetail,
   subscribeScheduleEntryBroadcast,
 } from "@/lib/ins/ins-catalog-reload";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
@@ -451,12 +452,13 @@ export function useInsCatalog(args: {
    */
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
-    const scheduleFullReload = () => {
-      void loadScheduleEntriesForPeriod({ soft: true });
+    const scheduleFullReload = (detail?: InsCatalogReloadDetail) => {
+      const hintedPeriodId = (detail?.academicPeriodId ?? "").trim();
+      void loadScheduleEntriesForPeriod({ periodId: hintedPeriodId || academicPeriodId, soft: true });
       if (insCatalogSoftRetryRef.current) clearTimeout(insCatalogSoftRetryRef.current);
       insCatalogSoftRetryRef.current = setTimeout(() => {
         insCatalogSoftRetryRef.current = null;
-        void loadScheduleEntriesForPeriod({ soft: true });
+        void loadScheduleEntriesForPeriod({ periodId: hintedPeriodId || academicPeriodId, soft: true });
       }, 700);
 
       if (insFullReloadDebounceRef.current) clearTimeout(insFullReloadDebounceRef.current);
@@ -473,13 +475,16 @@ export function useInsCatalog(args: {
         if (insCatalogSoftRetryRef.current) clearTimeout(insCatalogSoftRetryRef.current);
       };
     }
-    window.addEventListener(INS_CATALOG_RELOAD_EVENT, scheduleFullReload);
+    const onWindowReload = (ev: Event) => {
+      scheduleFullReload((ev as CustomEvent<InsCatalogReloadDetail>)?.detail);
+    };
+    window.addEventListener(INS_CATALOG_RELOAD_EVENT, onWindowReload);
     return () => {
-      window.removeEventListener(INS_CATALOG_RELOAD_EVENT, scheduleFullReload);
+      window.removeEventListener(INS_CATALOG_RELOAD_EVENT, onWindowReload);
       if (insFullReloadDebounceRef.current) clearTimeout(insFullReloadDebounceRef.current);
       if (insCatalogSoftRetryRef.current) clearTimeout(insCatalogSoftRetryRef.current);
     };
-  }, [load, loadScheduleEntriesForPeriod, args.collegeId, args.campusWide]);
+  }, [load, loadScheduleEntriesForPeriod, args.collegeId, args.campusWide, academicPeriodId]);
 
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;

@@ -19,13 +19,20 @@ export const INS_CATALOG_RELOAD_EVENT = "opticore:ins-catalog-reload";
 
 const SCHEDULE_BROADCAST = "opticore-schedule-entry-sync";
 
-export function dispatchInsCatalogReload(): void {
+export type InsCatalogReloadDetail = {
+  t: number;
+  /** If provided, listeners should soft-refresh this period immediately (avoids “wrong term” stale grids). */
+  academicPeriodId?: string | null;
+};
+
+export function dispatchInsCatalogReload(detail?: { academicPeriodId?: string | null }): void {
   if (typeof window === "undefined") return;
+  const payload: InsCatalogReloadDetail = { t: Date.now(), academicPeriodId: detail?.academicPeriodId ?? null };
   /** Cross-tab ping (Central Hub, INS in other tabs). */
   try {
     if (typeof BroadcastChannel !== "undefined") {
       const bc = new BroadcastChannel(SCHEDULE_BROADCAST);
-      bc.postMessage({ t: Date.now() });
+      bc.postMessage(payload);
       bc.close();
     }
   } catch {
@@ -36,17 +43,17 @@ export function dispatchInsCatalogReload(): void {
    * BroadcastChannel delivery to the posting document is not guaranteed across browsers; this avoids
    * stale INS Faculty / Section / Room grids after a Chairman save.
    */
-  window.dispatchEvent(new Event(INS_CATALOG_RELOAD_EVENT));
+  window.dispatchEvent(new CustomEvent<InsCatalogReloadDetail>(INS_CATALOG_RELOAD_EVENT, { detail: payload }));
 }
 
 /** Subscribe to cross-tab schedule reload pings (same browser profile). Returns unsubscribe. */
-export function subscribeScheduleEntryBroadcast(onReload: () => void): () => void {
+export function subscribeScheduleEntryBroadcast(onReload: (detail?: InsCatalogReloadDetail) => void): () => void {
   if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
     return () => {};
   }
   const bc = new BroadcastChannel(SCHEDULE_BROADCAST);
-  bc.onmessage = () => {
-    onReload();
+  bc.onmessage = (ev) => {
+    onReload((ev?.data as InsCatalogReloadDetail | undefined) ?? undefined);
   };
   return () => {
     try {
