@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 export type DoiPolicyReviewRowVM = ScheduleLoadJustification & {
   collegeName: string;
   periodName: string;
+  facultyName?: string | null;
+  facultyWeeklyHours?: number | null;
 };
 
 function decisionLabel(d: ScheduleLoadJustification["doiDecision"]): string {
@@ -57,7 +59,10 @@ function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
     }
   }
 
-  const snap = row.violationsSnapshot as { summary?: string } | null;
+  const snap = row.violationsSnapshot as { facultyWeeklyHours?: number | null } | null;
+  const hours = row.facultyWeeklyHours ?? (snap?.facultyWeeklyHours ?? null);
+  const pending = row.doiDecision == null || row.doiDecision === "pending";
+  const facultyLabel = (row.facultyName ?? "").trim() || (row.facultyUserId ? "Selected instructor" : "Instructor");
 
   return (
     <li className="rounded-xl border border-black/10 bg-white shadow-sm p-5 space-y-3">
@@ -75,41 +80,41 @@ function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
           {decisionLabel(row.doiDecision ?? null)}
         </span>
       </div>
-      <div className="text-sm">
-        <span className="text-black/50">Chair / author: </span>
-        <span className="font-medium">{row.authorName}</span>
-        {row.authorEmail ? <span className="text-black/60"> ({row.authorEmail})</span> : null}
+      <div className="rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2">
+        <div className="text-sm font-semibold text-[#181818]">
+          {facultyLabel}
+          {hours != null ? (
+            <span className="font-normal text-black/70">
+              {" "}
+              has <span className="font-semibold">{hours.toFixed(1)}</span> hours per week
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-0.5 text-sm text-black/70">
+          {hours != null
+            ? "This is above the standard teaching load."
+            : "This submission explains why the teaching load is above the standard."}
+        </p>
+        <div className="mt-1 text-xs text-black/55">
+          <span className="font-semibold text-black/60">Submitted by: </span>
+          <span className="font-medium">{row.authorName}</span>
+        </div>
       </div>
-      {row.facultyUserId ? (
-        <div className="text-xs text-black/55">
-          <span className="font-semibold text-black/60">Instructor (policy scope): </span>
-          <span className="font-mono">{row.facultyUserId}</span>
-        </div>
-      ) : null}
-      {row.scheduleEntryId ? (
-        <div className="text-xs text-black/55">
-          <span className="font-semibold text-black/60">Schedule entry: </span>
-          <span className="font-mono">{row.scheduleEntryId}</span>
-        </div>
-      ) : null}
       <div className="text-sm text-black/80 whitespace-pre-wrap border-t border-black/5 pt-3">{row.justification}</div>
-      {snap && typeof snap === "object" && "summary" in snap && snap.summary ? (
-        <div className="text-xs text-black/50 font-mono bg-black/[0.03] rounded p-2">{snap.summary}</div>
-      ) : null}
-      {row.doiReviewNote && row.doiDecision ? (
+      {row.doiReviewNote && !pending ? (
         <div className="text-xs text-black/55">
-          <span className="font-semibold">VPAA note: </span>
+          <span className="font-semibold">Your note: </span>
           {row.doiReviewNote}
         </div>
       ) : null}
 
       <div className="border-t border-black/5 pt-3 space-y-2">
-        <label className="block text-[12px] font-medium text-black/70">Review note (optional, shown to chair)</label>
+        <label className="block text-[12px] font-medium text-black/70">Optional note (visible to the chair)</label>
         <textarea
           className="w-full min-h-[72px] rounded-lg border border-black/15 bg-white px-3 py-2 text-sm"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="e.g. Accepted overload for this term only; reduce load next semester."
+          placeholder="Write a short note if needed."
         />
         {msg ? <p className="text-xs text-amber-800">{msg}</p> : null}
         <div className="flex flex-wrap gap-2">
@@ -126,8 +131,7 @@ function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
           </Button>
         </div>
         <p className="text-[11px] text-black/45 leading-relaxed">
-          Accepting documents VPAA awareness of the overload; term publication and locking still use INS → VPAA
-          approval. Rejecting notifies the chair to revise the draft or justification.
+          Choosing <strong>Accept</strong> or <strong>Reject</strong> updates the chair’s page right away.
         </p>
       </div>
     </li>
@@ -138,8 +142,7 @@ export function DoiPolicyReviewsClient({ rows }: { rows: DoiPolicyReviewRowVM[] 
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
-        No submissions yet. When a chairman saves a load justification from the Evaluator (policy violations), it
-        appears here for VPAA review.
+        No submissions yet. When a chair submits a teaching-load explanation, it will appear here for review.
       </div>
     );
   }

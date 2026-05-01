@@ -219,11 +219,7 @@ export function OpticoreInsForm5A({
             <CredLine label="Doctorate Degree" value={facultyCredentials.doctorate} />
             <CredLine label="Special Training" value={facultyCredentials.specialTraining} />
           </div>
-        ) : (
-          <p className="md:col-span-2 text-xs text-gray-600">
-            Full faculty credentials are maintained in <strong>Faculty Profile</strong> (Campus Intelligence). This view shows your official teaching schedule for the term.
-          </p>
-        )}
+        ) : null}
       </div>
 
       <OpticoreInsScheduleTableWithSignatures
