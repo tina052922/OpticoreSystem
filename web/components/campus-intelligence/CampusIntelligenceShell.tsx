@@ -62,9 +62,8 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
 /** Sidebar link that shows a numeric badge (pending schedule change requests for College Admin). */
 const SCHEDULE_CHANGE_REQUESTS_HREF = "/admin/college/schedule-change-requests";
 const COLLEGE_ACCESS_REQUESTS_HREF = "/admin/college/access-requests";
-/** DOI: pending VPAA reviews are reviewed on the Campus Intelligence dashboard (no separate nav item). */
-const DOI_POLICY_QUEUE_HREF = "/doi/dashboard";
-/** College Admin: read-only list scoped by RLS to their college. */
+const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
+/** College Admin: same data as DOI queue, scoped by RLS to their college. */
 const COLLEGE_POLICY_JUSTIFICATIONS_HREF = "/admin/college/policy-reviews";
 const COLLEGE_AUDIT_LOG_HREF = "/admin/college/audit-log";
 const DOI_AUDIT_LOG_HREF = "/doi/audit-log";
@@ -89,9 +88,11 @@ export type CampusIntelligenceShellProps = {
   scheduleChangeRequestsBadgeCollegeId?: string | null;
   /** College Admin: pending access requests for this college hub. */
   accessRequestsBadgeCollegeId?: string | null;
-  /** DOI layout: badge on "Campus Intelligence" when policy justifications await VPAA review. */
+  /** DOI layout: shows a badge on "Policy reviews" when items are waiting for review. */
   policyReviewsBadge?: boolean;
-  /** College Admin: badge on "Policy reviews" for submissions still awaiting VPAA (RLS-scoped). */
+  /**
+   * College Admin: badge on "Policy justifications" for submissions still awaiting VPAA/DOI (same row set as `/doi/reviews`, RLS-scoped).
+   */
   policyJustificationsBadgeCollegeId?: string | null;
   /**
    * Sidebar badge: audit rows newer than the last time this scope’s audit log page was opened.
@@ -284,7 +285,7 @@ export function CampusIntelligenceShell({
               const accessBadge =
                 item.href === COLLEGE_ACCESS_REQUESTS_HREF && pendingAccessCount > 0 ? pendingAccessCount : null;
               const doiPolicyBadge =
-                item.href === DOI_POLICY_QUEUE_HREF && showDoiPolicyBadge ? pendingDoiPolicyReviews : null;
+                item.href === DOI_POLICY_REVIEWS_HREF && showDoiPolicyBadge ? pendingDoiPolicyReviews : null;
               const collegePolicyBadge =
                 item.href === COLLEGE_POLICY_JUSTIFICATIONS_HREF && showCollegePolicyBadge
                   ? pendingCollegePolicyReviews

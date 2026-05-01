@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ScheduleLoadJustification } from "@/types/db";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-export type CollegePolicyItemVM = {
-  row: ScheduleLoadJustification;
+export type CollegePolicyReviewRowVM = ScheduleLoadJustification & {
   collegeName: string;
   periodName: string;
   instructorLabel: string | null;
@@ -26,100 +25,109 @@ function decisionBadgeClass(d: ScheduleLoadJustification["doiDecision"]): string
   return "bg-black/[0.04] text-black/60 border-black/10";
 }
 
-function isPending(d: ScheduleLoadJustification["doiDecision"] | null | undefined): boolean {
+function isPendingRow(d: ScheduleLoadJustification["doiDecision"] | null | undefined): boolean {
   return d == null || d === "pending";
 }
 
-type Filter = "all" | "pending" | "decided";
+type FilterMode = "pending" | "all";
 
-/**
- * College Admin policy list: filter chips + Supabase Realtime so VPAA decisions appear without a manual refresh.
- */
-export function CollegePolicyJustificationsClient({
-  collegeId,
-  items,
+export function CollegePolicyReviewsClient({
+  rows: initialRows,
+  realtimeCollegeId = null,
 }: {
-  collegeId: string;
-  items: CollegePolicyItemVM[];
+  rows: CollegePolicyReviewRowVM[];
+  /** Scope realtime to this hub so other colleges’ reviews do not refresh this page. */
+  realtimeCollegeId?: string | null;
 }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>("pending");
-
-  const pendingCount = useMemo(
-    () => items.filter((it) => isPending(it.row.doiDecision)).length,
-    [items],
-  );
-
-  const filtered = useMemo(() => {
-    return items.filter((it) => {
-      const p = isPending(it.row.doiDecision);
-      if (filter === "pending") return p;
-      if (filter === "decided") return !p;
-      return true;
-    });
-  }, [items, filter]);
+  const [rows, setRows] = useState(initialRows);
+  const [filter, setFilter] = useState<FilterMode>("pending");
 
   useEffect(() => {
-    const id = collegeId?.trim();
-    if (!id) return;
+    setRows(initialRows);
+  }, [initialRows]);
+
+  // New submissions or DOI decisions: re-fetch server props (RLS = this college only).
+  useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
+    const cid = realtimeCollegeId?.trim();
     const channel = supabase
-      .channel(`college-policy-slj:${id}`)
+      .channel(`college-policy-reviews:${cid ?? "all"}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "ScheduleLoadJustification", filter: `collegeId=eq.${id}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "ScheduleLoadJustification",
+          ...(cid ? { filter: `collegeId=eq.${cid}` } : {}),
+        },
         () => router.refresh(),
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [collegeId, router]);
+  }, [router, realtimeCollegeId]);
 
-  const chip = (f: Filter, label: string, count?: number) => (
-    <button
-      key={f}
-      type="button"
-      onClick={() => setFilter(f)}
-      className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors ${
-        filter === f
-          ? "bg-[#FF990A] text-white border-[#e88909]"
-          : "bg-white text-black/70 border-black/15 hover:bg-black/[0.04]"
-      }`}
-    >
-      {label}
-      {typeof count === "number" ? (
-        <span className={`ml-1 tabular-nums ${filter === f ? "text-white/90" : "text-[#DE0602]"}`}>({count})</span>
-      ) : null}
-    </button>
+  const pendingRows = useMemo(() => rows.filter((r) => isPendingRow(r.doiDecision)), [rows]);
+  const shown = useMemo(
+    () => (filter === "pending" ? pendingRows : [...rows].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())),
+    [rows, filter, pendingRows],
   );
+
+  const chip = useCallback(
+    (mode: FilterMode, label: string, count: number) => (
+      <button
+        key={mode}
+        type="button"
+        onClick={() => setFilter(mode)}
+        className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors ${
+          filter === mode
+            ? "bg-[#FF990A] text-white border-[#e88909] shadow-sm"
+            : "bg-white text-black/70 border-black/10 hover:bg-black/[0.03]"
+        }`}
+      >
+        {label}
+        {count > 0 ? (
+          <span className={`ml-1.5 tabular-nums ${filter === mode ? "text-white/95" : "text-[#DE0602]"}`}>({count})</span>
+        ) : null}
+      </button>
+    ),
+    [filter],
+  );
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
+        No submissions yet. When a chairman saves a schedule that exceeds faculty load policy, the justification appears
+        here. You are notified when VPAA accepts or rejects a submission.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        {chip("pending", "Pending VPAA review", pendingCount)}
-        {chip("decided", "Decided", items.length - pendingCount)}
-        {chip("all", "All", items.length)}
+        {chip("pending", "Pending VPAA review", pendingRows.length)}
+        {chip("all", "All submissions", rows.length)}
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
-          {filter === "pending"
-            ? "No pending justifications. When a chair submits a load-policy note, it will appear here until VPAA reviews it."
-            : "No items match this filter."}
+      {filter === "pending" && shown.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-black/15 bg-white p-6 text-sm text-black/60">
+          No pending justifications. Switch to <strong>All submissions</strong> for history.
         </div>
       ) : (
         <ul className="space-y-4">
-          {filtered.map(({ row: r, collegeName, periodName, instructorLabel }) => {
+          {shown.map((r) => {
             const snap = r.violationsSnapshot as { summary?: string } | null;
             return (
               <li key={r.id} className="rounded-xl border border-black/10 bg-white shadow-sm p-5 space-y-3">
                 <div className="flex flex-wrap items-center gap-2 justify-between">
                   <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-wide text-black/50">
-                    <span>{collegeName}</span>
+                    <span>{r.collegeName}</span>
                     <span>·</span>
-                    <span>{periodName}</span>
+                    <span>{r.periodName}</span>
                     <span>·</span>
                     <span>Updated {new Date(r.updatedAt).toLocaleString()}</span>
                   </div>
@@ -140,10 +148,10 @@ export function CollegePolicyJustificationsClient({
                   <span className="font-medium">{r.authorName}</span>
                   {r.authorEmail ? <span className="text-black/60"> ({r.authorEmail})</span> : null}
                 </div>
-                {instructorLabel ? (
+                {r.instructorLabel ? (
                   <div className="text-sm text-black/80">
                     <span className="text-black/50">Instructor: </span>
-                    <span className="font-medium">{instructorLabel}</span>
+                    <span className="font-medium">{r.instructorLabel}</span>
                   </div>
                 ) : null}
                 {r.scheduleEntryId ? (

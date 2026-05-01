@@ -1,13 +1,12 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { CollegePolicyJustificationsClient } from "@/components/college/CollegePolicyJustificationsClient";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { CollegePolicyReviewsClient, type CollegePolicyReviewRowVM } from "@/components/policy/CollegePolicyReviewsClient";
 import { requireRoles } from "@/lib/auth/require-role";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { AcademicPeriod, College, ScheduleLoadJustification } from "@/types/db";
 
 export default async function CollegePolicyReviewsPage() {
   const profile = await requireRoles(["college_admin"]);
-
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
     return <p className="text-sm text-red-700">Supabase is not configured.</p>;
@@ -43,29 +42,21 @@ export default async function CollegePolicyReviewsPage() {
     }
   }
 
-  const items = list.map((r) => ({
-    row: r,
+  const vms: CollegePolicyReviewRowVM[] = list.map((r) => ({
+    ...r,
     collegeName: collegeById.get(r.collegeId)?.name ?? r.collegeId,
     periodName: periodById.get(r.academicPeriodId)?.name ?? r.academicPeriodId,
-    instructorLabel: r.facultyUserId
-      ? (facultyLabelByUserId.get(r.facultyUserId) ?? r.facultyUserId)
-      : null,
+    instructorLabel: r.facultyUserId ? facultyLabelByUserId.get(r.facultyUserId) ?? r.facultyUserId : null,
   }));
-
-  const pendingN = items.filter((it) => it.row.doiDecision == null || it.row.doiDecision === "pending").length;
 
   return (
     <div>
       <ChairmanPageHeader
         title="Policy reviews"
-        subtitle={`Load-policy justifications from your college (${pendingN} awaiting VPAA when pending). You are notified when VPAA accepts or rejects; this list updates live.`}
+        subtitle="Load-policy justifications from your college’s chairs. Pending items need VPAA action; you are notified when a decision is made (accept or reject)."
       />
       <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-5xl mx-auto">
-        {profile.collegeId ? (
-          <CollegePolicyJustificationsClient collegeId={profile.collegeId} items={items} />
-        ) : (
-          <p className="text-sm text-red-700">Your account has no college scope.</p>
-        )}
+        <CollegePolicyReviewsClient rows={vms} realtimeCollegeId={profile.collegeId} />
       </div>
     </div>
   );

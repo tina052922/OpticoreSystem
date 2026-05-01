@@ -155,7 +155,7 @@ export async function PATCH(req: Request) {
     const rows: { userId: string; message: string }[] = [{ userId: r.authorUserId, message: chairMsg }];
     const notifyWarnings: string[] = [];
 
-    // College admins stay aligned with the VPAA queue: notify on both accept and reject (chair always gets `chairMsg` above).
+    // College Admins are notified on every VPAA decision (approve or reject) so the hub stays aligned with the chair.
     const [instructorLabel, scheduleHint] = await Promise.all([resolveInstructorLabel(admin), resolveScheduleHint(admin)]);
     const collegeAdminMsg =
       decision === "accepted"

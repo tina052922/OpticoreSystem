@@ -87,6 +87,8 @@ export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/doi/dashboard", icon: "LayoutDashboard" },
   { label: "INS Form (Schedule View)", href: "/doi/ins/faculty", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/doi/evaluator", icon: "ClipboardList" },
+  /** Single VPAA queue for all colleges — badge shows pending count (no extra routes). */
+  { label: "Policy reviews", href: "/doi/reviews", icon: "Scale" },
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },
