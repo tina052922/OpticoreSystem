@@ -103,6 +103,8 @@ export function useInsCatalog(args: {
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Coalesce chairman/GEC save broadcasts into one full catalog pull so new entry ids refresh Section/Subject merges (INS hours). */
   const insFullReloadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Second soft `ScheduleEntry` pull after reload — helps same-tab read-your-writes when PostgREST briefly returns old rows. */
+  const insCatalogSoftRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const academicPeriodId =
     semesterFilter?.ready && semesterFilter.selectedPeriodId ? semesterFilter.selectedPeriodId : fallbackPeriodId;
@@ -440,13 +442,23 @@ export function useInsCatalog(args: {
   }, [scheduleDebouncedReload, args.collegeId, args.campusWide, academicPeriodId]);
 
   /**
-   * Same-tab + cross-tab: chairman/GEC saves broadcast a reload. Use a **full** `load()` (debounced) so
-   * term-referenced Section/Subject merges refresh — soft entry-only reload was leaving INS Faculty hours stale.
-   * Realtime stays on lightweight `loadScheduleEntriesForPeriod`.
+   * Same-tab + cross-tab: chairman/GEC saves broadcast a reload.
+   * - **Immediate** `loadScheduleEntriesForPeriod({ soft: true })` so INS grids + section views pick up new times
+   *   without waiting for the heavy `load()` round-trip (fixes stale 12:00 vs 2:00 PM after Evaluator save).
+   * - **Debounced** full `load()` still runs so term-referenced Section/Subject merges stay correct for hours totals.
+   * - **Delayed soft retry** (~700ms) catches occasional read-after-write lag from PostgREST.
+   * Realtime continues to use lightweight `loadScheduleEntriesForPeriod` only.
    */
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
     const scheduleFullReload = () => {
+      void loadScheduleEntriesForPeriod({ soft: true });
+      if (insCatalogSoftRetryRef.current) clearTimeout(insCatalogSoftRetryRef.current);
+      insCatalogSoftRetryRef.current = setTimeout(() => {
+        insCatalogSoftRetryRef.current = null;
+        void loadScheduleEntriesForPeriod({ soft: true });
+      }, 700);
+
       if (insFullReloadDebounceRef.current) clearTimeout(insFullReloadDebounceRef.current);
       insFullReloadDebounceRef.current = setTimeout(() => {
         insFullReloadDebounceRef.current = null;
@@ -458,14 +470,16 @@ export function useInsCatalog(args: {
       return () => {
         unsub();
         if (insFullReloadDebounceRef.current) clearTimeout(insFullReloadDebounceRef.current);
+        if (insCatalogSoftRetryRef.current) clearTimeout(insCatalogSoftRetryRef.current);
       };
     }
     window.addEventListener(INS_CATALOG_RELOAD_EVENT, scheduleFullReload);
     return () => {
       window.removeEventListener(INS_CATALOG_RELOAD_EVENT, scheduleFullReload);
       if (insFullReloadDebounceRef.current) clearTimeout(insFullReloadDebounceRef.current);
+      if (insCatalogSoftRetryRef.current) clearTimeout(insCatalogSoftRetryRef.current);
     };
-  }, [load, args.collegeId, args.campusWide]);
+  }, [load, loadScheduleEntriesForPeriod, args.collegeId, args.campusWide]);
 
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
