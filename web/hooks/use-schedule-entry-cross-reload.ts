@@ -3,7 +3,7 @@
 /**
  * Keeps Evaluator hubs (Central Hub, GEC hub) aligned with INS Forms when `ScheduleEntry` changes.
  *
- * - Same-tab: `dispatchInsCatalogReload()` (chairman / GEC saves) triggers an immediate full reload.
+ * - Same-tab: `dispatchInsCatalogReload()` triggers a debounced full reload (~420ms) to reduce stale reads.
  * - Other tabs / clients: Supabase Realtime on `ScheduleEntry` (debounced to avoid storms).
  *
  * INS catalog (`useInsCatalog`) already listens to the same window event + Realtime; this hook mirrors
@@ -21,6 +21,8 @@ export function useScheduleEntryCrossReload(
   const loadRef = useRef(load);
   loadRef.current = load;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Same-tab `dispatchInsCatalogReload`: brief delay so PostgREST read-after-write is less likely to return old slots. */
+  const catalogDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scheduleDebouncedReload = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -30,15 +32,36 @@ export function useScheduleEntryCrossReload(
     }, 130);
   }, []);
 
+  const scheduleCatalogReload = useCallback(() => {
+    if (catalogDebounceRef.current) clearTimeout(catalogDebounceRef.current);
+    catalogDebounceRef.current = setTimeout(() => {
+      catalogDebounceRef.current = null;
+      void loadRef.current();
+    }, 420);
+  }, []);
+
   useEffect(() => {
     if (!enabled) return;
-    const onCatalogEvent = () => void loadRef.current();
+    const onCatalogEvent = () => scheduleCatalogReload();
     if (typeof BroadcastChannel !== "undefined") {
-      return subscribeScheduleEntryBroadcast(onCatalogEvent);
+      const unsub = subscribeScheduleEntryBroadcast(onCatalogEvent);
+      return () => {
+        if (catalogDebounceRef.current) {
+          clearTimeout(catalogDebounceRef.current);
+          catalogDebounceRef.current = null;
+        }
+        unsub();
+      };
     }
     window.addEventListener(INS_CATALOG_RELOAD_EVENT, onCatalogEvent);
-    return () => window.removeEventListener(INS_CATALOG_RELOAD_EVENT, onCatalogEvent);
-  }, [enabled]);
+    return () => {
+      if (catalogDebounceRef.current) {
+        clearTimeout(catalogDebounceRef.current);
+        catalogDebounceRef.current = null;
+      }
+      window.removeEventListener(INS_CATALOG_RELOAD_EVENT, onCatalogEvent);
+    };
+  }, [enabled, scheduleCatalogReload]);
 
   /** When returning to a backgrounded tab, refetch (covers missed Realtime/broadcast). Debounced to avoid stacking with other triggers. */
   useEffect(() => {
