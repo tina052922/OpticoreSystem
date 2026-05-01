@@ -796,35 +796,53 @@ export function EvaluatorTimetablingPanel({
       const authorName = author?.name ?? user.email ?? user.id;
 
       if (hasAnyViolation) {
-        const snapRows = policyEvaluation.rows
-          .filter((r) => r.violations.length > 0)
-          .map(
-            (r) =>
-              `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
-          );
+        const violators = policyEvaluation.rows.filter((r) => r.violations.length > 0);
+        const snapRows = violators.map(
+          (r) =>
+            `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
+        );
         const summary = snapRows.join("\n");
-
-        const { error: jErr } = await supabase.from("ScheduleLoadJustification").upsert(
-          {
+        const t = justificationText.trim();
+        await supabase
+          .from("ScheduleLoadJustification")
+          .delete()
+          .eq("academicPeriodId", academicPeriodId)
+          .eq("collegeId", effectiveCollegeId)
+          .is("facultyUserId", null);
+        for (const v of violators) {
+          const scheduleEntryId = rows.find((r) => r.instructorId === v.instructorId)?.id ?? null;
+          const scheduleEntryIds = rows.filter((r) => r.instructorId === v.instructorId).map((r) => r.id);
+          await supabase
+            .from("ScheduleLoadJustification")
+            .delete()
+            .eq("academicPeriodId", academicPeriodId)
+            .eq("collegeId", effectiveCollegeId)
+            .eq("facultyUserId", v.instructorId);
+          const { error: jErr } = await supabase.from("ScheduleLoadJustification").insert({
             academicPeriodId,
             collegeId: effectiveCollegeId,
+            facultyUserId: v.instructorId,
+            scheduleEntryId,
             authorUserId: user.id,
             authorName,
             authorEmail: user.email ?? null,
-            justification: justificationText.trim(),
-            violationsSnapshot: { summary, detail: policyEvaluation.rows },
-            /** Chair resubmits → VPAA must review again. */
+            justification: t,
+            violationsSnapshot: {
+              summary,
+              detail: policyEvaluation.rows,
+              scheduleEntryIds,
+              facultyWeeklyHours: v.weeklyTotalContactHours,
+            },
             doiDecision: null,
             doiReviewedAt: null,
             doiReviewedById: null,
             doiReviewNote: null,
-          },
-          { onConflict: "academicPeriodId,collegeId" },
-        );
-        if (jErr) {
-          setSaveMsg(jErr.message);
-          toast.error("Failed to save. Please try again.", jErr.message);
-          return;
+          });
+          if (jErr) {
+            setSaveMsg(jErr.message);
+            toast.error("Failed to save. Please try again.", jErr.message);
+            return;
+          }
         }
       }
 
@@ -910,31 +928,44 @@ export function EvaluatorTimetablingPanel({
       }
       const author = collegeUsers.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
-      const snapRows = policyEvaluation.rows
-        .filter((r) => r.violations.length > 0)
-        .map(
-          (r) =>
-            `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
-        );
-      const { error: jErr } = await supabase.from("ScheduleLoadJustification").upsert(
-        {
+      const violators = policyEvaluation.rows.filter((r) => r.violations.length > 0);
+      const snapRows = violators.map(
+        (r) =>
+          `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
+      );
+      const summary = snapRows.join("\n");
+      await supabase
+        .from("ScheduleLoadJustification")
+        .delete()
+        .eq("academicPeriodId", academicPeriodId)
+        .eq("collegeId", effectiveCollegeId)
+        .is("facultyUserId", null);
+      for (const v of violators) {
+        await supabase
+          .from("ScheduleLoadJustification")
+          .delete()
+          .eq("academicPeriodId", academicPeriodId)
+          .eq("collegeId", effectiveCollegeId)
+          .eq("facultyUserId", v.instructorId);
+        const { error: jErr } = await supabase.from("ScheduleLoadJustification").insert({
           academicPeriodId,
           collegeId: effectiveCollegeId,
+          facultyUserId: v.instructorId,
+          scheduleEntryId: null,
           authorUserId: user.id,
           authorName,
           authorEmail: user.email ?? null,
           justification: t,
-          violationsSnapshot: { summary: snapRows.join("\n"), detail: policyEvaluation.rows },
+          violationsSnapshot: { summary, detail: policyEvaluation.rows },
           doiDecision: null,
           doiReviewedAt: null,
           doiReviewedById: null,
           doiReviewNote: null,
-        },
-        { onConflict: "academicPeriodId,collegeId" },
-      );
-      if (jErr) {
-        setSaveMsg(jErr.message);
-        return;
+        });
+        if (jErr) {
+          setSaveMsg(jErr.message);
+          return;
+        }
       }
       await load();
       setSaveMsg("Justification recorded for DOI review.");

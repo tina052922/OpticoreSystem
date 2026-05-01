@@ -13,9 +13,18 @@ import {
   BSIT_PROGRAM_CODE,
   BSIT_PROSPECTUS_SUBJECTS,
   normalizeProspectusCode,
+  prospectusSubjectsForYearAndSemester,
+  prospectusSubjectsForYearLevel,
   scheduleDurationSlots,
+  type BsitSemester,
   type ProspectusSubjectRow,
 } from "@/lib/chairman/bsit-prospectus";
+import {
+  BSENVS_PROGRAM_CODE,
+  BSENVS_PROSPECTUS_SUBJECTS,
+  prospectusSubjectsForBsenvsYearAndSemester,
+  prospectusSubjectsForBsenvsYearLevel,
+} from "@/lib/chairman/bs-envsci-prospectus";
 import type { Subject } from "@/types/db";
 
 /**
@@ -24,8 +33,7 @@ import type { Subject } from "@/types/db";
  */
 export const PROGRAM_PROSPECTUS_SUBJECTS: Readonly<Record<string, readonly ProspectusSubjectRow[]>> = {
   [BSIT_PROGRAM_CODE.toUpperCase()]: BSIT_PROSPECTUS_SUBJECTS,
-  // Example for a future program (uncomment when data exists):
-  // BSCS: BSCS_PROSPECTUS_SUBJECTS,
+  [BSENVS_PROGRAM_CODE.toUpperCase()]: BSENVS_PROSPECTUS_SUBJECTS,
 };
 
 /** Program codes that have a static prospectus in this registry. */
@@ -60,6 +68,30 @@ export function prospectusRowForProgram(
     if (normalizeProspectusCode(s.code) === norm) return s;
   }
   return undefined;
+}
+
+/** Prospectus slice for Evaluator subject dropdowns (year × semester). */
+export function prospectusSubjectsForProgramYearAndSemester(
+  programCode: string | null | undefined,
+  yearLevel: number,
+  semester: BsitSemester,
+): ProspectusSubjectRow[] {
+  const k = normalizeProgramKey(programCode);
+  if (k === BSENVS_PROGRAM_CODE.toUpperCase()) {
+    return prospectusSubjectsForBsenvsYearAndSemester(yearLevel, semester);
+  }
+  return prospectusSubjectsForYearAndSemester(yearLevel, semester);
+}
+
+export function prospectusSubjectsForProgramYearLevel(
+  programCode: string | null | undefined,
+  yearLevel: number,
+): ProspectusSubjectRow[] {
+  const k = normalizeProgramKey(programCode);
+  if (k === BSENVS_PROGRAM_CODE.toUpperCase()) {
+    return prospectusSubjectsForBsenvsYearLevel(yearLevel);
+  }
+  return prospectusSubjectsForYearLevel(yearLevel);
 }
 
 /**

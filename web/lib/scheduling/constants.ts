@@ -21,7 +21,10 @@ export const DEFAULT_MAX_FACULTY_HOURS_PER_WEEK = 24;
  * (Semester “units” are approximated from contact hours for scheduling checks.)
  */
 export const FACULTY_POLICY_CONSTANTS = {
-  /** Typical undergraduate standard teaching contact (hrs/week) before overload justification. */
+  /**
+   * Typical undergraduate teaching contact (hrs/week) before overload justification.
+   * Aligns with Faculty Merit System upper bound for regular faculty (18–24 hrs/wk range).
+   */
   STANDARD_WEEKLY_TEACHING_HOURS: 24,
   /** Lab / shop weekly contact ceiling. */
   MAX_WEEKLY_LAB_CONTACT_HOURS: 30,
@@ -41,4 +44,5 @@ export const PROGRAM_MAJORS: Record<string, string[]> = {
   "prog-bit-gar": ["Garments Technology"],
   "prog-bsit": ["Information Technology"],
   "prog-bsie": ["Industrial Engineering"],
+  "prog-bs-envsci": ["Environmental Science"],
 };

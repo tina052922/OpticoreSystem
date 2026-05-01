@@ -47,7 +47,11 @@ export function PublicLandingPage() {
       >
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element -- static asset from public/ */}
-          <img src="/login/campus-photo.png" alt="" className="absolute inset-0 w-full h-full object-cover" />
+          <img
+            src="/login/campus-photo.png"
+            alt=""
+            className="absolute inset-0 w-full h-full object-contain object-center bg-[#1a0505]"
+          />
         </div>
         <div className="absolute inset-0 bg-gradient-to-r from-[rgba(120,3,1,0.82)] via-[rgba(120,3,1,0.55)] to-[rgba(120,3,1,0.15)]" />
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-16 md:py-24">

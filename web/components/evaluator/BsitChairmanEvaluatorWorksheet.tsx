@@ -14,15 +14,20 @@ import type { FacultyProfile, Room, ScheduleEntry, ScheduleLoadJustification, Se
 import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  BSIT_PROSPECTUS_SUBJECTS,
+  BSIT_PROGRAM_CODE,
   BSIT_SCHEDULING_ROOM_CODES,
+  isBsitChairmanProgram,
   normalizeProspectusCode,
-  prospectusByCode,
-  prospectusSubjectsForYearAndSemester,
-  prospectusSubjectsForYearLevel,
   scheduleDurationSlots,
-  yearLevelFromBsitSectionName,
 } from "@/lib/chairman/bsit-prospectus";
+import { BSENVS_PROGRAM_CODE, BSENVS_PROGRAM_ID } from "@/lib/chairman/bs-envsci-prospectus";
+import {
+  getProspectusSubjectsForProgram,
+  prospectusRowForProgram,
+  prospectusSubjectsForProgramYearAndSemester,
+  prospectusSubjectsForProgramYearLevel,
+} from "@/lib/chairman/prospectus-registry";
+import { yearLevelFromSchedulingSectionName } from "@/lib/chairman/section-year-level";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
@@ -45,7 +50,8 @@ import {
   type InstructorPlotOption,
 } from "@/lib/evaluator/instructor-employee-id";
 
-const MAJOR_FIXED = "BSIT";
+/** Fallback program code when session has no `chairmanProgramCode` (legacy chairman session). */
+const DEFAULT_CHAIRMAN_PROGRAM_CODE: string = BSIT_PROGRAM_CODE;
 
 const selectClass =
   "w-full min-h-10 rounded-md border border-black/25 bg-white px-2 text-[11px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -82,9 +88,9 @@ function emptyRow(): PlotRow {
   };
 }
 
-/** Build a Subject-shaped object for faculty policy evaluation from prospectus row. */
-function subjectFromProspectus(code: string, programId: string): Subject | undefined {
-  const p = prospectusByCode(code);
+/** Build a Subject-shaped object for faculty policy evaluation from the active program prospectus. */
+function subjectFromProspectus(code: string, programId: string, programCodeForSummary: string): Subject | undefined {
+  const p = prospectusRowForProgram(programCodeForSummary, code);
   if (!p) return undefined;
   return {
     id: `prospectus-${p.code}`,
@@ -100,8 +106,8 @@ function subjectFromProspectus(code: string, programId: string): Subject | undef
   };
 }
 
-function rowTimeBounds(row: PlotRow): { startIdx: number; start: (typeof BSIT_EVALUATOR_TIME_SLOTS)[0]; endSlot: (typeof BSIT_EVALUATOR_TIME_SLOTS)[0] } | null {
-  const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
+function rowTimeBounds(row: PlotRow, programCodeForSummary: string): { startIdx: number; start: (typeof BSIT_EVALUATOR_TIME_SLOTS)[0]; endSlot: (typeof BSIT_EVALUATOR_TIME_SLOTS)[0] } | null {
+  const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   if (!p) return null;
   const dur = scheduleDurationSlots(p);
   const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
@@ -114,9 +120,9 @@ function rowTimeBounds(row: PlotRow): { startIdx: number; start: (typeof BSIT_EV
 }
 
 /** Subject + day + start → interval; resources optional (for real-time conflict checks). */
-function rowToSparseBlock(row: PlotRow, academicPeriodId: string): SparseScheduleBlock | null {
+function rowToSparseBlock(row: PlotRow, academicPeriodId: string, programCodeForSummary: string): SparseScheduleBlock | null {
   if (!academicPeriodId || !row.day) return null;
-  const t = rowTimeBounds(row);
+  const t = rowTimeBounds(row, programCodeForSummary);
   if (!t) return null;
   return {
     id: row.id,
@@ -130,11 +136,11 @@ function rowToSparseBlock(row: PlotRow, academicPeriodId: string): SparseSchedul
   };
 }
 
-function rowToBlock(row: PlotRow, academicPeriodId: string, subjectIdForRow: string): ScheduleBlock | null {
+function rowToBlock(row: PlotRow, academicPeriodId: string, subjectIdForRow: string, programCodeForSummary: string): ScheduleBlock | null {
   if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) return null;
-  const p = prospectusByCode(row.subjectCode);
+  const p = prospectusRowForProgram(programCodeForSummary, row.subjectCode);
   if (!p) return null;
-  const t = rowTimeBounds(row);
+  const t = rowTimeBounds(row, programCodeForSummary);
   if (!t) return null;
   return {
     id: row.id,
@@ -207,9 +213,9 @@ type BsitChairmanEvaluatorWorksheetProps = {
   onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
 };
 
-function rowFullyPlotted(row: PlotRow): boolean {
+function rowFullyPlotted(row: PlotRow, programCodeForSummary: string): boolean {
   if (!row.sectionId || !row.subjectCode || !row.instructorId || !row.roomId) return false;
-  return rowTimeBounds(row) != null;
+  return rowTimeBounds(row, programCodeForSummary) != null;
 }
 
 /**
@@ -217,10 +223,10 @@ function rowFullyPlotted(row: PlotRow): boolean {
  * start slot are set. Instructor/room are optional for rendering the cell — the summary “Plotted” badge must follow
  * this so it stays in sync with the preview (autosave to DB may still wait for full resource fields).
  */
-function rowVisibleInSchedulePreview(row: PlotRow): boolean {
+function rowVisibleInSchedulePreview(row: PlotRow, programCodeForSummary: string): boolean {
   if (!row.sectionId || !row.subjectCode) return false;
-  if (!prospectusByCode(row.subjectCode)) return false;
-  return rowTimeBounds(row) != null;
+  if (!prospectusRowForProgram(programCodeForSummary, row.subjectCode)) return false;
+  return rowTimeBounds(row, programCodeForSummary) != null;
 }
 
 export function BsitChairmanEvaluatorWorksheet({
@@ -273,9 +279,11 @@ export function BsitChairmanEvaluatorWorksheet({
   const lockedEntryIdsRef = useRef<Set<string>>(new Set());
   const didHydrateFromDbRef = useRef(false);
 
-  const programId = chairmanProgramId ?? "prog-bsit";
-  /** Prospectus registry key — aligns with `Program.code` in Supabase (e.g. BSIT). */
-  const programCodeForSummary = (chairmanProgramCode ?? "").trim() || MAJOR_FIXED;
+  /** Prospectus registry key — aligns with `Program.code` in Supabase (e.g. BSIT, BSENVS). */
+  const programCodeForSummary = (chairmanProgramCode ?? "").trim() || DEFAULT_CHAIRMAN_PROGRAM_CODE;
+  const programId =
+    chairmanProgramId ??
+    (programCodeForSummary.toUpperCase() === BSENVS_PROGRAM_CODE.toUpperCase() ? BSENVS_PROGRAM_ID : "prog-bsit");
 
   const loadCatalog = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -352,25 +360,39 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [subjects]);
 
-  /** IT LAB 1–4 only; synthetic rows if DB has no matching rooms so the dropdown is never empty. */
-  const itLabsWithFallback = useMemo((): Room[] => {
-    const allow = new Set(BSIT_SCHEDULING_ROOM_CODES);
-    const fromDb = rooms.filter((r) => allow.has(r.code.trim() as (typeof BSIT_SCHEDULING_ROOM_CODES)[number]));
-    const byCode = new Map(fromDb.map((r) => [r.code.trim(), r]));
-    return BSIT_SCHEDULING_ROOM_CODES.map((code, i) => {
-      const existing = byCode.get(code);
-      if (existing) return existing;
-      return {
-        id: `local-it-lab-${i + 1}`,
-        code,
-        building: null,
-        floor: null,
-        capacity: null,
-        type: "lab",
-        collegeId: chairmanCollegeId,
-      };
+  /**
+   * BSIT keeps the historic IT-lab-only picker; other programs use campus-wide rooms grouped by building
+   * (COED, COTE, Admin, …) from Supabase so CAFE / cross-college navigation data is selectable.
+   */
+  const roomsForEvaluatorGrid = useMemo((): Room[] => {
+    if (isBsitChairmanProgram(programCodeForSummary)) {
+      const allow = new Set(BSIT_SCHEDULING_ROOM_CODES);
+      const fromDb = rooms.filter((r) => allow.has(r.code.trim() as (typeof BSIT_SCHEDULING_ROOM_CODES)[number]));
+      const byCode = new Map(fromDb.map((r) => [r.code.trim(), r]));
+      return BSIT_SCHEDULING_ROOM_CODES.map((code, i) => {
+        const existing = byCode.get(code);
+        if (existing) return existing;
+        return {
+          id: `local-it-lab-${i + 1}`,
+          code,
+          building: null,
+          floor: null,
+          capacity: null,
+          type: "lab",
+          collegeId: chairmanCollegeId,
+        };
+      });
+    }
+    const scoped = rooms.filter(
+      (r) => !r.collegeId || !chairmanCollegeId || r.collegeId === chairmanCollegeId,
+    );
+    const sorted = [...scoped].sort((a, b) => {
+      const ba = (a.building ?? "").localeCompare(b.building ?? "");
+      if (ba !== 0) return ba;
+      return a.code.localeCompare(b.code);
     });
-  }, [rooms, chairmanCollegeId]);
+    return sorted.length > 0 ? sorted : rooms;
+  }, [rooms, chairmanCollegeId, programCodeForSummary]);
 
   const rowInstructorIds = useMemo(() => rows.map((r) => r.instructorId).filter(Boolean) as string[], [rows]);
 
@@ -403,9 +425,9 @@ export function BsitChairmanEvaluatorWorksheet({
   const roomById = useMemo(() => {
     const m = new Map<string, Room>();
     for (const r of rooms) m.set(r.id, r);
-    for (const r of itLabsWithFallback) m.set(r.id, r);
+    for (const r of roomsForEvaluatorGrid) m.set(r.id, r);
     return m;
-  }, [rooms, itLabsWithFallback]);
+  }, [rooms, roomsForEvaluatorGrid]);
 
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -419,7 +441,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const summaryYearLevelFilter = useMemo((): number | null | undefined => {
     if (!selectedSectionId) return undefined;
     const name = sectionNameById.get(selectedSectionId) ?? "";
-    return yearLevelFromBsitSectionName(name);
+    return yearLevelFromSchedulingSectionName(name);
   }, [selectedSectionId, sectionNameById]);
 
   /** Align plotted subjects with the global term: prospectus semester 1 vs 2 from `AcademicPeriod` naming. */
@@ -441,18 +463,18 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const roomCodeById = useMemo(() => {
     const m = new Map<string, string>();
-    itLabsWithFallback.forEach((r) => m.set(r.id, r.code));
+    roomsForEvaluatorGrid.forEach((r) => m.set(r.id, r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code));
     return m;
-  }, [itLabsWithFallback]);
+  }, [roomsForEvaluatorGrid]);
 
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
-    for (const p of BSIT_PROSPECTUS_SUBJECTS) {
-      const sub = subjectFromProspectus(p.code, programId);
+    for (const p of getProspectusSubjectsForProgram(programCodeForSummary)) {
+      const sub = subjectFromProspectus(p.code, programId, programCodeForSummary);
       if (sub) m.set(sub.id, sub);
     }
     return m;
-  }, [programId]);
+  }, [programId, programCodeForSummary]);
 
   const profileByUserId = useMemo(() => {
     const m = new Map<string, FacultyProfile>();
@@ -479,16 +501,16 @@ export function BsitChairmanEvaluatorWorksheet({
       if (sp) byId.set(e.id, sp);
     }
     for (const row of rows) {
-      const b = rowToSparseBlock(row, academicPeriodId);
+      const b = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows, programSectionIdSet]);
+  }, [allTermScheduleEntries, academicPeriodId, rows, programSectionIdSet, programCodeForSummary]);
 
   const conflictForRow = useCallback(
     (row: PlotRow): { faculty: string; room: string; section: string } => {
       if (!academicPeriodId) return { faculty: "—", room: "—", section: "—" };
-      const candidate = rowToSparseBlock(row, academicPeriodId);
+      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
       if (!candidate) return { faculty: "—", room: "—", section: "—" };
       const hits = detectConflictsSparse(candidate, sparseProgramUniverse, candidate.id);
       const fac = hits.some((h) => h.type === "faculty");
@@ -500,7 +522,7 @@ export function BsitChairmanEvaluatorWorksheet({
         section: !candidate.sectionId ? "—" : sec ? "Yes" : "No",
       };
     },
-    [academicPeriodId, sparseProgramUniverse],
+    [academicPeriodId, sparseProgramUniverse, programCodeForSummary],
   );
 
   /**
@@ -512,11 +534,11 @@ export function BsitChairmanEvaluatorWorksheet({
     if (!selectedSectionId) return set;
     for (const row of rows) {
       if (row.sectionId !== selectedSectionId) continue;
-      if (!rowVisibleInSchedulePreview(row)) continue;
+      if (!rowVisibleInSchedulePreview(row, programCodeForSummary)) continue;
       set.add(normalizeProspectusCode(row.subjectCode));
     }
     return set;
-  }, [rows, selectedSectionId]);
+  }, [rows, selectedSectionId, programCodeForSummary]);
 
   /**
    * Per-section plotted codes (DB + worksheet). Used to keep subject dropdowns clear:
@@ -543,12 +565,12 @@ export function BsitChairmanEvaluatorWorksheet({
       if (code) add(e.sectionId, code);
     }
     for (const r of rows) {
-      const p = r.subjectCode ? prospectusByCode(r.subjectCode) : undefined;
+      const p = r.subjectCode ? prospectusRowForProgram(programCodeForSummary, r.subjectCode) : undefined;
       if (!r.sectionId || !r.subjectCode || !p) continue;
       add(r.sectionId, r.subjectCode);
     }
     return m;
-  }, [allTermScheduleEntries, academicPeriodId, programSectionIdSet, rows, subjectCodeById]);
+  }, [allTermScheduleEntries, academicPeriodId, programSectionIdSet, rows, subjectCodeById, programCodeForSummary]);
 
   /**
    * Full `ScheduleBlock` set for the term: DB snapshot + worksheet overlay. Drives the explicit
@@ -565,8 +587,8 @@ export function BsitChairmanEvaluatorWorksheet({
       if (b) byId.set(e.id, b);
     }
     for (const row of rows) {
-      const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId) : undefined;
-      let b: ScheduleBlock | null = subj ? rowToBlock(row, academicPeriodId, subj.id) : null;
+      const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
+      let b: ScheduleBlock | null = subj ? rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary) : null;
       if (!b) {
         const fromDb = allTermScheduleEntries.find((e) => e.id === row.id);
         if (fromDb && fromDb.academicPeriodId === academicPeriodId) b = scheduleEntryToBlock(fromDb);
@@ -574,7 +596,7 @@ export function BsitChairmanEvaluatorWorksheet({
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows, programId]);
+  }, [allTermScheduleEntries, academicPeriodId, rows, programId, programCodeForSummary]);
 
   const runCampusConflictCheck = useCallback(async () => {
     if (!academicPeriodId) return;
@@ -618,7 +640,7 @@ export function BsitChairmanEvaluatorWorksheet({
         }
         const r = rowById.get(id);
         if (!r) return null;
-        const tb = rowTimeBounds(r);
+        const tb = rowTimeBounds(r, programCodeForSummary);
         const time = tb ? formatTimeRange(tb.start.startTime, tb.endSlot.endTime) : "—";
         return {
           entryId: r.id,
@@ -706,7 +728,9 @@ export function BsitChairmanEvaluatorWorksheet({
     roomById,
     sectionNameById,
     subjectCodeById,
+    subjectIdByCode,
     userById,
+    programCodeForSummary,
   ]);
 
   useEffect(() => {
@@ -760,9 +784,9 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     const entries: ScheduleEntry[] = [];
     for (const row of rows) {
-      const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId) : undefined;
+      const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
       if (!subj) continue;
-      const b = rowToBlock(row, academicPeriodId, subj.id);
+      const b = rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary);
       if (!b) continue;
       entries.push({
         id: row.id,
@@ -786,7 +810,7 @@ export function BsitChairmanEvaluatorWorksheet({
       chairmanCollegeId,
       () => chairmanCollegeId,
     );
-  }, [rows, academicPeriodId, chairmanCollegeId, programId, subjectById, userById, profileByUserId]);
+  }, [rows, academicPeriodId, chairmanCollegeId, programId, programCodeForSummary, subjectById, userById, profileByUserId]);
 
   useEffect(() => {
     if (!onPolicySnapshot) return;
@@ -832,31 +856,53 @@ export function BsitChairmanEvaluatorWorksheet({
       }
       const author = dbInstructors.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
-      const snapRows = policyRows.rows
-        .filter((r) => r.violations.length > 0)
-        .map(
-          (r) =>
-            `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
+      const violators = policyRows.rows.filter((r) => r.violations.length > 0);
+      const snapRows = violators.map(
+        (r) =>
+          `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
+      );
+      /** One VPAA review row per overloaded instructor; legacy college-wide row is removed when filing per-faculty. */
+      await supabase
+        .from("ScheduleLoadJustification")
+        .delete()
+        .eq("academicPeriodId", academicPeriodId)
+        .eq("collegeId", chairmanCollegeId)
+        .is("facultyUserId", null);
+      for (const v of violators) {
+        const plottedForFaculty = rows.filter(
+          (r) => r.instructorId === v.instructorId && rowFullyPlotted(r, programCodeForSummary),
         );
-      const { error: jErr } = await supabase.from("ScheduleLoadJustification").upsert(
-        {
+        const scheduleEntryId = plottedForFaculty[0]?.id ?? null;
+        await supabase
+          .from("ScheduleLoadJustification")
+          .delete()
+          .eq("academicPeriodId", academicPeriodId)
+          .eq("collegeId", chairmanCollegeId)
+          .eq("facultyUserId", v.instructorId);
+        const { error: jErr } = await supabase.from("ScheduleLoadJustification").insert({
           academicPeriodId,
           collegeId: chairmanCollegeId,
+          facultyUserId: v.instructorId,
+          scheduleEntryId,
           authorUserId: user.id,
           authorName,
           authorEmail: user.email ?? null,
           justification: t,
-          violationsSnapshot: { summary: snapRows.join("\n"), detail: policyRows.rows },
+          violationsSnapshot: {
+            summary: snapRows.join("\n"),
+            detail: policyRows.rows,
+            scheduleEntryIds: plottedForFaculty.map((r) => r.id),
+            facultyWeeklyHours: v.weeklyTotalContactHours,
+          },
           doiDecision: null,
           doiReviewedAt: null,
           doiReviewedById: null,
           doiReviewNote: null,
-        },
-        { onConflict: "academicPeriodId,collegeId" },
-      );
-      if (jErr) {
-        setJustificationMsg(jErr.message);
-        return false;
+        });
+        if (jErr) {
+          setJustificationMsg(jErr.message);
+          return false;
+        }
       }
       dispatchInsCatalogReload();
       void fetch("/api/audit/schedule-write", {
@@ -874,7 +920,7 @@ export function BsitChairmanEvaluatorWorksheet({
     } finally {
       setJustificationSaving(false);
     }
-  }, [academicPeriodId, chairmanCollegeId, justificationText, policyRows, dbInstructors]);
+  }, [academicPeriodId, chairmanCollegeId, justificationText, policyRows, dbInstructors, rows, programCodeForSummary]);
 
   function updateRow(id: string, patch: Partial<PlotRow>) {
     setRows((prev) =>
@@ -882,7 +928,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (r.id !== id) return r;
         if (r.lockedByDoiAt) return r;
         const next = { ...r, ...patch };
-        const p = next.subjectCode ? prospectusByCode(next.subjectCode) : undefined;
+        const p = next.subjectCode ? prospectusRowForProgram(programCodeForSummary, next.subjectCode) : undefined;
         if (p) {
           const d = scheduleDurationSlots(p);
           const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
@@ -976,13 +1022,15 @@ export function BsitChairmanEvaluatorWorksheet({
     });
 
     if (chairmanCollegeId) {
-      const { data: lj } = await supabase
+      const { data: ljRows } = await supabase
         .from("ScheduleLoadJustification")
         .select(Q.scheduleLoadJustification)
         .eq("academicPeriodId", academicPeriodId)
         .eq("collegeId", chairmanCollegeId)
-        .maybeSingle();
-      setJustificationText((lj as ScheduleLoadJustification | null)?.justification ?? "");
+        .order("updatedAt", { ascending: false })
+        .limit(1);
+      const lj = (ljRows ?? [])[0] as ScheduleLoadJustification | undefined;
+      setJustificationText(lj?.justification ?? "");
     } else {
       setJustificationText("");
     }
@@ -1190,7 +1238,7 @@ export function BsitChairmanEvaluatorWorksheet({
             });
             continue;
           }
-          const tb = rowTimeBounds(row);
+          const tb = rowTimeBounds(row, programCodeForSummary);
           if (!tb) {
             skipped.push({
               rowId: row.id,
@@ -1325,7 +1373,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary],
   );
 
   /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */
@@ -1539,23 +1587,27 @@ export function BsitChairmanEvaluatorWorksheet({
                   <td colSpan={14} className="px-4 py-10 text-center text-[13px] text-black/50">
                     {selectedSectionId
                       ? "No schedule rows for this section yet. Click “Add schedule row” to start plotting."
-                      : "No rows yet. Click “Add schedule row” to plot BSIT sections (Mon–Fri, 7:00 AM–5:00 PM)."}
+                      : "No rows yet. Click “Add schedule row” to plot sections (Mon–Fri, 7:00 AM–5:00 PM)."}
                   </td>
                 </tr>
               ) : (
                 visibleRows.map((row, i) => {
-                  const pr = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
+                  const pr = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
                   const dur = pr ? scheduleDurationSlots(pr) : 1;
                   const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
                   const effectiveStart = Math.min(row.startSlotIndex, maxStart);
                   const sectionName = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "";
-                  const yearLevel = sectionName ? yearLevelFromBsitSectionName(sectionName) : null;
+                  const yearLevel = sectionName ? yearLevelFromSchedulingSectionName(sectionName) : null;
                   const subjectOptions =
                     yearLevel == null
                       ? []
                       : termProspectusSemester != null
-                        ? prospectusSubjectsForYearAndSemester(yearLevel, termProspectusSemester)
-                        : prospectusSubjectsForYearLevel(yearLevel);
+                        ? prospectusSubjectsForProgramYearAndSemester(
+                            programCodeForSummary,
+                            yearLevel,
+                            termProspectusSemester,
+                          )
+                        : prospectusSubjectsForProgramYearLevel(programCodeForSummary, yearLevel);
                   const cf = conflictForRow(row);
                   const timeFmt = formatTimeRangeFromSlots(effectiveStart, dur);
                   const rowReadOnly = schedulePublished || Boolean(row.lockedByDoiAt);
@@ -1572,7 +1624,9 @@ export function BsitChairmanEvaluatorWorksheet({
                             : "bg-black/[0.02]"
                       }`}
                     >
-                      <td className="border border-black/10 px-2 py-1.5 font-semibold text-black/80">{MAJOR_FIXED}</td>
+                      <td className="border border-black/10 px-2 py-1.5 font-semibold text-black/80">
+                        {programCodeForSummary}
+                      </td>
                       <td className="border border-black/10 px-1 py-1">
                         <select
                           className={selectClass}
@@ -1581,10 +1635,10 @@ export function BsitChairmanEvaluatorWorksheet({
                           onChange={(e) => {
                             const sectionId = e.target.value;
                             const name = programSections.find((s) => s.id === sectionId)?.name ?? "";
-                            const yl = yearLevelFromBsitSectionName(name);
+                            const yl = yearLevelFromSchedulingSectionName(name);
                             let subjectCode = row.subjectCode;
                             if (subjectCode && yl != null) {
-                              const s = prospectusByCode(subjectCode);
+                              const s = prospectusRowForProgram(programCodeForSummary, subjectCode);
                               const sem = termProspectusSemester;
                               if (!s || s.yearLevel !== yl) subjectCode = "";
                               else if (sem != null && s.semester !== sem) subjectCode = "";
@@ -1621,7 +1675,7 @@ export function BsitChairmanEvaluatorWorksheet({
                           disabled={rowReadOnly || !row.sectionId || yearLevel == null}
                           onChange={(e) => {
                             const subjectCode = e.target.value;
-                            const p = subjectCode ? prospectusByCode(subjectCode) : undefined;
+                            const p = subjectCode ? prospectusRowForProgram(programCodeForSummary, subjectCode) : undefined;
                             let startSlotIndex = row.startSlotIndex;
                             if (p) {
                               const d = scheduleDurationSlots(p);
@@ -1695,11 +1749,23 @@ export function BsitChairmanEvaluatorWorksheet({
                           onChange={(e) => updateRow(row.id, { roomId: e.target.value })}
                         >
                           <option value="">Select…</option>
-                          {itLabsWithFallback.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.code}
-                            </option>
-                          ))}
+                          {Object.entries(
+                            roomsForEvaluatorGrid.reduce<Record<string, Room[]>>((acc, r) => {
+                              const k = r.building?.trim() || "Other";
+                              (acc[k] ??= []).push(r);
+                              return acc;
+                            }, {}),
+                          )
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([building, list]) => (
+                              <optgroup key={building} label={building}>
+                                {list.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
                         </select>
                       </td>
                       <td className="border border-black/10 px-1 py-1 min-w-[200px] align-top">
@@ -1810,6 +1876,7 @@ export function BsitChairmanEvaluatorWorksheet({
 
       <BsitWeekPreview
         rows={rows}
+        programCodeForSummary={programCodeForSummary}
         sectionNameById={sectionNameById}
         roomCodeById={roomCodeById}
         instructorDisplayById={instructorDisplayById}
@@ -1870,12 +1937,14 @@ export function BsitChairmanEvaluatorWorksheet({
 
 function BsitWeekPreview({
   rows,
+  programCodeForSummary,
   sectionNameById,
   roomCodeById,
   instructorDisplayById,
   selectedSectionId,
 }: {
   rows: PlotRow[];
+  programCodeForSummary: string;
   sectionNameById: Map<string, string>;
   roomCodeById: Map<string, string>;
   instructorDisplayById: Map<string, string>;
@@ -1889,7 +1958,7 @@ function BsitWeekPreview({
   const skipSlot = useMemo(() => {
     const m = new Set<string>();
     for (const row of filteredRows) {
-      const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
+      const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
       if (!row.sectionId || !row.subjectCode || !p) continue;
       const dur = scheduleDurationSlots(p);
       const maxS = slots.length - dur;
@@ -1899,7 +1968,7 @@ function BsitWeekPreview({
       }
     }
     return m;
-  }, [filteredRows]);
+  }, [filteredRows, programCodeForSummary]);
 
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
@@ -1924,7 +1993,7 @@ function BsitWeekPreview({
                 {BSIT_EVALUATOR_WEEKDAYS.map((day) => {
                   if (skipSlot.has(`${day}-${slotIdx}`)) return null;
                   const atHere = filteredRows.filter((r) => {
-                    const p = r.subjectCode ? prospectusByCode(r.subjectCode) : undefined;
+                    const p = r.subjectCode ? prospectusRowForProgram(programCodeForSummary, r.subjectCode) : undefined;
                     if (!r.sectionId || !r.subjectCode || !p) return false;
                     const dur = scheduleDurationSlots(p);
                     const maxS = slots.length - dur;
@@ -1940,7 +2009,7 @@ function BsitWeekPreview({
                   }
                   const rowspan = Math.max(
                     ...atHere.map((r) => {
-                      const p = prospectusByCode(r.subjectCode);
+                      const p = prospectusRowForProgram(programCodeForSummary, r.subjectCode);
                       return p ? scheduleDurationSlots(p) : 1;
                     }),
                   );
@@ -1951,7 +2020,7 @@ function BsitWeekPreview({
                           const sec = sectionNameById.get(r.sectionId) ?? r.sectionId;
                           const room = roomCodeById.get(r.roomId) ?? "";
                           const inst = instructorDisplayById.get(r.instructorId) ?? "";
-                          const p = prospectusByCode(r.subjectCode);
+                          const p = prospectusRowForProgram(programCodeForSummary, r.subjectCode);
                           const dur = p ? scheduleDurationSlots(p) : 1;
                           const maxS = p ? slots.length - dur : 0;
                           const eff = p ? Math.min(r.startSlotIndex, maxS) : 0;

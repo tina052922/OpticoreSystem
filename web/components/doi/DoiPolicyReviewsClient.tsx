@@ -80,6 +80,18 @@ function ReviewCard({ row }: { row: DoiPolicyReviewRowVM }) {
         <span className="font-medium">{row.authorName}</span>
         {row.authorEmail ? <span className="text-black/60"> ({row.authorEmail})</span> : null}
       </div>
+      {row.facultyUserId ? (
+        <div className="text-xs text-black/55">
+          <span className="font-semibold text-black/60">Instructor (policy scope): </span>
+          <span className="font-mono">{row.facultyUserId}</span>
+        </div>
+      ) : null}
+      {row.scheduleEntryId ? (
+        <div className="text-xs text-black/55">
+          <span className="font-semibold text-black/60">Schedule entry: </span>
+          <span className="font-mono">{row.scheduleEntryId}</span>
+        </div>
+      ) : null}
       <div className="text-sm text-black/80 whitespace-pre-wrap border-t border-black/5 pt-3">{row.justification}</div>
       {snap && typeof snap === "object" && "summary" in snap && snap.summary ? (
         <div className="text-xs text-black/50 font-mono bg-black/[0.03] rounded p-2">{snap.summary}</div>
