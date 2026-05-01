@@ -82,6 +82,17 @@ export type PlotRow = {
   lockedByDoiAt?: string | null;
 };
 
+/** Plot fields merged from the grid; must win over stale DB refetches until save (see `locallyEditedRowIdsRef`). */
+const LOCAL_EDIT_PLOT_KEYS: (keyof PlotRow)[] = [
+  "day",
+  "startSlotIndex",
+  "sectionId",
+  "subjectCode",
+  "instructorId",
+  "roomId",
+  "students",
+];
+
 function newRowId(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `row-${Date.now()}-${Math.random()}`;
 }
@@ -327,6 +338,11 @@ export function BsitChairmanEvaluatorWorksheet({
    * Prefer local day + slot for a few seconds so Friday (etc.) does not snap back to Monday.
    */
   const postPersistUiMergeRef = useRef<{ until: number; ids: Set<string> } | null>(null);
+  /**
+   * Row ids the user has edited in the grid but whose changes may not be in Supabase yet (autosave is debounced).
+   * Without this, `useScheduleEntryCrossReload` / Realtime refetches overwrite day/slot and the time “snaps back”.
+   */
+  const locallyEditedRowIdsRef = useRef<Set<string>>(new Set());
   /** Plot row waiting for VPAA justification before applying instructor/day/slot overload. */
   const policyAssignGateRef = useRef<PlotRow | null>(null);
   /** Two-step Building → Room UX (not persisted — `ScheduleEntry` still stores `roomId` only). */
@@ -1083,6 +1099,9 @@ export function BsitChairmanEvaluatorWorksheet({
 
   /** Low-level row update (no policy gate) — use for fields that do not affect contact hours. */
   function updateRow(id: string, patch: Partial<PlotRow>) {
+    if (LOCAL_EDIT_PLOT_KEYS.some((k) => patch[k] !== undefined)) {
+      locallyEditedRowIdsRef.current.add(id);
+    }
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
@@ -1152,6 +1171,7 @@ export function BsitChairmanEvaluatorWorksheet({
   }
 
   function removeRow(id: string) {
+    locallyEditedRowIdsRef.current.delete(id);
     setRows((prev) => {
       if (prev.some((r) => r.id === id && r.lockedByDoiAt)) return prev;
       return prev.filter((r) => r.id !== id);
@@ -1161,6 +1181,7 @@ export function BsitChairmanEvaluatorWorksheet({
   useEffect(() => {
     didHydrateFromDbRef.current = false;
     lastSyncedRowIdsRef.current = new Set();
+    locallyEditedRowIdsRef.current.clear();
     setRows([]);
   }, [academicPeriodId]);
 
@@ -1250,10 +1271,34 @@ export function BsitChairmanEvaluatorWorksheet({
       const guard = postPersistUiMergeRef.current;
       const now = Date.now();
       const mergedDb = nextRows.map((nr) => {
+        const local = prev.find((p) => p.id === nr.id);
+        if (local && !local.lockedByDoiAt && locallyEditedRowIdsRef.current.has(nr.id)) {
+          const samePlot =
+            local.day === nr.day &&
+            local.startSlotIndex === nr.startSlotIndex &&
+            local.sectionId === nr.sectionId &&
+            local.roomId === nr.roomId &&
+            local.instructorId === nr.instructorId &&
+            local.subjectCode === nr.subjectCode;
+          if (samePlot) {
+            locallyEditedRowIdsRef.current.delete(nr.id);
+            return nr;
+          }
+          return {
+            ...nr,
+            day: local.day,
+            startSlotIndex: local.startSlotIndex,
+            sectionId: local.sectionId,
+            subjectCode: local.subjectCode,
+            instructorId: local.instructorId,
+            roomId: local.roomId,
+            students: local.students,
+          };
+        }
         if (guard && now < guard.until && guard.ids.has(nr.id)) {
-          const local = prev.find((p) => p.id === nr.id);
-          if (local && !local.lockedByDoiAt) {
-            return { ...nr, day: local.day, startSlotIndex: local.startSlotIndex };
+          const localG = prev.find((p) => p.id === nr.id);
+          if (localG && !localG.lockedByDoiAt) {
+            return { ...nr, day: localG.day, startSlotIndex: localG.startSlotIndex };
           }
         }
         return nr;
@@ -1307,6 +1352,7 @@ export function BsitChairmanEvaluatorWorksheet({
         setChairmanEnrichedIssues([]);
         setChairmanGaByIssueKey({});
         setCampusScanConflictIds(new Set());
+        locallyEditedRowIdsRef.current.delete(iss.rowA.entryId);
         await reloadScheduleFromDb();
         dispatchInsCatalogReload();
         void fetch("/api/audit/schedule-write", {
@@ -1404,6 +1450,9 @@ export function BsitChairmanEvaluatorWorksheet({
           lockedByDoiAt: null,
         })),
       );
+      for (const r of backup.rows) {
+        locallyEditedRowIdsRef.current.add(r.id);
+      }
       toast.info("Recovered unsaved draft", "Restored your last local backup after an interruption.");
     }
   }, [academicPeriodId, chairmanCollegeId, chairmanProgramId, rows.length, toast]);
@@ -1529,6 +1578,9 @@ export function BsitChairmanEvaluatorWorksheet({
             if (source === "manual") toast.error("Failed to save. Please try again.", delErr.message);
             return;
           }
+          for (const id of removedIds) {
+            locallyEditedRowIdsRef.current.delete(id);
+          }
         }
 
         if (upserts.length > 0) {
@@ -1546,6 +1598,9 @@ export function BsitChairmanEvaluatorWorksheet({
           showSkippedMsg("none_saved");
         }
         if (wrote) {
+          for (const u of upserts) {
+            locallyEditedRowIdsRef.current.delete(u.id);
+          }
           postPersistUiMergeRef.current = {
             until: Date.now() + 3200,
             ids: new Set(upserts.map((u) => u.id)),
@@ -2217,6 +2272,7 @@ export function BsitChairmanEvaluatorWorksheet({
           const pendingAssign = policyAssignGateRef.current;
           if (pendingAssign) {
             policyAssignGateRef.current = null;
+            locallyEditedRowIdsRef.current.add(pendingAssign.id);
             const nextRows = rows.map((r) => (r.id === pendingAssign.id ? pendingAssign : r));
             setRows(nextRows);
             const ok = await saveLoadJustificationForDoi(nextRows);
