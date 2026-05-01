@@ -63,6 +63,8 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
 const SCHEDULE_CHANGE_REQUESTS_HREF = "/admin/college/schedule-change-requests";
 const COLLEGE_ACCESS_REQUESTS_HREF = "/admin/college/access-requests";
 const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
+/** College Admin: same data as DOI queue, scoped by RLS to their college. */
+const COLLEGE_POLICY_JUSTIFICATIONS_HREF = "/admin/college/policy-reviews";
 const COLLEGE_AUDIT_LOG_HREF = "/admin/college/audit-log";
 const DOI_AUDIT_LOG_HREF = "/doi/audit-log";
 
@@ -89,6 +91,10 @@ export type CampusIntelligenceShellProps = {
   /** DOI layout: shows a badge on "Policy reviews" when items are waiting for review. */
   policyReviewsBadge?: boolean;
   /**
+   * College Admin: badge on "Policy justifications" for submissions still awaiting VPAA/DOI (same row set as `/doi/reviews`, RLS-scoped).
+   */
+  policyJustificationsBadgeCollegeId?: string | null;
+  /**
    * Sidebar badge: audit rows newer than the last time this scope’s audit log page was opened.
    * Use `"college"` vs `"doi"` so College and DOI admins don’t share the same “last seen” timestamp.
    */
@@ -109,6 +115,7 @@ export function CampusIntelligenceShell({
   scheduleChangeRequestsBadgeCollegeId = null,
   accessRequestsBadgeCollegeId = null,
   policyReviewsBadge = false,
+  policyJustificationsBadgeCollegeId = null,
   auditLogUnreadScope = null,
 }: CampusIntelligenceShellProps) {
   const pathname = usePathname();
@@ -117,8 +124,14 @@ export function CampusIntelligenceShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pendingScrCount = usePendingScheduleChangeRequestsCount(scheduleChangeRequestsBadgeCollegeId);
   const pendingAccessCount = usePendingAccessRequestsCount(accessRequestsBadgeCollegeId);
-  const pendingPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
-  const showPolicyBadge = policyReviewsBadge && pendingPolicyReviews > 0;
+  const pendingDoiPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
+  const showDoiPolicyBadge = policyReviewsBadge && pendingDoiPolicyReviews > 0;
+  const collegePolicyBadgeEnabled = Boolean(policyJustificationsBadgeCollegeId?.trim());
+  const pendingCollegePolicyReviews = usePendingPolicyReviewsCount({
+    enabled: collegePolicyBadgeEnabled,
+    collegeId: policyJustificationsBadgeCollegeId,
+  });
+  const showCollegePolicyBadge = collegePolicyBadgeEnabled && pendingCollegePolicyReviews > 0;
 
   const auditUnreadCount = useAuditLogUnreadCount({
     enabled: Boolean(auditLogUnreadScope?.trim()),
@@ -271,12 +284,17 @@ export function CampusIntelligenceShell({
                 item.href === SCHEDULE_CHANGE_REQUESTS_HREF && pendingScrCount > 0 ? pendingScrCount : null;
               const accessBadge =
                 item.href === COLLEGE_ACCESS_REQUESTS_HREF && pendingAccessCount > 0 ? pendingAccessCount : null;
-              const policyBadge = item.href === DOI_POLICY_REVIEWS_HREF && showPolicyBadge ? pendingPolicyReviews : null;
+              const doiPolicyBadge =
+                item.href === DOI_POLICY_REVIEWS_HREF && showDoiPolicyBadge ? pendingDoiPolicyReviews : null;
+              const collegePolicyBadge =
+                item.href === COLLEGE_POLICY_JUSTIFICATIONS_HREF && showCollegePolicyBadge
+                  ? pendingCollegePolicyReviews
+                  : null;
               const auditBadge =
                 (item.href === COLLEGE_AUDIT_LOG_HREF || item.href === DOI_AUDIT_LOG_HREF) && showAuditBadge
                   ? auditUnreadCount
                   : null;
-              const badge = policyBadge ?? scrBadge ?? accessBadge ?? auditBadge ?? null;
+              const badge = doiPolicyBadge ?? collegePolicyBadge ?? scrBadge ?? accessBadge ?? auditBadge ?? null;
               return (
                 <Link
                   key={item.href}
@@ -298,8 +316,8 @@ export function CampusIntelligenceShell({
                           : "bg-[#DE0602] text-white border-red-900/30"
                       }`}
                       title={
-                        policyBadge !== null
-                          ? `${badge} item${badge === 1 ? "" : "s"} waiting for review`
+                        doiPolicyBadge !== null || collegePolicyBadge !== null
+                          ? `${badge} justification${badge === 1 ? "" : "s"} awaiting VPAA/DOI review`
                           : scrBadge !== null
                             ? `${badge} pending schedule change request${badge === 1 ? "" : "s"}`
                             : accessBadge !== null
@@ -307,8 +325,8 @@ export function CampusIntelligenceShell({
                               : `${badge} new audit entr${badge === 1 ? "y" : "ies"} since last visit`
                       }
                       aria-label={
-                        policyBadge !== null
-                          ? `${badge} policy reviews pending`
+                        doiPolicyBadge !== null || collegePolicyBadge !== null
+                          ? `${badge} policy justifications pending VPAA review`
                           : scrBadge !== null
                             ? `${badge} pending schedule change requests`
                             : accessBadge !== null
