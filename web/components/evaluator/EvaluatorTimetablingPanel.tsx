@@ -46,6 +46,7 @@ import {
   mergeLegacyRowInstructorsIntoPlotOptions,
   usersToInstructorPlotOptions,
 } from "@/lib/evaluator/instructor-employee-id";
+import { roomBuildingKey, roomsInBuilding, sortedBuildingLabels } from "@/lib/evaluator/room-by-building";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -100,6 +101,8 @@ export function EvaluatorTimetablingPanel({
   const [subjectId, setSubjectId] = useState("");
   const [instructorId, setInstructorId] = useState("");
   const [roomId, setRoomId] = useState("");
+  /** Plotter: pick building before room (same pattern as Program / GEC chairman grids). */
+  const [plotterRoomBuilding, setPlotterRoomBuilding] = useState("");
   const [day, setDay] = useState<string>("Monday");
   const [slotIndex, setSlotIndex] = useState(0);
 
@@ -365,6 +368,13 @@ export function EvaluatorTimetablingPanel({
     return list;
   }, [roomsInCollege, bsitScope]);
 
+  const plotterBuildingLabels = useMemo(() => sortedBuildingLabels(roomsForPlotter), [roomsForPlotter]);
+
+  const roomsForPlotterInBuilding = useMemo(
+    () => (plotterRoomBuilding ? roomsInBuilding(roomsForPlotter, plotterRoomBuilding) : []),
+    [roomsForPlotter, plotterRoomBuilding],
+  );
+
   const instructorsInCollege = useMemo(() => {
     return collegeUsers.filter(
       (u) =>
@@ -432,6 +442,14 @@ export function EvaluatorTimetablingPanel({
     rooms.forEach((r) => m.set(r.id, r));
     return m;
   }, [rooms]);
+
+  useEffect(() => {
+    if (!roomId) return;
+    if (!roomsForPlotter.some((r) => r.id === roomId)) {
+      setRoomId("");
+      setPlotterRoomBuilding("");
+    }
+  }, [roomsForPlotter, roomId]);
 
   const collegeNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -723,6 +741,8 @@ export function EvaluatorTimetablingPanel({
     setDay(s.day);
     const idx = startTimeOptions.findIndex((t) => t.startTime === s.startTime);
     if (idx >= 0) setSlotIndex(idx);
+    const rm = roomById.get(s.roomId);
+    setPlotterRoomBuilding(rm ? roomBuildingKey(rm) : "");
     setRoomId(s.roomId);
     setInstructorId(s.instructorId);
     setShowSuggestions(false);
@@ -1329,22 +1349,53 @@ export function EvaluatorTimetablingPanel({
               ) : null}
             </div>
 
-            <label className="text-sm font-medium">
-              Room
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Building</label>
+              <select
+                className={`mt-1 ${selectClass}`}
+                value={plotterRoomBuilding}
+                onChange={(e) => {
+                  const b = e.target.value;
+                  setPlotterRoomBuilding(b);
+                  if (!b) {
+                    setRoomId("");
+                    return;
+                  }
+                  const keep =
+                    roomId && roomsForPlotter.some((r) => r.id === roomId && roomBuildingKey(r) === b);
+                  if (!keep) setRoomId("");
+                }}
+                disabled={!effectiveCollegeId}
+                aria-label="Building"
+              >
+                <option value="">Select building…</option>
+                {plotterBuildingLabels.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+              <label className="text-sm font-medium">Room</label>
               <select
                 className={`mt-1 ${selectClass}`}
                 value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                disabled={!effectiveCollegeId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const r = roomsForPlotter.find((x) => x.id === id);
+                  if (r) setPlotterRoomBuilding(roomBuildingKey(r));
+                  setRoomId(id);
+                }}
+                disabled={!effectiveCollegeId || !plotterRoomBuilding}
+                aria-label="Room"
               >
-                <option value="">Select…</option>
-                {roomsForPlotter.map((r) => (
+                <option value="">{plotterRoomBuilding ? "Select room…" : "Select building first"}</option>
+                {roomsForPlotterInBuilding.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.code} ({r.type ?? "Room"})
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
             <label className="text-sm font-medium">
               Day

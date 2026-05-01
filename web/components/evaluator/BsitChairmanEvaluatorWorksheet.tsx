@@ -53,6 +53,7 @@ import {
   usersToInstructorPlotOptions,
   type InstructorPlotOption,
 } from "@/lib/evaluator/instructor-employee-id";
+import { roomBuildingKey, roomsInBuilding, sortedBuildingLabels } from "@/lib/evaluator/room-by-building";
 
 /** Fallback program code when session has no `chairmanProgramCode` (legacy chairman session). */
 const DEFAULT_CHAIRMAN_PROGRAM_CODE: string = BSIT_PROGRAM_CODE;
@@ -264,6 +265,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const [lastPlottedSubjectFlash, setLastPlottedSubjectFlash] = useState<string | null>(null);
   const plottedSnapshotRef = useRef<string>("");
   const [policyJustificationModalOpen, setPolicyJustificationModalOpen] = useState(false);
+  /** Two-step Building → Room UX (not persisted — `ScheduleEntry` still stores `roomId` only). */
+  const [roomBuildingByRowId, setRoomBuildingByRowId] = useState<Record<string, string>>({});
   const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
   /** IDs loaded with `lockedByDoiAt` — never send DELETE for these if they disappear from state (e.g. scope change). */
   const lockedEntryIdsRef = useRef<Set<string>>(new Set());
@@ -444,6 +447,8 @@ export function BsitChairmanEvaluatorWorksheet({
     for (const r of roomsForEvaluatorGrid) m.set(r.id, r);
     return m;
   }, [rooms, roomsForEvaluatorGrid]);
+
+  const buildingLabelsForGrid = useMemo(() => sortedBuildingLabels(roomsForEvaluatorGrid), [roomsForEvaluatorGrid]);
 
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -1623,7 +1628,7 @@ export function BsitChairmanEvaluatorWorksheet({
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Lec</th>
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Lab</th>
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Instructor</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Room</th>
+                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Building / Room</th>
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Time</th>
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Day</th>
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Faculty conflict</th>
@@ -1792,32 +1797,73 @@ export function BsitChairmanEvaluatorWorksheet({
                           ))}
                         </select>
                       </td>
-                      <td className="border border-black/10 px-1 py-1">
-                        <select
-                          className={selectClass}
-                          value={row.roomId}
-                          disabled={rowReadOnly}
-                          onChange={(e) => updateRow(row.id, { roomId: e.target.value })}
-                        >
-                          <option value="">Select…</option>
-                          {Object.entries(
-                            roomsForEvaluatorGrid.reduce<Record<string, Room[]>>((acc, r) => {
-                              const k = r.building?.trim() || "Other";
-                              (acc[k] ??= []).push(r);
-                              return acc;
-                            }, {}),
-                          )
-                            .sort(([a], [b]) => a.localeCompare(b))
-                            .map(([building, list]) => (
-                              <optgroup key={building} label={building}>
-                                {list.map((r) => (
+                      <td className="border border-black/10 px-1 py-1 align-top">
+                        {(() => {
+                          const pickedRoom = row.roomId ? roomById.get(row.roomId) : undefined;
+                          const inferredBuilding = pickedRoom ? roomBuildingKey(pickedRoom) : "";
+                          const buildingValue = roomBuildingByRowId[row.id] ?? inferredBuilding;
+                          const roomsInB = buildingValue
+                            ? roomsInBuilding(roomsForEvaluatorGrid, buildingValue)
+                            : [];
+                          return (
+                            <div className="flex flex-col gap-1 min-w-[128px]">
+                              <select
+                                className={selectClass}
+                                value={buildingValue}
+                                disabled={rowReadOnly}
+                                aria-label="Building"
+                                onChange={(e) => {
+                                  const b = e.target.value;
+                                  setRoomBuildingByRowId((prev) => {
+                                    const next = { ...prev };
+                                    if (!b) delete next[row.id];
+                                    else next[row.id] = b;
+                                    return next;
+                                  });
+                                  if (!b) {
+                                    updateRow(row.id, { roomId: "" });
+                                    return;
+                                  }
+                                  const keep =
+                                    row.roomId &&
+                                    roomsForEvaluatorGrid.some(
+                                      (r) => r.id === row.roomId && roomBuildingKey(r) === b,
+                                    );
+                                  if (!keep) updateRow(row.id, { roomId: "" });
+                                }}
+                              >
+                                <option value="">Building…</option>
+                                {buildingLabelsForGrid.map((b) => (
+                                  <option key={b} value={b}>
+                                    {b}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                className={selectClass}
+                                value={row.roomId}
+                                disabled={rowReadOnly || !buildingValue}
+                                aria-label="Room"
+                                onChange={(e) => {
+                                  const id = e.target.value;
+                                  const r = roomsForEvaluatorGrid.find((x) => x.id === id);
+                                  setRoomBuildingByRowId((prev) => ({
+                                    ...prev,
+                                    [row.id]: r ? roomBuildingKey(r) : prev[row.id] ?? "",
+                                  }));
+                                  updateRow(row.id, { roomId: id });
+                                }}
+                              >
+                                <option value="">{buildingValue ? "Room…" : "Select building first"}</option>
+                                {roomsInB.map((r) => (
                                   <option key={r.id} value={r.id}>
                                     {r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code}
                                   </option>
                                 ))}
-                              </optgroup>
-                            ))}
-                        </select>
+                              </select>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="border border-black/10 px-1 py-1 min-w-[200px] align-top">
                         <div className="flex flex-col gap-1">
