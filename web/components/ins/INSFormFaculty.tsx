@@ -345,7 +345,7 @@ export function INSFormFaculty({
       </div>
 
       {/* Print-only: always render the official paper-style INS form (no page chrome, no editable boxes). */}
-      <div className="print-only hidden print:block print-paper">
+      <div className="print-only hidden print:block print-paper ins-print-one-page ins-print-avoid-break">
         <OpticoreInsForm5A
           facultyName={displayFacultyName}
           schedule={displaySchedule}

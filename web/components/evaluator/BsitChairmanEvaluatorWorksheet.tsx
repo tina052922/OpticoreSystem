@@ -4,13 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
-import { detectConflictsSparse, scanAllSparseScheduleConflicts } from "@/lib/scheduling/conflicts";
+import {
+  detectConflictsSparse,
+  scanAllSparseScheduleConflicts,
+  scheduleBlockToSparseBlock,
+} from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege } from "@/lib/scheduling/facultyPolicies";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
-import type { FacultyProfile, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
+import type { FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -161,21 +165,6 @@ function hhmmSchedule(t: string): string {
   return s.length > 5 ? s.slice(0, 5) : s;
 }
 
-/** Supabase row → sparse block for campus-wide conflict universe (all programs / sections / rooms / faculty). */
-function scheduleEntryToSparse(e: ScheduleEntry): SparseScheduleBlock | null {
-  if (!e.academicPeriodId) return null;
-  return {
-    id: e.id,
-    academicPeriodId: e.academicPeriodId,
-    day: e.day,
-    startTime: hhmmSchedule(e.startTime),
-    endTime: hhmmSchedule(e.endTime),
-    instructorId: e.instructorId,
-    sectionId: e.sectionId,
-    roomId: e.roomId,
-  };
-}
-
 function scheduleEntryToBlock(e: ScheduleEntry): ScheduleBlock | null {
   if (!e.instructorId || !e.sectionId || !e.roomId) return null;
   return {
@@ -240,6 +229,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const searchParams = useSearchParams();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const [sections, setSections] = useState<Section[]>([]);
+  const [programsCatalog, setProgramsCatalog] = useState<Pick<Program, "id" | "collegeId">[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [dbInstructors, setDbInstructors] = useState<User[]>([]);
@@ -292,13 +282,15 @@ export function BsitChairmanEvaluatorWorksheet({
       return;
     }
     setLoadError(null);
-    const [{ data: sec }, { data: sub }, { data: rm }, { data: users }] = await Promise.all([
+    const [{ data: sec }, { data: prog }, { data: sub }, { data: rm }, { data: users }] = await Promise.all([
       supabase.from("Section").select(Q.section).order("name"),
+      supabase.from("Program").select("id,collegeId").order("name"),
       supabase.from("Subject").select(Q.subject).order("code"),
       supabase.from("Room").select(Q.room).order("code"),
       supabase.from("User").select(Q.userChairmanScope),
     ]);
     setSections((sec ?? []) as Section[]);
+    setProgramsCatalog((prog ?? []) as Pick<Program, "id" | "collegeId">[]);
     setSubjects((sub ?? []) as Subject[]);
     setRooms((rm ?? []) as Room[]);
     const fac = (users ?? []).filter(
@@ -320,8 +312,8 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [loadCatalog]);
 
   /**
-   * All sections for this chairman program (same scope as INS Faculty/Section/Room via `useInsCatalog`).
-   * Do not restrict to a hard-coded BSIT name list — DB section labels vary and extra rows were hidden from the grid.
+   * All sections for this chairman program (plotting grid only). INS Form 5A uses college-wide entries for load;
+   * Section/Room INS tabs may still be program-scoped when `chairmanProgramId` is set.
    */
   const programSections = useMemo(
     () => sections.filter((s) => s.programId === programId).sort((a, b) => a.name.localeCompare(b.name)),
@@ -332,6 +324,30 @@ export function BsitChairmanEvaluatorWorksheet({
     () => new Set(programSections.map((s) => s.id)),
     [programSections],
   );
+
+  const programCollegeByProgramId = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const p of programsCatalog) {
+      m.set(p.id, p.collegeId ?? null);
+    }
+    return m;
+  }, [programsCatalog]);
+
+  /** Maps section → college for load policy (shared faculty teach across programs in one college). */
+  const sectionToCollegeId = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const s of sections) {
+      m.set(s.id, programCollegeByProgramId.get(s.programId) ?? null);
+    }
+    return (sectionId: string) => m.get(sectionId) ?? null;
+  }, [sections, programCollegeByProgramId]);
+
+  /** All catalog subjects — policy lec/lab split must see BIT/BSIT/etc. rows, not only chairman prospectus ids. */
+  const subjectByIdForPolicy = useMemo(() => {
+    const m = new Map<string, Subject>();
+    for (const s of subjects) m.set(s.id, s);
+    return m;
+  }, [subjects]);
 
   /**
    * Subject code → Subject.id mapping.
@@ -483,49 +499,6 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [facultyProfiles]);
 
   /**
-   * Program-scoped sparse universe (Program Chairman): all `ScheduleEntry` rows for the term that belong to
-   * the chairman’s program, with worksheet rows overriding same ids.
-   *
-   * College Admin / GEC / DOI use campus-wide scans elsewhere; this worksheet is intentionally program-level
-   * to match the Program Chairman role scope.
-   */
-  const sparseProgramUniverse = useMemo((): SparseScheduleBlock[] => {
-    if (!academicPeriodId) return [];
-    const worksheetIds = new Set(rows.map((r) => r.id));
-    const byId = new Map<string, SparseScheduleBlock>();
-    for (const e of allTermScheduleEntries) {
-      if (e.academicPeriodId !== academicPeriodId) continue;
-      if (!programSectionIdSet.has(e.sectionId)) continue;
-      if (worksheetIds.has(e.id)) continue;
-      const sp = scheduleEntryToSparse(e);
-      if (sp) byId.set(e.id, sp);
-    }
-    for (const row of rows) {
-      const b = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
-      if (b) byId.set(row.id, b);
-    }
-    return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows, programSectionIdSet, programCodeForSummary]);
-
-  const conflictForRow = useCallback(
-    (row: PlotRow): { faculty: string; room: string; section: string } => {
-      if (!academicPeriodId) return { faculty: "—", room: "—", section: "—" };
-      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
-      if (!candidate) return { faculty: "—", room: "—", section: "—" };
-      const hits = detectConflictsSparse(candidate, sparseProgramUniverse, candidate.id);
-      const fac = hits.some((h) => h.type === "faculty");
-      const room = hits.some((h) => h.type === "room");
-      const sec = hits.some((h) => h.type === "section");
-      return {
-        faculty: !candidate.instructorId ? "—" : fac ? "Yes" : "No",
-        room: !candidate.roomId ? "—" : room ? "Yes" : "No",
-        section: !candidate.sectionId ? "—" : sec ? "Yes" : "No",
-      };
-    },
-    [academicPeriodId, sparseProgramUniverse, programCodeForSummary],
-  );
-
-  /**
    * Subject codes that appear in the schedule preview for the selected section — drives the prospectus “Plotted”
    * column (must match {@link BsitWeekPreview} / {@link rowVisibleInSchedulePreview}, not DB-only “fully saved” rows).
    */
@@ -598,17 +571,47 @@ export function BsitChairmanEvaluatorWorksheet({
     return [...byId.values()];
   }, [allTermScheduleEntries, academicPeriodId, rows, programId, programCodeForSummary]);
 
+  /**
+   * Campus-wide sparse blocks (every program’s saved rows + this worksheet’s drafts) for real-time cells and
+   * “Run conflict check”. Plotting UI stays program-scoped; overlap detection must not ignore other programs.
+   */
+  const sparseCampusUniverse = useMemo((): SparseScheduleBlock[] => {
+    return mergedBlocksForCampusScan.map(scheduleBlockToSparseBlock);
+  }, [mergedBlocksForCampusScan]);
+
+  const conflictForRow = useCallback(
+    (row: PlotRow): { faculty: string; room: string; section: string } => {
+      if (!academicPeriodId) return { faculty: "—", room: "—", section: "—" };
+      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
+      if (!candidate) return { faculty: "—", room: "—", section: "—" };
+      const hits = detectConflictsSparse(candidate, sparseCampusUniverse, candidate.id);
+      const fac = hits.some((h) => h.type === "faculty");
+      const room = hits.some((h) => h.type === "room");
+      const sec = hits.some((h) => h.type === "section");
+      return {
+        faculty: !candidate.instructorId ? "—" : fac ? "Yes" : "No",
+        room: !candidate.roomId ? "—" : room ? "Yes" : "No",
+        section: !candidate.sectionId ? "—" : sec ? "Yes" : "No",
+      };
+    },
+    [academicPeriodId, sparseCampusUniverse, programCodeForSummary],
+  );
+
   const runCampusConflictCheck = useCallback(async () => {
     if (!academicPeriodId) return;
     setSaveScheduleMsg(null);
     setChairmanEnrichedIssues([]);
     setChairmanGaByIssueKey({});
-    const scan = scanAllSparseScheduleConflicts(sparseProgramUniverse);
+    const scan = scanAllSparseScheduleConflicts(sparseCampusUniverse);
     setCampusScanConflictIds(new Set(scan.conflictingEntryIds));
     if (scan.issueSummaries.length === 0) {
-      setSaveScheduleMsg("No conflicts — faculty, room, and section times are clear within this program for this term.");
+      setSaveScheduleMsg(
+        "No conflicts — faculty, room, and section times are clear campus-wide for this term (all programs).",
+      );
     } else {
-      setSaveScheduleMsg(`Program scan: ${scan.conflictingEntryIds.size} row(s) involved in conflicts.`);
+      setSaveScheduleMsg(
+        `Campus-wide scan: ${scan.conflictingEntryIds.size} schedule row(s) have overlapping faculty, room, or section assignments. Open details below.`,
+      );
     }
     setConflictDetailLoading(true);
     try {
@@ -663,12 +666,14 @@ export function BsitChairmanEvaluatorWorksheet({
         const key = `${t}:${sorted[0]}:${sorted[1]}`;
         if (seen.has(key)) continue;
         seen.add(key);
+        const fixHint =
+          "Next step: move one class to another day/time, pick a different room, or assign another instructor so only one meeting uses the slot.";
         const rootCause =
           t === "room"
-            ? `Room double-booking: ${rowA.where} has two classes at the same time. (A) ${rowA.what} · ${rowA.who} @ ${rowA.when} vs (B) ${rowB.what} · ${rowB.who} @ ${rowB.when}.`
+            ? `Room double-booking: ${rowA.where} has two classes at the same time. (A) ${rowA.what} · ${rowA.who} @ ${rowA.when} vs (B) ${rowB.what} · ${rowB.who} @ ${rowB.when}. ${fixHint}`
             : t === "faculty"
-              ? `Faculty double-booking: ${rowA.who} is scheduled for two classes at the same time. (A) ${rowA.what} @ ${rowA.when} in ${rowA.where} vs (B) ${rowB.what} @ ${rowB.when} in ${rowB.where}.`
-              : `Section overlap: ${rowA.what.split("·")[1]?.trim() ?? "section"} has two different subjects at the same time. (A) ${rowA.what} @ ${rowA.when} in ${rowA.where} vs (B) ${rowB.what} @ ${rowB.when} in ${rowB.where}.`;
+              ? `Faculty double-booking: ${rowA.who} is assigned to two classes at the same time. (A) ${rowA.what} @ ${rowA.when} in ${rowA.where} vs (B) ${rowB.what} @ ${rowB.when} in ${rowB.where}. ${fixHint}`
+              : `Section double-book: ${rowA.what.split("·")[1]?.trim() ?? "this section"} has two subjects scheduled at the same time. (A) ${rowA.what} @ ${rowA.when} in ${rowA.where} vs (B) ${rowB.what} @ ${rowB.when} in ${rowB.where}. ${fixHint}`;
         enriched.push({ key, type: t, rootCause, rowA, rowB });
       }
 
@@ -720,7 +725,7 @@ export function BsitChairmanEvaluatorWorksheet({
     }
   }, [
     academicPeriodId,
-    sparseProgramUniverse,
+    sparseCampusUniverse,
     mergedBlocksForCampusScan,
     chairmanCollegeId,
     rooms,
@@ -778,39 +783,85 @@ export function BsitChairmanEvaluatorWorksheet({
     });
   }, [searchParams, campusScanConflictIds]);
 
+  /**
+   * Faculty load + justification must match INS Form 5A and faculty “My Schedule”:
+   * include every `ScheduleEntry` in this term whose section belongs to the chairman’s college,
+   * with worksheet rows overlaying same ids (unsaved edits). Do not limit to the chairman program only.
+   */
+  const mergedEntriesForCollegePolicy = useMemo((): ScheduleEntry[] => {
+    if (!academicPeriodId || !chairmanCollegeId) return [];
+    const inCollege = (sectionId: string) => sectionToCollegeId(sectionId) === chairmanCollegeId;
+    const worksheetIds = new Set(rows.map((r) => r.id));
+    const byId = new Map<string, ScheduleEntry>();
+
+    for (const e of allTermScheduleEntries) {
+      if (e.academicPeriodId !== academicPeriodId) continue;
+      if (!inCollege(e.sectionId)) continue;
+      if (worksheetIds.has(e.id)) continue;
+      byId.set(e.id, e);
+    }
+
+    for (const row of rows) {
+      let entry: ScheduleEntry | null = null;
+      const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
+      if (subj) {
+        const b = rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary);
+        if (b) {
+          entry = {
+            id: row.id,
+            academicPeriodId,
+            subjectId: subj.id,
+            instructorId: row.instructorId,
+            sectionId: row.sectionId,
+            roomId: row.roomId,
+            day: row.day,
+            startTime: b.startTime,
+            endTime: b.endTime,
+            status: "draft",
+          };
+        }
+      }
+      if (!entry) {
+        const fromDb = allTermScheduleEntries.find((e) => e.id === row.id);
+        if (fromDb && fromDb.academicPeriodId === academicPeriodId) entry = fromDb;
+      }
+      if (entry && inCollege(entry.sectionId)) {
+        byId.set(row.id, entry);
+      }
+    }
+
+    return [...byId.values()];
+  }, [
+    academicPeriodId,
+    chairmanCollegeId,
+    allTermScheduleEntries,
+    rows,
+    programId,
+    programCodeForSummary,
+    sectionToCollegeId,
+  ]);
+
   const policyRows = useMemo(() => {
     if (!academicPeriodId || !chairmanCollegeId) {
       return { hasAnyViolation: false, rows: [] as ReturnType<typeof evaluateFacultyLoadsForCollege>["rows"] };
     }
-    const entries: ScheduleEntry[] = [];
-    for (const row of rows) {
-      const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
-      if (!subj) continue;
-      const b = rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary);
-      if (!b) continue;
-      entries.push({
-        id: row.id,
-        academicPeriodId,
-        subjectId: subj.id,
-        instructorId: row.instructorId,
-        sectionId: row.sectionId,
-        roomId: row.roomId,
-        day: row.day,
-        startTime: b.startTime,
-        endTime: b.endTime,
-        status: "draft",
-      });
-    }
-
     return evaluateFacultyLoadsForCollege(
-      entries,
-      subjectById,
+      mergedEntriesForCollegePolicy,
+      subjectByIdForPolicy,
       userById,
       profileByUserId,
       chairmanCollegeId,
-      () => chairmanCollegeId,
+      (sid) => sectionToCollegeId(sid),
     );
-  }, [rows, academicPeriodId, chairmanCollegeId, programId, programCodeForSummary, subjectById, userById, profileByUserId]);
+  }, [
+    mergedEntriesForCollegePolicy,
+    academicPeriodId,
+    chairmanCollegeId,
+    subjectByIdForPolicy,
+    userById,
+    profileByUserId,
+    sectionToCollegeId,
+  ]);
 
   useEffect(() => {
     if (!onPolicySnapshot) return;

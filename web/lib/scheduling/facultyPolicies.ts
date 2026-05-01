@@ -77,6 +77,7 @@ function collectViolations(
   const C = FACULTY_POLICY_CONSTANTS;
 
   const desCap = designationTeachingCapHours(ctx.designation);
+  /** Aligns with `FacultyProfile.status`: canonical `Part-time` or any legacy string containing "part". */
   const partTime = (ctx.status ?? "").toLowerCase().includes("part");
 
   if (partTime && weeklyTotal > C.PARTTIME_MAX_WEEKLY_HOURS + 1e-6) {

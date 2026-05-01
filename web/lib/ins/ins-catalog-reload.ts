@@ -11,6 +11,9 @@
  * **Cross-user / cross-browser:** `ScheduleEntry` must be in the `supabase_realtime` publication (see
  * migration `20260418140000_scheduleentry_supabase_realtime_publication.sql`) so Chairmen’s saves notify
  * College Admin hubs via `useScheduleEntryCrossReload`.
+ *
+ * **Same-tab INS:** `window.dispatchEvent(INS_CATALOG_RELOAD_EVENT)` runs immediately so Faculty/Section/Room
+ * INS forms refresh without waiting for Realtime (Chairman + GEC saves already call this after upsert).
  */
 export const INS_CATALOG_RELOAD_EVENT = "opticore:ins-catalog-reload";
 

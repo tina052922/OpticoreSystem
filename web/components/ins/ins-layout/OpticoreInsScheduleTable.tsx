@@ -59,14 +59,14 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
           <thead>
             <tr className="bg-neutral-50">
               <th
-                className={`${insTableBorder} w-[6.75rem] px-2 py-3 print:py-0.5 text-left text-xs font-bold uppercase tracking-wide text-neutral-900`}
+                className={`${insTableBorder} w-[6.75rem] px-2 py-3 print:py-0 print:px-1 print:text-[7pt] text-left text-xs font-bold uppercase tracking-wide text-neutral-900`}
               >
                 TIME
               </th>
               {INS_DAYS.map((day) => (
                 <th
                   key={day}
-                  className={`${insTableBorder} px-2 py-3 print:py-0.5 text-center text-xs font-bold text-neutral-900`}
+                  className={`${insTableBorder} px-2 py-3 print:py-0 print:px-0.5 print:text-[7pt] text-center text-xs font-bold text-neutral-900`}
                 >
                   {day}
                 </th>
@@ -77,7 +77,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
             {INS_TIME_SLOTS.map((time, slotIdx) => (
               <tr key={time}>
                 <td
-                  className={`${insTableBorder} px-2 py-3 print:py-0.5 text-xs font-semibold text-neutral-900 whitespace-nowrap align-middle`}
+                  className={`${insTableBorder} px-2 py-3 print:py-0 print:px-1 print:text-[7pt] text-xs font-semibold text-neutral-900 whitespace-nowrap align-middle`}
                 >
                   {time}
                 </td>
@@ -93,7 +93,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                       return (
                         <td key={`${time}-${day}`} className={`${insTableBorder} p-0 align-middle`}>
                           <div
-                            className="flex flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-0.5 text-center text-xs leading-snug text-neutral-900"
+                            className="flex flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-0 print:px-0.5 print:text-[6.5pt] text-center text-xs leading-snug text-neutral-900"
                             style={{ minHeight: "var(--ins-row-h)" }}
                           >
                             {pick.placeholder
@@ -118,7 +118,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                         className={`${insTableBorder} p-0 align-stretch`}
                       >
                         <div
-                          className="flex h-full min-h-0 flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-0.5 text-center text-xs leading-snug text-neutral-900"
+                          className="flex h-full min-h-0 flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-0 print:px-0.5 print:text-[6.5pt] text-center text-xs leading-snug text-neutral-900"
                           style={{ minHeight: `calc(var(--ins-row-h) * ${rowSpan})` }}
                         >
                           {props.renderSpanned({
@@ -135,7 +135,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                   return (
                     <td key={`${time}-${day}`} className={`${insTableBorder} p-0 align-middle`}>
                       <div
-                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-0.5 text-center text-xs leading-snug text-neutral-900"
+                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-0 print:px-0.5 print:text-[6.5pt] text-center text-xs leading-snug text-neutral-900"
                         style={{ minHeight: "var(--ins-row-h)" }}
                       >
                         {"renderCell" in props ? props.renderCell(time, day) : null}

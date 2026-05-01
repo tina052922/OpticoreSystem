@@ -8,6 +8,11 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { FacultyProfile, Program, Section, User } from "@/types/db";
 import { computeRatePerHour, DESIGNATION_POLICIES, getDesignationPolicyByLabel } from "@/lib/faculty/designation-system";
+import {
+  FACULTY_EMPLOYMENT_ORGANIC,
+  FACULTY_EMPLOYMENT_PART_TIME,
+  normalizeFacultyProfileStatus,
+} from "@/lib/faculty/employment-status";
 
 /**
  * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
@@ -65,7 +70,9 @@ export function FacultyProfileWorkspace({
   const [extension, setExtension] = useState("");
   const [production, setProduction] = useState("");
   const [specialTraining, setSpecialTraining] = useState("");
-  const [status, setStatus] = useState("Organic");
+  const [status, setStatus] = useState<typeof FACULTY_EMPLOYMENT_ORGANIC | typeof FACULTY_EMPLOYMENT_PART_TIME>(
+    FACULTY_EMPLOYMENT_ORGANIC,
+  );
   const [designation, setDesignation] = useState("");
   const [advisorySectionId, setAdvisorySectionId] = useState("");
 
@@ -185,7 +192,7 @@ export function FacultyProfileWorkspace({
       const next = { ...prev };
       for (const { user, profile } of rows) {
         next[user.id] = {
-          status: profile?.status ?? "Organic",
+          status: normalizeFacultyProfileStatus(profile?.status),
           designation: profile?.designation ?? "",
           advisorySectionId: profile?.advisorySectionId ?? "",
         };
@@ -199,7 +206,7 @@ export function FacultyProfileWorkspace({
     if (!q) return rows;
     return rows.filter(({ user, profile }) => {
       const name = (profile?.fullName ?? user.name).toLowerCase();
-      const st = (profile?.status ?? "").toLowerCase();
+      const st = normalizeFacultyProfileStatus(profile?.status).toLowerCase();
       const des = (profile?.designation ?? "").toLowerCase();
       const eid = (user.employeeId ?? "").toLowerCase();
       return name.includes(q) || st.includes(q) || des.includes(q) || eid.includes(q);
@@ -222,7 +229,7 @@ export function FacultyProfileWorkspace({
 
     setSavingRowId(userId);
     const name = row.profile?.fullName ?? row.user.name;
-    const statusVal = draft.status.trim() || null;
+    const statusVal = normalizeFacultyProfileStatus(draft.status);
     const designationVal = draft.designation.trim() || null;
     const advisorySectionIdVal = draft.advisorySectionId.trim() || null;
     const ratePerHourVal = row.profile
@@ -375,7 +382,7 @@ export function FacultyProfileWorkspace({
       extension: extension.trim() || null,
       production: production.trim() || null,
       specialTraining: specialTraining.trim() || null,
-      status: status.trim() || null,
+      status: normalizeFacultyProfileStatus(status),
       designation: designation.trim() || null,
       ratePerHour: computedRate,
     });
@@ -409,7 +416,7 @@ export function FacultyProfileWorkspace({
     setExtension("");
     setProduction("");
     setSpecialTraining("");
-    setStatus("Organic");
+    setStatus(FACULTY_EMPLOYMENT_ORGANIC);
     setDesignation("");
     setAdvisorySectionId("");
     void loadFaculty();
@@ -568,7 +575,15 @@ export function FacultyProfileWorkspace({
             </div>
             <div className="space-y-1">
               <div className="text-sm font-medium">Status</div>
-              <Input value={status} onChange={(e) => setStatus(e.target.value)} disabled={!collegeId} />
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={status}
+                onChange={(e) => setStatus(normalizeFacultyProfileStatus(e.target.value))}
+                disabled={!collegeId}
+              >
+                <option value={FACULTY_EMPLOYMENT_ORGANIC}>{FACULTY_EMPLOYMENT_ORGANIC}</option>
+                <option value={FACULTY_EMPLOYMENT_PART_TIME}>{FACULTY_EMPLOYMENT_PART_TIME}</option>
+              </select>
             </div>
             <div className="space-y-1">
               <div className="text-sm font-medium">Administrative Designation</div>
@@ -676,7 +691,7 @@ export function FacultyProfileWorkspace({
                   ) : (
                     filteredRows.map(({ user, profile }) => {
                       const draft = editState[user.id] ?? {
-                        status: profile?.status ?? "Organic",
+                        status: normalizeFacultyProfileStatus(profile?.status),
                         designation: profile?.designation ?? "",
                         advisorySectionId: profile?.advisorySectionId ?? "",
                       };
@@ -692,16 +707,15 @@ export function FacultyProfileWorkspace({
                                 onChange={(e) =>
                                   setEditState((s) => ({
                                     ...s,
-                                    [user.id]: { ...draft, status: e.target.value },
+                                    [user.id]: { ...draft, status: normalizeFacultyProfileStatus(e.target.value) },
                                   }))
                                 }
                               >
-                                <option value="Organic">Organic</option>
-                                <option value="Part-time">Part-time</option>
-                                <option value="Permanent">Permanent</option>
+                                <option value={FACULTY_EMPLOYMENT_ORGANIC}>{FACULTY_EMPLOYMENT_ORGANIC}</option>
+                                <option value={FACULTY_EMPLOYMENT_PART_TIME}>{FACULTY_EMPLOYMENT_PART_TIME}</option>
                               </select>
                             ) : (
-                              (profile?.status ?? "—")
+                              (profile ? normalizeFacultyProfileStatus(profile.status) : "—")
                             )}
                           </td>
                           <td className="border border-black/10 px-2 py-2 align-top">
@@ -839,7 +853,7 @@ export function FacultyProfileWorkspace({
                 ) : (
                   filteredRows.map(({ user, profile }) => {
                     const draft = editState[user.id] ?? {
-                      status: profile?.status ?? "Organic",
+                      status: normalizeFacultyProfileStatus(profile?.status),
                       designation: profile?.designation ?? "",
                       advisorySectionId: profile?.advisorySectionId ?? "",
                     };

@@ -1,5 +1,6 @@
 import { INS_DAYS, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
+import { slotDurationHours } from "@/lib/scheduling/facultyPolicies";
 import type { Room, ScheduleEntry, Section, Subject } from "@/types/db";
 
 /** `vacantGec` is set when the live row is a CHED GEC/GEE slot still on the TBD placeholder instructor. */
@@ -34,17 +35,6 @@ export type InsFacultyFormSummary = InsFacultyTeachingMetrics & {
   extension: string | null;
   research: string | null;
 };
-
-function parseTimeToMinutes(t: string): number {
-  const parts = t.split(":");
-  const h = parseInt(parts[0] ?? "0", 10);
-  const m = parseInt(parts[1] ?? "0", 10);
-  return h * 60 + m;
-}
-
-function hoursBetweenStartEnd(startTime: string, endTime: string): number {
-  return (parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime)) / 60;
-}
 
 function fmtHm(t: string) {
   const [h, m] = t.split(":");
@@ -88,9 +78,10 @@ export function buildInsFacultyView(args: {
     (e) => e.academicPeriodId === args.academicPeriodId && e.instructorId === args.instructorId,
   );
 
+  /** Same duration math as {@link evaluateFacultyLoadsForCollege} / Evaluator. */
   let hoursPerWeek = 0;
   for (const e of list) {
-    hoursPerWeek += hoursBetweenStartEnd(e.startTime, e.endTime);
+    hoursPerWeek += slotDurationHours(e.startTime, e.endTime);
   }
 
   const distinctSubjects = new Set(list.map((e) => e.subjectId));

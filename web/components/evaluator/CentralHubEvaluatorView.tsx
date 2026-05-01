@@ -1005,11 +1005,14 @@ export function CentralHubEvaluatorView({
           <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← All colleges
           </Link>
-          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-6 text-[14px] text-amber-950">
-            <strong>{hub.abbr}</strong> is not linked to database rows yet. Add this college in Supabase{" "}
-            <code className="text-xs bg-white/80 px-1 rounded">public.&quot;College&quot;</code> and set{" "}
-            <code className="text-xs bg-white/80 px-1">collegeId</code> in{" "}
-            <code className="text-xs bg-white/80 px-1">lib/evaluator-central-hub.ts</code>.
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-6 text-[14px] text-amber-950 leading-relaxed">
+            <strong>{hub.abbr}</strong> is not linked to the database yet. Fix: insert the college in Supabase{" "}
+            <code className="text-xs bg-white/80 px-1 rounded">public.&quot;College&quot;</code> (stable{" "}
+            <code className="text-xs bg-white/80 px-1">id</code> you will reference from the app), then set the same
+            string as <code className="text-xs bg-white/80 px-1">collegeId</code> for this tile in{" "}
+            <code className="text-xs bg-white/80 px-1">lib/evaluator-central-hub.ts</code>. After changing the hub file,
+            redeploy the web app. Example: CAFE uses <code className="text-xs bg-white/80 px-1">col-cafe</code> from
+            seed/migrations.
           </div>
         </div>
       </div>
