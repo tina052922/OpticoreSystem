@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ScheduleLoadJustification } from "@/types/db";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -27,30 +27,35 @@ function decisionBadgeClass(d: ScheduleLoadJustification["doiDecision"]): string
   return "bg-black/[0.04] text-black/60 border-black/10";
 }
 
-function mergeVm(base: DoiPolicyReviewRowVM, updated: ScheduleLoadJustification): DoiPolicyReviewRowVM {
-  return {
-    ...base,
-    ...updated,
-    collegeName: base.collegeName,
-    periodName: base.periodName,
-    facultyName: base.facultyName,
-    facultyWeeklyHours: base.facultyWeeklyHours,
-  };
+function isPendingRow(d: ScheduleLoadJustification["doiDecision"] | null | undefined): boolean {
+  return d == null || d === "pending";
 }
+
+function sortPendingFirst(a: DoiPolicyReviewRowVM, b: DoiPolicyReviewRowVM): number {
+  const pa = isPendingRow(a.doiDecision) ? 0 : 1;
+  const pb = isPendingRow(b.doiDecision) ? 0 : 1;
+  if (pa !== pb) return pa - pb;
+  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+}
+
+type PatchOk = {
+  ok?: boolean;
+  justification?: ScheduleLoadJustification;
+  warning?: string;
+  error?: string;
+};
 
 function ReviewCard({
   row,
-  onRowUpdated,
+  onDecisionSaved,
 }: {
   row: DoiPolicyReviewRowVM;
-  onRowUpdated: (next: DoiPolicyReviewRowVM) => void;
+  onDecisionSaved: (id: string, patch: ScheduleLoadJustification) => void;
 }) {
-  const router = useRouter();
   const [note, setNote] = useState(row.doiReviewNote ?? "");
   const [busy, setBusy] = useState<"accepted" | "rejected" | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-
-  const pending = row.doiDecision == null || row.doiDecision === "pending";
+  const pending = isPendingRow(row.doiDecision);
 
   async function submit(decision: "accepted" | "rejected") {
     setBusy(decision);
@@ -65,22 +70,17 @@ function ReviewCard({
           note: note.trim() || null,
         }),
       });
-      const data = (await res.json().catch(() => null)) as {
-        justification?: ScheduleLoadJustification;
-        error?: string;
-        warning?: string;
-      } | null;
+      const data = (await res.json().catch(() => null)) as PatchOk | null;
       if (!res.ok) {
         setMsg(data?.error ?? "Request failed.");
         return;
       }
       if (data?.justification) {
-        onRowUpdated(mergeVm(row, data.justification));
+        onDecisionSaved(row.id, data.justification);
       }
       if (data?.warning) {
         setMsg(data.warning);
       }
-      router.refresh();
     } finally {
       setBusy(null);
     }
@@ -106,7 +106,7 @@ function ReviewCard({
           {decisionLabel(row.doiDecision ?? null)}
         </span>
       </div>
-      {row.doiReviewedAt ? (
+      {row.doiReviewedAt && !pending ? (
         <p className="text-xs text-black/55">
           <span className="font-semibold text-black/60">Reviewed: </span>
           {new Date(row.doiReviewedAt).toLocaleString()}
@@ -142,7 +142,7 @@ function ReviewCard({
 
       {pending ? (
         <div className="border-t border-black/5 pt-3 space-y-2">
-          <label className="block text-[12px] font-medium text-black/70">Optional note (visible to chair and college)</label>
+          <label className="block text-[12px] font-medium text-black/70">Optional note (visible to the chair)</label>
           <textarea
             className="w-full min-h-[72px] rounded-lg border border-black/15 bg-white px-3 py-2 text-sm"
             value={note}
@@ -164,11 +164,11 @@ function ReviewCard({
             </Button>
           </div>
           <p className="text-[11px] text-black/45 leading-relaxed">
-            The chairman and college admins are notified immediately. This list and the college view update in real time.
+            The list updates immediately; the chair and college admin are notified of your decision.
           </p>
         </div>
       ) : (
-        <p className="text-xs text-black/50 border-t border-black/5 pt-3">Decision recorded — no further action.</p>
+        <p className="text-[11px] text-black/45 border-t border-black/5 pt-3">Decision recorded — no further action.</p>
       )}
     </li>
   );
@@ -182,12 +182,32 @@ export function DoiPolicyReviewsClient({ rows: initialRows }: { rows: DoiPolicyR
     setRows(initialRows);
   }, [initialRows]);
 
-  // Campus-wide queue: any change (new submission or VPAA decision) should refresh server props; local state merges PATCH response for instant UI.
+  const sorted = useMemo(() => [...rows].sort(sortPendingFirst), [rows]);
+
+  const onDecisionSaved = useCallback((id: string, patch: ScheduleLoadJustification) => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              ...patch,
+              collegeName: r.collegeName,
+              periodName: r.periodName,
+              facultyName: r.facultyName,
+              facultyWeeklyHours: r.facultyWeeklyHours,
+            }
+          : r,
+      ),
+    );
+    router.refresh();
+  }, [router]);
+
+  // Supabase Realtime: another VPAA tab or a new chair submission refreshes this list from the server.
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
     const channel = supabase
-      .channel("doi-policy-slj-all")
+      .channel("doi-policy-reviews:ScheduleLoadJustification")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ScheduleLoadJustification" },
@@ -199,7 +219,7 @@ export function DoiPolicyReviewsClient({ rows: initialRows }: { rows: DoiPolicyR
     };
   }, [router]);
 
-  if (rows.length === 0) {
+  if (sorted.length === 0) {
     return (
       <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
         No submissions yet. When a chair submits a teaching-load explanation, it will appear here for review.
@@ -207,15 +227,19 @@ export function DoiPolicyReviewsClient({ rows: initialRows }: { rows: DoiPolicyR
     );
   }
 
+  const pendingCount = sorted.filter((r) => isPendingRow(r.doiDecision)).length;
+
   return (
-    <ul className="space-y-4">
-      {rows.map((r) => (
-        <ReviewCard
-          key={r.id}
-          row={r}
-          onRowUpdated={(next) => setRows((prev) => prev.map((x) => (x.id === next.id ? next : x)))}
-        />
-      ))}
-    </ul>
+    <div className="space-y-4">
+      <p className="text-sm text-black/60">
+        <span className="font-semibold text-[#780301]">{pendingCount}</span>{" "}
+        {pendingCount === 1 ? "submission needs" : "submissions need"} VPAA review (pending shown first).
+      </p>
+      <ul className="space-y-4">
+        {sorted.map((r) => (
+          <ReviewCard key={r.id} row={r} onDecisionSaved={onDecisionSaved} />
+        ))}
+      </ul>
+    </div>
   );
 }
