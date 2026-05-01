@@ -39,6 +39,8 @@ import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
 import { usePendingScheduleChangeRequestsCount } from "@/hooks/use-pending-schedule-change-requests-count";
+import { usePendingPolicyReviewsCount } from "@/hooks/use-pending-policy-reviews-count";
+import { useRecentAuditLogCount } from "@/hooks/use-recent-audit-log-count";
 
 const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   LayoutDashboard,
@@ -58,6 +60,9 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
 
 /** Sidebar link that shows a numeric badge (pending schedule change requests for College Admin). */
 const SCHEDULE_CHANGE_REQUESTS_HREF = "/admin/college/schedule-change-requests";
+const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
+const COLLEGE_AUDIT_LOG_HREF = "/admin/college/audit-log";
+const DOI_AUDIT_LOG_HREF = "/doi/audit-log";
 
 export type CampusIntelligenceShellProps = {
   children: React.ReactNode;
@@ -77,6 +82,10 @@ export type CampusIntelligenceShellProps = {
    * "Schedule change requests" and keeps it updated via Supabase Realtime + polling fallback.
    */
   scheduleChangeRequestsBadgeCollegeId?: string | null;
+  /** DOI layout: shows a badge on "Policy reviews" when items are waiting for review. */
+  policyReviewsBadge?: boolean;
+  /** Optional badge on Audit log (simple “recent activity” hint; uses local polling only). */
+  auditLogBadge?: boolean;
 };
 
 /**
@@ -91,12 +100,20 @@ export function CampusIntelligenceShell({
   roleLabel,
   profileHref,
   scheduleChangeRequestsBadgeCollegeId = null,
+  policyReviewsBadge = false,
+  auditLogBadge = false,
 }: CampusIntelligenceShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const navHrefs = navItems.map((i) => i.href);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pendingScrCount = usePendingScheduleChangeRequestsCount(scheduleChangeRequestsBadgeCollegeId);
+  const pendingPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
+  const showPolicyBadge = policyReviewsBadge && pendingPolicyReviews > 0;
+
+  // Lightweight “recent activity” indicator (kept intentionally simple to avoid heavy queries).
+  const recentAuditCount = useRecentAuditLogCount({ windowHours: 24, enabled: auditLogBadge });
+  const showAuditBadge = auditLogBadge && recentAuditCount > 0;
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -241,6 +258,12 @@ export function CampusIntelligenceShell({
               const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
               const scrBadge =
                 item.href === SCHEDULE_CHANGE_REQUESTS_HREF && pendingScrCount > 0 ? pendingScrCount : null;
+              const policyBadge = item.href === DOI_POLICY_REVIEWS_HREF && showPolicyBadge ? pendingPolicyReviews : null;
+              const auditBadge =
+                (item.href === COLLEGE_AUDIT_LOG_HREF || item.href === DOI_AUDIT_LOG_HREF) && showAuditBadge
+                  ? recentAuditCount
+                  : null;
+              const badge = policyBadge ?? scrBadge ?? auditBadge ?? null;
               return (
                 <Link
                   key={item.href}
@@ -254,17 +277,29 @@ export function CampusIntelligenceShell({
                 >
                   {Icon ? <Icon className="w-5 h-5 shrink-0" /> : null}
                   <span className="font-medium text-sm truncate flex-1 min-w-0">{item.label}</span>
-                  {scrBadge !== null ? (
+                  {badge !== null ? (
                     <span
                       className={`shrink-0 min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center border ${
                         active
                           ? "bg-white text-[#780301] border-white/80"
                           : "bg-[#DE0602] text-white border-red-900/30"
                       }`}
-                      title={`${scrBadge} pending request${scrBadge === 1 ? "" : "s"}`}
-                      aria-label={`${scrBadge} pending schedule change requests`}
+                      title={
+                        policyBadge !== null
+                          ? `${badge} item${badge === 1 ? "" : "s"} waiting for review`
+                          : scrBadge !== null
+                            ? `${badge} pending request${badge === 1 ? "" : "s"}`
+                            : `${badge} recent activit${badge === 1 ? "y" : "ies"}`
+                      }
+                      aria-label={
+                        policyBadge !== null
+                          ? `${badge} policy reviews pending`
+                          : scrBadge !== null
+                            ? `${badge} pending schedule change requests`
+                            : `${badge} recent audit log items`
+                      }
                     >
-                      {scrBadge > 99 ? "99+" : scrBadge}
+                      {badge > 99 ? "99+" : badge}
                     </span>
                   ) : null}
                 </Link>

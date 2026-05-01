@@ -141,16 +141,8 @@ export function INSFormFaculty({
   }
 
   function handleDownload() {
-    const content = `INS Form 5A — PROGRAM BY TEACHER\nCEBU TECHNOLOGICAL UNIVERSITY\nFaculty: ${displayFacultyName}\n`;
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `INS_Form_5A_${new Date().toISOString().split("T")[0]}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Use the official printed INS form content (.print-only). Users can “Save as PDF” in the print dialog.
+    window.print();
   }
 
   function runInsConflict() {
@@ -367,7 +359,7 @@ export function INSFormFaculty({
                 <DropdownMenuContent align="end" className="w-52">
                   <DropdownMenuItem onClick={handleDownload}>
                     <Download className="w-4 h-4 mr-2" />
-                    Download INS Form
+                    Download / Save as PDF
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => void onShare()}>
                     <Share2 className="w-4 h-4 mr-2" />
