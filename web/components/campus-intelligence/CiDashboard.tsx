@@ -159,7 +159,7 @@ export function CiDashboard({
   }
 
   if (variant === "doi") {
-    fullQuickLinks.push({ label: "Policy reviews", href: "/doi/reviews" });
+    fullQuickLinks.push({ label: "Policy justifications (VPAA)", href: "/doi/dashboard#policy-justifications" });
   }
 
   const gecQuickLinks = [

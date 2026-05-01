@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarPlus, ChevronRight, ClipboardList, MapPin, Scale } from "lucide-react";
 import { CiDashboard } from "@/components/campus-intelligence/CiDashboard";
+import { DoiPolicyJustificationsPanel } from "@/components/doi/DoiPolicyJustificationsPanel";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
 import { getCampusIntelligenceStats } from "@/lib/server/campus-intelligence-stats";
@@ -47,7 +48,7 @@ export default async function DoiDashboardPage() {
               </li>
               <li className="flex gap-2">
                 <Scale className="w-4 h-4 mt-0.5 text-[var(--color-opticore-orange)] shrink-0" />
-                Review load-policy justifications and campus-wide schedules; chairs submit text when policies are violated
+                Review load-policy justifications below on this page; chairs submit text when load policies are violated
               </li>
             </ul>
           </DashboardCard>
@@ -64,10 +65,10 @@ export default async function DoiDashboardPage() {
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/doi/reviews"
+              href="#policy-justifications"
               className="mt-3 flex items-center justify-between rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-3 text-sm font-semibold shadow-sm hover:opacity-95"
             >
-              Load policy reviews
+              Jump to policy justifications
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
@@ -83,6 +84,8 @@ export default async function DoiDashboardPage() {
           </DashboardCard>
         </div>
       </div>
+
+      <DoiPolicyJustificationsPanel />
     </div>
   );
 }
