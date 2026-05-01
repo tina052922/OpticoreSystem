@@ -53,7 +53,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
   const cellMode = props.cellMode ?? "legacy";
 
   return (
-    <div className="overflow-x-auto sm:overflow-visible">
+    <div className="overflow-x-auto sm:overflow-visible print:overflow-visible">
       <div className={`flex min-w-0 ${signatureStrip === "none" ? "" : "gap-1"}`}>
         <table className={`flex-1 min-w-0 w-full table-fixed border-collapse ${insTableBorder}`}>
           <thead>
@@ -187,7 +187,7 @@ function InsSignatureStrip({
   const colWidth = variant === "campusOnly" ? "w-[4.5rem]" : "w-[4.75rem]";
 
   return (
-    <div className="hidden md:flex shrink-0 gap-0">
+    <div className="hidden shrink-0 gap-0 md:flex print:flex">
       {slots.map((s) => (
         <div
           key={s.key}

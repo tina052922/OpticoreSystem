@@ -64,9 +64,11 @@ const DEFAULT_CHAIRMAN_PROGRAM_CODE: string = BSIT_PROGRAM_CODE;
 const selectClass =
   "w-full min-h-10 rounded-md border border-black/25 bg-white px-2 text-[11px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
-/** Day column: stronger contrast and min width so the control is easy to spot in dense grids. */
+/**
+ * Day picker matches other grid selects (11px) so the row reads evenly; ring/border stay visible without upsizing type.
+ */
 const daySelectClass =
-  "w-full min-h-11 min-w-[7.5rem] rounded-md border-2 border-neutral-500 bg-white px-2 py-1.5 text-sm font-medium text-neutral-900 shadow-sm z-10 relative outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50";
+  "w-full min-h-10 min-w-0 rounded-md border border-black/25 bg-white px-2 text-[11px] font-medium text-neutral-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
 export type PlotRow = {
   id: string;
@@ -1862,9 +1864,24 @@ export function BsitChairmanEvaluatorWorksheet({
             </div>
           ) : null}
         </div>
-          <div className="max-h-[min(70vh,880px)] overflow-auto">
-          <div className="overflow-x-auto min-h-0">
-          <table className="w-full border-collapse min-w-[1100px]">
+          <div className="max-h-[min(70vh,880px)] overflow-y-auto overflow-x-hidden min-h-0">
+          <table className="w-full table-fixed border-collapse">
+            <colgroup>
+              <col className="w-[4%]" />
+              <col className="w-[6%]" />
+              <col className="w-[4%]" />
+              <col className="w-[13%]" />
+              <col className="w-[4%]" />
+              <col className="w-[4%]" />
+              <col className="w-[13%]" />
+              <col className="w-[12%]" />
+              <col className="w-[14%]" />
+              <col className="w-[6%]" />
+              <col className="w-[5%]" />
+              <col className="w-[5%]" />
+              <col className="w-[5%]" />
+              <col className="w-[5%]" />
+            </colgroup>
             <thead className="sticky top-0 z-10">
               <tr className="bg-[#ff990a] text-white text-[11px]">
                 <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Major</th>
@@ -1970,7 +1987,7 @@ export function BsitChairmanEvaluatorWorksheet({
                           placeholder="0"
                         />
                       </td>
-                      <td className="border border-black/10 px-1 py-1 min-w-[120px]">
+                      <td className="border border-black/10 px-1 py-1 min-w-0 align-top">
                         <select
                           className={selectClass}
                           value={row.subjectCode}
@@ -2027,7 +2044,7 @@ export function BsitChairmanEvaluatorWorksheet({
                       <td className="border border-black/10 px-2 py-1.5 tabular-nums text-black/80">
                         {pr ? `${pr.labUnits}u / ${pr.labHours}h` : "—"}
                       </td>
-                      <td className="border border-black/10 px-1 py-1 min-w-[140px]">
+                      <td className="border border-black/10 px-1 py-1 min-w-0 align-top">
                         <select
                           className={selectClass}
                           value={row.instructorId}
@@ -2052,7 +2069,7 @@ export function BsitChairmanEvaluatorWorksheet({
                             ? roomsInBuilding(roomsForEvaluatorGrid, buildingValue)
                             : [];
                           return (
-                            <div className="flex flex-col gap-1 min-w-[128px]">
+                            <div className="flex min-w-0 flex-col gap-1">
                               <select
                                 className={selectClass}
                                 value={buildingValue}
@@ -2111,11 +2128,11 @@ export function BsitChairmanEvaluatorWorksheet({
                           );
                         })()}
                       </td>
-                      <td className="border border-black/10 px-1 py-1 min-w-[200px] align-top">
-                        <div className="flex flex-col gap-1">
+                      <td className="border border-black/10 px-1 py-1 min-w-0 align-top">
+                        <div className="flex min-w-0 flex-col gap-1">
                           {pr ? (
                             <>
-                              <div className="text-[12px] font-bold text-black leading-snug">{timeFmt.fullLine}</div>
+                              <div className="text-[11px] font-bold text-black leading-snug">{timeFmt.fullLine}</div>
                               {dur > 1 ? (
                                 <ul className="text-[9px] text-black/75 border border-black/15 rounded-md bg-black/[0.02] px-1.5 py-1 space-y-0.5 tabular-nums">
                                   {timeFmt.slotLines.map((line, li) => (
@@ -2213,7 +2230,6 @@ export function BsitChairmanEvaluatorWorksheet({
               )}
             </tbody>
           </table>
-          </div>
         </div>
       </div>
 

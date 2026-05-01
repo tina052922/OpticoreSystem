@@ -5,6 +5,25 @@ import type { InsFacultyCell, InsFacultyFormSummary } from "@/lib/ins/build-ins-
 import type { InsRoomCell, InsRoomSchedule } from "@/lib/ins/build-ins-room-view";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
+
+/** INS Form 5A (draft / unpublished): official vertical signature columns — matches CTU paper layout; fills when VPAA publishes. */
+const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
+  { key: "approved", lineTitle: "Approved", lineSubtitle: "Campus Director", signerName: "—", imageUrl: null },
+  {
+    key: "reviewed",
+    lineTitle: "Reviewed & Certified",
+    lineSubtitle: "Director / Dean",
+    signerName: "—",
+    imageUrl: null,
+  },
+  {
+    key: "prepared",
+    lineTitle: "Prepared by",
+    lineSubtitle: "Program Coordinator / Chair",
+    signerName: "—",
+    imageUrl: null,
+  },
+];
 import type { InsDay } from "./opticore-ins-constants";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
 
@@ -269,7 +288,7 @@ export function OpticoreInsForm5A({
             </div>
           );
         }}
-        signatureSlots={insSignatureSlots}
+        signatureSlots={insSignatureSlots ?? FORM_5A_DRAFT_SIGNATURE_SLOTS}
         scheduleApproved={scheduleApproved}
       />
 

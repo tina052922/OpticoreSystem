@@ -153,18 +153,18 @@ export function LoginClient() {
         </div>
 
         <div className="text-center space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-medium text-[#181818] tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-[#181818] tracking-tight">
             Cebu Technological University
           </h1>
-          <h2 className="text-xl sm:text-2xl font-bold text-black">Sign in</h2>
-          <p className="text-base sm:text-lg text-black/90">
+          <h2 className="text-lg sm:text-xl font-bold text-black">Sign in</h2>
+          <p className="text-sm sm:text-base text-neutral-600">
             to continue OptiCore–Campus Intelligence System
           </p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-6">
           <div className="space-y-2">
-            <label htmlFor="email" className="block text-lg font-medium text-[#181818]">
+            <label htmlFor="email" className="block text-sm font-medium text-[#181818]">
               Email
             </label>
             <Input
@@ -174,13 +174,13 @@ export function LoginClient() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
-              className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
+              className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 text-sm shadow-sm placeholder:text-neutral-500"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="password" className="block text-lg font-medium text-[#181818]">
+            <label htmlFor="password" className="block text-sm font-medium text-[#181818]">
               Password
             </label>
             <div className="relative">
@@ -191,7 +191,7 @@ export function LoginClient() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364] pr-12"
+                className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 pr-11 text-sm shadow-sm placeholder:text-neutral-500"
                 required
               />
               <button
@@ -215,14 +215,14 @@ export function LoginClient() {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="size-4 rounded border border-black/25 accent-[#780301] shadow-sm"
               />
-              <label htmlFor="remember" className="text-base text-[#181818] cursor-pointer font-medium">
+              <label htmlFor="remember" className="text-sm text-[#181818] cursor-pointer font-medium">
                 Remember me
               </label>
             </div>
             <button
               type="button"
               onClick={() => void onForgotPassword()}
-              className="text-base text-[#181818] hover:underline font-medium"
+              className="text-sm text-[#181818] hover:underline font-medium"
             >
               Forgot password
             </button>
@@ -235,7 +235,7 @@ export function LoginClient() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full h-14 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg text-lg font-semibold tracking-wide"
+            className="h-12 w-full rounded-xl bg-[#780301] text-base font-semibold tracking-wide text-white shadow-md hover:bg-[#5a0201]"
           >
             {loading ? "Signing in…" : "Sign in"}
           </Button>
@@ -246,18 +246,15 @@ export function LoginClient() {
             </Link>
           </p>
 
-          <p className="text-center text-base leading-relaxed">
-            <span className="text-[#595959]">Student? </span>
-            <Link href="/register" className="text-[#5483b3] font-medium hover:underline">
-              Create an account
+          <p className="text-center text-sm leading-relaxed text-neutral-600">
+            <span>Don&apos;t have an account? </span>
+            <Link href="/register" className="font-medium text-sky-600 hover:underline">
+              Sign up for free
             </Link>
-            <br />
-            <span className="text-[#595959]">Instructor (Gmail)? </span>
-            <Link href="/register/instructor" className="text-[#5483b3] font-medium hover:underline">
-              Self-register
+            <span className="mx-1">·</span>
+            <Link href="/register/instructor" className="font-medium text-sky-600 hover:underline">
+              Instructor self-register
             </Link>
-            <span className="text-[#595959]"> — temporary password emailed. </span>
-            <span className="text-[#595959]">Staff with admin-provided credentials: sign in above.</span>
           </p>
         </form>
       </div>
