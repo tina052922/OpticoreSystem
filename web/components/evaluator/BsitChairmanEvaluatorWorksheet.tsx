@@ -19,8 +19,6 @@ import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   BSIT_PROGRAM_CODE,
-  BSIT_SCHEDULING_ROOM_CODES,
-  isBsitChairmanProgram,
   normalizeProspectusCode,
   scheduleDurationSlots,
 } from "@/lib/chairman/bsit-prospectus";
@@ -380,28 +378,10 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [subjects]);
 
   /**
-   * BSIT keeps the historic IT-lab-only picker; other programs use campus-wide rooms grouped by building
-   * (COED, COTE, Admin, …) from Supabase so CAFE / cross-college navigation data is selectable.
+   * All chairman programs (including BSIT): full college + shared (`collegeId` null) rooms, grouped by Building → Room.
+   * No program-specific lab whitelist — cross-program plotting must stay fast and consistent with CAFE / other colleges.
    */
   const roomsForEvaluatorGrid = useMemo((): Room[] => {
-    if (isBsitChairmanProgram(programCodeForSummary)) {
-      const allow = new Set(BSIT_SCHEDULING_ROOM_CODES);
-      const fromDb = rooms.filter((r) => allow.has(r.code.trim() as (typeof BSIT_SCHEDULING_ROOM_CODES)[number]));
-      const byCode = new Map(fromDb.map((r) => [r.code.trim(), r]));
-      return BSIT_SCHEDULING_ROOM_CODES.map((code, i) => {
-        const existing = byCode.get(code);
-        if (existing) return existing;
-        return {
-          id: `local-it-lab-${i + 1}`,
-          code,
-          building: null,
-          floor: null,
-          capacity: null,
-          type: "lab",
-          collegeId: chairmanCollegeId,
-        };
-      });
-    }
     const scoped = rooms.filter(
       (r) => !r.collegeId || !chairmanCollegeId || r.collegeId === chairmanCollegeId,
     );
@@ -411,7 +391,7 @@ export function BsitChairmanEvaluatorWorksheet({
       return a.code.localeCompare(b.code);
     });
     return sorted.length > 0 ? sorted : rooms;
-  }, [rooms, chairmanCollegeId, programCodeForSummary]);
+  }, [rooms, chairmanCollegeId]);
 
   const rowInstructorIds = useMemo(() => rows.map((r) => r.instructorId).filter(Boolean) as string[], [rows]);
 
@@ -790,18 +770,16 @@ export function BsitChairmanEvaluatorWorksheet({
 
   /**
    * Faculty load + justification must match INS Form 5A and faculty “My Schedule”:
-   * include every `ScheduleEntry` in this term whose section belongs to the chairman’s college,
-   * with worksheet rows overlaying same ids (unsaved edits). Do not limit to the chairman program only.
+   * merge **every** persisted row for this term with unsaved worksheet rows (same id wins from the grid).
+   * Totals are campus-wide per instructor — not a slice of only the chairman’s college.
    */
   const mergedEntriesForCollegePolicy = useMemo((): ScheduleEntry[] => {
-    if (!academicPeriodId || !chairmanCollegeId) return [];
-    const inCollege = (sectionId: string) => sectionToCollegeId(sectionId) === chairmanCollegeId;
+    if (!academicPeriodId) return [];
     const worksheetIds = new Set(rows.map((r) => r.id));
     const byId = new Map<string, ScheduleEntry>();
 
     for (const e of allTermScheduleEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
-      if (!inCollege(e.sectionId)) continue;
       if (worksheetIds.has(e.id)) continue;
       byId.set(e.id, e);
     }
@@ -830,21 +808,11 @@ export function BsitChairmanEvaluatorWorksheet({
         const fromDb = allTermScheduleEntries.find((e) => e.id === row.id);
         if (fromDb && fromDb.academicPeriodId === academicPeriodId) entry = fromDb;
       }
-      if (entry && inCollege(entry.sectionId)) {
-        byId.set(row.id, entry);
-      }
+      if (entry) byId.set(row.id, entry);
     }
 
     return [...byId.values()];
-  }, [
-    academicPeriodId,
-    chairmanCollegeId,
-    allTermScheduleEntries,
-    rows,
-    programId,
-    programCodeForSummary,
-    sectionToCollegeId,
-  ]);
+  }, [academicPeriodId, allTermScheduleEntries, rows, programId, programCodeForSummary]);
 
   const policyRows = useMemo(() => {
     if (!academicPeriodId || !chairmanCollegeId) {

@@ -65,17 +65,31 @@ on conflict (id) do nothing;
 -- Rooms (expanded for optimization / conflict scenarios)
 insert into public."Room" (id, code, building, floor, capacity, type, "collegeId")
 values
-  ('room-201', 'Room 201', 'Building A', 2, 45, 'Lecture', 'col-tech-eng'),
-  ('lab-301', 'Lab 301', 'Building B', 3, 40, 'Computer Lab', 'col-tech-eng'),
-  ('room-elx-1', 'Elex Lab 1', 'Building C', 1, 35, 'Electronics Lab', 'col-tech-eng'),
-  ('room-auto-shop', 'Auto Shop A', 'Building D', 1, 30, 'Shop', 'col-tech-eng'),
-  ('room-draft-1', 'Drafting Lab 1', 'Building A', 1, 32, 'Drafting Lab', 'col-tech-eng'),
-  ('room-gar-1', 'Garments Lab 1', 'Building E', 1, 28, 'Workshop', 'col-tech-eng'),
-  ('room-bsie-lab', 'IE Lab', 'Building B', 2, 36, 'Laboratory', 'col-tech-eng'),
-  ('room-it-lab-1', 'IT LAB 1', 'Building B', 2, 40, 'Computer Lab', 'col-tech-eng'),
-  ('room-it-lab-2', 'IT LAB 2', 'Building B', 2, 40, 'Computer Lab', 'col-tech-eng'),
-  ('room-it-lab-3', 'IT LAB 3', 'Building B', 3, 40, 'Computer Lab', 'col-tech-eng'),
-  ('room-it-lab-4', 'IT LAB 4', 'Building B', 3, 40, 'Computer Lab', 'col-tech-eng')
+  ('room-201', 'Room 201', 'COED Building', 2, 45, 'Lecture', 'col-tech-eng'),
+  ('lab-301', 'Lab 301', 'Science and Technology Building', 3, 40, 'Computer Lab', 'col-tech-eng'),
+  ('room-elx-1', 'Elex Lab 1', 'COTE Building', 1, 35, 'Electronics Lab', 'col-tech-eng'),
+  ('room-auto-shop', 'Auto Shop A', 'Agriculture Building', 1, 30, 'Shop', 'col-tech-eng'),
+  ('room-draft-1', 'Drafting Lab 1', 'COTE Building', 1, 32, 'Drafting Lab', 'col-tech-eng'),
+  ('room-gar-1', 'Garments Lab 1', 'COTE Building', 1, 28, 'Workshop', 'col-tech-eng'),
+  ('room-bsie-lab', 'IE Lab', 'Science and Technology Building', 2, 36, 'Laboratory', 'col-tech-eng'),
+  ('room-it-lab-1', 'IT LAB 1', 'Science and Technology Building', 2, 40, 'Computer Lab', 'col-tech-eng'),
+  ('room-it-lab-2', 'IT LAB 2', 'Science and Technology Building', 2, 40, 'Computer Lab', 'col-tech-eng'),
+  ('room-it-lab-3', 'IT LAB 3', 'Science and Technology Building', 3, 40, 'Computer Lab', 'col-tech-eng'),
+  ('room-it-lab-4', 'IT LAB 4', 'Science and Technology Building', 3, 40, 'Computer Lab', 'col-tech-eng')
+on conflict (code) do update set
+  building = excluded.building,
+  floor = excluded.floor,
+  capacity = excluded.capacity,
+  type = excluded.type,
+  "collegeId" = excluded."collegeId";
+
+-- Shared campus facilities (CTU Argao naming — optional plotting targets)
+insert into public."Room" (id, code, building, floor, capacity, type, "collegeId")
+values
+  ('room-admin-conf', 'Admin Conf A', 'Admin Building', 1, 30, 'Conference', null),
+  ('room-lib-101', 'Library 101', 'Library', 1, 50, 'Lecture', null),
+  ('room-chapel-mp', 'Chapel — MP Hall', 'Chapel', 1, 120, 'Multi-purpose', null),
+  ('room-mini-hotel-a', 'Mini Hotel — Training Room A', 'Mini Hotel', 1, 24, 'Lecture', null)
 on conflict (code) do nothing;
 
 -- Subjects: `code` must be UNIQUE globally — use program-scoped codes where titles repeat.

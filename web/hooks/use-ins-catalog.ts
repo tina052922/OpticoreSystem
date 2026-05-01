@@ -26,6 +26,16 @@ import type {
   User,
 } from "@/types/db";
 
+/** Merge catalog rows by primary key (later arrays win) — links term `ScheduleEntry` to cross-college Section/Subject. */
+function mergeRowsById<T extends { id: string }>(primary: T[], ...extras: T[][]): T[] {
+  const m = new Map<string, T>();
+  for (const r of primary) m.set(r.id, r);
+  for (const block of extras) {
+    for (const r of block) m.set(r.id, r);
+  }
+  return [...m.values()];
+}
+
 function toScheduleBlock(e: ScheduleEntry): ScheduleBlock {
   return {
     id: e.id,
@@ -157,11 +167,31 @@ export function useInsCatalog(args: {
     }
 
     /**
-     * Performance: When not campus-wide, scope catalog tables to the college’s programs.
-     * This reduces JSON payload significantly and keeps the UI snappy under concurrent usage.
+     * Load term rows first so we can pull Section/Subject/Room/User rows referenced by **any** plotted class.
+     * Without this, a chairman scoped to one college loses cross-college sections (e.g. GEC) and INS 5A under-counts
+     * vs faculty My Schedule (which queries all `ScheduleEntry` for the instructor).
+     */
+    const schRes = periodId
+      ? await supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
+      : { data: [] as ScheduleEntry[], error: null as null };
+    if (schRes.error) {
+      setError(schRes.error.message);
+      setLoading(false);
+      return;
+    }
+    const sch = (schRes.data ?? []) as ScheduleEntry[];
+    const entrySectionIds = [...new Set(sch.map((e) => e.sectionId))];
+    const entrySubjectIds = [...new Set(sch.map((e) => e.subjectId))];
+    const entryRoomIds = [...new Set(sch.map((e) => e.roomId))];
+    const entryInstructorIds = [...new Set(sch.map((e) => e.instructorId))];
+
+    /**
+     * Performance: When not campus-wide, primary catalog tables still anchor on the college’s programs; we merge
+     * in term-referenced ids so shared faculty and cross-college sections resolve without loading every campus row.
      */
     const scopedCollegeId = args.campusWide ? null : args.collegeId?.trim() || null;
-    let programIdsForScope: string[] | null = null;
+    let programIdsForScope: string[] = [];
+    let prList: Program[] = [];
     if (scopedCollegeId) {
       const { data: pr, error: ep } = await supabase
         .from("Program")
@@ -173,72 +203,162 @@ export function useInsCatalog(args: {
         setLoading(false);
         return;
       }
-      const prList = (pr ?? []) as Program[];
-      setPrograms(prList);
+      prList = (pr ?? []) as Program[];
       programIdsForScope = prList.map((p) => p.id);
     }
 
-    const schPromise = periodId
-      ? supabase.from("ScheduleEntry").select(Q.scheduleEntry).eq("academicPeriodId", periodId)
-      : Promise.resolve({ data: [] as ScheduleEntry[], error: null });
+    if (!scopedCollegeId) {
+      const [
+        { data: sec, error: e3 },
+        { data: sub, error: e4 },
+        { data: rm, error: e5 },
+        { data: prog, error: e6 },
+        { data: col, error: e8 },
+        { data: fac, error: e7 },
+        { data: ins, error: e9 },
+        { data: fpIns, error: e10 },
+      ] = await Promise.all([
+        supabase.from("Section").select(Q.section).order("name"),
+        supabase.from("Subject").select(Q.subject).order("code"),
+        supabase.from("Room").select(Q.room).order("code"),
+        supabase.from("Program").select(Q.program).order("name"),
+        supabase.from("College").select(Q.college).order("name"),
+        supabase.from("User").select(Q.userHub),
+        supabase.from("CampusInsSettings").select(Q.campusInsSettings).eq("id", "default").maybeSingle(),
+        supabase.from("FacultyProfile").select(Q.facultyProfileInsNames),
+      ]);
+      const err = e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10;
+      if (err) {
+        setError(err.message);
+        setLoading(false);
+        return;
+      }
+      setPeriods(periodList);
+      setEntries(sch);
+      setSections((sec ?? []) as Section[]);
+      setSubjects((sub ?? []) as Subject[]);
+      setRooms((rm ?? []) as Room[]);
+      setPrograms((prog ?? []) as Program[]);
+      setColleges((col ?? []) as College[]);
+      setUsers((fac ?? []) as User[]);
+      setFacultyInsNames((fpIns ?? []) as Pick<FacultyProfile, "userId" | "fullName" | "aka">[]);
+      setCampusInsSettings((ins as CampusInsSettings | null) ?? null);
+      if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
+      setLoading(false);
+      return;
+    }
+
+    const secCollegePromise =
+      programIdsForScope.length > 0
+        ? supabase.from("Section").select(Q.section).in("programId", programIdsForScope).order("name")
+        : Promise.resolve({ data: [] as Section[], error: null });
+    const secEntryPromise =
+      entrySectionIds.length > 0
+        ? supabase.from("Section").select(Q.section).in("id", entrySectionIds)
+        : Promise.resolve({ data: [] as Section[], error: null });
+    const subCollegePromise =
+      programIdsForScope.length > 0
+        ? supabase.from("Subject").select(Q.subject).in("programId", programIdsForScope).order("code")
+        : Promise.resolve({ data: [] as Subject[], error: null });
+    const subEntryPromise =
+      entrySubjectIds.length > 0
+        ? supabase.from("Subject").select(Q.subject).in("id", entrySubjectIds)
+        : Promise.resolve({ data: [] as Subject[], error: null });
+    const rmCollegePromise = supabase
+      .from("Room")
+      .select(Q.room)
+      .or(`collegeId.eq.${scopedCollegeId},collegeId.is.null`)
+      .order("code");
+    const rmEntryPromise =
+      entryRoomIds.length > 0
+        ? supabase.from("Room").select(Q.room).in("id", entryRoomIds)
+        : Promise.resolve({ data: [] as Room[], error: null });
+    const facCollegePromise = supabase
+      .from("User")
+      .select(Q.userHub)
+      .or(`collegeId.eq.${scopedCollegeId},collegeId.is.null`);
+    const facEntryPromise =
+      entryInstructorIds.length > 0
+        ? supabase.from("User").select(Q.userHub).in("id", entryInstructorIds)
+        : Promise.resolve({ data: [] as User[], error: null });
 
     const [
-      { data: sch, error: e2 },
-      { data: sec, error: e3 },
-      { data: sub, error: e4 },
-      { data: rm, error: e5 },
-      { data: prog, error: e6 },
+      { data: secCollege, error: eSecA },
+      { data: secEntry, error: eSecB },
+      { data: subCollege, error: eSubA },
+      { data: subEntry, error: eSubB },
+      { data: rmCollege, error: eRmA },
+      { data: rmEntry, error: eRmB },
+      { data: facCollege, error: eFacA },
+      { data: facEntry, error: eFacB },
       { data: col, error: e8 },
-      { data: fac, error: e7 },
       { data: ins, error: e9 },
       { data: fpIns, error: e10 },
     ] = await Promise.all([
-      schPromise,
-      scopedCollegeId && programIdsForScope && programIdsForScope.length > 0
-        ? supabase.from("Section").select(Q.section).in("programId", programIdsForScope).order("name")
-        : supabase.from("Section").select(Q.section).order("name"),
-      scopedCollegeId && programIdsForScope && programIdsForScope.length > 0
-        ? supabase.from("Subject").select(Q.subject).in("programId", programIdsForScope).order("code")
-        : supabase.from("Subject").select(Q.subject).order("code"),
-      scopedCollegeId
-        ? supabase.from("Room").select(Q.room).or(`collegeId.eq.${scopedCollegeId},collegeId.is.null`).order("code")
-        : supabase.from("Room").select(Q.room).order("code"),
-      /**
-       * When scoped, `Program` was already loaded above (avoid duplicate fetch); keep as fallback for campus-wide.
-       */
-      scopedCollegeId ? Promise.resolve({ data: [] as Program[], error: null }) : supabase.from("Program").select(Q.program).order("name"),
-      /**
-       * `College` is small; keep as full list (used for labels across INS / campus-wide navigation).
-       */
+      secCollegePromise,
+      secEntryPromise,
+      subCollegePromise,
+      subEntryPromise,
+      rmCollegePromise,
+      rmEntryPromise,
+      facCollegePromise,
+      facEntryPromise,
       supabase.from("College").select(Q.college).order("name"),
-      /**
-       * Users are the largest catalog payload; when scoped, limit to the college and global rows.
-       */
-      scopedCollegeId ? supabase.from("User").select(Q.userHub).or(`collegeId.eq.${scopedCollegeId},collegeId.is.null`) : supabase.from("User").select(Q.userHub),
       supabase.from("CampusInsSettings").select(Q.campusInsSettings).eq("id", "default").maybeSingle(),
-      /**
-       * Faculty INS names are used only for label formatting; keep full list for now to avoid RLS edge-cases.
-       * (This is still far smaller than full FacultyProfile rows.)
-       */
       supabase.from("FacultyProfile").select(Q.facultyProfileInsNames),
     ]);
-    const err = e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10;
+    const err =
+      eSecA ||
+      eSecB ||
+      eSubA ||
+      eSubB ||
+      eRmA ||
+      eRmB ||
+      eFacA ||
+      eFacB ||
+      e8 ||
+      e9 ||
+      e10;
     if (err) {
       setError(err.message);
       setLoading(false);
       return;
     }
+
+    const sectionsMerged = mergeRowsById(
+      (secCollege ?? []) as Section[],
+      (secEntry ?? []) as Section[],
+    );
+    const subjectsMerged = mergeRowsById(
+      (subCollege ?? []) as Subject[],
+      (subEntry ?? []) as Subject[],
+    );
+    const roomsMerged = mergeRowsById((rmCollege ?? []) as Room[], (rmEntry ?? []) as Room[]);
+    const usersMerged = mergeRowsById((facCollege ?? []) as User[], (facEntry ?? []) as User[]);
+
+    const prIdSet = new Set(prList.map((p) => p.id));
+    const extraProgIds = [
+      ...new Set(sectionsMerged.map((s) => s.programId).filter((pid) => pid && !prIdSet.has(pid))),
+    ];
+    let programsFinal = prList;
+    if (extraProgIds.length > 0) {
+      const { data: extraPr, error: ePr } = await supabase.from("Program").select(Q.program).in("id", extraProgIds);
+      if (ePr) {
+        setError(ePr.message);
+        setLoading(false);
+        return;
+      }
+      programsFinal = [...prList, ...((extraPr ?? []) as Program[])];
+    }
+
     setPeriods(periodList);
-    setEntries((sch ?? []) as ScheduleEntry[]);
-    setSections((sec ?? []) as Section[]);
-    setSubjects((sub ?? []) as Subject[]);
-    setRooms((rm ?? []) as Room[]);
-    /**
-     * If scoped, programs were loaded earlier. Otherwise use the campus-wide list.
-     */
-    if (!scopedCollegeId) setPrograms((prog ?? []) as Program[]);
+    setEntries(sch);
+    setSections(sectionsMerged);
+    setSubjects(subjectsMerged);
+    setRooms(roomsMerged);
+    setPrograms(programsFinal);
     setColleges((col ?? []) as College[]);
-    setUsers((fac ?? []) as User[]);
+    setUsers(usersMerged);
     setFacultyInsNames((fpIns ?? []) as Pick<FacultyProfile, "userId" | "fullName" | "aka">[]);
     setCampusInsSettings((ins as CampusInsSettings | null) ?? null);
     if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
@@ -594,6 +714,8 @@ export function useInsCatalog(args: {
     periods,
     academicPeriodId,
     setAcademicPeriodId,
+    /** Full term `ScheduleEntry` rows from Supabase (not college-filtered). Used by INS Form 5A for campus-wide hours. */
+    entries,
     scopedEntries,
     subjectIdByCode,
     termPublishLocked,

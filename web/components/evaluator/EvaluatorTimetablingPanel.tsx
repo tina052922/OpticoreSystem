@@ -479,20 +479,19 @@ export function EvaluatorTimetablingPanel({
     return mergeLegacyRowInstructorsIntoPlotOptions(base, instructorsInCollege, ids, profileByUserId);
   }, [instructorsInCollege, mergedScheduleEntries, profileByUserId]);
 
+  /**
+   * Same campus-wide instructor totals as INS Form 5A / My Schedule: every term row with drafts overlaying by id.
+   */
   const mergedEntriesForPolicy = useMemo((): ScheduleEntry[] => {
     if (!academicPeriodId || !effectiveCollegeId) return [];
-    const inCollege = (sId: string) => sectionToCollegeId(sId) === effectiveCollegeId;
-    /**
-     * Faculty load is computed across the full college scope for the selected term.
-     * Do NOT filter by chairman program — instructors can be shared across programs; all roles should see consistent Hours/Week.
-     */
-    const keep = (sId: string) => inCollege(sId);
-    const fromDb = dbEntries.filter(
-      (e) => e.academicPeriodId === academicPeriodId && keep(e.sectionId),
-    );
-    const fromLocal: ScheduleEntry[] = localDrafts
-      .filter((b) => b.academicPeriodId === academicPeriodId && keep(b.sectionId))
-      .map((b) => ({
+    const byId = new Map<string, ScheduleEntry>();
+    for (const e of dbEntries) {
+      if (e.academicPeriodId !== academicPeriodId) continue;
+      byId.set(e.id, e);
+    }
+    for (const b of localDrafts) {
+      if (b.academicPeriodId !== academicPeriodId) continue;
+      byId.set(b.id, {
         id: b.id,
         academicPeriodId: b.academicPeriodId,
         subjectId: b.subjectId,
@@ -503,15 +502,10 @@ export function EvaluatorTimetablingPanel({
         startTime: b.startTime,
         endTime: b.endTime,
         status: "draft",
-      }));
-    return [...fromDb, ...fromLocal];
-  }, [
-    dbEntries,
-    localDrafts,
-    academicPeriodId,
-    effectiveCollegeId,
-    sectionToCollegeId,
-  ]);
+      });
+    }
+    return [...byId.values()];
+  }, [dbEntries, localDrafts, academicPeriodId, effectiveCollegeId]);
 
   const policyEvaluation = useMemo(() => {
     if (!effectiveCollegeId) return { rows: [], hasAnyViolation: false };
