@@ -361,13 +361,22 @@ export function BsitChairmanEvaluatorWorksheet({
         (u.role === "instructor" || u.role === "chairman_admin") &&
         (!chairmanCollegeId || u.collegeId === chairmanCollegeId),
     ) as User[];
-    setDbInstructors(fac);
+    /** Merge so cross-college instructors already pulled from `ScheduleEntry` rows are not dropped on catalog refresh. */
+    setDbInstructors((prev) => {
+      const m = new Map(prev.map((u) => [u.id, u]));
+      for (const u of fac) m.set(u.id, u);
+      return [...m.values()].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+    });
     const instructorIds = fac.map((u) => u.id);
     const { data: fp } =
       instructorIds.length > 0
         ? await supabase.from("FacultyProfile").select(Q.facultyProfilePolicy).in("userId", instructorIds)
         : { data: [] as FacultyProfile[] };
-    setFacultyProfiles((fp ?? []) as FacultyProfile[]);
+    setFacultyProfiles((prev) => {
+      const m = new Map(prev.map((p) => [p.userId, p]));
+      for (const p of (fp ?? []) as FacultyProfile[]) m.set(p.userId, p);
+      return [...m.values()];
+    });
   }, [chairmanCollegeId]);
 
   useEffect(() => {
@@ -375,8 +384,8 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [loadCatalog]);
 
   /**
-   * All sections for this chairman program (plotting grid only). INS Form 5A uses college-wide entries for load;
-   * Section/Room INS tabs may still be program-scoped when `chairmanProgramId` is set.
+   * All sections for this chairman program (plotting grid only). Policy load + INS use campus-wide `ScheduleEntry`
+   * rows visible under RLS; INS 5B/5C pickers use `insResourceEntries` (not a college-only slice).
    */
   const programSections = useMemo(
     () => sections.filter((s) => s.programId === programId).sort((a, b) => a.name.localeCompare(b.name)),
@@ -439,13 +448,25 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [subjects]);
 
+  /** Term rooms from DB (other colleges) so shared faculty can keep cross-college plots addressable in the grid. */
+  const termEntryRoomIds = useMemo(() => {
+    if (!academicPeriodId) return new Set<string>();
+    return new Set(
+      allTermScheduleEntries.filter((e) => e.academicPeriodId === academicPeriodId).map((e) => e.roomId),
+    );
+  }, [allTermScheduleEntries, academicPeriodId]);
+
   /**
-   * All chairman programs (including BSIT): full college + shared (`collegeId` null) rooms, grouped by Building → Room.
-   * No program-specific lab whitelist — cross-program plotting must stay fast and consistent with CAFE / other colleges.
+   * All chairman programs (including BSIT): home college + shared (`collegeId` null) rooms, plus any room already
+   * used this term on a visible row (cross-college assignments).
    */
   const roomsForEvaluatorGrid = useMemo((): Room[] => {
     const scoped = rooms.filter(
-      (r) => !r.collegeId || !chairmanCollegeId || r.collegeId === chairmanCollegeId,
+      (r) =>
+        !r.collegeId ||
+        !chairmanCollegeId ||
+        r.collegeId === chairmanCollegeId ||
+        termEntryRoomIds.has(r.id),
     );
     const sorted = [...scoped].sort((a, b) => {
       const ba = (a.building ?? "").localeCompare(b.building ?? "");
@@ -453,7 +474,7 @@ export function BsitChairmanEvaluatorWorksheet({
       return a.code.localeCompare(b.code);
     });
     return sorted.length > 0 ? sorted : rooms;
-  }, [rooms, chairmanCollegeId]);
+  }, [rooms, chairmanCollegeId, termEntryRoomIds]);
 
   const rowInstructorIds = useMemo(() => rows.map((r) => r.instructorId).filter(Boolean) as string[], [rows]);
 
@@ -1122,6 +1143,30 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     const entries = (sch ?? []) as ScheduleEntry[];
     setAllTermScheduleEntries(entries);
+
+    const instrIds = [...new Set(entries.map((e) => e.instructorId).filter(Boolean))] as string[];
+    if (instrIds.length > 0) {
+      const { data: schedUsers } = await supabase.from("User").select(Q.userChairmanScope).in("id", instrIds);
+      const rowFac = ((schedUsers ?? []) as User[]).filter(
+        (u) => u.role === "instructor" || u.role === "chairman_admin",
+      );
+      setDbInstructors((prev) => {
+        const m = new Map(prev.map((u) => [u.id, u]));
+        for (const u of rowFac) m.set(u.id, u);
+        return [...m.values()].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+      });
+      if (rowFac.length > 0) {
+        const { data: fpX } = await supabase
+          .from("FacultyProfile")
+          .select(Q.facultyProfilePolicy)
+          .in("userId", rowFac.map((u) => u.id));
+        setFacultyProfiles((prev) => {
+          const m = new Map(prev.map((p) => [p.userId, p]));
+          for (const p of (fpX ?? []) as FacultyProfile[]) m.set(p.userId, p);
+          return [...m.values()];
+        });
+      }
+    }
 
     const relevant =
       programSectionIdSet.size === 0

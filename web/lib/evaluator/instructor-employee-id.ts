@@ -55,6 +55,8 @@ export function mergeLegacyRowInstructorsIntoPlotOptions(
   allCollegeInstructors: User[],
   rowInstructorIds: Iterable<string>,
   profileByUserId?: Map<string, Pick<FacultyProfile, "fullName">>,
+  /** Instructors on plotted rows from other colleges (cross-college teaching). */
+  supplementalInstructors: User[] = [],
 ): InstructorPlotOption[] {
   const byId = new Map(base.map((o) => [o.id, o]));
   const needed = new Set<string>();
@@ -62,8 +64,12 @@ export function mergeLegacyRowInstructorsIntoPlotOptions(
     if (id && !byId.has(id)) needed.add(id);
   }
   if (needed.size === 0) return base;
+  const poolById = new Map<string, User>();
+  for (const u of allCollegeInstructors) poolById.set(u.id, u);
+  for (const u of supplementalInstructors) poolById.set(u.id, u);
+  const lookupPool = [...poolById.values()];
   const extra: InstructorPlotOption[] = [];
-  for (const u of allCollegeInstructors) {
+  for (const u of lookupPool) {
     if (!needed.has(u.id)) continue;
     const eid = (u.employeeId ?? "").trim();
     const fullName = evaluatorInstructorFullName(u, profileByUserId?.get(u.id) ?? null);

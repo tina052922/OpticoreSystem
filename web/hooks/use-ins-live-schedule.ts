@@ -89,7 +89,7 @@ export function useInsLiveSchedule(args: {
     args.programId,
     args.campusWide,
     catalog.academicPeriodId,
-    catalog.scopedEntries,
+    catalog.entries,
     catalog.sectionById,
     catalog.programById,
     catalog.colleges,
@@ -128,8 +128,8 @@ export function useInsLiveSchedule(args: {
 
   /**
    * Form 5A grid + Hours/Week must use every `ScheduleEntry` for this instructor in the term (all colleges /
-   * programs), matching `/api/portal/faculty-term-data` + My Schedule — not `scopedEntries`, which is limited to the
-   * viewer college’s program graph for Section/Room INS pickers.
+   * programs), matching `/api/portal/faculty-term-data` + My Schedule — not the college/program slice used for
+   * workflow bundles only.
    */
   const entriesForInsFacultyView = useMemo(() => {
     if (!catalog.academicPeriodId || !selectedInstructorId) return [];
@@ -217,6 +217,7 @@ export function useInsLiveSchedule(args: {
     schedule,
     courses,
     scopedEntries: catalog.scopedEntries,
+    insResourceEntries: catalog.insResourceEntries,
     subjectIdByCode: catalog.subjectIdByCode,
     getInsConflictSummaries: catalog.getInsConflictSummaries,
     getInsConflictAlertText: catalog.getInsConflictAlertText,

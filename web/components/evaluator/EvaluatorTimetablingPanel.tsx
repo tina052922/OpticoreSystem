@@ -47,6 +47,7 @@ import {
   usersToInstructorPlotOptions,
 } from "@/lib/evaluator/instructor-employee-id";
 import { roomBuildingKey, roomsInBuilding, sortedBuildingLabels } from "@/lib/evaluator/room-by-building";
+import { mergeById } from "@/lib/collections/merge-by-id";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -215,7 +216,67 @@ export function EvaluatorTimetablingPanel({
       return;
     }
 
-    const allUsers = (fac ?? []) as User[];
+    const schRows = (sch ?? []) as ScheduleEntry[];
+    /** Cross-college plots reference sections/subjects/rooms/users outside the chairman’s college — merge FK targets. */
+    const secHave = new Set((sec ?? []).map((s) => s.id));
+    const subHave = new Set((sub ?? []).map((s) => s.id));
+    const rmHave = new Set((rm ?? []).map((r) => r.id));
+    const userHave = new Set((fac ?? []).map((u) => u.id));
+    const needSec: string[] = [];
+    const needSub: string[] = [];
+    const needRm: string[] = [];
+    const needUser: string[] = [];
+    for (const e of schRows) {
+      if (!secHave.has(e.sectionId)) needSec.push(e.sectionId);
+      if (!subHave.has(e.subjectId)) needSub.push(e.subjectId);
+      if (!rmHave.has(e.roomId)) needRm.push(e.roomId);
+      if (e.instructorId && !userHave.has(e.instructorId)) needUser.push(e.instructorId);
+    }
+    const uniq = (xs: string[]) => [...new Set(xs)];
+    const [xSec, xSub, xRm, xUs] = await Promise.all([
+      uniq(needSec).length
+        ? supabase.from("Section").select(Q.section).in("id", uniq(needSec))
+        : Promise.resolve({ data: [] as Section[], error: null }),
+      uniq(needSub).length
+        ? supabase.from("Subject").select(Q.subject).in("id", uniq(needSub))
+        : Promise.resolve({ data: [] as Subject[], error: null }),
+      uniq(needRm).length
+        ? supabase.from("Room").select(Q.room).in("id", uniq(needRm))
+        : Promise.resolve({ data: [] as Room[], error: null }),
+      uniq(needUser).length
+        ? supabase
+            .from("User")
+            .select("id,email,name,role,collegeId,employeeId")
+            .in("id", uniq(needUser))
+        : Promise.resolve({ data: [] as User[], error: null }),
+    ]);
+    const ex = xSec.error || xSub.error || xRm.error || xUs.error;
+    if (ex) {
+      setLoadError(ex.message);
+      setLoading(false);
+      return;
+    }
+
+    const sectionsMerged = mergeById((sec ?? []) as Section[], (xSec.data ?? []) as Section[]);
+    const subjectsMerged = mergeById((sub ?? []) as Subject[], (xSub.data ?? []) as Subject[]);
+    const roomsMerged = mergeById((rm ?? []) as Room[], (xRm.data ?? []) as Room[]);
+    const allUsers = mergeById((fac ?? []) as User[], (xUs.data ?? []) as User[]);
+
+    let programsFinal = (prog ?? []) as Program[];
+    const prIdSet = new Set(programsFinal.map((p) => p.id));
+    const needProgIds = [
+      ...new Set(sectionsMerged.map((s) => s.programId).filter((pid) => pid && !prIdSet.has(pid))),
+    ] as string[];
+    if (needProgIds.length > 0) {
+      const { data: xProg, error: ePrg } = await supabase.from("Program").select(Q.program).in("id", needProgIds);
+      if (ePrg) {
+        setLoadError(ePrg.message);
+        setLoading(false);
+        return;
+      }
+      programsFinal = mergeById(programsFinal, (xProg ?? []) as Program[]);
+    }
+
     const profileCandidateIds = allUsers
       .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
       .map((u) => u.id);
@@ -232,14 +293,14 @@ export function EvaluatorTimetablingPanel({
 
     setPeriods(periodList);
     setColleges((col ?? []) as College[]);
-    setPrograms((prog ?? []) as Program[]);
-    setSections((sec ?? []) as Section[]);
-    setSubjects((sub ?? []) as Subject[]);
-    setRooms((rm ?? []) as Room[]);
+    setPrograms(programsFinal);
+    setSections(sectionsMerged);
+    setSubjects(subjectsMerged);
+    setRooms(roomsMerged);
     setCollegeUsers(allUsers);
     setFacultyProfiles((fp ?? []) as FacultyProfile[]);
     setLoadJustifications((lj ?? []) as ScheduleLoadJustification[]);
-    setDbEntries((sch ?? []) as ScheduleEntry[]);
+    setDbEntries(schRows);
 
     setLoading(false);
   }, [academicPeriodId]);
@@ -383,6 +444,12 @@ export function EvaluatorTimetablingPanel({
     );
   }, [collegeUsers, effectiveCollegeId]);
 
+  /** Home college + anyone visible on `ScheduleEntry` rows (merged in `load`), for cross-college teaching. */
+  const instructorUserPool = useMemo(
+    () => collegeUsers.filter((u) => u.role === "instructor" || u.role === "chairman_admin"),
+    [collegeUsers],
+  );
+
   const sectionToCollegeId = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of sections) {
@@ -476,8 +543,8 @@ export function EvaluatorTimetablingPanel({
   const instructorPlotOptionsForPanel = useMemo(() => {
     const base = usersToInstructorPlotOptions(instructorsInCollege, profileByUserId);
     const ids = mergedScheduleEntries.map((e) => e.instructorId).filter(Boolean) as string[];
-    return mergeLegacyRowInstructorsIntoPlotOptions(base, instructorsInCollege, ids, profileByUserId);
-  }, [instructorsInCollege, mergedScheduleEntries, profileByUserId]);
+    return mergeLegacyRowInstructorsIntoPlotOptions(base, instructorUserPool, ids, profileByUserId);
+  }, [instructorsInCollege, instructorUserPool, mergedScheduleEntries, profileByUserId]);
 
   /**
    * Same campus-wide instructor totals as INS Form 5A / My Schedule: every term row with drafts overlaying by id.

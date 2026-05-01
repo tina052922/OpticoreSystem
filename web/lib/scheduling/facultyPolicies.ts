@@ -126,10 +126,10 @@ function collectViolations(
 /**
  * Aggregates weekly teaching contact from timetable rows and tests CTU Faculty Manual–aligned rules.
  *
- * **Campus-wide totals:** every row in `entries` counts toward its instructor’s weekly contact (same universe as
- * `getInstructorScheduleRows` / INS Form 5A / faculty My Schedule). `collegeId` and `sectionToCollegeId` are kept
- * for call-site compatibility; overload policy is evaluated on the instructor’s **full** plotted load, not a
- * single-college slice.
+ * **Campus-wide totals:** every row in `entries` counts toward its instructor’s weekly contact — including
+ * assignments in other colleges (e.g. COTE faculty teaching a CAS section). Same universe as
+ * `getInstructorScheduleRows`, INS Form 5A, and faculty My Schedule. `collegeId` and `sectionToCollegeId` are legacy
+ * parameters; overload policy uses the instructor’s **full** term load, not a single-college slice.
  */
 export function evaluateFacultyLoadsForCollege(
   entries: ScheduleEntry[],

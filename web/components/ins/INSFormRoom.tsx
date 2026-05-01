@@ -90,7 +90,7 @@ export function INSFormRoom({
       return { schedule: emptyInsRoomSchedule(), roomLabel: "—" };
     }
     return buildInsRoomView({
-      entries: catalog.scopedEntries,
+      entries: catalog.insResourceEntries,
       academicPeriodId: catalog.academicPeriodId,
       roomId: selectedRoomId,
       sectionById: catalog.sectionById,
@@ -101,7 +101,7 @@ export function INSFormRoom({
     });
   }, [
     useLiveData,
-    catalog.scopedEntries,
+    catalog.insResourceEntries,
     catalog.academicPeriodId,
     selectedRoomId,
     catalog.loading,
@@ -117,7 +117,7 @@ export function INSFormRoom({
 
   const insSignatureSlots = useMemo(() => {
     if (!useLiveData || !selectedRoomId || !catalog.academicPeriodId) return null;
-    const termRows = catalog.scopedEntries.filter(
+    const termRows = catalog.insResourceEntries.filter(
       (e) => e.academicPeriodId === catalog.academicPeriodId && e.roomId === selectedRoomId,
     );
     let collegeRow: College | null = null;
@@ -144,7 +144,7 @@ export function INSFormRoom({
     useLiveData,
     selectedRoomId,
     catalog.academicPeriodId,
-    catalog.scopedEntries,
+    catalog.insResourceEntries,
     catalog.sectionById,
     catalog.programById,
     catalog.colleges,
@@ -167,7 +167,7 @@ export function INSFormRoom({
         );
         return;
       }
-      const termScoped = catalog.scopedEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
+      const termScoped = catalog.insResourceEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
       const bundle = buildWorkflowScheduleBundle({
         academicPeriodId: catalog.academicPeriodId,
         collegeId: effectiveCollegeId,
