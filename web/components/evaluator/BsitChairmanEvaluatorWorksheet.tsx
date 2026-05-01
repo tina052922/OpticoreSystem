@@ -334,13 +334,14 @@ export function BsitChairmanEvaluatorWorksheet({
   /** Distinguish save-time vs in-grid assignment gate when load policy requires VPAA justification. */
   const [policyModalReason, setPolicyModalReason] = useState<"save" | "assign">("save");
   /**
-   * After upsert, cross-reload can briefly return a stale row (day/slot) before read-your-writes catches up.
-   * Prefer local day + slot for a few seconds so Friday (etc.) does not snap back to Monday.
+   * After upsert, same-tab `dispatchInsCatalogReload` + Realtime can return stale `ScheduleEntry` rows for many
+   * seconds. Prefer the in-memory grid for recently saved ids until `locallyEditedRowIdsRef` clears via a matching fetch.
    */
   const postPersistUiMergeRef = useRef<{ until: number; ids: Set<string> } | null>(null);
   /**
-   * Row ids the user has edited in the grid but whose changes may not be in Supabase yet (autosave is debounced).
-   * Without this, `useScheduleEntryCrossReload` / Realtime refetches overwrite day/slot and the time “snaps back”.
+   * Row ids with plot edits that must win over refetched `ScheduleEntry` rows until the fetch matches the grid
+   * (same day/slot/section/instructor/room/subject). Do **not** clear this on upsert success: `dispatchInsCatalogReload`
+   * triggers an immediate reload that often returns read-your-writes stale times; clearing here caused saves to “revert”.
    */
   const locallyEditedRowIdsRef = useRef<Set<string>>(new Set());
   /** Plot row waiting for VPAA justification before applying instructor/day/slot overload. */
@@ -1274,7 +1275,7 @@ export function BsitChairmanEvaluatorWorksheet({
         const local = prev.find((p) => p.id === nr.id);
         if (local && !local.lockedByDoiAt && locallyEditedRowIdsRef.current.has(nr.id)) {
           const samePlot =
-            local.day === nr.day &&
+            normalizeScheduleEntryDayForEvaluator(local.day) === normalizeScheduleEntryDayForEvaluator(nr.day) &&
             local.startSlotIndex === nr.startSlotIndex &&
             local.sectionId === nr.sectionId &&
             local.roomId === nr.roomId &&
@@ -1298,7 +1299,16 @@ export function BsitChairmanEvaluatorWorksheet({
         if (guard && now < guard.until && guard.ids.has(nr.id)) {
           const localG = prev.find((p) => p.id === nr.id);
           if (localG && !localG.lockedByDoiAt) {
-            return { ...nr, day: localG.day, startSlotIndex: localG.startSlotIndex };
+            return {
+              ...nr,
+              day: localG.day,
+              startSlotIndex: localG.startSlotIndex,
+              sectionId: localG.sectionId,
+              subjectCode: localG.subjectCode,
+              instructorId: localG.instructorId,
+              roomId: localG.roomId,
+              students: localG.students,
+            };
           }
         }
         return nr;
@@ -1598,17 +1608,14 @@ export function BsitChairmanEvaluatorWorksheet({
           showSkippedMsg("none_saved");
         }
         if (wrote) {
-          for (const u of upserts) {
-            locallyEditedRowIdsRef.current.delete(u.id);
-          }
           postPersistUiMergeRef.current = {
-            until: Date.now() + 3200,
+            until: Date.now() + 15_000,
             ids: new Set(upserts.map((u) => u.id)),
           };
           window.setTimeout(() => {
             const g = postPersistUiMergeRef.current;
             if (g && Date.now() >= g.until) postPersistUiMergeRef.current = null;
-          }, 3300);
+          }, 15_600);
           const auditRows = upserts.map((e) => {
             const plot = rows.find((x) => x.id === e.id);
             return {
