@@ -36,10 +36,35 @@ export function usePendingPolicyReviewsCount(args?: { collegeId?: string | null;
   }, [load]);
 
   useEffect(() => {
-    // Light polling only (keeps UI fast; avoids extra realtime channels unless needed).
     const id = window.setInterval(() => void load(), 45_000);
     return () => window.clearInterval(id);
   }, [load]);
+
+  // INSERT/UPDATE (chair submit or DOI decision) so College Admin + DOI badges stay aligned without full page refresh.
+  useEffect(() => {
+    const enabled = args?.enabled ?? true;
+    if (!enabled) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    const collegeId = args?.collegeId?.trim() || null;
+    const scope = collegeId ?? "doi";
+    const channel = supabase
+      .channel(`slj-pending:${scope}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ScheduleLoadJustification",
+          ...(collegeId ? { filter: `collegeId=eq.${collegeId}` } : {}),
+        },
+        () => void load(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [args?.collegeId, args?.enabled, load]);
 
   return count;
 }
