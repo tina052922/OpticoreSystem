@@ -93,6 +93,8 @@ export function useInsCatalog(args: {
   const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
   const skipPeriodEntryFetchRef = useRef(true);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Coalesce chairman/GEC save broadcasts into one full catalog pull so new entry ids refresh Section/Subject merges (INS hours). */
+  const insFullReloadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const academicPeriodId =
     semesterFilter?.ready && semesterFilter.selectedPeriodId ? semesterFilter.selectedPeriodId : fallbackPeriodId;
@@ -430,21 +432,32 @@ export function useInsCatalog(args: {
   }, [scheduleDebouncedReload, args.collegeId, args.campusWide, academicPeriodId]);
 
   /**
-   * Same-tab refresh when GEC Chairman / Chairman saves `ScheduleEntry` (Realtime may be off).
-   * Call `load()` immediately — no debounce — so Faculty / Section / Room INS views reflect new rows right away.
-   * Realtime `postgres_changes` above stays debounced to avoid storms.
+   * Same-tab + cross-tab: chairman/GEC saves broadcast a reload. Use a **full** `load()` (debounced) so
+   * term-referenced Section/Subject merges refresh — soft entry-only reload was leaving INS Faculty hours stale.
+   * Realtime stays on lightweight `loadScheduleEntriesForPeriod`.
    */
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
-    const handler = () => {
-      void loadScheduleEntriesForPeriod({ soft: true });
+    const scheduleFullReload = () => {
+      if (insFullReloadDebounceRef.current) clearTimeout(insFullReloadDebounceRef.current);
+      insFullReloadDebounceRef.current = setTimeout(() => {
+        insFullReloadDebounceRef.current = null;
+        void load();
+      }, 220);
     };
     if (typeof BroadcastChannel !== "undefined") {
-      return subscribeScheduleEntryBroadcast(handler);
+      const unsub = subscribeScheduleEntryBroadcast(scheduleFullReload);
+      return () => {
+        unsub();
+        if (insFullReloadDebounceRef.current) clearTimeout(insFullReloadDebounceRef.current);
+      };
     }
-    window.addEventListener(INS_CATALOG_RELOAD_EVENT, handler);
-    return () => window.removeEventListener(INS_CATALOG_RELOAD_EVENT, handler);
-  }, [loadScheduleEntriesForPeriod, args.collegeId, args.campusWide]);
+    window.addEventListener(INS_CATALOG_RELOAD_EVENT, scheduleFullReload);
+    return () => {
+      window.removeEventListener(INS_CATALOG_RELOAD_EVENT, scheduleFullReload);
+      if (insFullReloadDebounceRef.current) clearTimeout(insFullReloadDebounceRef.current);
+    };
+  }, [load, args.collegeId, args.campusWide]);
 
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
@@ -698,6 +711,92 @@ export function useInsCatalog(args: {
     facultyProfileByUserId,
   ]);
 
+  /**
+   * INS Form 5A: conflict lines + GA-style suggestions for issues touching the selected instructor (Evaluator parity).
+   */
+  const getInsConflictLinesForInstructor = useCallback(
+    (instructorId: string): string[] => {
+      if (!academicPeriodId || !instructorId.trim()) return [];
+      const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+      const blocks = termRows
+        .map((e) => scheduleEntryToSparseBlock(e))
+        .filter((b): b is NonNullable<typeof b> => b != null);
+      const scan = scanAllSparseScheduleConflicts(blocks);
+      if (scan.issueSummaries.length === 0) return [];
+
+      const entryById = new Map(entries.map((e) => [e.id, e]));
+      const enriched = enrichCampusConflictIssues(
+        scan.issues,
+        entryById,
+        subjectById,
+        sectionById,
+        roomById,
+        userById,
+        programById,
+        collegeNameById,
+      );
+
+      const roomIds = rooms.map((r) => r.id);
+      const instructorIds = users
+        .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+        .map((u) => u.id);
+
+      const lines: string[] = [];
+      const seen = new Set<string>();
+      let n = 0;
+      for (const iss of enriched) {
+        if (n >= 8) break;
+        if (seen.has(iss.key)) continue;
+        const aE = entryById.get(iss.rowA.entryId);
+        const bE = entryById.get(iss.rowB.entryId);
+        if (aE?.instructorId !== instructorId && bE?.instructorId !== instructorId) continue;
+        seen.add(iss.key);
+        n += 1;
+        lines.push(`${conflictHeadlineShort(iss)} — ${iss.rootCause}`);
+        const entry = aE?.instructorId === instructorId ? aE : bE;
+        if (entry && roomIds.length > 0 && instructorIds.length > 0) {
+          const universeForGa = termRows.map(toScheduleBlock);
+          const sug = runRuleBasedGeneticAlgorithm({
+            universe: universeForGa,
+            sectionId: entry.sectionId,
+            subjectId: entry.subjectId,
+            academicPeriodId: entry.academicPeriodId,
+            excludeEntryId: entry.id,
+            roomIds,
+            instructorIds,
+            generations: 28,
+            populationSize: 40,
+          });
+          const best = sug[0];
+          if (best) {
+            const rc = roomById.get(best.roomId)?.code ?? "TBA";
+            const inst = formatUserInstructorLabel(
+              userById.get(best.instructorId),
+              facultyProfileByUserId.get(best.instructorId),
+            );
+            lines.push(
+              `Suggested fix: ${formatGaSuggestionShortLabel(best, { roomCode: rc, instructorDisplay: inst })}`,
+            );
+          }
+        }
+      }
+      return lines;
+    },
+    [
+      academicPeriodId,
+      entries,
+      subjectById,
+      sectionById,
+      roomById,
+      userById,
+      programById,
+      collegeNameById,
+      rooms,
+      users,
+      facultyProfileByUserId,
+    ],
+  );
+
   /** True when VPAA has published this term: at least one scoped row carries lockedByDoiAt. */
   const termPublishLocked = useMemo(() => {
     return scopedEntries
@@ -732,6 +831,7 @@ export function useInsCatalog(args: {
     roomOptions,
     getInsConflictSummaries,
     getInsConflictAlertText,
+    getInsConflictLinesForInstructor,
     reload: load,
     campusInsSettings,
     campusWideDirectorSignatureUrl,

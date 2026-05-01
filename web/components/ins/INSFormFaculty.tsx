@@ -234,7 +234,26 @@ export function INSFormFaculty({
           ) : null}
 
           {useLiveData && live.error ? (
-            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{live.error}</p>
+            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">
+              {live.error}
+            </p>
+          ) : null}
+          {useLiveData && live.insConflictLinesForFaculty.length > 0 ? (
+            <div
+              className="rounded-lg border border-amber-300 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 space-y-1.5 no-print"
+              role="status"
+            >
+              <p className="font-semibold">Schedule conflicts involving this instructor</p>
+              <p className="text-xs text-amber-950/85">
+                The form below stays printable; resolve clashes in the Evaluator when possible. Suggested fixes mirror
+                the campus conflict check.
+              </p>
+              <ul className="list-disc pl-5 text-xs space-y-1">
+                {live.insConflictLinesForFaculty.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
           {useLiveData && live.periodLabel ? (
             <p className="text-xs text-gray-600">

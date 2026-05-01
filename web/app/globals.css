@@ -38,7 +38,8 @@ body {
 
 @media print {
   :root {
-    --ins-row-h: 0.95rem;
+    /* Tighter weekly grid so Form 5A–5C fit one page with multi-class cells */
+    --ins-row-h: 0.78rem;
   }
   body {
     background: white;
@@ -91,6 +92,16 @@ body {
   .ins-print-one-page .ins-print-avoid-break {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+  /**
+   * Conflict banners / alerts use amber or red on screen; force neutral ink on paper so preview stays official.
+   */
+  .ins-print-one-page,
+  .ins-print-one-page * {
+    color: #171717 !important;
+  }
+  .ins-print-one-page table th {
+    background: #f5f5f5 !important;
   }
 }
 

@@ -196,6 +196,12 @@ export function useInsLiveSchedule(args: {
     return insInstructorDisplayName(u, facultyProfile ?? fromCatalog ?? null);
   }, [selectedInstructorId, catalog.userById, catalog.facultyProfileByUserId, facultyProfile]);
 
+  /** Campus scan issues that involve the selected faculty (for INS banner — print stays clean via `no-print`). */
+  const insConflictLinesForFaculty = useMemo(() => {
+    if (!selectedInstructorId) return [];
+    return catalog.getInsConflictLinesForInstructor(selectedInstructorId);
+  }, [selectedInstructorId, catalog.getInsConflictLinesForInstructor]);
+
   return {
     loading: catalog.loading,
     error: catalog.error,
@@ -214,6 +220,7 @@ export function useInsLiveSchedule(args: {
     subjectIdByCode: catalog.subjectIdByCode,
     getInsConflictSummaries: catalog.getInsConflictSummaries,
     getInsConflictAlertText: catalog.getInsConflictAlertText,
+    insConflictLinesForFaculty,
     termPublishLocked: catalog.termPublishLocked,
     insSignatureSlots,
     facultyCredentials,

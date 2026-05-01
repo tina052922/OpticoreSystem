@@ -199,14 +199,16 @@ export function OpticoreInsForm5A({
             );
           }
           return (
-            <div className="w-full space-y-1 pr-1">
+            <div className="w-full space-y-1 pr-1 print:space-y-0 print:flex print:flex-row print:flex-wrap print:gap-x-2 print:gap-y-0.5 print:items-start print:justify-start">
               {(items as InsFacultyCell[]).slice(0, 3).map((classAtTime, idx) => {
                 const inner = (
-                  <div className="w-full space-y-0.5 text-xs leading-snug break-words">
-                    <div className="font-semibold break-words">{classAtTime.course}</div>
-                    <div className="text-[10px] text-neutral-600">{classAtTime.time}</div>
-                    <div className="break-words">{classAtTime.yearSec}</div>
-                    <div className="break-words">{classAtTime.room}</div>
+                  <div className="w-full space-y-0.5 text-xs leading-snug break-words print:inline-flex print:max-w-full print:flex-wrap print:items-baseline print:gap-x-1 print:gap-y-0 print:text-[6.5pt] print:leading-tight">
+                    <span className="font-semibold break-words">{classAtTime.course}</span>
+                    <span className="text-[10px] text-neutral-600 print:text-[6pt] print:text-neutral-800">
+                      {classAtTime.time}
+                    </span>
+                    <span className="break-words">{classAtTime.yearSec}</span>
+                    <span className="break-words">{classAtTime.room}</span>
                   </div>
                 );
                 const entryId = classAtTime.scheduleEntryId;
