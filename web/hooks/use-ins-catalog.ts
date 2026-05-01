@@ -5,7 +5,11 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
-import { INS_CATALOG_RELOAD_EVENT, subscribeScheduleEntryBroadcast } from "@/lib/ins/ins-catalog-reload";
+import {
+  dispatchInsCatalogReload,
+  INS_CATALOG_RELOAD_EVENT,
+  subscribeScheduleEntryBroadcast,
+} from "@/lib/ins/ins-catalog-reload";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import {
@@ -821,6 +825,134 @@ export function useInsCatalog(args: {
     ],
   );
 
+  /**
+   * Full-term sparse conflict scan (same semantics as Evaluator). Used to tint INS grid cells and to offer
+   * one-click “apply alternative” for College Admin / DOI without opening the chairman worksheet.
+   */
+  const insConflictScan = useMemo(() => {
+    if (!academicPeriodId) {
+      return {
+        conflictingEntryIds: new Set<string>(),
+        issues: [] as { entryId: string; type: string; message: string; relatedEntryId?: string }[],
+      };
+    }
+    const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+    const blocks = termRows
+      .map((e) => scheduleEntryToSparseBlock(e))
+      .filter((b): b is NonNullable<typeof b> => b != null);
+    return scanAllSparseScheduleConflicts(blocks);
+  }, [entries, academicPeriodId]);
+
+  const insConflictingEntryIds = insConflictScan.conflictingEntryIds;
+
+  const getFirstConflictingEntryIdForInstructor = useCallback(
+    (instructorId: string): string | null => {
+      const uid = instructorId.trim();
+      if (!uid) return null;
+      const entryById = new Map(entries.map((e) => [e.id, e]));
+      for (const iss of insConflictScan.issues) {
+        const a = entryById.get(iss.entryId);
+        if (a?.instructorId === uid) return iss.entryId;
+        if (iss.relatedEntryId) {
+          const b = entryById.get(iss.relatedEntryId);
+          if (b?.instructorId === uid) return iss.relatedEntryId;
+        }
+      }
+      return null;
+    },
+    [entries, insConflictScan.issues],
+  );
+
+  const getFirstConflictingEntryIdForSection = useCallback(
+    (sectionId: string): string | null => {
+      const sid = sectionId.trim();
+      if (!sid) return null;
+      const entryById = new Map(entries.map((e) => [e.id, e]));
+      for (const iss of insConflictScan.issues) {
+        const a = entryById.get(iss.entryId);
+        if (a?.sectionId === sid) return iss.entryId;
+        if (iss.relatedEntryId) {
+          const b = entryById.get(iss.relatedEntryId);
+          if (b?.sectionId === sid) return iss.relatedEntryId;
+        }
+      }
+      return null;
+    },
+    [entries, insConflictScan.issues],
+  );
+
+  const getFirstConflictingEntryIdForRoom = useCallback(
+    (roomId: string): string | null => {
+      const rid = roomId.trim();
+      if (!rid) return null;
+      const entryById = new Map(entries.map((e) => [e.id, e]));
+      for (const iss of insConflictScan.issues) {
+        const a = entryById.get(iss.entryId);
+        if (a?.roomId === rid) return iss.entryId;
+        if (iss.relatedEntryId) {
+          const b = entryById.get(iss.relatedEntryId);
+          if (b?.roomId === rid) return iss.relatedEntryId;
+        }
+      }
+      return null;
+    },
+    [entries, insConflictScan.issues],
+  );
+
+  /**
+   * Applies the first feasible rule-based GA suggestion for a row (same engine as chairman conflict preview).
+   * Updates `ScheduleEntry` and pings INS + evaluator listeners via {@link dispatchInsCatalogReload}.
+   */
+  const applyInsConflictAlternative = useCallback(
+    async (entryId: string): Promise<{ ok: boolean; message: string }> => {
+      const entry = entries.find((e) => e.id === entryId);
+      if (!entry) return { ok: false, message: "Schedule row not found." };
+      if (entry.lockedByDoiAt) return { ok: false, message: "Schedule is locked after VPAA publication." };
+      const periodId = entry.academicPeriodId;
+      const termRows = entries.filter((e) => e.academicPeriodId === periodId);
+      const roomIds = rooms.map((r) => r.id);
+      const instructorIds = users
+        .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+        .map((u) => u.id);
+      if (roomIds.length === 0 || instructorIds.length === 0) {
+        return { ok: false, message: "Not enough rooms or instructors in catalog to suggest alternatives." };
+      }
+      const universeForGa = termRows.map(toScheduleBlock);
+      const sug = runRuleBasedGeneticAlgorithm({
+        universe: universeForGa,
+        sectionId: entry.sectionId,
+        subjectId: entry.subjectId,
+        academicPeriodId: entry.academicPeriodId,
+        excludeEntryId: entry.id,
+        roomIds,
+        instructorIds,
+        generations: 28,
+        populationSize: 40,
+      })[0];
+      if (!sug) return { ok: false, message: "No non-conflicting alternative found for this row." };
+
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return { ok: false, message: "Supabase is not configured." };
+
+      const { error } = await supabase
+        .from("ScheduleEntry")
+        .update({
+          day: sug.day,
+          startTime: sug.startTime,
+          endTime: sug.endTime,
+          roomId: sug.roomId,
+          instructorId: sug.instructorId,
+        })
+        .eq("id", entryId);
+      if (error) return { ok: false, message: error.message };
+
+      dispatchInsCatalogReload();
+      void loadScheduleEntriesForPeriod({ periodId, soft: true });
+      return { ok: true, message: "Applied alternative slot from the rule-based resolver." };
+    },
+    [entries, rooms, users, loadScheduleEntriesForPeriod],
+  );
+
   /** True when VPAA has published this term: any visible row for the term is locked (cross-college rows included). */
   const termPublishLocked = useMemo(() => {
     return entries
@@ -858,6 +990,12 @@ export function useInsCatalog(args: {
     getInsConflictSummaries,
     getInsConflictAlertText,
     getInsConflictLinesForInstructor,
+    insConflictScan,
+    insConflictingEntryIds,
+    getFirstConflictingEntryIdForInstructor,
+    getFirstConflictingEntryIdForSection,
+    getFirstConflictingEntryIdForRoom,
+    applyInsConflictAlternative,
     reload: load,
     campusInsSettings,
     campusWideDirectorSignatureUrl,

@@ -72,6 +72,10 @@ export function INSFormRoom({
     instructorPortalUserId,
   });
 
+  const enableInsAltApply =
+    (campusWide || insBasePath.includes("/college")) && useLiveData && !catalog.termPublishLocked;
+  const [insAltBusy, setInsAltBusy] = useState(false);
+
   const [selectedRoomId, setSelectedRoomId] = useState("");
 
   const firstRoomId = catalog.roomOptions[0]?.id ?? "";
@@ -156,6 +160,22 @@ export function INSFormRoom({
     chairmanProgramId,
   ]);
 
+  const roomConflictCount = useMemo(() => {
+    if (!useLiveData || !catalog.academicPeriodId || !selectedRoomId) return 0;
+    return catalog.insResourceEntries.filter(
+      (e) =>
+        e.academicPeriodId === catalog.academicPeriodId &&
+        e.roomId === selectedRoomId &&
+        catalog.insConflictingEntryIds.has(e.id),
+    ).length;
+  }, [
+    useLiveData,
+    catalog.insResourceEntries,
+    catalog.academicPeriodId,
+    selectedRoomId,
+    catalog.insConflictingEntryIds,
+  ]);
+
   async function onShare() {
     try {
       if (campusWide || !effectiveCollegeId || !catalog.academicPeriodId) {
@@ -210,6 +230,25 @@ export function INSFormRoom({
       alert("No instructor, room, or section time conflicts detected for this term (full campus scan).");
     } else {
       alert(`Conflict check\n\n${detail}`);
+    }
+  }
+
+  async function applyFirstInsAlternative() {
+    if (!selectedRoomId) {
+      alert("Select a room first.");
+      return;
+    }
+    const id = catalog.getFirstConflictingEntryIdForRoom(selectedRoomId);
+    if (!id) {
+      alert("No conflicting schedule row found for this room.");
+      return;
+    }
+    setInsAltBusy(true);
+    try {
+      const r = await catalog.applyInsConflictAlternative(id);
+      alert(r.message);
+    } finally {
+      setInsAltBusy(false);
     }
   }
 
@@ -292,6 +331,30 @@ export function INSFormRoom({
           </div>
         ) : null}
 
+        {useLiveData && roomConflictCount > 0 ? (
+          <div
+            className="rounded-lg border border-red-300/80 bg-red-50/90 px-3 py-2 text-sm text-red-950 space-y-1.5 no-print"
+            role="status"
+          >
+            <p className="font-semibold">This room has {roomConflictCount} conflicting slot(s) this term</p>
+            <p className="text-xs text-red-950/85">
+              Overlaps are highlighted in the grid. Resolve in the Evaluator or apply one automated fix below.
+            </p>
+            {enableInsAltApply ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-red-400/80 bg-white text-red-950 hover:bg-red-100"
+                disabled={insAltBusy || !selectedRoomId}
+                onClick={() => void applyFirstInsAlternative()}
+              >
+                {insAltBusy ? "Applying…" : "Apply alternative solution (first conflict)"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
           {useLiveData ? (
             <InsScheduleEntitySearch
@@ -310,6 +373,17 @@ export function INSFormRoom({
           )}
 
           <div className="flex flex-wrap items-center gap-3 justify-end">
+            {enableInsAltApply && roomConflictCount > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
+                disabled={insAltBusy || !selectedRoomId}
+                onClick={() => void applyFirstInsAlternative()}
+              >
+                {insAltBusy ? "Applying…" : "Apply alternative"}
+              </Button>
+            ) : null}
             <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
               Run Conflict Check
             </Button>
@@ -368,6 +442,7 @@ export function INSFormRoom({
             insSignatureSlots={useLiveData ? insSignatureSlots : null}
             readOnly={Boolean(useLiveData && catalog.termPublishLocked)}
             semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
+            conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
           />
         </div>
       </div>
@@ -380,6 +455,7 @@ export function INSFormRoom({
           insSignatureSlots={useLiveData ? insSignatureSlots : null}
           readOnly
           semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
+          conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
         />
       </div>
     </div>

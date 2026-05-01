@@ -64,6 +64,10 @@ const DEFAULT_CHAIRMAN_PROGRAM_CODE: string = BSIT_PROGRAM_CODE;
 const selectClass =
   "w-full min-h-10 rounded-md border border-black/25 bg-white px-2 text-[11px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
+/** Day column: stronger contrast and min width so the control is easy to spot in dense grids. */
+const daySelectClass =
+  "w-full min-h-11 min-w-[7.5rem] rounded-md border-2 border-neutral-500 bg-white px-2 py-1.5 text-sm font-medium text-neutral-900 shadow-sm z-10 relative outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50";
+
 export type PlotRow = {
   id: string;
   sectionId: string;
@@ -382,6 +386,41 @@ export function BsitChairmanEvaluatorWorksheet({
   useEffect(() => {
     void loadCatalog();
   }, [loadCatalog]);
+
+  /**
+   * Load saved VPAA justification text only when term/college scope changes — not on every schedule refetch
+   * (Realtime / cross-reload), and never while the policy modal is open, so typing is not overwritten.
+   */
+  const justificationHydrateKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (policyJustificationModalOpen) return;
+    if (!chairmanCollegeId || !academicPeriodId) {
+      justificationHydrateKeyRef.current = null;
+      setJustificationText("");
+      return;
+    }
+    const key = `${academicPeriodId}|${chairmanCollegeId}`;
+    if (justificationHydrateKeyRef.current === key) return;
+    justificationHydrateKeyRef.current = key;
+    let cancelled = false;
+    void (async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data: ljRows } = await supabase
+        .from("ScheduleLoadJustification")
+        .select(Q.scheduleLoadJustification)
+        .eq("academicPeriodId", academicPeriodId)
+        .eq("collegeId", chairmanCollegeId)
+        .order("updatedAt", { ascending: false })
+        .limit(1);
+      if (cancelled) return;
+      const lj = (ljRows ?? [])[0] as ScheduleLoadJustification | undefined;
+      setJustificationText(lj?.justification ?? "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [academicPeriodId, chairmanCollegeId, policyJustificationModalOpen]);
 
   /**
    * All sections for this chairman program (plotting grid only). Policy load + INS use campus-wide `ScheduleEntry`
@@ -1222,19 +1261,10 @@ export function BsitChairmanEvaluatorWorksheet({
       return [...mergedDb, ...pending];
     });
 
-    if (chairmanCollegeId) {
-      const { data: ljRows } = await supabase
-        .from("ScheduleLoadJustification")
-        .select(Q.scheduleLoadJustification)
-        .eq("academicPeriodId", academicPeriodId)
-        .eq("collegeId", chairmanCollegeId)
-        .order("updatedAt", { ascending: false })
-        .limit(1);
-      const lj = (ljRows ?? [])[0] as ScheduleLoadJustification | undefined;
-      setJustificationText(lj?.justification ?? "");
-    } else {
-      setJustificationText("");
-    }
+    /**
+     * Do not hydrate `justificationText` here — `loadRowsFromSupabase` runs on Realtime/cross-reload and would
+     * wipe the VPAA justification draft while the policy modal or textarea is in use (see effect below).
+     */
   }, [academicPeriodId, programSectionIdSet, subjectCodeById, chairmanCollegeId]);
 
   useEffect(() => {
@@ -2058,7 +2088,7 @@ export function BsitChairmanEvaluatorWorksheet({
                       </td>
                       <td className="border border-black/10 px-1 py-1">
                         <select
-                          className={selectClass}
+                          className={daySelectClass}
                           value={row.day}
                           disabled={rowReadOnly}
                           onChange={(e) => commitRowPatch(row.id, { day: e.target.value as BsitEvaluatorWeekday })}

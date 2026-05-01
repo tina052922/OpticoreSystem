@@ -12,6 +12,7 @@ export type InsSectionCell = {
   instructor: string;
   room: string;
   vacantGec?: boolean;
+  scheduleEntryId?: string;
 };
 
 export type InsSectionSchedule = Record<InsDay, InsSectionCell[]>;
@@ -60,6 +61,7 @@ export function buildInsSectionView(args: {
       instructor: insInstructorDisplayName(inst, args.facultyProfileByUserId.get(e.instructorId)),
       room: room?.code ?? "TBA",
       vacantGec: isGecVacantScheduleEntry(e, args.subjectById),
+      scheduleEntryId: e.id,
     });
   }
 

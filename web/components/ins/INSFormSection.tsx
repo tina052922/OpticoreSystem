@@ -78,6 +78,10 @@ export function INSFormSection({
     instructorPortalUserId,
   });
 
+  const enableInsAltApply =
+    (campusWide || insBasePath.includes("/college")) && useLiveData && !catalog.termPublishLocked;
+  const [insAltBusy, setInsAltBusy] = useState(false);
+
   const [selectedSectionId, setSelectedSectionId] = useState("");
 
   /** Stable primitive — `sectionOptions` is a new array each render and must not be a hook dependency. */
@@ -152,6 +156,22 @@ export function INSFormSection({
     catalog.campusWideDirectorSignatureUrl,
   ]);
 
+  const sectionConflictCount = useMemo(() => {
+    if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;
+    return catalog.insResourceEntries.filter(
+      (e) =>
+        e.academicPeriodId === catalog.academicPeriodId &&
+        e.sectionId === selectedSectionId &&
+        catalog.insConflictingEntryIds.has(e.id),
+    ).length;
+  }, [
+    useLiveData,
+    catalog.insResourceEntries,
+    catalog.academicPeriodId,
+    selectedSectionId,
+    catalog.insConflictingEntryIds,
+  ]);
+
   async function onShare() {
     try {
       if (campusWide || !effectiveCollegeId || !catalog.academicPeriodId) {
@@ -206,6 +226,25 @@ export function INSFormSection({
       alert("No instructor, room, or section time conflicts detected for this term (full campus scan).");
     } else {
       alert(`Conflict check\n\n${detail}`);
+    }
+  }
+
+  async function applyFirstInsAlternative() {
+    if (!selectedSectionId) {
+      alert("Select a section first.");
+      return;
+    }
+    const id = catalog.getFirstConflictingEntryIdForSection(selectedSectionId);
+    if (!id) {
+      alert("No conflicting schedule row found for this section.");
+      return;
+    }
+    setInsAltBusy(true);
+    try {
+      const r = await catalog.applyInsConflictAlternative(id);
+      alert(r.message);
+    } finally {
+      setInsAltBusy(false);
     }
   }
 
@@ -288,6 +327,31 @@ export function INSFormSection({
           </div>
         ) : null}
 
+        {useLiveData && sectionConflictCount > 0 ? (
+          <div
+            className="rounded-lg border border-red-300/80 bg-red-50/90 px-3 py-2 text-sm text-red-950 space-y-1.5 no-print"
+            role="status"
+          >
+            <p className="font-semibold">This section has {sectionConflictCount} conflicting slot(s) this term</p>
+            <p className="text-xs text-red-950/85">
+              Overlaps are highlighted in the schedule grid. Resolve in the Evaluator or apply one automated fix
+              below.
+            </p>
+            {enableInsAltApply ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-red-400/80 bg-white text-red-950 hover:bg-red-100"
+                disabled={insAltBusy || !selectedSectionId}
+                onClick={() => void applyFirstInsAlternative()}
+              >
+                {insAltBusy ? "Applying…" : "Apply alternative solution (first conflict)"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
           {useLiveData ? (
             <InsScheduleEntitySearch
@@ -306,6 +370,17 @@ export function INSFormSection({
           )}
 
           <div className="flex flex-wrap items-center gap-3 justify-end">
+            {enableInsAltApply && sectionConflictCount > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
+                disabled={insAltBusy || !selectedSectionId}
+                onClick={() => void applyFirstInsAlternative()}
+              >
+                {insAltBusy ? "Applying…" : "Apply alternative"}
+              </Button>
+            ) : null}
             <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
               Run Conflict Check
             </Button>
@@ -367,6 +442,7 @@ export function INSFormSection({
             semesterLabel={catalog.periodLabel}
             scheduleApproved={useLiveData && catalog.termPublishLocked}
             insSignatureSlots={useLiveData ? insSignatureSlots : null}
+            conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
           />
         </div>
       </div>
@@ -382,6 +458,7 @@ export function INSFormSection({
           semesterLabel={catalog.periodLabel}
           scheduleApproved={useLiveData && catalog.termPublishLocked}
           insSignatureSlots={useLiveData ? insSignatureSlots : null}
+          conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
         />
       </div>
     </div>
