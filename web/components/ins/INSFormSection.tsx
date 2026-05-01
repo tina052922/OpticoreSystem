@@ -100,7 +100,7 @@ export function INSFormSection({
       return { schedule: emptyInsSectionSchedule(), courses: [] };
     }
     return buildInsSectionView({
-      entries: catalog.scopedEntries,
+      entries: catalog.insResourceEntries,
       academicPeriodId: catalog.academicPeriodId,
       sectionId: selectedSectionId,
       sectionById: catalog.sectionById,
@@ -111,7 +111,7 @@ export function INSFormSection({
     });
   }, [
     useLiveData,
-    catalog.scopedEntries,
+    catalog.insResourceEntries,
     catalog.academicPeriodId,
     selectedSectionId,
     catalog.loading,
@@ -163,7 +163,7 @@ export function INSFormSection({
         );
         return;
       }
-      const termScoped = catalog.scopedEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
+      const termScoped = catalog.insResourceEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
       const bundle = buildWorkflowScheduleBundle({
         academicPeriodId: catalog.academicPeriodId,
         collegeId: effectiveCollegeId,

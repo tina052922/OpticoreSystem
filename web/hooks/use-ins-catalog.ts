@@ -73,8 +73,8 @@ export function useInsCatalog(args: {
   instructorPortalUserId?: string | null;
   /**
    * INS Form 5A (faculty-by-name): include every program in the college for the term.
-   * When false, a chairman `programId` limits rows to that program only (Section/Room forms stay scoped).
-   * Shared instructors must see the same Hours/Week as Evaluator policy (full college load).
+   * When false, a chairman `programId` limits **worksflow subject maps** — not INS 5B/5C rows
+   * (`insResourceEntries` stays campus-wide within RLS).
    */
   ignoreProgramScope?: boolean;
 }) {
@@ -518,6 +518,9 @@ export function useInsCatalog(args: {
     return m;
   }, [facultyInsNames]);
 
+  /**
+   * College + optional program slice (share bundles, program-scoped `subjectIdByCode`). Not used for INS 5B/5C grids.
+   */
   const scopedEntries = useMemo(() => {
     let base: ScheduleEntry[];
     if (args.campusWide) {
@@ -553,9 +556,29 @@ export function useInsCatalog(args: {
     programById,
   ]);
 
-  const termEntries = useMemo(
-    () => scopedEntries.filter((e) => e.academicPeriodId === academicPeriodId),
-    [scopedEntries, academicPeriodId],
+  /**
+   * INS instructor/section/room pickers + Forms 5B/5C: all term rows the viewer can read (campus-wide under RLS).
+   * Home-college instructors may teach CAS (etc.) sections; those rows must appear here for correct grids and counts.
+   * Faculty portal: limited to sections where the signed-in instructor teaches.
+   */
+  const insResourceEntries = useMemo(() => {
+    if (args.campusWide) {
+      return entries.filter((e) => sectionById.has(e.sectionId));
+    }
+    if (!args.collegeId) return entries;
+    const uid = args.instructorPortalUserId?.trim();
+    if (uid) {
+      const termAll = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+      const teachingSectionIds = new Set(termAll.filter((e) => e.instructorId === uid).map((e) => e.sectionId));
+      if (teachingSectionIds.size === 0) return [];
+      return entries.filter((e) => teachingSectionIds.has(e.sectionId));
+    }
+    return entries;
+  }, [entries, args.campusWide, args.collegeId, args.instructorPortalUserId, academicPeriodId, sectionById]);
+
+  const termResourceEntries = useMemo(
+    () => insResourceEntries.filter((e) => e.academicPeriodId === academicPeriodId),
+    [insResourceEntries, academicPeriodId],
   );
 
   /** For workflow bundles: map normalized subject code → id (Chairman program scope). */
@@ -570,7 +593,7 @@ export function useInsCatalog(args: {
 
   const instructorOptions: InsInstructorOption[] = useMemo(() => {
     const ids = new Set<string>();
-    for (const e of termEntries) {
+    for (const e of termResourceEntries) {
       ids.add(e.instructorId);
     }
     const list: InsInstructorOption[] = [];
@@ -584,11 +607,11 @@ export function useInsCatalog(args: {
     }
     list.sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [termEntries, users, facultyProfileByUserId]);
+  }, [termResourceEntries, users, facultyProfileByUserId]);
 
   const sectionOptions: InsSectionOption[] = useMemo(() => {
     const ids = new Set<string>();
-    for (const e of termEntries) {
+    for (const e of termResourceEntries) {
       ids.add(e.sectionId);
     }
     const list: InsSectionOption[] = [];
@@ -598,11 +621,11 @@ export function useInsCatalog(args: {
     }
     list.sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [termEntries, sectionById]);
+  }, [termResourceEntries, sectionById]);
 
   const roomOptions: InsRoomOption[] = useMemo(() => {
     const ids = new Set<string>();
-    for (const e of termEntries) {
+    for (const e of termResourceEntries) {
       ids.add(e.roomId);
     }
     const list: InsRoomOption[] = [];
@@ -612,7 +635,7 @@ export function useInsCatalog(args: {
     }
     list.sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [termEntries, roomById]);
+  }, [termResourceEntries, roomById]);
 
   const periodLabel = periods.find((p) => p.id === academicPeriodId)?.name ?? "";
 
@@ -798,12 +821,12 @@ export function useInsCatalog(args: {
     ],
   );
 
-  /** True when VPAA has published this term: at least one scoped row carries lockedByDoiAt. */
+  /** True when VPAA has published this term: any visible row for the term is locked (cross-college rows included). */
   const termPublishLocked = useMemo(() => {
-    return scopedEntries
+    return entries
       .filter((e) => e.academicPeriodId === academicPeriodId)
       .some((e) => Boolean(e.lockedByDoiAt));
-  }, [scopedEntries, academicPeriodId]);
+  }, [entries, academicPeriodId]);
 
   const campusWideDirectorSignatureUrl = campusInsSettings?.campusDirectorSignatureImageUrl?.trim() || null;
 
@@ -814,9 +837,11 @@ export function useInsCatalog(args: {
     periods,
     academicPeriodId,
     setAcademicPeriodId,
-    /** Full term `ScheduleEntry` rows from Supabase (not college-filtered). Used by INS Form 5A for campus-wide hours. */
+    /** Full term `ScheduleEntry` rows from Supabase (RLS-visible). Campus-wide instructor totals + conflict scan. */
     entries,
     scopedEntries,
+    /** INS 5B/5C + pickers: campus-wide resources (within RLS), not the college/program slice alone. */
+    insResourceEntries,
     subjectIdByCode,
     termPublishLocked,
     sectionById,

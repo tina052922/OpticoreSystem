@@ -114,7 +114,7 @@ export function INSFormFaculty({
         );
         return;
       }
-      const termScoped = live.scopedEntries.filter((e) => e.academicPeriodId === live.academicPeriodId);
+      const termScoped = live.insResourceEntries.filter((e) => e.academicPeriodId === live.academicPeriodId);
       const bundle = buildWorkflowScheduleBundle({
         academicPeriodId: live.academicPeriodId,
         collegeId: effectiveCollegeId,
