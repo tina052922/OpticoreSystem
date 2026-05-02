@@ -8,7 +8,7 @@ export default async function FacultyDashboardPage() {
   return (
     <div>
       <ChairmanPageHeader title="Campus Intelligence" subtitle="Overview of your teaching load for the selected term." />
-      <FacultyDashboardTermClient profileName={profile.name} />
+      <FacultyDashboardTermClient profileName={profile.name} surface="campus-intelligence" />
     </div>
   );
 }

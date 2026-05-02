@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   countStudentsInSections,
+  getInstructorAdvisorySectionId,
   getInstructorScheduleRows,
   getStudentRosterForSections,
   sumWeeklyContactHours,
@@ -33,7 +34,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { rows, sectionIds } = await getInstructorScheduleRows(user.id, periodId);
+  const { rows, sectionIds: scheduleSectionIds } = await getInstructorScheduleRows(user.id, periodId);
+  /** Chairman sets advisory on FacultyProfile; roster must include that section even with no ScheduleEntry row. */
+  const advisorySectionId = await getInstructorAdvisorySectionId(user.id);
+  const sectionIds = [...new Set([...scheduleSectionIds, ...(advisorySectionId ? [advisorySectionId] : [])])];
+
+  let advisorySectionName: string | null = null;
+  if (advisorySectionId) {
+    const { data: sec } = await supabase.from("Section").select("name").eq("id", advisorySectionId).maybeSingle();
+    advisorySectionName = (sec as { name?: string } | null)?.name?.trim() ?? null;
+  }
+
   const [studentCount, roster] = await Promise.all([
     countStudentsInSections(sectionIds),
     getStudentRosterForSections(sectionIds),
@@ -43,8 +54,12 @@ export async function GET(request: Request) {
   return NextResponse.json({
     rows,
     sectionIds,
+    advisorySectionId,
+    advisorySectionName,
     studentCount,
     roster,
     weeklyHours,
+    /** One row per plotted `ScheduleEntry` — same count family as INS faculty grid cells for the term. */
+    weeklyMeetingRowCount: rows.length,
   });
 }

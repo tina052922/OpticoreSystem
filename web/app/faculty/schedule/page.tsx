@@ -9,7 +9,7 @@ export default async function FacultySchedulePage() {
   return (
     <div>
       <ChairmanPageHeader title="My schedule" subtitle="Your assignments and weekly load for the selected term." />
-      <FacultyDashboardTermClient profileName={profile.name} />
+      <FacultyDashboardTermClient profileName={profile.name} surface="my-schedule" />
     </div>
   );
 }

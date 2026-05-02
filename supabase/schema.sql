@@ -744,6 +744,29 @@ with check (
   )
 );
 
+drop policy if exists studentprofile_select_instructor_roster on public."StudentProfile";
+create policy studentprofile_select_instructor_roster on public."StudentProfile"
+for select
+to authenticated
+using (
+  public.current_user_role() = 'instructor'
+  and (
+    exists (
+      select 1
+      from public."ScheduleEntry" se
+      where se."instructorId" = auth.uid()::text
+        and se."sectionId" = "StudentProfile"."sectionId"
+    )
+    or exists (
+      select 1
+      from public."FacultyProfile" fp
+      where fp."userId" = auth.uid()::text
+        and fp."advisorySectionId" is not null
+        and fp."advisorySectionId" = "StudentProfile"."sectionId"
+    )
+  )
+);
+
 -- Middleware / server: read own User row (SECURITY DEFINER; filters auth.uid() only)
 create or replace function public.auth_get_my_user_row()
 returns jsonb

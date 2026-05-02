@@ -2,22 +2,38 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Clock, MapPin, Megaphone, Users, BookOpen } from "lucide-react";
+import { ChevronRight, Clock, MapPin, Megaphone, Users, BookOpen, LayoutGrid } from "lucide-react";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { cn } from "@/components/ui/utils";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import type { User } from "@/types/db";
 
 type FacultyPayload = {
   rows: ScheduleRowView[];
   sectionIds: string[];
+  advisorySectionId?: string | null;
+  advisorySectionName?: string | null;
   studentCount: number;
   roster: User[];
   weeklyHours: number;
+  /** Same as `rows.length`: one per `ScheduleEntry` time slot (not credit units). */
+  weeklyMeetingRowCount?: number;
 };
 
-/** Dashboard body: schedule, load, and roster follow the shell semester filter (API + selected period). */
-export function FacultyDashboardTermClient({ profileName }: { profileName: string }) {
+export type FacultyDashboardSurface = "campus-intelligence" | "my-schedule";
+
+type Props = {
+  profileName: string;
+  /** Visual accent: maroon top stripe vs orange — same widgets, different entry context. */
+  surface?: FacultyDashboardSurface;
+};
+
+/**
+ * Faculty portal body for Campus Intelligence (`/faculty`) and My schedule (`/faculty/schedule`).
+ * Load and weekly hours use the same `ScheduleEntry` math as chairman evaluator / INS (`sumWeeklyContactHours`).
+ */
+export function FacultyDashboardTermClient({ profileName, surface = "campus-intelligence" }: Props) {
   const { selectedPeriodId, selectedPeriod, ready } = useSemesterFilter();
   const [data, setData] = useState<FacultyPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,11 +70,15 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
   const weeklyHours = data?.weeklyHours ?? 0;
   const studentCount = data?.studentCount ?? 0;
   const roster = data?.roster ?? [];
+  const advisoryName = data?.advisorySectionName?.trim() ?? "";
+  const advisoryId = data?.advisorySectionId?.trim() ?? "";
 
-  const sectionsLabel = useMemo(
-    () => [...new Set(rows.map((r) => r.section?.name).filter(Boolean))].join(", ") || "—",
+  const scheduleSectionNames = useMemo(
+    () => [...new Set(rows.map((r) => r.section?.name).filter(Boolean))] as string[],
     [rows],
   );
+
+  const meetingRows = data?.weeklyMeetingRowCount ?? rows.length;
 
   const displayName = profileName.replace(/^Prof\.\s*/i, "").split(",")[0]?.trim() ?? profileName;
   const periodLabel = selectedPeriod?.name ?? "Academic period";
@@ -72,13 +92,31 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-black tracking-tight">Welcome, {displayName}</h1>
-        <p className="text-sm text-black/60">
-          {periodLabel} · CTU Argao
-          {loading ? <span className="ml-2 text-black/40">Updating…</span> : null}
-        </p>
+    <div
+      className={cn(
+        "p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6 rounded-xl border border-black/8 bg-[#fafafa]/50",
+        surface === "my-schedule"
+          ? "border-t-[3px] border-t-[var(--color-opticore-orange)] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+          : "border-t-[3px] border-t-[#780301] shadow-[0_1px_0_rgba(0,0,0,0.04)]",
+      )}
+    >
+      <header className="flex flex-wrap items-start gap-3">
+        {surface === "my-schedule" ? (
+          <span className="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-opticore-orange)]/15 text-[var(--color-opticore-orange)]">
+            <LayoutGrid className="w-5 h-5" aria-hidden />
+          </span>
+        ) : (
+          <span className="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#780301]/10 text-[#780301]">
+            <LayoutGrid className="w-5 h-5" aria-hidden />
+          </span>
+        )}
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-black tracking-tight">Welcome, {displayName}</h1>
+          <p className="text-sm text-black/60">
+            {periodLabel} · CTU Argao
+            {loading ? <span className="ml-2 text-black/40">Updating…</span> : null}
+          </p>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -89,6 +127,7 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
           <div>
             <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Weekly contact (est.)</p>
             <p className="text-xl font-bold text-black">{weeklyHours} hrs</p>
+            <p className="text-[10px] text-black/45 mt-0.5 leading-snug">Sum of class meeting lengths from your rows.</p>
           </div>
         </div>
         <div className="rounded-xl bg-white border border-black/10 p-4 shadow-sm flex items-center gap-3">
@@ -96,8 +135,9 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Teaching blocks</p>
-            <p className="text-xl font-bold text-black">{rows.length}</p>
+            <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Weekly class meetings</p>
+            <p className="text-xl font-bold text-black">{meetingRows}</p>
+            <p className="text-[10px] text-black/45 mt-0.5 leading-snug">One per plotted schedule row (matches INS / evaluator).</p>
           </div>
         </div>
         <div className="rounded-xl bg-white border border-black/10 p-4 shadow-sm flex items-center gap-3">
@@ -105,15 +145,29 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Students (assigned sections)</p>
+            <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Students (your sections)</p>
             <p className="text-xl font-bold text-black">{studentCount}</p>
+            <p className="text-[10px] text-black/45 mt-0.5 leading-snug">Enrolled in sections you teach or advise.</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DashboardCard title="My teaching schedule & load">
-          <p className="text-xs text-black/50 mb-3">Sections: {sectionsLabel}</p>
+          <p className="text-xs text-black/50 mb-1">
+            <span className="font-medium text-black/60">Sections with classes:</span>{" "}
+            {scheduleSectionNames.length ? scheduleSectionNames.join(", ") : "—"}
+          </p>
+          {advisoryId ? (
+            <p className="text-xs text-black/60 mb-3">
+              <span className="font-medium text-[#780301]">Advisory:</span> {advisoryName || "Section on file"}
+              {rows.some((r) => r.section?.id === advisoryId) ? (
+                <span className="text-black/45"> (also listed above)</span>
+              ) : null}
+            </p>
+          ) : data ? (
+            <p className="text-xs text-black/45 mb-3">No advisory section on your faculty profile for this account.</p>
+          ) : null}
           {rows.length === 0 ? (
             <p className="text-sm text-black/55">No assignments for this term in the repository.</p>
           ) : (
@@ -159,20 +213,25 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
         </DashboardCard>
 
         <DashboardCard title="Assigned sections & student list">
-          <p className="text-sm text-black/65 mb-3">Students in sections you teach this term.</p>
+          <p className="text-sm text-black/65 mb-3">
+            Students enrolled in sections where you have at least one class meeting, or your advisory section.
+          </p>
           {roster.length === 0 ? (
-            <p className="text-sm text-black/55">No students found for your sections in this term.</p>
+            <p className="text-sm text-black/55">No students found for those sections in this term.</p>
           ) : (
             <ul className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
-              {roster.map((s) => (
-                <li
-                  key={s.id}
-                  className="flex justify-between gap-2 rounded-lg border border-black/8 px-3 py-2 text-sm bg-[#fafafa]"
-                >
-                  <span className="font-medium text-black truncate">{s.name}</span>
-                  <span className="text-black/45 text-xs shrink-0">{s.email}</span>
-                </li>
-              ))}
+              {roster
+                .slice()
+                .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
+                .map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex justify-between gap-2 rounded-lg border border-black/8 px-3 py-2 text-sm bg-[#fafafa]"
+                  >
+                    <span className="font-medium text-black truncate">{s.name}</span>
+                    <span className="text-black/45 text-xs shrink-0">{s.email}</span>
+                  </li>
+                ))}
             </ul>
           )}
         </DashboardCard>

@@ -100,6 +100,19 @@ export function sortScheduleRows(rows: ScheduleRowView[]): ScheduleRowView[] {
   });
 }
 
+/** Faculty advisory section (chairman/college assigns on Faculty Profile). */
+export async function getInstructorAdvisorySectionId(instructorUserId: string): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from("FacultyProfile")
+    .select("advisorySectionId")
+    .eq("userId", instructorUserId)
+    .maybeSingle();
+  const id = (data as { advisorySectionId?: string | null } | null)?.advisorySectionId?.trim();
+  return id || null;
+}
+
 export async function getInstructorScheduleRows(
   instructorUserId: string,
   academicPeriodId: string,
@@ -160,7 +173,9 @@ export async function getStudentRosterForSections(sectionIds: string[]): Promise
   const ids = [...new Set((profiles as { userId: string }[] | null)?.map((p) => p.userId) ?? [])];
   if (ids.length === 0) return [];
   const { data: users } = await supabase.from("User").select(USER_SCHEDULE_LOOKUP).in("id", ids).eq("role", "student");
-  return (users as User[]) ?? [];
+  const list = (users as User[]) ?? [];
+  const byId = new Map(list.map((u) => [u.id, u]));
+  return [...byId.values()];
 }
 
 export async function getRecentNotifications(userId: string, limit = 6) {
@@ -175,7 +190,10 @@ export async function getRecentNotifications(userId: string, limit = 6) {
   return data ?? [];
 }
 
-/** Total weekly contact hours from schedule entries (same slot duration logic as faculty policies). */
+/**
+ * Total weekly **contact hours** from `ScheduleEntry` rows: sum of (end − start) per row.
+ * Same duration arithmetic as evaluator load summaries so Faculty portal, INS 5A, and policy checks stay aligned.
+ */
 export function sumWeeklyContactHours(rows: ScheduleRowView[]): number {
   let h = 0;
   for (const r of rows) {

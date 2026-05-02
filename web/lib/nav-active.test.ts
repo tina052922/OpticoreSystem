@@ -24,4 +24,21 @@ describe("isNavItemActive", () => {
   it("returns false when pathname does not match href", () => {
     expect(isNavItemActive("/login", "/admin/college", collegeNav)).toBe(false);
   });
+
+  const instructorNav = [
+    "/faculty",
+    "/faculty/schedule",
+    "/faculty/ins?tab=faculty",
+    "/faculty/announcements",
+    "/campus-navigation",
+  ];
+
+  it("treats /faculty as exact-only so INS and other child routes do not highlight Campus Intelligence", () => {
+    expect(isNavItemActive("/faculty", "/faculty", instructorNav)).toBe(true);
+    expect(isNavItemActive("/faculty/ins", "/faculty", instructorNav)).toBe(false);
+    expect(isNavItemActive("/faculty/ins", "/faculty/ins?tab=faculty", instructorNav)).toBe(true);
+    expect(isNavItemActive("/faculty/ins", "/faculty/ins?tab=section", instructorNav)).toBe(true);
+    expect(isNavItemActive("/faculty/schedule", "/faculty/schedule", instructorNav)).toBe(true);
+    expect(isNavItemActive("/faculty/profile", "/faculty", instructorNav)).toBe(false);
+  });
 });
