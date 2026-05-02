@@ -65,7 +65,7 @@ export type INSFormFacultyProps = {
   chairmanProgramName?: string | null;
   /** When set (e.g. College Admin), live schedule uses this college even without chairman session props. */
   viewerCollegeId?: string | null;
-  /** Logged-in faculty: hide search and show only their plotted schedule. */
+  /** Logged-in faculty: read-only portal + request-change; search still lists college faculty when set. */
   lockedInstructorId?: string | null;
   /** DOI / VPAA: load all colleges’ schedule rows for INS Form 5A. */
   campusWide?: boolean;
@@ -89,7 +89,8 @@ export function INSFormFaculty({
 }: INSFormFacultyProps) {
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
-  const facultyPortalIns = insBasePath.includes("/faculty");
+  /** Instructor shell only (`/faculty/ins`); avoids treating `/chairman/ins` or other paths as faculty portal. */
+  const facultyPortalIns = insBasePath.startsWith("/faculty/ins");
   const instructorReadOnlyPortal = Boolean(facultyPortalIns && lockedInstructorId);
   const [changeModalOpen, setChangeModalOpen] = useState(false);
   const [changeModalEntryId, setChangeModalEntryId] = useState<string | null>(null);
@@ -113,8 +114,8 @@ export function INSFormFaculty({
     programId: chairmanProgramId,
     lockedInstructorId,
     campusWide,
-    instructorPortalUserId:
-      facultyPortalIns && lockedInstructorId ? lockedInstructorId : null,
+    /** Always full college `ScheduleEntry` set for 5A so hours/search match chairman INS (`ignoreProgramScope`). */
+    instructorPortalUserId: null,
   });
 
   /** College Admin + DOI: allow one-click GA apply; chairmen use the Evaluator for edits. */
@@ -446,13 +447,13 @@ export function INSFormFaculty({
                                   ? "/admin/gec/evaluator"
                                   : insBasePath.includes("/doi")
                                     ? "/doi/evaluator"
-                                    : insBasePath.includes("/faculty")
+                                    : insBasePath.startsWith("/faculty/ins")
                                       ? "/faculty"
                                       : "/chairman/evaluator"
                           }
                           className="cursor-pointer"
                         >
-                          {insBasePath.includes("/faculty") ? "Faculty home" : "Open Evaluator"}
+                          {insBasePath.startsWith("/faculty/ins") ? "Faculty home" : "Open Evaluator"}
                         </Link>
                       </DropdownMenuItem>
                     </DropdownMenuContent>

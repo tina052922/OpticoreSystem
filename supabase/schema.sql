@@ -655,7 +655,8 @@ create policy scheduleentry_select_student on public."ScheduleEntry"
 for select
 to authenticated
 using (
-  exists (
+  public.current_user_role() = 'student'
+  and exists (
     select 1
     from public."StudentProfile" sp
     where sp."userId" = auth.uid()::text
@@ -706,6 +707,42 @@ with check (
   )
 );
 
+-- Instructor roster: SECURITY DEFINER avoids ScheduleEntry ↔ StudentProfile RLS recursion.
+create or replace function public.instructor_can_select_roster_student_profile(p_section_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (
+      select u.role = 'instructor'
+      from public."User" u
+      where u.id = auth.uid()::text
+    ),
+    false
+  )
+  and (
+    exists (
+      select 1
+      from public."ScheduleEntry" se
+      where se."instructorId" = auth.uid()::text
+        and se."sectionId" = p_section_id
+    )
+    or exists (
+      select 1
+      from public."FacultyProfile" fp
+      where fp."userId" = auth.uid()::text
+        and fp."advisorySectionId" is not null
+        and fp."advisorySectionId" = p_section_id
+    )
+  );
+$$;
+
+revoke all on function public.instructor_can_select_roster_student_profile(text) from public;
+grant execute on function public.instructor_can_select_roster_student_profile(text) to authenticated;
+
 -- StudentProfile: own row; chairman CRUD for students in their college programs
 drop policy if exists studentprofile_select_own on public."StudentProfile";
 create policy studentprofile_select_own on public."StudentProfile"
@@ -750,21 +787,7 @@ for select
 to authenticated
 using (
   public.current_user_role() = 'instructor'
-  and (
-    exists (
-      select 1
-      from public."ScheduleEntry" se
-      where se."instructorId" = auth.uid()::text
-        and se."sectionId" = "StudentProfile"."sectionId"
-    )
-    or exists (
-      select 1
-      from public."FacultyProfile" fp
-      where fp."userId" = auth.uid()::text
-        and fp."advisorySectionId" is not null
-        and fp."advisorySectionId" = "StudentProfile"."sectionId"
-    )
-  )
+  and public.instructor_can_select_roster_student_profile("StudentProfile"."sectionId")
 );
 
 -- Middleware / server: read own User row (SECURITY DEFINER; filters auth.uid() only)

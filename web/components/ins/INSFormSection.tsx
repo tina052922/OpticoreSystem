@@ -71,7 +71,7 @@ export function INSFormSection({
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Faculty portal: read-only INS; no conflict run or automated fixes. */
-  const instructorFacultyPortal = insBasePath.includes("/faculty");
+  const instructorFacultyPortal = insBasePath.startsWith("/faculty/ins");
 
   const catalog = useInsCatalog({
     collegeId: effectiveCollegeId,

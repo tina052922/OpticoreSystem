@@ -2,7 +2,7 @@
 
 Use after releases or changes to scheduling, INS, GEC access, auth, RLS, profile uploads, and role-based views.
 
-**Before instructor INS tests:** apply migrations including `20260502140000_scheduleentry_select_instructor_college_ins.sql` (college INS browse) and **`20260502160000_studentprofile_select_instructor_roster.sql`** (student roster + counts on Campus Intelligence / My schedule).
+**Before instructor INS tests:** apply migrations including `20260502140000_scheduleentry_select_instructor_college_ins.sql` (college INS browse), **`20260502160000_studentprofile_select_instructor_roster.sql`**, and **`20260502180000_fix_scheduleentry_studentprofile_rls_recursion.sql`** (fixes “infinite recursion” on `ScheduleEntry` / restores rows).
 
 ---
 
