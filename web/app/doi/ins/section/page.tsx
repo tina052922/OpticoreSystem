@@ -1,14 +1,5 @@
-import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { INSFormSection } from "@/components/ins/INSFormSection";
+import { redirect } from "next/navigation";
 
-export default function DoiInsSectionPage() {
-  return (
-    <div>
-      <ChairmanPageHeader
-        title="INS Form"
-        subtitle="Section schedule view — campus-wide; filter by college and department."
-      />
-      <INSFormSection insBasePath="/doi/ins" campusWide />
-    </div>
-  );
+export default function DoiInsSectionRedirectPage() {
+  redirect("/doi/ins?tab=section");
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,10 +16,12 @@ import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { buildInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
+import { mergeInsSignerDisplay } from "@/lib/ins/merge-ins-signer-display";
 import { buildInsSectionView, emptyInsSectionSchedule } from "@/lib/ins/build-ins-section-view";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
-import { InsEntityGroupingStrip } from "@/components/ins/InsEntityGroupingStrip";
+import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
+import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -67,7 +68,6 @@ export function INSFormSection({
   instructorPortalUserId = null,
   hideInnerInsTabs = false,
 }: INSFormSectionProps) {
-  const pathname = usePathname();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
 
@@ -81,6 +81,9 @@ export function INSFormSection({
   const enableInsAltApply =
     (campusWide || insBasePath.includes("/college")) && useLiveData && !catalog.termPublishLocked;
   const [insAltBusy, setInsAltBusy] = useState(false);
+  const facultyInnerActive = useInsInnerTabIsActive(insBasePath, "faculty");
+  const sectionInnerActive = useInsInnerTabIsActive(insBasePath, "section");
+  const roomInnerActive = useInsInnerTabIsActive(insBasePath, "room");
 
   const [selectedSectionId, setSelectedSectionId] = useState("");
 
@@ -135,7 +138,7 @@ export function INSFormSection({
     const sec = catalog.sectionById.get(selectedSectionId);
     const pr = sec ? catalog.programById.get(sec.programId) : null;
     const collegeRow = pr ? catalog.colleges.find((c) => c.id === pr.collegeId) ?? null : null;
-    return buildInsSignatureSlots({
+    const built = buildInsSignatureSlots({
       college: collegeRow,
       programId: sec?.programId ?? null,
       users: catalog.users,
@@ -144,6 +147,11 @@ export function INSFormSection({
       mode: "sectionCampusOnly",
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
     });
+    return mergeInsSignerDisplay(
+      built,
+      catalog.campusInsSettings?.insSignerDisplay ?? null,
+      collegeRow?.insSignerDisplay ?? null,
+    );
   }, [
     useLiveData,
     selectedSectionId,
@@ -154,6 +162,7 @@ export function INSFormSection({
     catalog.userById,
     catalog.termPublishLocked,
     catalog.campusWideDirectorSignatureUrl,
+    catalog.campusInsSettings?.insSignerDisplay,
   ]);
 
   const sectionConflictCount = useMemo(() => {
@@ -263,32 +272,28 @@ export function INSFormSection({
 
         <div className="max-w-[1200px] mx-auto space-y-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
-          <p className="text-gray-600 text-sm">
-            Program by section (5B). Search narrows sections with classes in the current term; when only one matches,
-            that section&apos;s schedule appears automatically.
-          </p>
+          <p className="text-gray-600 text-sm">Program by Section (5B).</p>
         </div>
 
         {!hideInnerInsTabs ? (
           <div className="flex gap-2 border-b border-gray-200 flex-wrap no-print">
-            {[
-              { label: "INS Faculty", href: `${insBasePath}/faculty` },
-              { label: "INS Section", href: `${insBasePath}/section` },
-              { label: "INS Room", href: `${insBasePath}/room` },
-            ].map((t) => {
-              const active = pathname === t.href;
-              return (
-                <Link
-                  key={t.href}
-                  href={t.href}
-                  className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
-                    active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
-                  }`}
-                >
-                  {t.label}
-                </Link>
-              );
-            })}
+            {(
+              [
+                { label: "Faculty view", href: insTabHref(insBasePath, "faculty"), active: facultyInnerActive },
+                { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
+                { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
+              ] as const
+            ).map((t) => (
+              <Link
+                key={t.label}
+                href={t.href}
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
+                  t.active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
           </div>
         ) : null}
 
@@ -308,7 +313,7 @@ export function INSFormSection({
         ) : null}
         {useLiveData && catalog.periodLabel ? (
           <p className="text-xs text-gray-600 no-print">
-            Live term: <strong>{catalog.periodLabel}</strong>
+            Term: <strong>{catalog.periodLabel}</strong>
             {catalog.loading ? " · Loading…" : null}
           </p>
         ) : null}

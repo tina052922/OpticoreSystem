@@ -75,7 +75,7 @@ export default async function ChairmanDashboardPage() {
                 Evaluator
               </Link>
               <Link
-                href="/chairman/ins/faculty"
+                href="/chairman/ins?tab=faculty"
                 className="flex items-center gap-2 rounded-lg border border-black/10 bg-white px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/60"
               >
                 <BookOpen className="w-4 h-4 text-[var(--color-opticore-orange)]" />

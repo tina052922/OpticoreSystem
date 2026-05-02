@@ -2,8 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +18,10 @@ import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocume
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
-import { InsEntityGroupingStrip } from "@/components/ins/InsEntityGroupingStrip";
+import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
+import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
+import { FacultyScheduleChangeModal } from "@/components/faculty/FacultyScheduleChangeModal";
+import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import type { AcademicPeriod } from "@/types/db";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
@@ -85,11 +87,26 @@ export function INSFormFaculty({
   doiApprovalSlot,
   hideInnerInsTabs = false,
 }: INSFormFacultyProps) {
-  const pathname = usePathname();
-
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   const facultyPortalIns = insBasePath.includes("/faculty");
+  const instructorReadOnlyPortal = Boolean(facultyPortalIns && lockedInstructorId);
+  const [changeModalOpen, setChangeModalOpen] = useState(false);
+  const [changeModalEntryId, setChangeModalEntryId] = useState<string | null>(null);
+  const facultyInnerActive = useInsInnerTabIsActive(insBasePath, "faculty");
+  const sectionInnerActive = useInsInnerTabIsActive(insBasePath, "section");
+  const roomInnerActive = useInsInnerTabIsActive(insBasePath, "room");
+
+  useEffect(() => {
+    if (!instructorReadOnlyPortal || typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("requestChange") !== "1") return;
+    setChangeModalEntryId(null);
+    setChangeModalOpen(true);
+    q.delete("requestChange");
+    const qs = q.toString();
+    window.history.replaceState({}, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  }, [instructorReadOnlyPortal]);
 
   const live = useInsLiveSchedule({
     collegeId: effectiveCollegeId,
@@ -147,7 +164,7 @@ export function INSFormFaculty({
 
   function runInsConflict() {
     if (!useLiveData) {
-      alert("Connect to Supabase with a college scope to run conflict checks on live data.");
+      alert("Set a college scope to run conflict checks on live data.");
       return;
     }
     const detail = live.getInsConflictAlertText();
@@ -202,12 +219,21 @@ export function INSFormFaculty({
         <div className="max-w-[1200px] mx-auto space-y-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
-            <p className="text-gray-600 text-sm">
-              Official INS forms — Program by Teacher (5A), Section (5B), Room (5C). Faculty view reflects{" "}
-              <strong>Evaluator / ScheduleEntry</strong> data when a college is in scope (updates via Supabase
-              Realtime).
-            </p>
+            {instructorReadOnlyPortal ? (
+              <p className="text-gray-600 text-sm">Your teaching schedule for the term selected in the header.</p>
+            ) : (
+              <p className="text-gray-600 text-sm">Program by Teacher (5A). Use the header to pick the term.</p>
+            )}
           </div>
+
+          {instructorReadOnlyPortal && live.academicPeriodId ? (
+            <FacultyScheduleChangeModal
+              open={changeModalOpen}
+              onOpenChange={setChangeModalOpen}
+              academicPeriodId={live.academicPeriodId}
+              initialScheduleEntryId={changeModalEntryId}
+            />
+          ) : null}
 
           {doiApprovalSlot
             ? doiApprovalSlot({
@@ -218,30 +244,37 @@ export function INSFormFaculty({
               })
             : null}
 
+          {(insBasePath.includes("/admin/college") || insBasePath.includes("/doi")) && !lockedInstructorId && useLiveData ? (
+            <InsSignerLabelsEditor
+              mode={insBasePath.includes("/doi") ? "doi" : "college"}
+              collegeId={live.signerEditorCollegeId}
+              onUpdated={() => void live.reload()}
+            />
+          ) : null}
+
           {!hideInnerInsTabs ? (
             <div className="flex gap-2 border-b border-gray-200 flex-wrap">
-              {[
-                { label: "INS Faculty", href: `${insBasePath}/faculty` },
-                { label: "INS Section", href: `${insBasePath}/section` },
-                { label: "INS Room", href: `${insBasePath}/room` },
-              ].map((t) => {
-                const active = pathname === t.href;
-                return (
-                  <Link
-                    key={t.href}
-                    href={t.href}
-                    className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
-                      active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
-                    }`}
-                  >
-                    {t.label}
-                  </Link>
-                );
-              })}
+              {(
+                [
+                  { label: "Faculty view", tab: "faculty" as const, href: insTabHref(insBasePath, "faculty"), active: facultyInnerActive },
+                  { label: "Section view", tab: "section" as const, href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
+                  { label: "Room view", tab: "room" as const, href: insTabHref(insBasePath, "room"), active: roomInnerActive },
+                ] as const
+              ).map((t) => (
+                <Link
+                  key={t.tab}
+                  href={t.href}
+                  className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
+                    t.active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                  }`}
+                >
+                  {t.label}
+                </Link>
+              ))}
             </div>
           ) : null}
 
-          {useLiveData && !lockedInstructorId && insBasePath ? (
+          {useLiveData && insBasePath && (!lockedInstructorId || hideInnerInsTabs) ? (
             <InsEntityGroupingStrip
               insBasePath={insBasePath}
               facultyCount={live.instructorOptions.length}
@@ -255,16 +288,13 @@ export function INSFormFaculty({
               {live.error}
             </p>
           ) : null}
-          {useLiveData && live.insConflictLinesForFaculty.length > 0 ? (
+          {useLiveData && !instructorReadOnlyPortal && live.insConflictLinesForFaculty.length > 0 ? (
             <div
               className="rounded-lg border border-amber-300 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 space-y-1.5 no-print"
               role="status"
             >
               <p className="font-semibold">Schedule conflicts involving this instructor</p>
-              <p className="text-xs text-amber-950/85">
-                The form below stays printable. Resolve overlaps in the Evaluator; optional rescheduling ideas come from
-                the same campus scan as &quot;Run conflict check&quot;.
-              </p>
+              <p className="text-xs text-amber-950/85">The form below stays printable. Resolve overlaps in your scheduling tool.</p>
               <ul className="list-disc pl-5 text-xs space-y-1">
                 {live.insConflictLinesForFaculty.map((line, i) => (
                   <li key={i}>{line}</li>
@@ -282,17 +312,14 @@ export function INSFormFaculty({
                   >
                     {insAltBusy ? "Applying…" : "Apply alternative solution (first conflict)"}
                   </Button>
-                  <p className="mt-1 text-[10px] text-amber-950/80">
-                    Updates one overlapping row using the same rule-based resolver as the chairman evaluator. Resolve
-                    any remaining conflicts in the Evaluator if needed.
-                  </p>
+                  <p className="mt-1 text-[10px] text-amber-950/80">Adjusts one overlapping class using the suggested fix.</p>
                 </div>
               ) : null}
             </div>
           ) : null}
-          {useLiveData && live.periodLabel ? (
+          {useLiveData && live.periodLabel && !instructorReadOnlyPortal ? (
             <p className="text-xs text-gray-600">
-              Live term: <strong>{live.periodLabel}</strong>
+              Term: <strong>{live.periodLabel}</strong>
               {live.loading ? " · Loading…" : null}
             </p>
           ) : null}
@@ -328,73 +355,91 @@ export function INSFormFaculty({
                   </>
                 )
               ) : (
-                <p className="text-sm text-gray-500">
-                  Demo mode: set a college scope (Chairman or College Admin) for live data.
-                </p>
+                <p className="text-sm text-gray-500">No college scope — preview only.</p>
               )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
-              {enableInsAltApply && live.insConflictLinesForFaculty.length > 0 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
-                  disabled={insAltBusy || !live.selectedInstructorId}
-                  onClick={() => void applyFirstInsAlternative()}
-                >
-                  {insAltBusy ? "Applying…" : "Apply alternative"}
-                </Button>
-              ) : null}
-              <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
-                Run Conflict Check
-              </Button>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="bg-white" aria-label="More actions">
-                    <MoreHorizontal className="w-5 h-5" />
+              {instructorReadOnlyPortal ? (
+                <>
+                  <Button
+                    type="button"
+                    className="bg-[#780301] hover:bg-[#5c0201] text-white font-semibold"
+                    onClick={() => {
+                      setChangeModalEntryId(null);
+                      setChangeModalOpen(true);
+                    }}
+                  >
+                    Request schedule change
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem onClick={handleDownload}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Download / Save as PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void onShare()}>
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Share INS Form
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.print()}>
-                    <Printer className="w-4 h-4 mr-2" />
-                    Print INS Form
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href={
-                        insBasePath.includes("/college")
-                          ? "/admin/college/evaluator"
-                          : insBasePath.includes("/cas")
-                            ? "/admin/cas/evaluator"
-                            : insBasePath.includes("/gec")
-                              ? "/admin/gec/evaluator"
-                              : insBasePath.includes("/doi")
-                                ? "/doi/evaluator"
-                                : insBasePath.includes("/faculty")
-                                  ? "/faculty"
-                                  : "/chairman/evaluator"
-                      }
-                      className="cursor-pointer"
+                  <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
+                    Print / PDF
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {enableInsAltApply && live.insConflictLinesForFaculty.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
+                      disabled={insAltBusy || !live.selectedInstructorId}
+                      onClick={() => void applyFirstInsAlternative()}
                     >
-                      {insBasePath.includes("/faculty") ? "Faculty home" : "Open Evaluator"}
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      {insAltBusy ? "Applying…" : "Apply alternative"}
+                    </Button>
+                  ) : null}
+                  <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
+                    Run Conflict Check
+                  </Button>
 
-              <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
-                Print / PDF
-              </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="bg-white" aria-label="More actions">
+                        <MoreHorizontal className="w-5 h-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onClick={handleDownload}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Download / Save as PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => void onShare()}>
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Share INS Form
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => window.print()}>
+                        <Printer className="w-4 h-4 mr-2" />
+                        Print INS Form
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href={
+                            insBasePath.includes("/college")
+                              ? "/admin/college/evaluator"
+                              : insBasePath.includes("/cas")
+                                ? "/admin/cas/evaluator"
+                                : insBasePath.includes("/gec")
+                                  ? "/admin/gec/evaluator"
+                                  : insBasePath.includes("/doi")
+                                    ? "/doi/evaluator"
+                                    : insBasePath.includes("/faculty")
+                                      ? "/faculty"
+                                      : "/chairman/evaluator"
+                          }
+                          className="cursor-pointer"
+                        >
+                          {insBasePath.includes("/faculty") ? "Faculty home" : "Open Evaluator"}
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
+                    Print / PDF
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -413,6 +458,15 @@ export function INSFormFaculty({
               facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
               facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
               conflictingScheduleEntryIds={useLiveData ? live.insConflictingEntryIds : null}
+              clickableScheduleEntryCells={instructorReadOnlyPortal}
+              onScheduleEntryClick={
+                instructorReadOnlyPortal
+                  ? (id) => {
+                      setChangeModalEntryId(id);
+                      setChangeModalOpen(true);
+                    }
+                  : undefined
+              }
             />
           </div>
         </div>

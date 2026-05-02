@@ -178,7 +178,7 @@ export function DoiScheduleHubClient() {
           </p>
           <div className="flex flex-wrap gap-2">
             <Button asChild className="bg-[var(--color-opticore-orange)] hover:bg-[#e88909] text-white">
-              <Link href="/doi/ins/faculty">INS — Faculty</Link>
+              <Link href="/doi/ins?tab=faculty">INS Form</Link>
             </Button>
             <Button asChild variant="outline">
               <Link href="/doi/ins/section">INS — Section</Link>

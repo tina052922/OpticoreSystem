@@ -12,7 +12,7 @@ export function getDefaultHomeForRole(role: string): string {
     case "doi_admin":
       return "/doi/dashboard";
     case "instructor":
-      return "/faculty/schedule";
+      return "/faculty/ins?tab=faculty";
     case "student":
       return "/student";
     case "visitor":

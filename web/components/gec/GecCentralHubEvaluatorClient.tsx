@@ -96,8 +96,6 @@ export function GecCentralHubEvaluatorClient() {
   const isCampusWide = collegeParam === CAMPUS_WIDE_COLLEGE_SLUG;
 
   const { requests, loading: accessLoading, reload: reloadAccess } = useAccessRequests();
-  const canEditVacant = hasActiveScopeGrant(requests, "gec_vacant_slots");
-  const approvalState = getGecVacantSlotApprovalUiState(requests);
 
   const [colleges, setColleges] = useState<College[]>([]);
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
@@ -427,6 +425,30 @@ export function GecCentralHubEvaluatorClient() {
     return collegeParam;
   }, [collegeParam, isCampusWide]);
 
+  /** College id for the section being plotted (required for conflict checks vs campus-wide URL). */
+  const plotCollegeId = useMemo(() => {
+    if (!sectionIdFilter) return null;
+    const sec = sectionById.get(sectionIdFilter);
+    const pr = sec ? programById.get(sec.programId) : null;
+    return pr?.collegeId ?? null;
+  }, [sectionIdFilter, sectionById, programById]);
+
+  const grantScopeCollegeId = useMemo(() => {
+    if (!isCampusWide) return collegeParam || null;
+    return plotCollegeId;
+  }, [isCampusWide, collegeParam, plotCollegeId]);
+
+  const canEditVacant = useMemo(
+    () =>
+      grantScopeCollegeId ? hasActiveScopeGrant(requests, "gec_vacant_slots", grantScopeCollegeId) : false,
+    [requests, grantScopeCollegeId],
+  );
+
+  const approvalState = useMemo(
+    () => getGecVacantSlotApprovalUiState(requests, grantScopeCollegeId),
+    [requests, grantScopeCollegeId],
+  );
+
   /** Rows that are vacant GEC placeholders (DB + newly added local rows). */
   const vacantGecSourceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -618,14 +640,6 @@ export function GecCentralHubEvaluatorClient() {
     facultyProfileByUserId,
     collegeNameById,
   ]);
-
-  /** College id for the section being plotted (required for conflict checks vs campus-wide URL). */
-  const plotCollegeId = useMemo(() => {
-    if (!sectionIdFilter) return null;
-    const sec = sectionById.get(sectionIdFilter);
-    const pr = sec ? programById.get(sec.programId) : null;
-    return pr?.collegeId ?? null;
-  }, [sectionIdFilter, sectionById, programById]);
 
   const entryInstructorIdsForPlotMerge = useMemo(
     () => mergedEntries.map((e) => e.instructorId).filter(Boolean) as string[],
@@ -1006,11 +1020,10 @@ export function GecCentralHubEvaluatorClient() {
       <div>
         <ChairmanPageHeader
           title="Central Hub Evaluator"
-          subtitle="High-level view of today's academic activity and room usage. GEC edits apply only to vacant GEC slots after College Admin approval."
+          subtitle="Pick a college or open the campus-wide timetable. Vacant GEC edits require approval for that college."
         />
         <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
           <GecHubEvaluatorTabs collegeParam="" panel="timetabling" />
-          <GecVacantSlotsApprovalGate state={approvalState} loading={accessLoading} />
           <p className="text-[14px] text-black/70 mb-8 text-center">
             Campus-wide scope — open the full timetable or select one college, then pick a section to plot GEC subjects
             into highlighted vacant slots.
@@ -1038,10 +1051,7 @@ export function GecCentralHubEvaluatorClient() {
               ))}
             </div>
           )}
-          <p className="text-[12px] text-black/45 mt-8 text-center">
-            Same Campus Intelligence shell and hub pattern as College Admin; major subjects stay locked — only vacant GEC
-            rows are editable when approved.
-          </p>
+          <p className="text-[12px] text-black/45 mt-8 text-center">Major subjects stay locked; vacant GEC rows follow per-college approval.</p>
         </div>
       </div>
     );
@@ -1096,7 +1106,11 @@ export function GecCentralHubEvaluatorClient() {
 
         <GecHubEvaluatorTabs collegeParam={collegeParam} panel="timetabling" />
 
-        <GecVacantSlotsApprovalGate state={approvalState} loading={accessLoading} />
+        <GecVacantSlotsApprovalGate
+          state={approvalState}
+          loading={accessLoading}
+          collegeId={grantScopeCollegeId}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <label className="block min-w-[200px]">
@@ -1332,13 +1346,6 @@ export function GecCentralHubEvaluatorClient() {
                     Could not resolve this section&apos;s college — check program linkage in the database.
                   </p>
                 )}
-
-                {!canEditVacant ? (
-                  <p className="text-sm text-black/55">
-                    College Admin must approve <strong>gec_vacant_slots</strong> before you can edit the highlighted vacant
-                    rows. Overview remains visible for context.
-                  </p>
-                ) : null}
 
                 {/* Bottom: INS-style schedule preview — reflects merged local edits immediately */}
                 <GecSectionSchedulePreview

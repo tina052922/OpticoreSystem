@@ -32,7 +32,7 @@ export default async function FacultyProfilePage() {
           </div>
         </dl>
         <Link
-          href="/account/change-password?next=/faculty/schedule"
+          href="/account/change-password?next=/faculty/ins%3Ftab%3Dfaculty"
           className="inline-flex text-sm font-semibold text-[#780301] hover:underline"
         >
           Change password

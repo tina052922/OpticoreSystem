@@ -227,13 +227,17 @@ function InsSignatureStrip({
               >
                 {s.lineSubtitle}
               </div>
-              {scheduleApproved && s.signerName ? (
-                <div
-                  className={`mt-0.5 text-center font-medium leading-tight text-neutral-900 line-clamp-2 ${compactPrint ? "text-[7px] print:text-[6pt]" : "text-[8px]"}`}
-                >
-                  {s.signerName}
-                </div>
-              ) : null}
+              <div
+                className={`mt-0.5 min-h-[0.9rem] text-center font-medium leading-tight text-neutral-900 line-clamp-2 ${compactPrint ? "text-[7px] print:text-[6pt]" : "text-[8px]"}`}
+              >
+                {scheduleApproved && s.signerName ? (
+                  s.signerName
+                ) : (
+                  <span className="font-normal text-neutral-400 print:text-neutral-500 print:block print:min-h-[0.65rem] print:border-b print:border-neutral-400">
+                    {"\u00A0"}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

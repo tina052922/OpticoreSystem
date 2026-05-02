@@ -6,7 +6,7 @@ export const Q = {
   scheduleEntry:
     "id,academicPeriodId,subjectId,instructorId,sectionId,roomId,day,startTime,endTime,status,lockedByDoiAt",
   academicPeriod: "id,name,semester,academicYear,isCurrent,startDate,endDate",
-  college: "id,code,name,campusDirectorUserId,contractSignerUserId",
+  college: "id,code,name,campusDirectorUserId,contractSignerUserId,insSignerDisplay",
   program: "id,code,name,collegeId",
   section: "id,programId,name,yearLevel,studentCount",
   subject: "id,code,subcode,title,lecUnits,lecHours,labUnits,labHours,programId,yearLevel,semester,prerequisiteNote",
@@ -16,7 +16,7 @@ export const Q = {
     "id,email,name,role,collegeId,employeeId,chairmanProgramId,signatureImageUrl",
   /** Includes employeeId — Evaluator plots by Employee ID (join key for instructor self-registration). */
   userChairmanScope: "id,email,name,role,collegeId,employeeId",
-  campusInsSettings: "id,campusDirectorSignatureImageUrl,updatedAt",
+  campusInsSettings: "id,campusDirectorSignatureImageUrl,insSignerDisplay,updatedAt",
   scheduleLoadJustification:
     "id,academicPeriodId,collegeId,authorUserId,authorName,authorEmail,facultyUserId,scheduleEntryId,justification,violationsSnapshot,createdAt,updatedAt,doiDecision,doiReviewedAt,doiReviewedById,doiReviewNote",
   /** Policy / evaluator loads (name + policy fields) */

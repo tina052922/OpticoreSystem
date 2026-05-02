@@ -147,10 +147,9 @@ export function CiDashboard({
     },
   ];
 
-  /** Program Chairman + College Admin + DOI: centralized `ScheduleEntry` (no workflow Inbox quick link). CAS keeps Inbox. */
   const fullQuickLinks: { label: string; href: string }[] = [
     { label: "Evaluator", href: `${basePath}/evaluator` },
-    { label: "INS Form (Schedule View)", href: `${basePath}/ins/faculty` },
+    { label: "INS Form", href: `${basePath}/ins?tab=faculty` },
     { label: "Subject Codes", href: `${basePath}/subject-codes` },
     { label: "Faculty Profile", href: `${basePath}/faculty-profile` },
   ];
@@ -164,10 +163,8 @@ export function CiDashboard({
 
   const gecQuickLinks = [
     { label: "Central Hub Evaluator", href: "/admin/gec/evaluator" },
-    { label: "INS · Faculty (5A)", href: "/admin/gec/ins/faculty" },
-    { label: "INS · Section (5B)", href: "/admin/gec/ins/section" },
-    { label: "INS · Room (5C)", href: "/admin/gec/ins/room" },
-    { label: "Request Approval to Edit Vacant GEC Slots", href: "/admin/gec/request-access" },
+    { label: "INS Form", href: "/admin/gec/ins?tab=faculty" },
+    { label: "Request access", href: "/admin/gec/request-access" },
     { label: "Campus navigation", href: "/campus-navigation" },
   ];
 
