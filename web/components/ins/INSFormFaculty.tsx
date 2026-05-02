@@ -220,7 +220,7 @@ export function INSFormFaculty({
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
             {instructorReadOnlyPortal ? (
-              <p className="text-gray-600 text-sm">Your teaching schedule for the term selected in the header.</p>
+              <p className="text-gray-600 text-sm">Browse by faculty, section, or room for the term in the header.</p>
             ) : (
               <p className="text-gray-600 text-sm">Program by Teacher (5A). Use the header to pick the term.</p>
             )}
@@ -317,8 +317,8 @@ export function INSFormFaculty({
               ) : null}
             </div>
           ) : null}
-          {useLiveData && live.periodLabel && !instructorReadOnlyPortal ? (
-            <p className="text-xs text-gray-600">
+          {useLiveData && live.periodLabel ? (
+            <p className={`text-xs text-gray-600 ${instructorReadOnlyPortal ? "no-print" : ""}`}>
               Term: <strong>{live.periodLabel}</strong>
               {live.loading ? " · Loading…" : null}
             </p>
@@ -329,15 +329,21 @@ export function INSFormFaculty({
           ) : null}
 
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="w-full lg:max-w-md space-y-1">
+            <div className="w-full lg:max-w-md space-y-3">
               {useLiveData ? (
-                lockedInstructorId ? (
-                  <div className="rounded-lg border border-[var(--color-opticore-orange)]/30 bg-[var(--color-opticore-orange)]/10 px-3 py-2">
-                    <p className="text-xs font-semibold text-black/60 uppercase tracking-wide">Your teaching load</p>
-                    <p className="text-sm font-medium text-black">{displayFacultyName}</p>
-                  </div>
-                ) : (
-                  <>
+                <>
+                  {lockedInstructorId ? (
+                    <div className="rounded-lg border border-[var(--color-opticore-orange)]/30 bg-[var(--color-opticore-orange)]/10 px-3 py-2">
+                      <p className="text-xs font-semibold text-black/60 uppercase tracking-wide">
+                        {live.selectedInstructorId === lockedInstructorId ? "Your teaching load" : "Faculty preview"}
+                      </p>
+                      <p className="text-sm font-medium text-black">{displayFacultyName}</p>
+                      {instructorReadOnlyPortal && live.selectedInstructorId !== lockedInstructorId ? (
+                        <p className="text-[11px] text-black/55 mt-1">Request a change only from your own grid.</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {lockedInstructorId ? (
                     <InsScheduleEntitySearch
                       label="Faculty / instructor (search)"
                       placeholder="Type name — schedule updates when one match"
@@ -347,13 +353,28 @@ export function INSFormFaculty({
                       disabled={live.loading || live.instructorOptions.length === 0}
                       listId="ins-faculty-list"
                     />
-                    {!live.loading && live.instructorOptions.length === 0 ? (
-                      <p className="text-xs text-amber-800">
-                        No faculty with classes this term yet — use Evaluator to plot.
-                      </p>
-                    ) : null}
-                  </>
-                )
+                  ) : (
+                    <>
+                      <InsScheduleEntitySearch
+                        label="Faculty / instructor (search)"
+                        placeholder="Type name — schedule updates when one match"
+                        options={live.instructorOptions}
+                        selectedId={live.selectedInstructorId}
+                        onSelectedIdChange={live.setSelectedInstructorId}
+                        disabled={live.loading || live.instructorOptions.length === 0}
+                        listId="ins-faculty-list"
+                      />
+                      {!live.loading && live.instructorOptions.length === 0 ? (
+                        <p className="text-xs text-amber-800">
+                          No faculty with classes this term yet — use Evaluator to plot.
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                  {lockedInstructorId && !live.loading && live.instructorOptions.length === 0 ? (
+                    <p className="text-xs text-amber-800">No faculty rows for this term yet.</p>
+                  ) : null}
+                </>
               ) : (
                 <p className="text-sm text-gray-500">No college scope — preview only.</p>
               )}
@@ -362,16 +383,18 @@ export function INSFormFaculty({
             <div className="flex flex-wrap items-center gap-3 justify-end">
               {instructorReadOnlyPortal ? (
                 <>
-                  <Button
-                    type="button"
-                    className="bg-[#780301] hover:bg-[#5c0201] text-white font-semibold"
-                    onClick={() => {
-                      setChangeModalEntryId(null);
-                      setChangeModalOpen(true);
-                    }}
-                  >
-                    Request schedule change
-                  </Button>
+                  {live.selectedInstructorId === lockedInstructorId ? (
+                    <Button
+                      type="button"
+                      className="bg-[#780301] hover:bg-[#5c0201] text-white font-semibold"
+                      onClick={() => {
+                        setChangeModalEntryId(null);
+                        setChangeModalOpen(true);
+                      }}
+                    >
+                      Request schedule change
+                    </Button>
+                  ) : null}
                   <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
                     Print / PDF
                   </Button>
@@ -458,9 +481,11 @@ export function INSFormFaculty({
               facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
               facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
               conflictingScheduleEntryIds={useLiveData ? live.insConflictingEntryIds : null}
-              clickableScheduleEntryCells={instructorReadOnlyPortal}
+              clickableScheduleEntryCells={
+                instructorReadOnlyPortal && live.selectedInstructorId === lockedInstructorId
+              }
               onScheduleEntryClick={
-                instructorReadOnlyPortal
+                instructorReadOnlyPortal && live.selectedInstructorId === lockedInstructorId
                   ? (id) => {
                       setChangeModalEntryId(id);
                       setChangeModalOpen(true);

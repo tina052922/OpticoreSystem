@@ -76,6 +76,7 @@ export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
 /** Instructor (faculty portal) — Campus Intelligence shell + semester filter. */
 export const INSTRUCTOR_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/faculty", icon: "LayoutDashboard" },
+  { label: "My schedule", href: "/faculty/schedule", icon: "CalendarPlus" },
   { label: "INS Form", href: "/faculty/ins?tab=faculty", icon: "BookOpen" },
   { label: "Announcements", href: "/faculty/announcements", icon: "Megaphone" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },

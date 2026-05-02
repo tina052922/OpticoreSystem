@@ -64,6 +64,7 @@ export function INSFormRoom({
 }: INSFormRoomProps) {
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
+  const instructorFacultyPortal = insBasePath.includes("/faculty");
 
   const catalog = useInsCatalog({
     collegeId: effectiveCollegeId,
@@ -84,10 +85,9 @@ export function INSFormRoom({
   const firstRoomId = catalog.roomOptions[0]?.id ?? "";
 
   useEffect(() => {
-    if (!instructorPortalUserId) return;
     if (selectedRoomId) return;
     if (firstRoomId) setSelectedRoomId(firstRoomId);
-  }, [instructorPortalUserId, selectedRoomId, firstRoomId]);
+  }, [selectedRoomId, firstRoomId]);
 
   const { schedule, roomLabel } = useMemo(() => {
     if (!useLiveData) {
@@ -328,7 +328,7 @@ export function INSFormRoom({
           </div>
         ) : null}
 
-        {useLiveData && roomConflictCount > 0 ? (
+        {useLiveData && roomConflictCount > 0 && !instructorFacultyPortal ? (
           <div
             className="rounded-lg border border-red-300/80 bg-red-50/90 px-3 py-2 text-sm text-red-950 space-y-1.5 no-print"
             role="status"
@@ -370,64 +370,77 @@ export function INSFormRoom({
           )}
 
           <div className="flex flex-wrap items-center gap-3 justify-end">
-            {enableInsAltApply && roomConflictCount > 0 ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
-                disabled={insAltBusy || !selectedRoomId}
-                onClick={() => void applyFirstInsAlternative()}
-              >
-                {insAltBusy ? "Applying…" : "Apply alternative"}
-              </Button>
-            ) : null}
-            <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
-              Run Conflict Check
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="bg-white" aria-label="More actions">
-                  <MoreHorizontal className="w-5 h-5" />
+            {instructorFacultyPortal ? (
+              <>
+                <Button variant="outline" className="bg-white" asChild>
+                  <Link href="/faculty/schedule">My schedule</Link>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={handleDownload}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Download / Save as PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void onShare()}>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share INS Form
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => window.print()}>
-                  <Printer className="w-4 h-4 mr-2" />
-                  Print INS Form
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link
-                    href={
-                      insBasePath.includes("/college")
-                        ? "/admin/college/evaluator"
-                        : insBasePath.includes("/cas")
-                          ? "/admin/cas/evaluator"
-                          : insBasePath.includes("/gec")
-                            ? "/admin/gec/evaluator"
-                            : insBasePath.includes("/doi")
-                              ? "/doi/evaluator"
-                              : "/chairman/evaluator"
-                    }
-                    className="cursor-pointer"
+                <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
+                  Print / PDF
+                </Button>
+              </>
+            ) : (
+              <>
+                {enableInsAltApply && roomConflictCount > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
+                    disabled={insAltBusy || !selectedRoomId}
+                    onClick={() => void applyFirstInsAlternative()}
                   >
-                    Open Evaluator
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    {insAltBusy ? "Applying…" : "Apply alternative"}
+                  </Button>
+                ) : null}
+                <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
+                  Run Conflict Check
+                </Button>
 
-            <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
-              Print / PDF
-            </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="bg-white" aria-label="More actions">
+                      <MoreHorizontal className="w-5 h-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={handleDownload}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download / Save as PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void onShare()}>
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share INS Form
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => window.print()}>
+                      <Printer className="w-4 h-4 mr-2" />
+                      Print INS Form
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={
+                          insBasePath.includes("/college")
+                            ? "/admin/college/evaluator"
+                            : insBasePath.includes("/cas")
+                              ? "/admin/cas/evaluator"
+                              : insBasePath.includes("/gec")
+                                ? "/admin/gec/evaluator"
+                                : insBasePath.includes("/doi")
+                                  ? "/doi/evaluator"
+                                  : "/chairman/evaluator"
+                        }
+                        className="cursor-pointer"
+                      >
+                        Open Evaluator
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button variant="outline" className="bg-white" type="button" onClick={() => window.print()}>
+                  Print / PDF
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -437,7 +450,7 @@ export function INSFormRoom({
             schedule={displaySchedule}
             scheduleApproved={useLiveData && catalog.termPublishLocked}
             insSignatureSlots={useLiveData ? insSignatureSlots : null}
-            readOnly={Boolean(useLiveData && catalog.termPublishLocked)}
+            readOnly={Boolean((useLiveData && catalog.termPublishLocked) || instructorFacultyPortal)}
             semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
             conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
           />

@@ -1,54 +1,102 @@
 # OptiCore manual testing checklist
 
-Use after changes to scheduling, INS forms, GEC access, profile uploads, and role-based views.
+Use after releases or changes to scheduling, INS, GEC access, auth, RLS, profile uploads, and role-based views.
 
-## Authentication & roles
-
-- [ ] **Program Chairman** — login, dashboard, evaluator, INS (Faculty / Section / Room tabs), conflict check.
-- [ ] **College Admin** — same INS tab layout as chairman; college-scoped evaluator; access requests inbox; INS signer labels (collapsible) save and reload.
-- [ ] **GEC Chairman** — Central Hub Evaluator; **request access per college** (two colleges → two approvals); vacant GEC edit only where approved; INS tabs match college admin layout.
-- [ ] **DOI Admin** — combined `/doi/ins?tab=*`; VPAA approval panel on faculty tab; campus-wide INS; DOI signer labels (VPAA line) save.
-- [ ] **Instructor** — `/faculty/ins?tab=*` same chrome as admins; schedule read-only; **Request schedule change** from INS cells where enabled; link to faculty home/evaluator as configured.
-- [ ] **Student** — portal read paths unchanged (smoke).
-- [ ] **Visitor** — blocked from admin routes (smoke).
-
-## Scheduling & reflection
-
-- [ ] **Chairman flow** — plot in evaluator → Save → reload INS for same college/program; totals and grid match.
-- [ ] **Realtime** — second browser or role: schedule change appears without full page reload where Realtime is wired.
-
-## GEC Chairman — per-college access
-
-- [ ] Submit access request **with college A** only → approve as College Admin of A → edit vacant GEC in evaluator with college A selected → **allowed**.
-- [ ] Switch to college B (no approval) → vacant GEC edits **blocked** until separate request approved for B.
-
-## Instructor — schedule change
-
-- [ ] From INS (read-only), click a class cell → request submitted → College Admin sees request → decision reflects on instructor view.
-
-## Policy justification
-
-- [ ] Trigger overload in evaluator → justification modal → save → DOI / college flows see justification if applicable to your build.
-
-## Conflicts & alternatives
-
-- [ ] Run **Conflict check** on INS (college/DOI) and evaluator; apply first alternative where enabled; confirm row updates and INS totals after reload.
-
-## INS forms — UI parity & print
-
-- [ ] Compare **Faculty / Section / Room** tab strip and card padding across: College Admin, Chairman, DOI, GEC, Instructor (`?tab=`).
-- [ ] **Print / PDF** — each form shows schedule + signature columns with space for names; optional **signer labels** from College/DOI editors appear on print after save + reload.
-
-## Profile picture & signature
-
-- [ ] Upload avatar **larger than 2 MB but under 10 MB** — succeeds; header updates after refresh.
-- [ ] Reject **over 10 MB** with clear error (client-side).
-- [ ] Signature image upload same limit (bucket migration applied in Supabase).
-
-## Cross-role data
-
-- [ ] Evaluator change → INS faculty/section/room for all roles that share the term and RLS scope.
+**Before instructor INS tests:** apply migrations (including `20260502140000_scheduleentry_select_instructor_college_ins.sql`) so instructors can read college-wide schedule rows for INS browse.
 
 ---
 
-*Maintainers: extend this list when adding new workflows; keep steps outcome-based (observable UI or DB), not implementation-specific.*
+## 1. Authentication & landing
+
+- [ ] **Program Chairman** — login → dashboard; routes under `/chairman` work; evaluator + INS.
+- [ ] **College Admin** — login → `/admin/college`; college-scoped tools load.
+- [ ] **CAS Admin** — login → CAS dashboard (smoke).
+- [ ] **GEC Chairman** — login → `/admin/gec`; per-college access respected.
+- [ ] **DOI Admin** — login → `/doi/dashboard`; VPAA flows (smoke).
+- [ ] **Instructor** — login → **Campus Intelligence** (`/faculty`); sidebar: Campus Intelligence, **My schedule**, INS Form, Announcements, Campus navigation.
+- [ ] **Student** — `/student` (smoke).
+- [ ] **Visitor** — campus navigation only; admin routes blocked.
+
+---
+
+## 2. Instructor — Campus Intelligence & My schedule
+
+- [ ] Open **Campus Intelligence** (`/faculty`): term selector in shell matches data cards; weekly hours / block count / student count look plausible.
+- [ ] Change term → dashboard refetches (loading state, no error).
+- [ ] **My schedule** (`/faculty/schedule`): same body as dashboard focus; links to INS + request change work.
+- [ ] Instructor **without** `collegeId`: friendly message on INS; dashboard behavior acceptable.
+
+---
+
+## 3. Instructor — INS Form (`/faculty/ins?tab=`)
+
+- [ ] **Tabs** — Faculty view / Section view / Room view switch without losing shell; counts on grouping strip match expectations.
+- [ ] **Faculty tab** — Search lists instructors with classes in the college; default shows **your** load; selecting another faculty shows their grid **read-only**; **Request schedule change** only when viewing yourself; cell click opens modal only for yourself.
+- [ ] **Section tab** — Section search lists college sections; grid updates; **no** “Run Conflict Check”; **My schedule** + **Print / PDF** only in toolbar; form read-only.
+- [ ] **Room tab** — Same as section: search, no conflict run, read-only.
+- [ ] **Print** — Print/PDF from each tab produces a sensible layout.
+- [ ] **Realtime / reflection** — With a second browser as College Admin or Chairman, change a plotted slot → within ~20s or after focus, instructor INS grids update (or soft-refresh confirms).
+
+---
+
+## 4. Other roles — INS parity (regression)
+
+- [ ] **Chairman / College Admin / DOI / GEC** — Faculty + Section + Room; conflict check and admin-only tools still present where expected.
+- [ ] **Signer labels** — College Admin / DOI editors save and appear on print after reload (unchanged).
+
+---
+
+## 5. Scheduling & data reflection
+
+- [ ] Chairman (or college) **Evaluator**: plot/edit → **Save** → same term INS + instructor views show the same slot.
+- [ ] **Hours / load** — Instructor Faculty INS (self) vs Campus Intelligence weekly hours vs Evaluator load: same term, no systematic drift (known fix: college-wide rows + `ignoreProgramScope` for 5A).
+
+---
+
+## 6. GEC Chairman — per-college access
+
+- [ ] Request access for college A only → approve as College Admin A → vacant GEC edits allowed with A selected.
+- [ ] College B without approval → vacant GEC edits blocked until approved for B.
+
+---
+
+## 7. Instructor — schedule change request
+
+- [ ] From **Faculty** INS (self), open request (toolbar or cell) → submit → College Admin queue shows it → approve/deny → instructor sees outcome (smoke).
+
+---
+
+## 8. Policy justification
+
+- [ ] Evaluator overload past cap → justification capture → save → DOI/college sees justification per your workflow.
+
+---
+
+## 9. Conflicts & alternatives (admin only)
+
+- [ ] **Run Conflict Check** on INS (not on instructor portal) and in evaluator contexts; **Apply alternative** where enabled; rows and totals update.
+
+---
+
+## 10. Profile picture & signature
+
+- [ ] Avatar upload under configured limit (e.g. &lt; 10 MB) succeeds; over limit rejected clearly.
+- [ ] Signature upload same.
+
+---
+
+## 11. Security & RLS (spot checks)
+
+- [ ] Instructor cannot open `/admin/college` or `/chairman` routes (redirect/forbidden).
+- [ ] Student cannot read other students’ private data (smoke).
+- [ ] **Instructor ScheduleEntry** — can read own rows + rows for sections in home college (INS browse); cannot update `ScheduleEntry` via UI (no evaluator on instructor).
+
+---
+
+## 12. Cross-browser smoke
+
+- [ ] Logout/login; password change redirect for instructor lands on `/faculty`.
+
+---
+
+*Keep steps outcome-based (observable UI). Extend when adding workflows.*

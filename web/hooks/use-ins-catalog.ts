@@ -582,7 +582,7 @@ export function useInsCatalog(args: {
   /**
    * INS instructor/section/room pickers + Forms 5B/5C: all term rows the viewer can read (campus-wide under RLS).
    * Home-college instructors may teach CAS (etc.) sections; those rows must appear here for correct grids and counts.
-   * Faculty portal: limited to sections where the signed-in instructor teaches.
+   * Faculty portal: when set, limits 5B/5C to sections where this user teaches (omit for full college browse on `/faculty/ins`).
    */
   const insResourceEntries = useMemo(() => {
     if (args.campusWide) {
