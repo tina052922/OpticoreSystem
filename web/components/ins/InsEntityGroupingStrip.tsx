@@ -22,7 +22,7 @@ export function InsEntityGroupingStrip({ insBasePath, facultyCount, sectionCount
     insBasePath.includes("/gec") ||
     insBasePath.includes("/chairman") ||
     insBasePath.includes("/doi") ||
-    insBasePath.includes("/faculty");
+    insBasePath.startsWith("/faculty/ins");
   if (!enabled) return null;
 
   return (

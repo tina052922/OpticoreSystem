@@ -64,7 +64,7 @@ export function INSFormRoom({
 }: INSFormRoomProps) {
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
-  const instructorFacultyPortal = insBasePath.includes("/faculty");
+  const instructorFacultyPortal = insBasePath.startsWith("/faculty/ins");
 
   const catalog = useInsCatalog({
     collegeId: effectiveCollegeId,

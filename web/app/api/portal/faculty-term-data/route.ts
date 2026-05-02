@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
-  countStudentsInSections,
   getInstructorAdvisorySectionId,
   getInstructorScheduleRows,
-  getStudentRosterForSections,
   sumWeeklyContactHours,
 } from "@/lib/server/dashboard-data";
 
 /**
- * GET ?periodId= — hydrated instructor schedule + roster for the selected academic term.
- * Used by the faculty portal dashboard (semester filter in the shell).
+ * GET ?periodId= — instructor schedule summary for Campus Intelligence (no enrolled-student PII).
+ * Section list = unique `ScheduleEntry.sectionId` plus advisory section from `FacultyProfile`.
  */
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -35,7 +33,7 @@ export async function GET(request: Request) {
   }
 
   const { rows, sectionIds: scheduleSectionIds } = await getInstructorScheduleRows(user.id, periodId);
-  /** Chairman sets advisory on FacultyProfile; roster must include that section even with no ScheduleEntry row. */
+  /** Chairman sets advisory on FacultyProfile; include that section in the assigned list even with no class row. */
   const advisorySectionId = await getInstructorAdvisorySectionId(user.id);
   const sectionIds = [...new Set([...scheduleSectionIds, ...(advisorySectionId ? [advisorySectionId] : [])])];
 
@@ -45,10 +43,6 @@ export async function GET(request: Request) {
     advisorySectionName = (sec as { name?: string } | null)?.name?.trim() ?? null;
   }
 
-  const [studentCount, roster] = await Promise.all([
-    countStudentsInSections(sectionIds),
-    getStudentRosterForSections(sectionIds),
-  ]);
   const weeklyHours = sumWeeklyContactHours(rows);
 
   return NextResponse.json({
@@ -56,10 +50,9 @@ export async function GET(request: Request) {
     sectionIds,
     advisorySectionId,
     advisorySectionName,
-    studentCount,
-    roster,
     weeklyHours,
-    /** One row per plotted `ScheduleEntry` — same count family as INS faculty grid cells for the term. */
     weeklyMeetingRowCount: rows.length,
+    /** Distinct sections (teaching + advisory) — shown on dashboard without student names. */
+    assignedSectionCount: sectionIds.length,
   });
 }

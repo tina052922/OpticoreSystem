@@ -2,23 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Clock, MapPin, Megaphone, Users, BookOpen, LayoutGrid } from "lucide-react";
+import { ChevronRight, Clock, MapPin, Megaphone, BookOpen, LayoutGrid, Layers } from "lucide-react";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { cn } from "@/components/ui/utils";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
-import type { User } from "@/types/db";
 
 type FacultyPayload = {
   rows: ScheduleRowView[];
   sectionIds: string[];
   advisorySectionId?: string | null;
   advisorySectionName?: string | null;
-  studentCount: number;
-  roster: User[];
   weeklyHours: number;
-  /** Same as `rows.length`: one per `ScheduleEntry` time slot (not credit units). */
   weeklyMeetingRowCount?: number;
+  assignedSectionCount?: number;
 };
 
 export type FacultyDashboardSurface = "campus-intelligence" | "my-schedule";
@@ -30,8 +27,8 @@ type Props = {
 };
 
 /**
- * Faculty portal body for Campus Intelligence (`/faculty`) and My schedule (`/faculty/schedule`).
- * Load and weekly hours use the same `ScheduleEntry` math as chairman evaluator / INS (`sumWeeklyContactHours`).
+ * Campus Intelligence (`/faculty`) summary: hours, meeting count, **section names only** (no student roster).
+ * Full INS Form 5A + cell clicks for change requests live on **My schedule** (`/faculty/schedule`).
  */
 export function FacultyDashboardTermClient({ profileName, surface = "campus-intelligence" }: Props) {
   const { selectedPeriodId, selectedPeriod, ready } = useSemesterFilter();
@@ -68,15 +65,21 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
 
   const rows = data?.rows ?? [];
   const weeklyHours = data?.weeklyHours ?? 0;
-  const studentCount = data?.studentCount ?? 0;
-  const roster = data?.roster ?? [];
   const advisoryName = data?.advisorySectionName?.trim() ?? "";
   const advisoryId = data?.advisorySectionId?.trim() ?? "";
+  const assignedSectionCount = data?.assignedSectionCount ?? data?.sectionIds?.length ?? 0;
 
   const scheduleSectionNames = useMemo(
     () => [...new Set(rows.map((r) => r.section?.name).filter(Boolean))] as string[],
     [rows],
   );
+
+  /** Sections to teach + advisory (labels only; no student identifiers). */
+  const assignedSectionLabels = useMemo(() => {
+    const names = new Set<string>(scheduleSectionNames);
+    if (advisoryName) names.add(advisoryName);
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [scheduleSectionNames, advisoryName]);
 
   const meetingRows = data?.weeklyMeetingRowCount ?? rows.length;
 
@@ -137,17 +140,17 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
           <div>
             <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Weekly class meetings</p>
             <p className="text-xl font-bold text-black">{meetingRows}</p>
-            <p className="text-[10px] text-black/45 mt-0.5 leading-snug">One per plotted schedule row (matches INS / evaluator).</p>
+            <p className="text-[10px] text-black/45 mt-0.5 leading-snug">One per plotted schedule row (matches INS).</p>
           </div>
         </div>
         <div className="rounded-xl bg-white border border-black/10 p-4 shadow-sm flex items-center gap-3">
           <div className="h-11 w-11 rounded-lg bg-[var(--color-opticore-orange)]/15 flex items-center justify-center text-[var(--color-opticore-orange)]">
-            <Users className="w-5 h-5" />
+            <Layers className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Students (your sections)</p>
-            <p className="text-xl font-bold text-black">{studentCount}</p>
-            <p className="text-[10px] text-black/45 mt-0.5 leading-snug">Enrolled in sections you teach or advise.</p>
+            <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Assigned sections</p>
+            <p className="text-xl font-bold text-black">{assignedSectionCount}</p>
+            <p className="text-[10px] text-black/45 mt-0.5 leading-snug">Teaching + advisory (distinct).</p>
           </div>
         </div>
       </div>
@@ -190,17 +193,17 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
           )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
-              href="/faculty/ins?tab=faculty"
+              href="/faculty/schedule"
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#780301] text-white px-4 py-2.5 text-sm font-semibold shadow-sm"
             >
-              INS Form — schedule
+              My schedule (INS Form)
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/faculty/ins?tab=section"
+              href="/faculty/ins?tab=faculty"
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-2.5 text-sm font-semibold shadow-sm"
             >
-              By section
+              INS Form — all views
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
@@ -212,26 +215,22 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Assigned sections & student list">
+        <DashboardCard title="Assigned sections">
           <p className="text-sm text-black/65 mb-3">
-            Students enrolled in sections where you have at least one class meeting, or your advisory section.
+            Program sections where you have class meetings this term, plus your advisory section (names only).
           </p>
-          {roster.length === 0 ? (
-            <p className="text-sm text-black/55">No students found for those sections in this term.</p>
+          {assignedSectionLabels.length === 0 ? (
+            <p className="text-sm text-black/55">No sections linked from your schedule for this term.</p>
           ) : (
-            <ul className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
-              {roster
-                .slice()
-                .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
-                .map((s) => (
-                  <li
-                    key={s.id}
-                    className="flex justify-between gap-2 rounded-lg border border-black/8 px-3 py-2 text-sm bg-[#fafafa]"
-                  >
-                    <span className="font-medium text-black truncate">{s.name}</span>
-                    <span className="text-black/45 text-xs shrink-0">{s.email}</span>
-                  </li>
-                ))}
+            <ul className="flex flex-wrap gap-2">
+              {assignedSectionLabels.map((name) => (
+                <li
+                  key={name}
+                  className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm font-medium text-black shadow-sm"
+                >
+                  {name}
+                </li>
+              ))}
             </ul>
           )}
         </DashboardCard>
