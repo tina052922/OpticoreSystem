@@ -11,7 +11,7 @@ import type { UserRole } from "@/types/db";
 function homeForRole(role: UserRole | null): string {
   switch (role) {
     case "instructor":
-      return "/faculty/ins?tab=faculty";
+      return "/faculty";
     case "chairman_admin":
       return "/chairman/dashboard";
     case "college_admin":

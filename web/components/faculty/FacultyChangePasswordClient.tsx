@@ -60,7 +60,7 @@ export function FacultyChangePasswordClient() {
       });
       if (updErr) throw updErr;
       router.refresh();
-      window.location.assign("/faculty/ins?tab=faculty");
+      window.location.assign("/faculty");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update password");
     } finally {

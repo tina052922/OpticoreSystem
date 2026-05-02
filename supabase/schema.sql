@@ -669,6 +669,22 @@ for select
 to authenticated
 using ("instructorId" = auth.uid()::text);
 
+drop policy if exists scheduleentry_select_instructor_college_schedule on public."ScheduleEntry";
+create policy scheduleentry_select_instructor_college_schedule on public."ScheduleEntry"
+for select
+to authenticated
+using (
+  public.current_user_role() = 'instructor'
+  and nullif(trim(coalesce(public.current_user_college_id(), '')), '') is not null
+  and exists (
+    select 1
+    from public."Section" s
+    join public."Program" p on p.id = s."programId"
+    where s.id = "ScheduleEntry"."sectionId"
+      and p."collegeId" = public.current_user_college_id()
+  )
+);
+
 -- Notification: users can read their own; chairman can create notifications for users in their college
 drop policy if exists notif_select_own on public."Notification";
 create policy notif_select_own on public."Notification"

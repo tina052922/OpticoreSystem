@@ -82,20 +82,10 @@ export default async function FacultyInsIndexPage({
                 />
               ) : null}
               {activeTab === "section" ? (
-                <INSFormSection
-                  insBasePath="/faculty/ins"
-                  viewerCollegeId={profile.collegeId}
-                  instructorPortalUserId={profile.id}
-                  hideInnerInsTabs
-                />
+                <INSFormSection insBasePath="/faculty/ins" viewerCollegeId={profile.collegeId} hideInnerInsTabs />
               ) : null}
               {activeTab === "room" ? (
-                <INSFormRoom
-                  insBasePath="/faculty/ins"
-                  viewerCollegeId={profile.collegeId}
-                  instructorPortalUserId={profile.id}
-                  hideInnerInsTabs
-                />
+                <INSFormRoom insBasePath="/faculty/ins" viewerCollegeId={profile.collegeId} hideInnerInsTabs />
               ) : null}
             </Suspense>
           </div>

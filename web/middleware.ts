@@ -93,8 +93,8 @@ export async function middleware(request: NextRequest) {
         }
         if (!mustChange && path.startsWith("/faculty/change-password")) {
           const url = request.nextUrl.clone();
-          url.pathname = "/faculty/ins";
-          url.search = "?tab=faculty";
+          url.pathname = "/faculty";
+          url.search = "";
           return redirectWithSession(response, url);
         }
       }

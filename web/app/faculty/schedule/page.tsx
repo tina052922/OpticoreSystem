@@ -1,8 +1,15 @@
-import { redirect } from "next/navigation";
+import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
+import { FacultyDashboardTermClient } from "@/components/portal/FacultyDashboardTermClient";
 import { requireRoles } from "@/lib/auth/require-role";
 
-/** Same schedule experience as other roles: combined INS Form with Faculty / Section / Room tabs. */
+/** Instructor-only summary: load, roster, and quick links to INS / change requests. */
 export default async function FacultySchedulePage() {
-  await requireRoles(["instructor"]);
-  redirect("/faculty/ins?tab=faculty");
+  const profile = await requireRoles(["instructor"]);
+
+  return (
+    <div>
+      <ChairmanPageHeader title="My schedule" subtitle="Your assignments and weekly load for the selected term." />
+      <FacultyDashboardTermClient profileName={profile.name} />
+    </div>
+  );
 }
