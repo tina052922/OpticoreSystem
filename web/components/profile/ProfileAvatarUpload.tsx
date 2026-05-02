@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
+const MAX_BYTES = 10 * 1024 * 1024;
 
 export type ProfileAvatarUploadProps = {
   initialUrl?: string | null;
@@ -35,7 +36,7 @@ export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUpl
       setErr(null);
       const supabase = createSupabaseBrowserClient();
       if (!supabase) {
-        setErr("Supabase is not configured.");
+        setErr("Connection is not configured.");
         return;
       }
       const {
@@ -43,6 +44,10 @@ export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUpl
       } = await supabase.auth.getUser();
       if (!user?.id) {
         setErr("You must be signed in.");
+        return;
+      }
+      if (file.size > MAX_BYTES) {
+        setErr(`Image is too large (max ${Math.round(MAX_BYTES / (1024 * 1024))} MB).`);
         return;
       }
       setBusy(true);
@@ -91,7 +96,7 @@ export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUpl
       <h3 className="text-sm font-bold text-gray-900">Profile picture</h3>
       <p className="text-xs text-gray-600 mt-1 mb-3">
         This photo appears in the header next to your account menu across OptiCore. Use a square image when possible.
-        Max ~2 MB. Allowed: PNG, JPEG, WebP, GIF.
+        Max 10 MB. Allowed: PNG, JPEG, WebP, GIF.
       </p>
       {err ? <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mb-2">{err}</p> : null}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">

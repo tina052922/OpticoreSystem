@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useAccessRequests, type AccessRequestWithName } from "@/hooks/use-access-requests";
-import type { AccessRequestRow, AccessScope } from "@/types/db";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { AccessRequestRow, AccessScope, College } from "@/types/db";
 import { KeyRound, Lock } from "lucide-react";
 
 const SCOPE_OPTIONS: { id: AccessScope; label: string }[] = [
@@ -24,19 +25,27 @@ function statusBadge(status: string) {
 export function hasActiveScopeGrant(
   requests: AccessRequestRow[],
   scope: AccessScope,
+  collegeId?: string | null,
 ): boolean {
   const now = Date.now();
-  return requests.some(
-    (r) =>
-      r.status === "approved" &&
-      r.expiresAt &&
-      new Date(r.expiresAt).getTime() > now &&
-      Array.isArray(r.scopes) &&
-      r.scopes.includes(scope),
-  );
+  return requests.some((r) => {
+    if (
+      r.status !== "approved" ||
+      !r.expiresAt ||
+      new Date(r.expiresAt).getTime() <= now ||
+      !Array.isArray(r.scopes) ||
+      !r.scopes.includes(scope)
+    ) {
+      return false;
+    }
+    if (collegeId != null && collegeId !== "") {
+      return r.collegeId === collegeId;
+    }
+    return true;
+  });
 }
 
-/** UI state for GEC vacant-slot editing: approval from College Admin is required before edits. */
+/** UI state for GEC vacant-slot editing for one college. */
 export type GecVacantSlotApprovalUiState =
   | { status: "approved" }
   | { status: "pending" }
@@ -44,30 +53,27 @@ export type GecVacantSlotApprovalUiState =
   | { status: "idle" };
 
 /**
- * Derives vacant-slot approval state from access requests (latest relevant row wins for pending/rejected).
- * Active temporary grant for `gec_vacant_slots` → approved.
+ * Vacant-slot approval for a specific college (`AccessRequest.collegeId`).
+ * Without `collegeId`, returns `idle` (no global grant).
  */
 export function getGecVacantSlotApprovalUiState(
   requests: AccessRequestRow[],
+  collegeId?: string | null,
 ): GecVacantSlotApprovalUiState {
-  if (hasActiveScopeGrant(requests, "gec_vacant_slots")) {
+  if (!collegeId) return { status: "idle" };
+  if (hasActiveScopeGrant(requests, "gec_vacant_slots", collegeId)) {
     return { status: "approved" };
   }
-  const byRecency = [...requests].sort(
+  const scoped = requests.filter((r) => r.collegeId === collegeId);
+  const byRecency = [...scoped].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
   const pending = byRecency.find(
-    (r) =>
-      r.status === "pending" &&
-      Array.isArray(r.scopes) &&
-      r.scopes.includes("gec_vacant_slots"),
+    (r) => r.status === "pending" && Array.isArray(r.scopes) && r.scopes.includes("gec_vacant_slots"),
   );
   if (pending) return { status: "pending" };
   const rejected = byRecency.find(
-    (r) =>
-      r.status === "rejected" &&
-      Array.isArray(r.scopes) &&
-      r.scopes.includes("gec_vacant_slots"),
+    (r) => r.status === "rejected" && Array.isArray(r.scopes) && r.scopes.includes("gec_vacant_slots"),
   );
   if (rejected) return { status: "rejected", reviewedAt: rejected.reviewedAt };
   return { status: "idle" };
@@ -86,20 +92,50 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [colleges, setColleges] = useState<Pick<College, "id" | "name" | "code">[]>([]);
+  const [targetCollegeId, setTargetCollegeId] = useState("");
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    let cancelled = false;
+    void supabase
+      .from("College")
+      .select("id,name,code")
+      .order("name")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const list = (data ?? []) as Pick<College, "id" | "name" | "code">[];
+        setColleges(list);
+        setTargetCollegeId((prev) => prev || list[0]?.id || "");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function submit() {
     setLoading(true);
     setMsg(null);
     try {
+      const body: { scopes: AccessScope[]; note?: string; targetCollegeId?: string } = {
+        scopes,
+        note: note.trim() || undefined,
+      };
+      if (!targetCollegeId) {
+        throw new Error("Choose a college for this request.");
+      }
+      body.targetCollegeId = targetCollegeId;
+
       const res = await fetch("/api/access-requests", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scopes, note: note.trim() || undefined }),
+        body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "Request failed");
-      setMsg("Request submitted. College Admin will review. Check status below and Inbox → Sent.");
+      setMsg("Request submitted.");
       setNote("");
       if (!requestsOverride) await load();
     } catch (e) {
@@ -113,21 +149,16 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
     setScopes((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
   }
 
-  const canSubmit = scopes.length > 0 && !loading;
+  const canSubmit = scopes.length > 0 && !loading && Boolean(targetCollegeId);
 
   if (variant === "compact") {
     return (
-      <DashboardCard title="Request Approval to Edit Vacant GEC Slots">
+      <DashboardCard title="Request access (GEC)">
         <p className="text-sm text-black/75 mb-3">
-          To <strong>edit vacant GEC slots</strong>, College Admin must approve a scoped request first. You can also
-          request Evaluator or INS access on the full form.
+          Request College Admin approval <strong>per college</strong> before editing vacant GEC slots in that college.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            asChild
-            className="bg-[#780301] hover:bg-[#5a0201]"
-          >
+          <Button type="button" asChild className="bg-[#780301] hover:bg-[#5a0201]">
             <Link href="/admin/gec/request-access">
               <KeyRound className="w-4 h-4 mr-2" />
               Open request form
@@ -136,7 +167,7 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
         </div>
         {requests.length > 0 ? (
           <ul className="mt-4 space-y-2 text-xs">
-            {requests.slice(0, 3).map((r) => (
+            {requests.slice(0, 5).map((r) => (
               <li key={r.id} className="flex justify-between gap-2">
                 <span className="text-black/70">{new Date(r.createdAt).toLocaleString()}</span>
                 <span className={statusBadge(r.status)}>{r.status}</span>
@@ -149,21 +180,29 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
   }
 
   return (
-    <DashboardCard title="Request Approval to Edit Vacant GEC Slots">
+    <DashboardCard title="Request access (GEC Chairman)">
       <p className="text-sm text-black/75 mb-4">
-        <strong>GEC Chairman:</strong> to edit <strong>vacant GEC slots</strong>, submit a request here first —{" "}
-        <strong>College Admin</strong> must approve before edits are enabled. You may also request{" "}
-        <strong>Central Hub Evaluator</strong> or <strong>INS</strong> scope. Temporary grants default to{" "}
-        <strong>14 days</strong>. Status: <strong>Pending</strong> / <strong>Approved</strong> /{" "}
-        <strong>Rejected</strong>.
+        Choose the <strong>college</strong> you need (e.g. COTE, then separately CAFE). Approving one college does not
+        grant access to others. Optional scopes: Evaluator, INS, vacant GEC slots.
       </p>
+
+      <label className="block text-xs font-medium text-black/60 mb-1">College for this request</label>
+      <select
+        className="w-full rounded-md border border-black/15 px-3 py-2 text-sm mb-4 bg-white"
+        value={targetCollegeId}
+        onChange={(e) => setTargetCollegeId(e.target.value)}
+      >
+        <option value="">Select college…</option>
+        {colleges.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name} ({c.code})
+          </option>
+        ))}
+      </select>
 
       <div className="space-y-2 mb-4">
         {SCOPE_OPTIONS.map((opt) => (
-          <label
-            key={opt.id}
-            className="flex items-center gap-2 text-sm cursor-pointer"
-          >
+          <label key={opt.id} className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
               checked={scopes.includes(opt.id)}
@@ -204,6 +243,7 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
               <thead>
                 <tr className="bg-black/[0.04]">
                   <th className="p-2">When</th>
+                  <th className="p-2">College</th>
                   <th className="p-2">Scopes</th>
                   <th className="p-2">Status</th>
                   <th className="p-2">Expires</th>
@@ -213,14 +253,13 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
                 {requests.map((r) => (
                   <tr key={r.id} className="border-t border-black/10">
                     <td className="p-2 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
+                    <td className="p-2 font-mono text-[11px]">{r.collegeId}</td>
                     <td className="p-2">{(r.scopes ?? []).join(", ")}</td>
                     <td className="p-2">
                       <span className={statusBadge(r.status)}>{r.status}</span>
                     </td>
                     <td className="p-2">
-                      {r.status === "approved" && r.expiresAt
-                        ? new Date(r.expiresAt).toLocaleString()
-                        : "—"}
+                      {r.status === "approved" && r.expiresAt ? new Date(r.expiresAt).toLocaleString() : "—"}
                     </td>
                   </tr>
                 ))}

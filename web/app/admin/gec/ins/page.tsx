@@ -48,12 +48,9 @@ export default async function GecInsIndexPage({
 
   return (
     <div>
-      <ChairmanPageHeader
-        title="INS Forms Schedule View"
-        subtitle="One combined INS schedule page with Faculty, Section, and Room views (matches College Admin structure)."
-      />
+      <ChairmanPageHeader title="INS Form" subtitle="Schedule view" />
 
-      <div className="px-6 pb-6 space-y-4">
+      <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-4">
         <div className="flex flex-wrap gap-2">
           <TabLink tab="faculty" activeTab={activeTab} href="/admin/gec/ins?tab=faculty" label="Faculty view" />
           <TabLink tab="section" activeTab={activeTab} href="/admin/gec/ins?tab=section" label="Section view" />
@@ -61,15 +58,30 @@ export default async function GecInsIndexPage({
         </div>
 
         <div className="rounded-xl border border-black/10 bg-white shadow-sm">
-          <div className="p-4">
+          <div className="p-3 sm:p-4">
             {activeTab === "faculty" ? (
-              <INSFormFaculty insBasePath="/admin/gec/ins" viewerCollegeId={profile.collegeId} campusWide={campusWide} />
+              <INSFormFaculty
+                insBasePath="/admin/gec/ins"
+                viewerCollegeId={profile.collegeId}
+                campusWide={campusWide}
+                hideInnerInsTabs
+              />
             ) : null}
             {activeTab === "section" ? (
-              <INSFormSection insBasePath="/admin/gec/ins" viewerCollegeId={profile.collegeId} campusWide={campusWide} />
+              <INSFormSection
+                insBasePath="/admin/gec/ins"
+                viewerCollegeId={profile.collegeId}
+                campusWide={campusWide}
+                hideInnerInsTabs
+              />
             ) : null}
             {activeTab === "room" ? (
-              <INSFormRoom insBasePath="/admin/gec/ins" viewerCollegeId={profile.collegeId} campusWide={campusWide} />
+              <INSFormRoom
+                insBasePath="/admin/gec/ins"
+                viewerCollegeId={profile.collegeId}
+                campusWide={campusWide}
+                hideInnerInsTabs
+              />
             ) : null}
           </div>
         </div>

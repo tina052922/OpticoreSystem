@@ -136,21 +136,21 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
           )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
-              href="/faculty/ins"
+              href="/faculty/ins?tab=faculty"
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#780301] text-white px-4 py-2.5 text-sm font-semibold shadow-sm"
             >
-              INS Forms Schedule View
+              INS Form — schedule
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/faculty/schedule"
+              href="/faculty/ins?tab=section"
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-2.5 text-sm font-semibold shadow-sm"
             >
-              View my schedule
+              By section
               <ChevronRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/faculty/schedule"
+              href="/faculty/ins?tab=faculty&requestChange=1"
               className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-4 py-2.5 text-sm font-semibold"
             >
               Request schedule change
@@ -159,9 +159,7 @@ export function FacultyDashboardTermClient({ profileName }: { profileName: strin
         </DashboardCard>
 
         <DashboardCard title="Assigned sections & student list">
-          <p className="text-sm text-black/65 mb-3">
-            Roster is derived from student profiles linked to sections you teach (selected term).
-          </p>
+          <p className="text-sm text-black/65 mb-3">Students in sections you teach this term.</p>
           {roster.length === 0 ? (
             <p className="text-sm text-black/55">No students found for your sections in this term.</p>
           ) : (

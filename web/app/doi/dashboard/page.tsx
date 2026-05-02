@@ -55,7 +55,7 @@ export default async function DoiDashboardPage() {
 
           <DashboardCard title="Quick actions">
             <Link
-              href="/doi/ins/faculty"
+              href="/doi/ins?tab=faculty"
               className="flex items-center justify-between rounded-lg bg-[#780301] text-white px-4 py-3 text-sm font-semibold shadow-sm hover:opacity-95"
             >
               <span className="flex items-center gap-2">

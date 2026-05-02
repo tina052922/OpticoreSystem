@@ -140,7 +140,7 @@ export function InboxWorkspace({
           (rowCount > 0
             ? `Attached workflow bundle: ${rowCount} schedule row(s) linked to INS 5A/5B/5C and the Chairman Evaluator.\n\n`
             : `No bundle rows were assembled (check college scope and Supabase). Links for review:\n\n`) +
-          `• INS Form: ${origin}/chairman/ins/faculty\n` +
+          `• INS Form: ${origin}/chairman/ins?tab=faculty\n` +
           `• Evaluator: ${origin}/chairman/evaluator\n\n` +
           `College Admin: use Download on this message to export JSON, then Central Hub Evaluator loads the bundle automatically.`,
         workflowStage: "chairman_to_college",

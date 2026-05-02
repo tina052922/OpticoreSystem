@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { INSFormFaculty } from "@/components/ins/INSFormFaculty";
 import { INSFormRoom } from "@/components/ins/INSFormRoom";
@@ -35,10 +36,7 @@ function TabLink({
   );
 }
 
-/**
- * Combined INS schedule page (Faculty / Section / Room) — mirrors College Admin structure,
- * scoped to sections the instructor teaches (`instructorPortalUserId` in `useInsCatalog`).
- */
+/** Combined INS schedule (Faculty / Section / Room) for the signed-in instructor. */
 export default async function FacultyInsIndexPage({
   searchParams,
 }: {
@@ -52,10 +50,10 @@ export default async function FacultyInsIndexPage({
   if (!profile.collegeId) {
     return (
       <div>
-        <ChairmanPageHeader title="INS Forms Schedule View" subtitle="College scope required for live schedule data." />
+        <ChairmanPageHeader title="INS Form" subtitle="A college must be linked to your account to load schedules." />
         <p className="px-4 sm:px-6 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg py-3 max-w-2xl mx-auto">
-          Your account is not linked to a college. Contact the registrar or college admin to assign{" "}
-          <code className="text-xs bg-white/80 px-1 rounded">collegeId</code> on your user profile.
+          Your account is not linked to a college. Ask your registrar or college admin to link your profile to a
+          college so schedules can load.
         </p>
       </div>
     );
@@ -63,10 +61,7 @@ export default async function FacultyInsIndexPage({
 
   return (
     <div>
-      <ChairmanPageHeader
-        title="INS Forms Schedule View"
-        subtitle="Faculty, section, and room timetables for your assigned sections — uses the header academic period."
-      />
+      <ChairmanPageHeader title="INS Form" subtitle="Schedule view" />
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-4">
         <div className="flex flex-wrap gap-2">
@@ -77,30 +72,32 @@ export default async function FacultyInsIndexPage({
 
         <div className="rounded-xl border border-black/10 bg-white shadow-sm">
           <div className="p-3 sm:p-4">
-            {activeTab === "faculty" ? (
-              <INSFormFaculty
-                insBasePath="/faculty/ins"
-                viewerCollegeId={profile.collegeId}
-                lockedInstructorId={profile.id}
-                hideInnerInsTabs
-              />
-            ) : null}
-            {activeTab === "section" ? (
-              <INSFormSection
-                insBasePath="/faculty/ins"
-                viewerCollegeId={profile.collegeId}
-                instructorPortalUserId={profile.id}
-                hideInnerInsTabs
-              />
-            ) : null}
-            {activeTab === "room" ? (
-              <INSFormRoom
-                insBasePath="/faculty/ins"
-                viewerCollegeId={profile.collegeId}
-                instructorPortalUserId={profile.id}
-                hideInnerInsTabs
-              />
-            ) : null}
+            <Suspense fallback={<div className="min-h-[240px] text-sm text-black/50 py-8 text-center">Loading…</div>}>
+              {activeTab === "faculty" ? (
+                <INSFormFaculty
+                  insBasePath="/faculty/ins"
+                  viewerCollegeId={profile.collegeId}
+                  lockedInstructorId={profile.id}
+                  hideInnerInsTabs
+                />
+              ) : null}
+              {activeTab === "section" ? (
+                <INSFormSection
+                  insBasePath="/faculty/ins"
+                  viewerCollegeId={profile.collegeId}
+                  instructorPortalUserId={profile.id}
+                  hideInnerInsTabs
+                />
+              ) : null}
+              {activeTab === "room" ? (
+                <INSFormRoom
+                  insBasePath="/faculty/ins"
+                  viewerCollegeId={profile.collegeId}
+                  instructorPortalUserId={profile.id}
+                  hideInnerInsTabs
+                />
+              ) : null}
+            </Suspense>
           </div>
         </div>
       </div>

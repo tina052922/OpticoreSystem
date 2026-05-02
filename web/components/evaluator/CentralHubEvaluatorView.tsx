@@ -171,7 +171,7 @@ export function CentralHubEvaluatorView({
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       if (!soft) {
-        setLoadError("Supabase env missing.");
+        setLoadError("Connection is not configured.");
         setLoading(false);
       }
       return;
@@ -1006,13 +1006,8 @@ export function CentralHubEvaluatorView({
             ← All colleges
           </Link>
           <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-6 text-[14px] text-amber-950 leading-relaxed">
-            <strong>{hub.abbr}</strong> is not linked to the database yet. Fix: insert the college in Supabase{" "}
-            <code className="text-xs bg-white/80 px-1 rounded">public.&quot;College&quot;</code> (stable{" "}
-            <code className="text-xs bg-white/80 px-1">id</code> you will reference from the app), then set the same
-            string as <code className="text-xs bg-white/80 px-1">collegeId</code> for this tile in{" "}
-            <code className="text-xs bg-white/80 px-1">lib/evaluator-central-hub.ts</code>. After changing the hub file,
-            redeploy the web app. Example: CAFE uses <code className="text-xs bg-white/80 px-1">col-cafe</code> from
-            seed/migrations.
+            <strong>{hub.abbr}</strong> is not linked to live data yet. Ask your system administrator to connect this
+            college tile to the catalog so schedules can load here.
           </div>
         </div>
       </div>
@@ -1148,11 +1143,9 @@ export function CentralHubEvaluatorView({
           <>
             {showDoiGovernance ? (
               <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-[13px] text-gray-900">
-                <strong className="text-gray-950">View campus-wide schedule (including GEC subjects):</strong> set{" "}
-                <em>College</em> to <strong>All colleges (campus-wide)</strong> in the dropdown below. The grid lists
-                every <code className="text-xs bg-white/80 px-1 rounded">ScheduleEntry</code> for the selected term
-                across programs. Use the VPAA panel to run a full conflict scan and approve the entire schedule for the
-                term.
+                <strong className="text-gray-950">Campus-wide view:</strong> set <em>College</em> to{" "}
+                <strong>All colleges (campus-wide)</strong> below to list every class in the selected term. Use the VPAA
+                panel to run a full conflict check and approve the term.
               </div>
             ) : null}
 
@@ -1168,7 +1161,7 @@ export function CentralHubEvaluatorView({
                   suggestAlternativesForEntry,
                   applySchedulePatch: async (id, patch) => {
                     const supabase = createSupabaseBrowserClient();
-                    if (!supabase) throw new Error("Supabase not configured");
+                    if (!supabase) throw new Error("Service not available");
                     const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", id);
                     if (error) throw new Error(error.message);
                     setCampusConflictScan(null);
@@ -1215,10 +1208,9 @@ export function CentralHubEvaluatorView({
             {hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId ? (
               <div className="space-y-6 max-w-[1400px] mx-auto mb-6">
                 <p className="text-[12px] text-black/60 leading-relaxed">
-                  This view lists the same <code className="text-[11px] bg-black/[0.05] px-1 rounded">ScheduleEntry</code>{" "}
-                  rows the Chairman saves from the Evaluator — all sections and programs under{" "}
-                  <strong>{collegeRow?.name ?? hub?.name}</strong>. Use Department and Section to narrow the grid; the
-                  summary matches the Chairman Evaluator prospectus when a program has curriculum data.
+                  Classes shown here are the same ones Program Chairmen save from the Evaluator — all sections and
+                  programs under <strong>{collegeRow?.name ?? hub?.name}</strong>. Use Department and Section to narrow
+                  the grid.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
                   <span>Department (program)</span>
@@ -1416,7 +1408,7 @@ export function CentralHubEvaluatorView({
                   setEditBusy(true);
                   try {
                     const supabase = createSupabaseBrowserClient();
-                    if (!supabase) throw new Error("Supabase not configured");
+                    if (!supabase) throw new Error("Service not available");
                     const { error } = await supabase.from("ScheduleEntry").update(patch).eq("id", savedId);
                     if (error) throw new Error(error.message);
                     setEditEntryId(null);

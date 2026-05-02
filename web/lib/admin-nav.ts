@@ -26,7 +26,7 @@ export type AdminNavItem = {
 /** Chairman: full campus scheduling authority. */
 export const CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/chairman/dashboard", icon: "LayoutDashboard" },
-  { label: "INS Form (Schedule View)", href: "/chairman/ins/faculty", icon: "BookOpen" },
+  { label: "INS Form", href: "/chairman/ins?tab=faculty", icon: "BookOpen" },
   { label: "Evaluator", href: "/chairman/evaluator", icon: "ClipboardList" },
   { label: "Faculty Profile", href: "/chairman/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/chairman/subject-codes", icon: "Layers" },
@@ -36,7 +36,7 @@ export const CHAIRMAN_NAV: AdminNavItem[] = [
 /** College Admin — same shell as Chairman; campus-wide scope with college/department filters. */
 export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/college", icon: "LayoutDashboard" },
-  { label: "INS Form (Schedule View)", href: "/admin/college/ins", icon: "BookOpen" },
+  { label: "INS Form", href: "/admin/college/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/college/evaluator", icon: "ClipboardList" },
   { label: "Policy reviews", href: "/admin/college/policy-reviews", icon: "Scale" },
   { label: "Schedule change requests", href: "/admin/college/schedule-change-requests", icon: "ClipboardList" },
@@ -50,7 +50,7 @@ export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
 /** CAS Admin */
 export const CAS_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/cas", icon: "LayoutDashboard" },
-  { label: "INS Form (Schedule View)", href: "/admin/cas/ins/faculty", icon: "BookOpen" },
+  { label: "INS Form", href: "/admin/cas/ins/faculty", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/cas/evaluator", icon: "ClipboardList" },
   { label: "GEC distribution", href: "/admin/cas/distribution", icon: "Send" },
   { label: "Inbox", href: "/admin/cas/inbox", icon: "Inbox" },
@@ -66,7 +66,7 @@ export const CAS_ADMIN_NAV: AdminNavItem[] = [
  */
 export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/gec", icon: "LayoutDashboard" },
-  { label: "INS Forms Schedule View", href: "/admin/gec/ins", icon: "BookOpen" },
+  { label: "INS Form", href: "/admin/gec/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
   { label: "Faculty Profile", href: "/admin/gec/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/gec/subject-codes", icon: "Layers" },
@@ -76,8 +76,7 @@ export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
 /** Instructor (faculty portal) — Campus Intelligence shell + semester filter. */
 export const INSTRUCTOR_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/faculty", icon: "LayoutDashboard" },
-  { label: "INS Forms Schedule View", href: "/faculty/ins", icon: "BookOpen" },
-  { label: "My Schedule", href: "/faculty/schedule", icon: "CalendarPlus" },
+  { label: "INS Form", href: "/faculty/ins?tab=faculty", icon: "BookOpen" },
   { label: "Announcements", href: "/faculty/announcements", icon: "Megaphone" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
@@ -85,7 +84,7 @@ export const INSTRUCTOR_NAV: AdminNavItem[] = [
 /** DOI / VPAA */
 export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/doi/dashboard", icon: "LayoutDashboard" },
-  { label: "INS Form (Schedule View)", href: "/doi/ins/faculty", icon: "BookOpen" },
+  { label: "INS Form", href: "/doi/ins?tab=faculty", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/doi/evaluator", icon: "ClipboardList" },
   /** Single VPAA queue for all colleges — badge shows pending count (no extra routes). */
   { label: "Policy reviews", href: "/doi/reviews", icon: "Scale" },

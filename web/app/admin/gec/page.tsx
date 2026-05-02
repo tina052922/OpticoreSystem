@@ -79,7 +79,7 @@ export default async function GecChairmanDashboardPage() {
                 Request Approval to Edit Vacant GEC Slots
               </Link>
               <Link
-                href="/admin/gec/ins/faculty"
+                href="/admin/gec/ins?tab=faculty"
                 className="flex items-center gap-2 rounded-lg border border-black/10 px-4 py-3 text-sm font-medium hover:border-[var(--color-opticore-orange)]/50"
               >
                 <BookOpen className="w-4 h-4 text-[var(--color-opticore-orange)]" />

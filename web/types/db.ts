@@ -20,6 +20,11 @@ export interface AcademicPeriod {
   endDate: string | null; // date
 }
 
+/** Optional overrides for printed INS signature strip (see `mergeInsSignerDisplay`). */
+export type CollegeInsSignerDisplay = Partial<
+  Record<string, { signerName?: string | null; lineSubtitle?: string | null }>
+>;
+
 export interface College {
   id: string;
   code: string;
@@ -28,12 +33,16 @@ export interface College {
   campusDirectorUserId?: string | null;
   /** Optional INS signer (Contract line). */
   contractSignerUserId?: string | null;
+  /** Printed INS form: optional signer name / role line overrides for this college. */
+  insSignerDisplay?: CollegeInsSignerDisplay | null;
 }
 
 /** Singleton (id = default): campus-wide INS settings — not per college. */
 export interface CampusInsSettings {
   id: string;
   campusDirectorSignatureImageUrl?: string | null;
+  /** DOI: optional overrides for campus-wide INS lines (typically VPAA / approved). */
+  insSignerDisplay?: CollegeInsSignerDisplay | null;
   updatedAt: string;
 }
 

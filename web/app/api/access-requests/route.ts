@@ -4,8 +4,6 @@ import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { insertAuditLog } from "@/lib/server/audit-log";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { AccessScope } from "@/types/db";
-import { GEC_DEFAULT_APPROVAL_COLLEGE_ID } from "@/lib/gec-routing";
-
 const ALLOWED: AccessScope[] = ["evaluator", "ins_forms", "gec_vacant_slots"];
 
 function normalizeScopes(raw: unknown): AccessScope[] | null {
@@ -80,7 +78,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     scopes?: unknown;
     note?: string;
-    /** College Admin only: request access to another college's Central Hub (must differ from your college). */
+    /** College Admin cross-college, or GEC Chairman per-college access. */
     targetCollegeId?: string;
   } | null;
 
@@ -152,15 +150,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, request: inserted });
   }
 
-  /** GEC Chair is campus-wide (GEC core subjects); requests route to COTE College Admin for approval. CAS Admin uses their college. */
-  const targetCollegeId =
-    row.role === "cas_admin"
-      ? row.collegeId
-      : row.role === "gec_chairman"
-        ? row.collegeId ?? GEC_DEFAULT_APPROVAL_COLLEGE_ID
-        : null;
-  if (!targetCollegeId) {
-    return NextResponse.json({ error: "Your profile must be linked to a college (CAS Admin)." }, { status: 400 });
+  let targetCollegeId: string | null = null;
+  if (row.role === "cas_admin") {
+    targetCollegeId = row.collegeId?.trim() || null;
+    if (!targetCollegeId) {
+      return NextResponse.json({ error: "Your profile must be linked to a college (CAS Admin)." }, { status: 400 });
+    }
+  } else if (row.role === "gec_chairman") {
+    const t = body?.targetCollegeId?.trim() || null;
+    if (!t) {
+      return NextResponse.json(
+        { error: "targetCollegeId is required — submit one request per college you need." },
+        { status: 400 },
+      );
+    }
+    const { data: colRow, error: colErr } = await supabase.from("College").select("id").eq("id", t).maybeSingle();
+    if (colErr || !colRow) {
+      return NextResponse.json({ error: "Unknown target college." }, { status: 400 });
+    }
+    targetCollegeId = t;
+  } else {
+    return NextResponse.json({ error: "Unsupported role for this endpoint." }, { status: 403 });
   }
 
   const scopes = normalizeScopes(body?.scopes);

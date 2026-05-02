@@ -8,6 +8,7 @@ import {
   type InsFacultySchedule,
 } from "@/lib/ins/build-ins-faculty-view";
 import { buildInsSignatureSlots, type InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
+import { mergeInsSignerDisplay } from "@/lib/ins/merge-ins-signer-display";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { Q } from "@/lib/supabase/catalog-columns";
@@ -97,7 +98,7 @@ export function useInsLiveSchedule(args: {
   ]);
 
   const insSignatureSlots: InsSignatureSlot[] | null = useMemo(() => {
-    return buildInsSignatureSlots({
+    const built = buildInsSignatureSlots({
       college: resolvedCollegeAndProgram.collegeRow,
       programId: resolvedCollegeAndProgram.programId,
       users: catalog.users,
@@ -105,6 +106,11 @@ export function useInsLiveSchedule(args: {
       scheduleApproved: catalog.termPublishLocked,
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
     });
+    return mergeInsSignerDisplay(
+      built,
+      catalog.campusInsSettings?.insSignerDisplay ?? null,
+      resolvedCollegeAndProgram.collegeRow?.insSignerDisplay ?? null,
+    );
   }, [
     resolvedCollegeAndProgram.collegeRow,
     resolvedCollegeAndProgram.programId,
@@ -112,6 +118,7 @@ export function useInsLiveSchedule(args: {
     catalog.userById,
     catalog.termPublishLocked,
     catalog.campusWideDirectorSignatureUrl,
+    catalog.campusInsSettings?.insSignerDisplay,
   ]);
 
   const facultyCredentials = useMemo(() => {
@@ -203,6 +210,8 @@ export function useInsLiveSchedule(args: {
   }, [selectedInstructorId, catalog.getInsConflictLinesForInstructor]);
 
   return {
+    /** College id used for INS signer label editor (resolved from selection / campus-wide slice). */
+    signerEditorCollegeId: resolvedCollegeAndProgram.collegeId,
     loading: catalog.loading,
     error: catalog.error,
     periodLabel: catalog.periodLabel,

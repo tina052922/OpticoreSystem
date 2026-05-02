@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
  * Prefer calling /api/access-requests directly with full scope list.
  */
 export async function POST(req: Request) {
-  const json = (await req.json().catch(() => null)) as { note?: string } | null;
+  const json = (await req.json().catch(() => null)) as { note?: string; targetCollegeId?: string } | null;
   const origin = new URL(req.url).origin;
   const res = await fetch(`${origin}/api/access-requests`, {
     method: "POST",
@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     body: JSON.stringify({
       scopes: ["gec_vacant_slots"],
       note: json?.note?.trim() || "Request via legacy inbox endpoint.",
+      targetCollegeId: json?.targetCollegeId?.trim(),
     }),
   });
   const data = await res.json().catch(() => ({}));
