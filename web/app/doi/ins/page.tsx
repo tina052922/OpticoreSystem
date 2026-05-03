@@ -3,7 +3,6 @@ import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { INSFormFaculty } from "@/components/ins/INSFormFaculty";
 import { INSFormRoom } from "@/components/ins/INSFormRoom";
 import { INSFormSection } from "@/components/ins/INSFormSection";
-import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 
@@ -62,14 +61,7 @@ export default async function DoiInsIndexPage({
                 insBasePath="/doi/ins"
                 campusWide
                 hideInnerInsTabs
-                doiApprovalSlot={(ctx) => (
-                  <DoiInsFormalApprovalPanel
-                    periodId={ctx.periodId}
-                    periods={ctx.periods}
-                    onPeriodIdChange={ctx.onPeriodIdChange}
-                    reloadCatalog={ctx.reloadCatalog}
-                  />
-                )}
+                doiFormalApprovalPanel
               />
             ) : null}
             {activeTab === "section" ? <INSFormSection insBasePath="/doi/ins" campusWide hideInnerInsTabs /> : null}

@@ -72,10 +72,10 @@ values
   ('room-draft-1', 'Drafting Lab 1', 'COTE Building', 1, 32, 'Drafting Lab', 'col-tech-eng'),
   ('room-gar-1', 'Garments Lab 1', 'COTE Building', 1, 28, 'Workshop', 'col-tech-eng'),
   ('room-bsie-lab', 'IE Lab', 'Science and Technology Building', 2, 36, 'Laboratory', 'col-tech-eng'),
-  ('room-it-lab-1', 'IT LAB 1', 'Science and Technology Building', 2, 40, 'Computer Lab', 'col-tech-eng'),
-  ('room-it-lab-2', 'IT LAB 2', 'Science and Technology Building', 2, 40, 'Computer Lab', 'col-tech-eng'),
-  ('room-it-lab-3', 'IT LAB 3', 'Science and Technology Building', 3, 40, 'Computer Lab', 'col-tech-eng'),
-  ('room-it-lab-4', 'IT LAB 4', 'Science and Technology Building', 3, 40, 'Computer Lab', 'col-tech-eng')
+  ('room-it-lab-1', 'IT LAB 1', 'COTE Building', 2, 40, 'Computer Lab', 'col-tech-eng'),
+  ('room-it-lab-2', 'IT LAB 2', 'COTE Building', 2, 40, 'Computer Lab', 'col-tech-eng'),
+  ('room-it-lab-3', 'IT LAB 3', 'COTE Building', 3, 40, 'Computer Lab', 'col-tech-eng'),
+  ('room-it-lab-4', 'IT LAB 4', 'COTE Building', 3, 40, 'Computer Lab', 'col-tech-eng')
 on conflict (code) do update set
   building = excluded.building,
   floor = excluded.floor,

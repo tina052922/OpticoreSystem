@@ -18,7 +18,15 @@ import {
   formatUserInstructorLabel,
   type InstructorPlotOption,
 } from "@/lib/evaluator/instructor-employee-id";
-import { roomBuildingKey, roomsInBuilding, sortedBuildingLabels } from "@/lib/evaluator/room-by-building";
+import {
+  campusNavigationBuildingOptionLabel,
+  sortedBuildingKeysFromRooms,
+} from "@/lib/campus/campus-navigation-catalog";
+import {
+  formatRoomOptionLabel,
+  roomBuildingKey,
+  roomsInBuildingSorted,
+} from "@/lib/evaluator/room-by-building";
 import type { FacultyProfile, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 
 const selectClass =
@@ -139,9 +147,13 @@ export function GecSectionPlottingTable({
   highlightConflictEntryIds,
 }: Props) {
   const [localAddBusy, setLocalAddBusy] = useState(false);
-  /** Per entry row: building filter for two-step room pick (not persisted). */
+  /**
+   * Per entry row: building filter for two-step room pick (not persisted — `ScheduleEntry.roomId` only).
+   * Same cascading pattern as Chairman Evaluator: buildings from {@link sortedBuildingKeysFromRooms}, rooms via
+   * {@link roomsInBuildingSorted} (floor then code).
+   */
   const [roomBuildingByEntryId, setRoomBuildingByEntryId] = useState<Record<string, string>>({});
-  const gecBuildingLabels = useMemo(() => sortedBuildingLabels(rooms), [rooms]);
+  const gecBuildingLabels = useMemo(() => sortedBuildingKeysFromRooms(rooms), [rooms]);
   const vacantSourceIds = useMemo(() => {
     const ids = new Set<string>();
     for (const e of entries) {
@@ -401,7 +413,7 @@ export function GecSectionPlottingTable({
                           const picked = merged.roomId ? rooms.find((r) => r.id === merged.roomId) : undefined;
                           const inferred = picked ? roomBuildingKey(picked) : "";
                           const buildingVal = roomBuildingByEntryId[e.id] ?? inferred;
-                          const inB = buildingVal ? roomsInBuilding(rooms, buildingVal) : [];
+                          const inB = buildingVal ? roomsInBuildingSorted(rooms, buildingVal) : [];
                           return (
                             <div className="flex flex-col gap-1">
                               <select
@@ -429,7 +441,7 @@ export function GecSectionPlottingTable({
                                 <option value="">Building…</option>
                                 {gecBuildingLabels.map((b) => (
                                   <option key={b} value={b}>
-                                    {b}
+                                    {campusNavigationBuildingOptionLabel(b)}
                                   </option>
                                 ))}
                               </select>
@@ -451,7 +463,8 @@ export function GecSectionPlottingTable({
                                 <option value="">{buildingVal ? "Room…" : "Select building first"}</option>
                                 {inB.map((r) => (
                                   <option key={r.id} value={r.id}>
-                                    {r.code}
+                                    {formatRoomOptionLabel(r)}
+                                    {r.type ? ` · ${r.type}` : ""}
                                   </option>
                                 ))}
                               </select>
@@ -459,7 +472,12 @@ export function GecSectionPlottingTable({
                           );
                         })()
                       ) : (
-                        <span>{rooms.find((r) => r.id === merged.roomId)?.code ?? "—"}</span>
+                        <span>
+                          {(() => {
+                            const rm = merged.roomId ? rooms.find((r) => r.id === merged.roomId) : undefined;
+                            return rm ? formatRoomOptionLabel(rm) : "—";
+                          })()}
+                        </span>
                       )}
                     </td>
                     <td className="border border-black/10 px-1 py-1 min-w-[200px]">

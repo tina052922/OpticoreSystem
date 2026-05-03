@@ -3,6 +3,8 @@
  * Used to lock Chairman scheduling UI to official sections, rooms, and course codes.
  */
 
+import type { Room } from "@/types/db";
+
 export const BSIT_PROGRAM_CODE = "BSIT";
 
 /** Seed `Program.id` for BSIT (see supabase/seed.sql). */
@@ -138,6 +140,23 @@ export function isBsitSectionName(name: string): boolean {
 
 export function isBsitSchedulingRoomCode(code: string): boolean {
   return (BSIT_SCHEDULING_ROOM_CODES as readonly string[]).includes(code.trim());
+}
+
+/**
+ * BSIT chairman / prospectus plotting: eligible IT lab rows for the schedule grid.
+ *
+ * Legacy seed used `Room.code` = `IT LAB 1` … `IT LAB 4` (now grouped under **COTE Building** like campus navigation).
+ * Campus navigation seed uses **COTE 302–305** with `displayName` **IT Lab 01** … **IT Lab 04**.
+ * Both must appear when filtering “BSIT lab” rooms so Building → Room cascading stays populated.
+ */
+export function isBsitPlotEligibleRoom(room: Pick<Room, "code" | "displayName" | "building">): boolean {
+  if (isBsitSchedulingRoomCode(room.code)) return true;
+  const raw = (room.displayName ?? "").trim().replace(/\s+/g, " ");
+  if (!raw) return false;
+  const m = raw.match(/^IT Lab\s+(\d+)$/i);
+  if (!m) return false;
+  const n = parseInt(m[1], 10);
+  return n >= 1 && n <= 4;
 }
 
 /** Map section name (e.g. BSIT-1A) to curriculum year level (1–4) for prospectus filtering. */

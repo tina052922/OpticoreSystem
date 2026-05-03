@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
@@ -22,17 +21,9 @@ import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGr
 import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
 import { FacultyScheduleChangeModal } from "@/components/faculty/FacultyScheduleChangeModal";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
-import type { AcademicPeriod } from "@/types/db";
+import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
-
-export type DoiInsApprovalSlotContext = {
-  periodId: string;
-  periods: AcademicPeriod[];
-  onPeriodIdChange: (id: string) => void;
-  /** Refresh INS catalog after VPAA publish so locked rows and banners update immediately. */
-  reloadCatalog?: () => void | Promise<void>;
-};
 
 const DEMO_SCHEDULE: Record<DayKey, Array<{ time: string; course: string; yearSec: string; room: string }>> = {
   Monday: [{ time: "7:00-9:00", course: "IT 203", yearSec: "BSIT 2A", room: "Lab 301" }],
@@ -69,8 +60,8 @@ export type INSFormFacultyProps = {
   lockedInstructorId?: string | null;
   /** DOI / VPAA: load all colleges’ schedule rows for INS Form 5A. */
   campusWide?: boolean;
-  /** DOI: render VPAA approval + campus conflict check (shares term with this form). */
-  doiApprovalSlot?: (ctx: DoiInsApprovalSlotContext) => ReactNode;
+  /** DOI: VPAA approval + campus conflict scan (must be rendered here — Server Components cannot pass render props into this client component). */
+  doiFormalApprovalPanel?: boolean;
   /** Combined INS page (e.g. faculty portal): hide Faculty/Section/Room sub-tabs — parent provides tabs. */
   hideInnerInsTabs?: boolean;
 };
@@ -84,7 +75,7 @@ export function INSFormFaculty({
   viewerCollegeId = null,
   lockedInstructorId = null,
   campusWide = false,
-  doiApprovalSlot,
+  doiFormalApprovalPanel = false,
   hideInnerInsTabs = false,
 }: INSFormFacultyProps) {
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
@@ -236,14 +227,14 @@ export function INSFormFaculty({
             />
           ) : null}
 
-          {doiApprovalSlot
-            ? doiApprovalSlot({
-                periodId: live.academicPeriodId,
-                periods: live.periods,
-                onPeriodIdChange: live.setAcademicPeriodId,
-                reloadCatalog: live.reload,
-              })
-            : null}
+          {doiFormalApprovalPanel ? (
+            <DoiInsFormalApprovalPanel
+              periodId={live.academicPeriodId}
+              periods={live.periods}
+              onPeriodIdChange={live.setAcademicPeriodId}
+              reloadCatalog={live.reload}
+            />
+          ) : null}
 
           {(insBasePath.includes("/admin/college") || insBasePath.includes("/doi")) && !lockedInstructorId && useLiveData ? (
             <InsSignerLabelsEditor

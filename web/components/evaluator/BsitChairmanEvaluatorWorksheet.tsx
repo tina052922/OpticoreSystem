@@ -36,6 +36,11 @@ import {
 } from "@/lib/chairman/prospectus-registry";
 import { yearLevelFromSchedulingSectionName } from "@/lib/chairman/section-year-level";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
+import {
+  campusNavigationBuildingOptionLabel,
+  sortedNavigationBuildingKeysFromRooms,
+} from "@/lib/campus/campus-navigation-catalog";
+import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
@@ -56,7 +61,11 @@ import {
   usersToInstructorPlotOptions,
   type InstructorPlotOption,
 } from "@/lib/evaluator/instructor-employee-id";
-import { roomBuildingKey, roomsInBuilding, sortedBuildingLabels } from "@/lib/evaluator/room-by-building";
+import {
+  formatRoomOptionLabel,
+  roomBuildingKey,
+  roomsInBuildingSorted,
+} from "@/lib/evaluator/room-by-building";
 
 /** Fallback program code when session has no `chairmanProgramCode` (legacy chairman session). */
 const DEFAULT_CHAIRMAN_PROGRAM_CODE: string = BSIT_PROGRAM_CODE;
@@ -348,7 +357,10 @@ export function BsitChairmanEvaluatorWorksheet({
   const locallyEditedRowIdsRef = useRef<Set<string>>(new Set());
   /** Plot row waiting for VPAA justification before applying instructor/day/slot overload. */
   const policyAssignGateRef = useRef<PlotRow | null>(null);
-  /** Two-step Building → Room UX (not persisted — `ScheduleEntry` still stores `roomId` only). */
+  /**
+   * Two-step Building → Room UX (not persisted — `ScheduleEntry` still stores `roomId` only).
+   * Room list per building is filtered/sorted with {@link roomsInBuildingSorted} so it matches campus navigation towers.
+   */
   const [roomBuildingByRowId, setRoomBuildingByRowId] = useState<Record<string, string>>({});
   const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
   /** IDs loaded with `lockedByDoiAt` — never send DELETE for these if they disappear from state (e.g. scope change). */
@@ -517,9 +529,11 @@ export function BsitChairmanEvaluatorWorksheet({
   /**
    * All chairman programs (including BSIT): home college + shared (`collegeId` null) rooms, plus any room already
    * used this term on a visible row (cross-college assignments).
+   * Legacy IT LAB 1–4 rows are omitted when COTE `room-cote-302`…`305` are loaded so Building/Room matches campus navigation.
    */
   const roomsForEvaluatorGrid = useMemo((): Room[] => {
-    const scoped = rooms.filter(
+    const catalog = dedupeLegacyItLabsForCampusNavigation(rooms);
+    const scoped = catalog.filter(
       (r) =>
         !r.collegeId ||
         !chairmanCollegeId ||
@@ -569,7 +583,10 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [rooms, roomsForEvaluatorGrid]);
 
-  const buildingLabelsForGrid = useMemo(() => sortedBuildingLabels(roomsForEvaluatorGrid), [roomsForEvaluatorGrid]);
+  const buildingLabelsForGrid = useMemo(
+    () => sortedNavigationBuildingKeysFromRooms(roomsForEvaluatorGrid),
+    [roomsForEvaluatorGrid],
+  );
 
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -2071,7 +2088,7 @@ export function BsitChairmanEvaluatorWorksheet({
                           const inferredBuilding = pickedRoom ? roomBuildingKey(pickedRoom) : "";
                           const buildingValue = roomBuildingByRowId[row.id] ?? inferredBuilding;
                           const roomsInB = buildingValue
-                            ? roomsInBuilding(roomsForEvaluatorGrid, buildingValue)
+                            ? roomsInBuildingSorted(roomsForEvaluatorGrid, buildingValue)
                             : [];
                           return (
                             <div className="flex min-w-0 flex-col gap-1">
@@ -2103,7 +2120,7 @@ export function BsitChairmanEvaluatorWorksheet({
                                 <option value="">Building…</option>
                                 {buildingLabelsForGrid.map((b) => (
                                   <option key={b} value={b}>
-                                    {b}
+                                    {campusNavigationBuildingOptionLabel(b)}
                                   </option>
                                 ))}
                               </select>
@@ -2125,7 +2142,7 @@ export function BsitChairmanEvaluatorWorksheet({
                                 <option value="">{buildingValue ? "Room…" : "Select building first"}</option>
                                 {roomsInB.map((r) => (
                                   <option key={r.id} value={r.id}>
-                                    {r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code}
+                                    {formatRoomOptionLabel(r)}
                                   </option>
                                 ))}
                               </select>
