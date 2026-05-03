@@ -15,3 +15,23 @@ export function sortedBuildingLabels(rooms: Room[]): string[] {
 export function roomsInBuilding(rooms: Room[], buildingKey: string): Room[] {
   return rooms.filter((r) => roomBuildingKey(r) === buildingKey);
 }
+
+/**
+ * Rooms in one building, ordered for dropdowns: floor ascending, then code.
+ * Keeps COTE-style towers readable (e.g. COTE 101 … COTE 305) in the Room list.
+ */
+export function roomsInBuildingSorted(rooms: Room[], buildingKey: string): Room[] {
+  const list = roomsInBuilding(rooms, buildingKey);
+  return [...list].sort((a, b) => {
+    const fa = a.floor ?? 0;
+    const fb = b.floor ?? 0;
+    if (fa !== fb) return fa - fb;
+    return a.code.localeCompare(b.code);
+  });
+}
+
+/** Consistent label for building→room selects (matches BSIT worksheet / campus navigation names). */
+export function formatRoomOptionLabel(room: Pick<Room, "code" | "displayName">): string {
+  const d = room.displayName?.trim();
+  return d ? `${room.code} — ${d}` : room.code;
+}

@@ -5,7 +5,7 @@
 
 Project OptiCore {
   database_type: 'PostgreSQL'
-  Note: 'OptiCore Campus Intelligence (CTU Argao). Hub: ScheduleEntry. VPAA: DoiScheduleFinalization; lock: ScheduleEntry.locked_by_doi_at.'
+  Note: 'OptiCore Campus Intelligence (CTU Argao). Hub: ScheduleEntry. Singleton: CampusInsSettings. VPAA: DoiScheduleFinalization; lock: ScheduleEntry.lockedByDoiAt.'
 }
 
 Table AcademicPeriod {
@@ -57,6 +57,7 @@ Table FacultyProfile {
   user_id text [not null, unique, ref: > Users.id]
   full_name text [not null]
   aka text
+  advisory_section_id text [ref: > Section.id, note: 'optional advisory class']
   bs_degree text
   ms_degree text
   doctoral_degree text
@@ -96,6 +97,8 @@ Table Room {
   capacity int
   type text
   college_id text [ref: > College.id]
+  image_path text [note: 'Campus navigation asset under public/, e.g. campus/navigation/ITLab1.HEIC']
+  display_name text [note: 'INS / evaluator label when different from code, e.g. IT Lab 01 for COTE 305']
 }
 
 Table ScheduleEntry {
@@ -139,6 +142,10 @@ Table ScheduleLoadJustification {
   author_email text
   justification text [not null]
   violations_snapshot jsonb
+  doi_decision text [note: 'accepted | rejected | pending']
+  doi_reviewed_at timestamptz
+  doi_reviewed_by_id text [ref: > Users.id]
+  doi_review_note text
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 
@@ -219,6 +226,13 @@ Table ScheduleChangeRequest {
   reviewed_by_id text [ref: > Users.id]
   reviewed_at timestamptz
   created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// Singleton (id = default): campus-wide INS assets (e.g. Campus Director signature). PostgreSQL: public."CampusInsSettings"
+Table CampusInsSettings {
+  id text [pk, note: "always 'default'"]
+  campus_director_signature_image_url text
   updated_at timestamptz [not null]
 }
 

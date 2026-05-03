@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import {
   CAMPUS_WIDE_COLLEGE_SLUG,
   CENTRAL_HUB_COLLEGES,
@@ -556,8 +557,10 @@ export function CentralHubEvaluatorView({
   }, [editEntry, sectionById, programById]);
 
   const roomsForEdit = useMemo(() => {
-    if (!editCollegeId) return rooms;
-    return rooms.filter((r) => !r.collegeId || r.collegeId === editCollegeId);
+    const scoped = !editCollegeId
+      ? rooms
+      : rooms.filter((r) => !r.collegeId || r.collegeId === editCollegeId);
+    return dedupeLegacyItLabsForCampusNavigation(scoped);
   }, [rooms, editCollegeId]);
 
   const instructorsForEdit = useMemo(() => {

@@ -99,4 +99,39 @@ Use after releases or changes to scheduling, INS, GEC access, auth, RLS, profile
 
 ---
 
+## 13. Cross-user alignment, reflection & flows (system test)
+
+Use **two browsers or profiles** (e.g. Chairman + Instructor, or College Admin + Instructor). Confirm **same term** selected where applicable.
+
+### Data alignment
+
+- [ ] **Schedule vs INS** — After Chairman/GEC saves a slot, `ScheduleEntry.roomId` / day / times match on Instructor INS (Faculty self) and Campus Intelligence for that term (within realtime + soft reload window).
+- [ ] **Room labels** — Campus navigation `Room.displayName` / code appear consistently in Evaluator, GEC plotting, and INS Room tab.
+
+### Scheduling flow
+
+- [ ] Chairman Evaluator (or BSIT worksheet) → save draft/final row → row appears in merged grid and in conflict scan inputs.
+- [ ] DOI lock — After VPAA publish (`lockedByDoiAt` set), chairman cannot mutate row; schedule-change API returns **423** when applying moves.
+
+### Navigation flow
+
+- [ ] Instructor **Campus navigation** route loads; links back to faculty shell work.
+- [ ] Building → Room cascades use same `Room.building` grouping as catalog (COTE vs other buildings).
+
+### Schedule change request flow
+
+- [ ] Instructor submits request (API `POST /api/faculty/schedule-change-request`) → College Admin list updates (Realtime or refresh) → approve → `ScheduleEntry` day/start/end match request → instructor notification or UI reflects decision.
+
+### Policy justification flow
+
+- [ ] Trigger overload in Evaluator → **Policy justification** modal → save `ScheduleLoadJustification` → DOI / college policy review UI shows row (see role-specific pages).
+
+### Updates across users (reflection)
+
+- [ ] **`ScheduleEntry`** — Second session sees changes via Realtime on `ScheduleEntry` (see `useScheduleEntryCrossReload`, `useInsCatalog`) or within ~8s polling fallback when publication is missing.
+- [ ] **`ScheduleChangeRequest`** — Pending count badge / college workspace list refresh on insert/update (Realtime + 45s poll fallback in `usePendingScheduleChangeRequestsCount`).
+- [ ] **`Notification`** — Bell / list updates when triggers insert rows (spot-check after SCR decision).
+
+---
+
 *Keep steps outcome-based (observable UI). Extend when adding workflows.*

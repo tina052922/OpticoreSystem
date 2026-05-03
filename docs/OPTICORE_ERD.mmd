@@ -1,0 +1,44 @@
+%% OptiCore ERD (Mermaid) — render in GitHub, Mermaid Live Editor, or VS Code Mermaid preview
+%% Physical Supabase/Postgres: public."User" (quoted), camelCase columns; this diagram uses `Users` to avoid Mermaid keyword issues
+
+erDiagram
+  AcademicPeriod ||--o{ ScheduleEntry : "term"
+  AcademicPeriod ||--o{ ScheduleLoadJustification : "load review"
+  AcademicPeriod ||--o| DoiScheduleFinalization : "1:1 publish"
+  AcademicPeriod ||--o{ ScheduleChangeRequest : "change req"
+
+  College ||--o{ Program : "has"
+  College ||--o{ Room : "optional scope"
+  College ||--o{ Users : "staff or student"
+  College ||--o{ ScheduleLoadJustification : "per college + term"
+  College ||--o{ WorkflowInboxMessage : "inbox"
+  College ||--o{ AccessRequest : "GEC/CAS access"
+  College ||--o{ AuditLog : "optional scope"
+  College ||--o{ ScheduleChangeRequest : "routing"
+
+  Program ||--o{ Section : "sections"
+  Program ||--o{ Subject : "catalog"
+  Program ||--o{ Users : "chairman focus"
+  Program ||--o{ StudentProfile : "enrollment"
+
+  Section ||--o{ ScheduleEntry : "class"
+  Section ||--o{ StudentProfile : "roster"
+  Section ||--o{ FacultyProfile : "advisory"
+
+  Users ||--|| FacultyProfile : "1:1 faculty"
+  Users ||--|| StudentProfile : "1:1 student"
+  Users ||--o{ ScheduleEntry : "teaches"
+  Users ||--o{ Notification : "receives"
+  Users ||--o{ ScheduleChangeRequest : "instructor or reviewer"
+  Users ||--o{ WorkflowInboxMessage : "sender"
+  Users ||--o{ AccessRequest : "requester or reviewer"
+  Users ||--o{ AuditLog : "actor"
+  Users ||--o{ ScheduleLoadJustification : "author or DOI"
+  Users ||--o| DoiScheduleFinalization : "decidedBy"
+
+  Subject ||--o{ ScheduleEntry : "offering"
+  Room ||--o{ ScheduleEntry : "location"
+
+  ScheduleEntry ||--o{ ScheduleChangeRequest : "cascade on delete"
+
+  %% CampusInsSettings: singleton row (no FK edges to other entities)

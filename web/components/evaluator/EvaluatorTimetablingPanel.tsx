@@ -28,7 +28,7 @@ import { ScheduleLivePreview } from "./ScheduleLivePreview";
 import {
   type BsitSemester,
   isBsitChairmanProgram,
-  isBsitSchedulingRoomCode,
+  isBsitPlotEligibleRoom,
   isBsitSectionName,
   normalizeProspectusCode,
   prospectusSubjectsForYearAndSemester,
@@ -46,7 +46,16 @@ import {
   mergeLegacyRowInstructorsIntoPlotOptions,
   usersToInstructorPlotOptions,
 } from "@/lib/evaluator/instructor-employee-id";
-import { roomBuildingKey, roomsInBuilding, sortedBuildingLabels } from "@/lib/evaluator/room-by-building";
+import {
+  campusNavigationBuildingOptionLabel,
+  sortedBuildingKeysFromRooms,
+} from "@/lib/campus/campus-navigation-catalog";
+import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
+import {
+  formatRoomOptionLabel,
+  roomBuildingKey,
+  roomsInBuildingSorted,
+} from "@/lib/evaluator/room-by-building";
 import { mergeById } from "@/lib/collections/merge-by-id";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
@@ -451,24 +460,38 @@ export function EvaluatorTimetablingPanel({
     return list;
   }, [subjectsInProgram, bsitScope, bsitYearLevel, bsitSemester]);
 
+  /** Drop superseded legacy IT lab rows when COTE navigation labs exist — matches campus navigation module groupings. */
+  const roomsCatalogAligned = useMemo(() => dedupeLegacyItLabsForCampusNavigation(rooms), [rooms]);
+
   const roomsInCollege = useMemo(
     () =>
-      rooms.filter(
+      roomsCatalogAligned.filter(
         (r) => !effectiveCollegeId || r.collegeId === effectiveCollegeId || r.collegeId == null,
       ),
-    [rooms, effectiveCollegeId],
+    [roomsCatalogAligned, effectiveCollegeId],
   );
 
+  /**
+   * Rooms available in the plotter: college-scoped (+ shared `collegeId` null). BSIT chairman mode limits to the four
+   * official IT labs — both legacy codes (`IT LAB 1`…) and COTE navigation rows (`COTE 302` + displayName `IT Lab 04`).
+   * Building → Room options are derived from this list via {@link sortedBuildingKeysFromRooms} and
+   * {@link roomsInBuildingSorted} (campus navigation grouping).
+   */
   const roomsForPlotter = useMemo(() => {
     let list = roomsInCollege;
-    if (bsitScope) list = list.filter((r) => isBsitSchedulingRoomCode(r.code));
+    if (bsitScope) list = list.filter((r) => isBsitPlotEligibleRoom(r));
     return list;
   }, [roomsInCollege, bsitScope]);
 
-  const plotterBuildingLabels = useMemo(() => sortedBuildingLabels(roomsForPlotter), [roomsForPlotter]);
+  /** Cascading step 1: one entry per distinct `Room.building` (normalized), alphabetically sorted. */
+  const plotterBuildingLabels = useMemo(() => sortedBuildingKeysFromRooms(roomsForPlotter), [roomsForPlotter]);
 
+  /**
+   * Cascading step 2: only rooms whose `roomBuildingKey` matches the selected building.
+   * `ScheduleEntry` still stores `roomId` only; building is UI state to narrow the room list.
+   */
   const roomsForPlotterInBuilding = useMemo(
-    () => (plotterRoomBuilding ? roomsInBuilding(roomsForPlotter, plotterRoomBuilding) : []),
+    () => (plotterRoomBuilding ? roomsInBuildingSorted(roomsForPlotter, plotterRoomBuilding) : []),
     [roomsForPlotter, plotterRoomBuilding],
   );
 
@@ -1463,7 +1486,7 @@ export function EvaluatorTimetablingPanel({
                 <option value="">Select building…</option>
                 {plotterBuildingLabels.map((b) => (
                   <option key={b} value={b}>
-                    {b}
+                    {campusNavigationBuildingOptionLabel(b)}
                   </option>
                 ))}
               </select>
@@ -1483,7 +1506,8 @@ export function EvaluatorTimetablingPanel({
                 <option value="">{plotterRoomBuilding ? "Select room…" : "Select building first"}</option>
                 {roomsForPlotterInBuilding.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.code} ({r.type ?? "Room"})
+                    {formatRoomOptionLabel(r)}
+                    {r.type ? ` · ${r.type}` : ""}
                   </option>
                 ))}
               </select>

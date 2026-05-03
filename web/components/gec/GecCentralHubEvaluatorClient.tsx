@@ -46,6 +46,7 @@ import {
   isGecCurriculumSubjectCode,
   isGecVacantScheduleEntry,
 } from "@/lib/gec/gec-vacant";
+import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
@@ -662,7 +663,8 @@ export function GecCentralHubEvaluatorClient() {
 
   const roomsForPlotting = useMemo(() => {
     if (!plotCollegeId) return [];
-    return rooms.filter((r) => !r.collegeId || r.collegeId === plotCollegeId);
+    const scoped = rooms.filter((r) => !r.collegeId || r.collegeId === plotCollegeId);
+    return dedupeLegacyItLabsForCampusNavigation(scoped);
   }, [rooms, plotCollegeId]);
 
   function patchEdit(entryId: string, patch: GecPlotEditPatch) {

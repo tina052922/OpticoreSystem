@@ -1,0 +1,77 @@
+%% OptiCore high-level class diagram (Mermaid) — domain + client sync + API boundary
+%% Render: Mermaid Live, GitHub, or VS Code Mermaid preview
+%% This is a conceptual view; see `web/types/db.ts` for full field-level types.
+
+classDiagram
+  direction TB
+
+  namespace Domain {
+    class User {
+      +string id
+      +string role
+      +string collegeId
+    }
+    class College
+    class Program
+    class Section
+    class Subject
+    class Room
+    class FacultyProfile
+    class StudentProfile
+    class ScheduleEntry {
+      +string id
+      +string academicPeriodId
+      +string roomId
+      +string instructorId
+      +string sectionId
+      +string subjectId
+      +string day
+      +string startTime
+      +string endTime
+      +Date lockedByDoiAt
+    }
+    class ScheduleChangeRequest
+    class ScheduleLoadJustification
+    class Notification
+    class DoiScheduleFinalization
+    class CampusInsSettings
+  }
+
+  namespace ClientSync {
+    class useScheduleEntryCrossReload
+    class useInsCatalog
+    class usePendingScheduleChangeRequestsCount
+    class usePendingPolicyReviewsCount
+  }
+
+  namespace NextApi {
+    class FacultyScheduleChangeApi
+    class CollegeScheduleChangeApi
+    class PortalFacultyTermDataApi
+  }
+
+  College "1" --> "*" Program : offers
+  Program "1" --> "*" Section
+  Program "1" --> "*" Subject
+  Section "1" --> "*" ScheduleEntry : scheduled_in
+  Subject "1" --> "*" ScheduleEntry : covers
+  Room "1" --> "*" ScheduleEntry : hosts
+  User "1" --> "*" ScheduleEntry : teaches
+  User "1" --> "1" FacultyProfile : optional_profile
+  ScheduleChangeRequest "*" --> "1" ScheduleEntry : targets
+  ScheduleChangeRequest "*" --> "1" User : instructor
+  ScheduleLoadJustification "*" --> "1" College : scope
+  ScheduleLoadJustification "*" --> "1" User : author
+
+  useScheduleEntryCrossReload ..> ScheduleEntry : Realtime + poll reload
+  useInsCatalog ..> ScheduleEntry : Realtime reload
+  useInsCatalog ..> CampusInsSettings : Realtime reload
+  usePendingScheduleChangeRequestsCount ..> ScheduleChangeRequest : Realtime + poll
+  usePendingPolicyReviewsCount ..> ScheduleLoadJustification : hub badge
+
+  FacultyScheduleChangeApi ..> ScheduleChangeRequest : POST insert
+  FacultyScheduleChangeApi ..> ScheduleEntry : validates FK
+  CollegeScheduleChangeApi ..> ScheduleChangeRequest : PATCH approve/reject
+  CollegeScheduleChangeApi ..> ScheduleEntry : PATCH slot on approve
+
+%% Legend (comments): RLS enforced in Postgres; browser uses Supabase client with auth.uid().
