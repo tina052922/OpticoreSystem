@@ -4,8 +4,8 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build"
+    "dev": "vite -c \"Smart-Campus Navigation System/vite.config.ts\" \"Smart-Campus Navigation System\"",
+    "build": "vite build -c \"Smart-Campus Navigation System/vite.config.ts\" \"Smart-Campus Navigation System\""
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

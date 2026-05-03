@@ -1,0 +1,2112 @@
+/* Cebu Technological University- Argao Campus Map */
+
+position: relative;
+width: 1728px;
+height: 1117px;
+
+background: #E3FFEE;
+
+
+/* Road path */
+
+position: absolute;
+width: 238.5px;
+height: 935px;
+left: 649px;
+top: 93.5px;
+
+
+
+/* Vector 1 */
+
+position: absolute;
+width: 157px;
+height: 935px;
+left: 730.5px;
+top: 93.5px;
+
+border: 9px solid #B4BEC7;
+
+
+/* Vector 2 */
+
+position: absolute;
+width: 172.5px;
+height: 542.5px;
+left: 649px;
+top: 450.5px;
+
+border: 9px solid #B4BEC7;
+
+
+/* Pathways */
+
+position: absolute;
+width: 120.5px;
+height: 156px;
+left: 710px;
+top: 806px;
+
+border: 5px solid #3BB4FF;
+
+
+/* Pathways */
+
+position: absolute;
+width: 104px;
+height: 0px;
+left: 693px;
+top: 841.5px;
+
+border: 5px solid #3BB4FF;
+
+
+/* Pathways */
+
+position: absolute;
+width: 132.5px;
+height: 0px;
+left: 692.5px;
+top: 824px;
+
+border: 5px solid #3BB4FF;
+
+
+/* pathways */
+
+position: absolute;
+width: 100.5px;
+height: 360.5px;
+left: 624px;
+top: 666px;
+
+border: 5px solid #3BB4FF;
+
+
+/* pathways */
+
+position: absolute;
+width: 49.5px;
+height: 79.5px;
+left: 637px;
+top: 759.5px;
+
+border: 5px solid #3BB4FF;
+
+
+/* Gate */
+
+position: absolute;
+width: 469.85px;
+height: 942.07px;
+left: 582px;
+top: 87px;
+
+
+
+/* Rectangle 1 */
+
+position: absolute;
+width: 130px;
+height: 5px;
+left: 587px;
+top: 1024px;
+
+background: #6E6D6D;
+
+
+/* Rectangle 7 */
+
+position: absolute;
+width: 124.83px;
+height: 5px;
+left: 622px;
+top: 393px;
+
+background: #6E6D6D;
+transform: rotate(3.64deg);
+
+
+/* Rectangle 6 */
+
+position: absolute;
+width: 637.09px;
+height: 5px;
+left: 582px;
+top: 392.77px;
+
+background: #6E6D6D;
+transform: rotate(93.32deg);
+
+
+/* Rectangle 2 */
+
+position: absolute;
+width: 125px;
+height: 5px;
+left: 748px;
+top: 1024px;
+
+background: #6E6D6D;
+
+
+/* Rectangle 5 */
+
+position: absolute;
+width: 98.38px;
+height: 5px;
+left: 949.62px;
+top: 868px;
+
+background: #6E6D6D;
+transform: rotate(-2.46deg);
+
+
+/* Rectangle 9 */
+
+position: absolute;
+width: 189.23px;
+height: 5px;
+left: 862.25px;
+top: 633px;
+
+background: #6E6D6D;
+transform: rotate(-0.26deg);
+
+
+/* Rectangle 10 */
+
+position: absolute;
+width: 127.9px;
+height: 5px;
+left: 859.71px;
+top: 591.19px;
+
+background: #6E6D6D;
+transform: rotate(-0.26deg);
+
+
+/* Rectangle 13 */
+
+position: absolute;
+width: 100.12px;
+height: 5px;
+left: 865px;
+top: 414.95px;
+
+background: #6E6D6D;
+transform: rotate(-8.02deg);
+
+
+/* Rectangle 15 */
+
+position: absolute;
+width: 51.1px;
+height: 5px;
+left: 859.01px;
+top: 381.65px;
+
+background: #6E6D6D;
+transform: rotate(-97.05deg);
+
+
+/* Rectangle 20 */
+
+position: absolute;
+width: 51.1px;
+height: 5px;
+left: 887.41px;
+top: 207px;
+
+background: #6E6D6D;
+transform: rotate(-94.49deg);
+
+
+/* Rectangle 25 */
+
+position: absolute;
+width: 70.76px;
+height: 5px;
+left: 1042.97px;
+top: 267px;
+
+background: #6E6D6D;
+transform: rotate(-89.91deg);
+
+
+/* Rectangle 21 */
+
+position: absolute;
+width: 109.54px;
+height: 5px;
+left: 948.66px;
+top: 101.19px;
+
+background: #6E6D6D;
+transform: rotate(-80.85deg);
+
+
+/* Rectangle 16 */
+
+position: absolute;
+width: 51.1px;
+height: 5px;
+left: 859px;
+top: 337px;
+
+background: #6E6D6D;
+transform: rotate(-62.98deg);
+
+
+/* Rectangle 18 */
+
+position: absolute;
+width: 51.1px;
+height: 5px;
+left: 742px;
+top: 352px;
+
+background: #6E6D6D;
+transform: rotate(-87.69deg);
+
+
+/* Rectangle 14 */
+
+position: absolute;
+width: 163.37px;
+height: 5px;
+left: 882.11px;
+top: 332.69px;
+
+background: #6E6D6D;
+transform: rotate(-1.53deg);
+
+
+/* Rectangle 19 */
+
+position: absolute;
+width: 156.46px;
+height: 5px;
+left: 892.2px;
+top: 254.39px;
+
+background: #6E6D6D;
+transform: rotate(4.24deg);
+
+
+/* Rectangle 23 */
+
+position: absolute;
+width: 53.56px;
+height: 5px;
+left: 779px;
+top: 87px;
+
+background: #6E6D6D;
+transform: rotate(4.24deg);
+
+
+/* Rectangle 24 */
+
+position: absolute;
+width: 105.16px;
+height: 5px;
+left: 866px;
+top: 93px;
+
+background: #6E6D6D;
+transform: rotate(4.24deg);
+
+
+/* Rectangle 22 */
+
+position: absolute;
+width: 66.45px;
+height: 5px;
+left: 887px;
+top: 204px;
+
+background: #6E6D6D;
+transform: rotate(4.24deg);
+
+
+/* Rectangle 11 */
+
+position: absolute;
+width: 46.98px;
+height: 5px;
+left: 859px;
+top: 592px;
+
+background: #6E6D6D;
+transform: rotate(89.97deg);
+
+
+/* Rectangle 3 */
+
+position: absolute;
+width: 51px;
+height: 5px;
+left: 901px;
+top: 1024px;
+
+background: #6E6D6D;
+
+
+/* Rectangle 4 */
+
+position: absolute;
+width: 156.13px;
+height: 5px;
+left: 949.63px;
+top: 872.87px;
+
+background: #6E6D6D;
+transform: rotate(89.8deg);
+
+
+/* Rectangle 12 */
+
+position: absolute;
+width: 240.12px;
+height: 5px;
+left: 1045.07px;
+top: 632.99px;
+
+background: #6E6D6D;
+transform: rotate(90.43deg);
+
+
+/* Rectangle 17 */
+
+position: absolute;
+width: 268.81px;
+height: 5px;
+left: 743.66px;
+top: 87px;
+
+background: #6E6D6D;
+transform: rotate(97.73deg);
+
+
+/* Rectangle 8 */
+
+position: absolute;
+width: 174.81px;
+height: 5px;
+left: 959.82px;
+top: 419.64px;
+
+background: #6E6D6D;
+transform: rotate(82.44deg);
+
+
+/* Gate 1 */
+
+position: absolute;
+width: 35px;
+height: 7px;
+left: 715px;
+top: 1023px;
+
+
+
+/* Line 1 */
+
+position: absolute;
+width: 33px;
+height: 0px;
+left: 716px;
+top: 1027px;
+
+border: 1px solid #000000;
+
+
+/* Rectangle 14 */
+
+position: absolute;
+width: 3px;
+height: 7px;
+left: 715px;
+top: 1023px;
+
+background: #B2B1B1;
+
+
+/* Rectangle 15 */
+
+position: absolute;
+width: 3px;
+height: 7px;
+left: 747px;
+top: 1023px;
+
+background: #B2B1B1;
+
+
+/* Gate 3 */
+
+position: absolute;
+width: 35px;
+height: 7px;
+left: 831px;
+top: 90px;
+
+transform: rotate(3.36deg);
+
+
+/* Line 1 */
+
+position: absolute;
+width: 33px;
+height: 0px;
+left: 832.17px;
+top: 94.05px;
+
+border: 1px solid #000000;
+transform: rotate(3.36deg);
+
+
+/* Rectangle 14 */
+
+position: absolute;
+width: 3px;
+height: 7px;
+left: 831px;
+top: 90px;
+
+background: #B2B1B1;
+transform: rotate(3.36deg);
+
+
+/* Rectangle 15 */
+
+position: absolute;
+width: 3px;
+height: 7px;
+left: 862.94px;
+top: 91.88px;
+
+background: #B2B1B1;
+transform: rotate(3.36deg);
+
+
+/* Gate 2 */
+
+position: absolute;
+width: 34px;
+height: 7px;
+left: 870px;
+top: 1023px;
+
+
+
+/* Line 2 */
+
+position: absolute;
+width: 33px;
+height: 0px;
+left: 871px;
+top: 1027px;
+
+border: 1px solid #000000;
+
+
+/* Rectangle 16 */
+
+position: absolute;
+width: 3px;
+height: 7px;
+left: 870px;
+top: 1023px;
+
+background: #B2B1B1;
+
+
+/* Rectangle 17 */
+
+position: absolute;
+width: 3px;
+height: 7px;
+left: 901px;
+top: 1023px;
+
+background: #B2B1B1;
+
+
+/* Guard House */
+
+position: absolute;
+width: 26px;
+height: 29px;
+left: 690px;
+top: 987px;
+
+
+
+/* Rectangle 18 */
+
+position: absolute;
+width: 26px;
+height: 24px;
+left: 690px;
+top: 992px;
+
+background: #C5C3C3;
+
+
+/* Rectangle 19 */
+
+position: absolute;
+width: 20px;
+height: 7px;
+left: 696px;
+top: 987px;
+
+background: #C5C3C3;
+
+
+/* Balay sa Alumni */
+
+position: absolute;
+width: 20px;
+height: 24px;
+left: 668px;
+top: 992px;
+
+background: #C5C3C3;
+
+
+/* Kahimsug Center Sci-Tech Argao */
+
+position: absolute;
+width: 20px;
+height: 24px;
+left: 646px;
+top: 992px;
+
+background: #C5C3C3;
+
+
+/* COOP Office */
+
+position: absolute;
+width: 41px;
+height: 22px;
+left: 596px;
+top: 994px;
+
+background: #C5C3C3;
+
+
+/* Student Affairs Office (SAO) */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 40px;
+height: 16px;
+left: 597px;
+top: 906px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Cultural Office */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 40px;
+height: 16px;
+left: 597px;
+top: 922px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* SSG Office */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 40px;
+height: 16px;
+left: 597px;
+top: 938px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* FSTLP */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 40px;
+height: 16px;
+left: 597px;
+top: 954px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Campus Ministry */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 40px;
+height: 16px;
+left: 597px;
+top: 970px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* TM 4 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 14px;
+height: 33px;
+left: 631px;
+top: 862px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* TM 3 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 14px;
+height: 33px;
+left: 645px;
+top: 862px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* Tourism Management Office */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 22px;
+height: 33px;
+left: 659px;
+top: 862px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* GDS Lab */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29px;
+height: 17px;
+left: 652px;
+top: 845px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* TM 2 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29px;
+height: 16px;
+left: 652px;
+top: 829px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* TM 1 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29px;
+height: 16px;
+left: 652px;
+top: 813px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* Power House */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29px;
+height: 20px;
+left: 652px;
+top: 793px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* General Services */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 13px;
+height: 30px;
+left: 668px;
+top: 763px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* TM 5 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 16px;
+height: 30px;
+left: 652px;
+top: 763px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* DRRMO */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 11px;
+height: 18px;
+left: 641px;
+top: 844px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* Maintenance */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 11px;
+height: 18px;
+left: 631px;
+top: 844px;
+
+background: #D9D9D9;
+border: 0.5px solid #A1A1A1;
+
+
+/* CR (SAO) */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 15px;
+height: 12px;
+left: 598px;
+top: 887px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* CR */
+
+position: absolute;
+width: 28px;
+height: 20px;
+left: 605px;
+top: 822px;
+
+
+
+/* CR (Male) */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 14px;
+height: 20px;
+left: 605px;
+top: 822px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* CR (Female) */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 17px;
+height: 13px;
+left: 616px;
+top: 822px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Storage Room */
+
+position: absolute;
+width: 19px;
+height: 11px;
+left: 604px;
+top: 842px;
+
+
+
+/* Rectangle 22 */
+
+position: absolute;
+width: 19px;
+height: 7px;
+left: 604px;
+top: 842px;
+
+background: #D9D9D9;
+
+
+/* Rectangle 23 */
+
+position: absolute;
+width: 14.78px;
+height: 5px;
+left: 604px;
+top: 848px;
+
+background: #D9D9D9;
+
+
+/* STO Office */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 16px;
+height: 10px;
+left: 604px;
+top: 853px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Southern Ripples */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 16px;
+height: 10px;
+left: 604px;
+top: 863px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Utility Office */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 16px;
+height: 10px;
+left: 604px;
+top: 873px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* HM 1 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29px;
+height: 17px;
+left: 604px;
+top: 805px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* HM 2 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29px;
+height: 17px;
+left: 604px;
+top: 788px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* HM 3 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29px;
+height: 17px;
+left: 604px;
+top: 771px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* HM 4 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29px;
+height: 17px;
+left: 604px;
+top: 754px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Admin Building  */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 31.79px;
+height: 88px;
+left: 608px;
+top: 662px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(3.06deg);
+
+
+/* Stairs */
+
+position: absolute;
+width: 39.93px;
+height: 18.01px;
+left: 616.53px;
+top: 644.46px;
+
+background: #D9D9D9;
+transform: rotate(3.38deg);
+
+
+/* Stairs */
+
+position: absolute;
+width: 22px;
+height: 10px;
+left: 624px;
+top: 649px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 8px;
+line-height: 10px;
+/* identical to box height */
+
+color: #000000;
+
+transform: rotate(3.12deg);
+
+
+/* Science and Technology Building */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 33.98px;
+height: 245.88px;
+left: 623.84px;
+top: 400px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(4.65deg);
+
+
+/* ACAD Bldg. Pres. Diosdado Macapagal Academic */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 113.19px;
+height: 32.03px;
+left: 678.07px;
+top: 403px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(4.24deg);
+
+
+/* Library */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 48.25px;
+height: 94.49px;
+left: 755.06px;
+top: 270.64px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(4.24deg);
+
+
+/* Ongoing bldg */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 41.5px;
+height: 83.55px;
+left: 874px;
+top: 104px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-86.21deg);
+
+
+/* Agriculture Building */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 33.2px;
+height: 92.47px;
+left: 779.11px;
+top: 91.85px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(4.24deg);
+
+
+/* Green House */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 29.53px;
+height: 38.75px;
+left: 780.28px;
+top: 195.8px;
+
+background: #A9E9C1;
+border: 0.5px solid #A1A1A1;
+transform: rotate(4.24deg);
+
+
+/* Oval */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 113.27px;
+height: 221px;
+left: 686px;
+top: 460px;
+
+background: #A9E9C1;
+border: 10px solid #A1A1A1;
+border-radius: 40px;
+transform: rotate(4.28deg);
+
+
+/* Kalampusan Gym */
+
+position: absolute;
+width: 122.34px;
+height: 112.45px;
+left: 695.58px;
+top: 707.08px;
+
+
+
+/* Rectangle 24 */
+
+position: absolute;
+width: 118.05px;
+height: 76.71px;
+left: 695.58px;
+top: 707.08px;
+
+background: #D9D9D9;
+transform: rotate(-3.35deg);
+
+
+/* Rectangle 25 */
+
+position: absolute;
+width: 40px;
+height: 31.81px;
+left: 713px;
+top: 785px;
+
+background: #D9D9D9;
+transform: rotate(-4.02deg);
+
+
+/* Canteen */
+
+position: absolute;
+width: 44.66px;
+height: 33.76px;
+left: 753px;
+top: 784.67px;
+
+background: #A1A1A1;
+transform: rotate(-4.02deg);
+
+
+/* Basketball Court */
+
+position: absolute;
+width: 93px;
+height: 51px;
+left: 703px;
+top: 848px;
+
+background: url(122c18b78f376abda6d3fa8bc64c70ad.jpg);
+
+
+/* Ongoing Bldg */
+
+position: absolute;
+width: 104px;
+height: 32px;
+left: 723px;
+top: 904px;
+
+background: #D9D9D9;
+
+
+/* Shared Service Facility for Handbloom Weaving */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 43px;
+height: 90px;
+left: 903px;
+top: 928px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Mini Hotel */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 43px;
+height: 42px;
+left: 903px;
+top: 882px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* HM Department */
+
+position: absolute;
+width: 105.01px;
+height: 63.95px;
+left: 936.9px;
+top: 805.98px;
+
+
+
+/* Mini Hotel */
+
+position: absolute;
+width: 103.46px;
+height: 29.28px;
+left: 936.9px;
+top: 834.57px;
+
+background: #C5C3C3;
+transform: rotate(-3.39deg);
+
+
+/* Mini Hotel */
+
+position: absolute;
+width: 51.62px;
+height: 29.28px;
+left: 987px;
+top: 805.98px;
+
+background: #C5C3C3;
+transform: rotate(-3.39deg);
+
+
+/* CTU-Argao Chess Center */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 7px;
+height: 11px;
+left: 863px;
+top: 1009px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Chapel */
+
+position: absolute;
+width: 49px;
+height: 29px;
+left: 880px;
+top: 806px;
+
+background: #C5C3C3;
+
+
+/* Student Lounge */
+
+position: absolute;
+width: 49px;
+height: 29px;
+left: 800px;
+top: 848px;
+
+background: #C5C3C3;
+
+
+/* COTE Building */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 153px;
+height: 38px;
+left: 845px;
+top: 750px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* COED Building */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 153px;
+height: 38px;
+left: 845px;
+top: 647px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* ROTC Office */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 28px;
+height: 22px;
+left: 845px;
+top: 697px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* ES Room 1 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 28px;
+height: 22px;
+left: 877px;
+top: 704px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* Old Stage */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 23px;
+height: 28px;
+left: 843px;
+top: 561px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* BIT AT Lab 1 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 41.11px;
+height: 30.84px;
+left: 934.79px;
+top: 552.42px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-7.57deg);
+
+
+/* BIT AT Lab 2 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 41.11px;
+height: 30.84px;
+left: 931px;
+top: 522px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-7.57deg);
+
+
+/* BIT AT Lab 3 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 41.11px;
+height: 30.84px;
+left: 927px;
+top: 492px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-7.57deg);
+
+
+/* BIT AT Lab 4 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 41.11px;
+height: 30.84px;
+left: 923px;
+top: 462px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-7.57deg);
+
+
+/* CTU-DOST-NICER Office */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 30.75px;
+height: 39.33px;
+left: 928.18px;
+top: 423.01px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-7.57deg);
+
+
+/* BENRC Microtel */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 31.82px;
+height: 28.05px;
+left: 829px;
+top: 416.86px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-7.57deg);
+
+
+/* BENRC-IFNI Training Center */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 36.43px;
+height: 28.05px;
+left: 833px;
+top: 443.39px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-7.57deg);
+
+
+/* BENRC Tissue Culture Lab */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 61.79px;
+height: 29.63px;
+left: 867.42px;
+top: 426.74px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(-7.57deg);
+
+
+/* ES Room 2 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 28px;
+height: 22px;
+left: 905px;
+top: 704px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* ES Room 3 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 28px;
+height: 22px;
+left: 933px;
+top: 704px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* CWTS Office */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 28px;
+height: 22px;
+left: 845px;
+top: 719px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+
+
+/* DT Lab 2 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 30.5px;
+height: 35.18px;
+left: 1003px;
+top: 677px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(90.2deg);
+
+
+/* DT Lab 1 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 30.5px;
+height: 35.18px;
+left: 1003px;
+top: 707px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(90.2deg);
+
+
+/* GT Lab 3 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 30.5px;
+height: 35.18px;
+left: 1003px;
+top: 737px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(90.2deg);
+
+
+/* BIT Lecture Lab Room 5 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 30.5px;
+height: 35.18px;
+left: 1003px;
+top: 767px;
+
+background: #C5C3C3;
+border: 0.5px solid #A1A1A1;
+transform: rotate(90.2deg);
+
+
+/* Biodiversity */
+
+position: absolute;
+width: 71.48px;
+height: 88.49px;
+left: 853.4px;
+top: 474.46px;
+
+
+
+/* Rectangle 28 */
+
+position: absolute;
+width: 41.73px;
+height: 83.62px;
+left: 872.24px;
+top: 474.46px;
+
+background: #D9D9D9;
+transform: rotate(-7.76deg);
+
+
+/* Rectangle 29 */
+
+position: absolute;
+width: 23.7px;
+height: 27.27px;
+left: 853.4px;
+top: 496.93px;
+
+background: #D9D9D9;
+transform: rotate(-8.36deg);
+
+
+/* Pathways */
+
+position: absolute;
+width: 158px;
+height: 232.5px;
+left: 839.5px;
+top: 795px;
+
+border: 5px solid #3BB4FF;
+
+
+/* Pathways */
+
+position: absolute;
+width: 170px;
+height: 51.5px;
+left: 829px;
+top: 693px;
+
+border: 5px solid #3BB4FF;
+
+
+/* pathways */
+
+position: absolute;
+width: 72px;
+height: 71px;
+left: 842px;
+top: 469.5px;
+
+border: 5px solid #3BB4FF;
+
+
+/* pathways */
+
+position: absolute;
+width: 95.5px;
+height: 202px;
+left: 834.5px;
+top: 487.5px;
+
+border: 5px solid #3BB4FF;
+
+
+/* Tree */
+
+position: absolute;
+width: 35px;
+height: 35px;
+left: 847px;
+top: 791px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 35px;
+height: 35px;
+left: 950px;
+top: 796px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 35px;
+height: 35px;
+left: 825px;
+top: 978px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 35px;
+height: 35px;
+left: 755px;
+top: 983px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 35px;
+height: 35px;
+left: 824px;
+top: 618px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 24px;
+height: 25px;
+left: 857px;
+top: 522px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 24px;
+height: 25px;
+left: 803px;
+top: 295px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 24px;
+height: 25px;
+left: 775px;
+top: 242px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 24px;
+height: 25px;
+left: 788px;
+top: 423px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 24px;
+height: 25px;
+left: 819px;
+top: 114px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 20px;
+height: 19px;
+left: 865px;
+top: 553px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 866px;
+top: 567px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 792px;
+top: 242px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 799px;
+top: 415px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 656px;
+top: 630px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 775px;
+top: 440px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 746px;
+top: 436px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 713px;
+top: 433px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 678px;
+top: 431px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 670px;
+top: 466px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 664px;
+top: 507px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 664px;
+top: 507px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 660px;
+top: 549px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 16px;
+height: 17px;
+left: 657px;
+top: 589px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 17px;
+height: 17px;
+left: 828px;
+top: 698px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 17px;
+height: 17px;
+left: 709px;
+top: 822px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 17px;
+height: 17px;
+left: 733px;
+top: 822px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 25px;
+height: 22px;
+left: 745px;
+top: 818px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 17px;
+height: 17px;
+left: 828px;
+top: 721px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 17px;
+height: 17px;
+left: 827px;
+top: 744px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 17px;
+height: 17px;
+left: 827px;
+top: 763px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 17px;
+height: 17px;
+left: 820px;
+top: 969px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 13px;
+height: 12px;
+left: 641px;
+top: 746px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 13px;
+height: 12px;
+left: 636px;
+top: 778px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 13px;
+height: 12px;
+left: 636px;
+top: 810px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 13px;
+height: 12px;
+left: 654px;
+top: 746px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 13px;
+height: 12px;
+left: 667px;
+top: 746px;
+
+background: url(1664381.png);
+
+
+/* Tree */
+
+position: absolute;
+width: 35px;
+height: 35px;
+left: 965px;
+top: 690px;
+
+background: url(1664381.png);

@@ -21,6 +21,9 @@ Thumbs.db
 # IDE / local
 .idea/
 .vscode/
+.vs/
+# Preserved inner-repo metadata after folding Smart Campus into monorepo (optional; do not commit)
+**/.git.nested-backup/
 *.swp
 .cursor/
 

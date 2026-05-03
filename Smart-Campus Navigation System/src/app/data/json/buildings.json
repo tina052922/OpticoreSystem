@@ -1,0 +1,302 @@
+[
+  {
+    "id": "B001",
+    "name": "Shared Service Facility for Handbloom Weaving",
+    "type": "building",
+    "svgId": "Shared Service Facility for Handbloom Weaving",
+    "svg_id": "Shared Service Facility for Handbloom Weaving",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2,
+      3
+    ],
+    "category": "Building",
+    "description": "Shared Service Facility for Handbloom Weaving.",
+    "image": "/images/buildings/SharedServiceFacilityForHandbloomWeaving.JPG",
+    "keywords": [
+      "shared service facility for handbloom weaving",
+      "building-1",
+      "b001"
+    ],
+    "x": 924.5,
+    "y": 973,
+    "building_id": 1
+  },
+  {
+    "id": "B002",
+    "name": "Mini Hotel",
+    "type": "building",
+    "svgId": "Mini Hotel",
+    "svg_id": "Mini Hotel",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2
+    ],
+    "category": "Building",
+    "description": "Mini Hotel.",
+    "image": "/images/buildings/MiniHotel.JPG",
+    "keywords": [
+      "mini hotel",
+      "building-2",
+      "b002"
+    ],
+    "x": 924.5,
+    "y": 903,
+    "building_id": 2
+  },
+  {
+    "id": "B003",
+    "name": "HM Department",
+    "type": "building",
+    "svgId": "HM Department",
+    "svg_id": "HM Department",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1
+    ],
+    "category": "Building",
+    "description": "HM Department.",
+    "image": "/images/buildings/HMDepartment.JPG",
+    "keywords": [
+      "hm department",
+      "building-3",
+      "b003"
+    ],
+    "x": 989.41,
+    "y": 837.96,
+    "building_id": 3
+  },
+  {
+    "id": "B004",
+    "name": "Chapel",
+    "type": "building",
+    "svgId": "Chapel",
+    "svg_id": "Chapel",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1
+    ],
+    "category": "Building",
+    "description": "Chapel.",
+    "image": "/images/buildings/Chapel.JPG",
+    "keywords": [
+      "chapel",
+      "building-4",
+      "b004"
+    ],
+    "x": 904.5,
+    "y": 820.5,
+    "building_id": 4
+  },
+  {
+    "id": "B005",
+    "name": "COTE Building",
+    "type": "building",
+    "svgId": "COTE Building",
+    "svg_id": "COTE Building",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "category": "Building",
+    "description": "COTE Building.",
+    "image": [
+      "/images/buildings/COTEBuilding1.JPG",
+      "/images/buildings/COTEBuilding2.JPG"
+    ],
+    "keywords": [
+      "cote building",
+      "building-5",
+      "b005"
+    ],
+    "x": 921.5,
+    "y": 769,
+    "building_id": 5
+  },
+  {
+    "id": "B006",
+    "name": "COED Building",
+    "type": "building",
+    "svgId": "COED Building",
+    "svg_id": "COED Building",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "category": "Building",
+    "description": "COED Building.",
+    "image": [
+      "/images/buildings/COEDBuilding1.JPG",
+      "/images/buildings/COEDBuilding2.JPG"
+    ],
+    "keywords": [
+      "coed building",
+      "building-6",
+      "b006"
+    ],
+    "x": 921.5,
+    "y": 666,
+    "building_id": 6
+  },
+  {
+    "id": "B007",
+    "name": "Admin Building",
+    "type": "building",
+    "svgId": "Admin Building",
+    "svg_id": "Admin Building",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2
+    ],
+    "category": "Building",
+    "description": "Admin Building.",
+    "image": "/images/buildings/AdminBuilding.JPG",
+    "keywords": [
+      "admin building",
+      "building-7",
+      "b007"
+    ],
+    "x": 623.9,
+    "y": 706,
+    "building_id": 7
+  },
+  {
+    "id": "B008",
+    "name": "Science and Technology Building",
+    "type": "building",
+    "svgId": "Science and Technology Building",
+    "svg_id": "Science and Technology Building",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2,
+      3
+    ],
+    "category": "Building",
+    "description": "Science and Technology Building.",
+    "image": "/images/buildings/Sci-TechBuilding.JPG",
+    "keywords": [
+      "science and technology building",
+      "building-8",
+      "b008"
+    ],
+    "x": 640.83,
+    "y": 522.94,
+    "building_id": 8
+  },
+  {
+    "id": "B009",
+    "name": "ACAD Bldg. Pres. Diosdado Macapagal Academic",
+    "type": "building",
+    "svgId": "ACAD Bldg. Pres. Diosdado Macapagal Academic",
+    "svg_id": "ACAD Bldg. Pres. Diosdado Macapagal Academic",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1
+    ],
+    "category": "Building",
+    "description": "ACAD Bldg. Pres. Diosdado Macapagal Academic.",
+    "image": "/images/buildings/ACAD.JPG",
+    "keywords": [
+      "acad bldg. pres. diosdado macapagal academic",
+      "building-9",
+      "b009"
+    ],
+    "x": 734.67,
+    "y": 419.02,
+    "building_id": 9
+  },
+  {
+    "id": "B010",
+    "name": "Library",
+    "type": "building",
+    "svgId": "Library",
+    "svg_id": "Library",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2
+    ],
+    "category": "Building",
+    "description": "Library.",
+    "image": [
+      "/images/buildings/Library1.JPG",
+      "/images/buildings/Library2.JPG"
+    ],
+    "keywords": [
+      "library",
+      "building-10",
+      "b010"
+    ],
+    "x": 779.19,
+    "y": 317.89,
+    "building_id": 10
+  },
+  {
+    "id": "B011",
+    "name": "Agriculture Building",
+    "type": "building",
+    "svgId": "Agriculture Building",
+    "svg_id": "Agriculture Building",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2
+    ],
+    "category": "Building",
+    "description": "Agriculture Building.",
+    "image": "/images/buildings/AgricultureBuilding.JPG",
+    "keywords": [
+      "agriculture building",
+      "building-11",
+      "b011"
+    ],
+    "x": 795.71,
+    "y": 138.08,
+    "building_id": 11
+  },
+  {
+    "id": "B012",
+    "name": "Biodiversity",
+    "type": "building",
+    "svgId": "Biodiversity",
+    "svg_id": "Biodiversity",
+    "buildingId": null,
+    "floor": null,
+    "floors": [
+      1,
+      2
+    ],
+    "category": "Building",
+    "description": "Biodiversity.",
+    "image": "/images/buildings/Biodiversity.JPG",
+    "keywords": [
+      "biodiversity",
+      "building-12",
+      "b012"
+    ],
+    "x": 889.14,
+    "y": 518.7,
+    "building_id": 12
+  }
+]

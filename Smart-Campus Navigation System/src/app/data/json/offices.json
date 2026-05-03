@@ -1,0 +1,281 @@
+[
+  {
+    "id": "AO-008",
+    "room_id": "AO-008",
+    "name": "CWTS Office",
+    "type": "office",
+    "svgId": "CWTS Office",
+    "svg_id": "CWTS Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "CWTS Office.",
+    "image": "/images/offices/CWTSOffice.JPG",
+    "keywords": [
+      "ao-008",
+      "cwts office",
+      "standalone"
+    ],
+    "x": 859,
+    "y": 730
+  },
+  {
+    "id": "AO-009",
+    "room_id": "AO-009",
+    "name": "ROTC Office",
+    "type": "office",
+    "svgId": "ROTC Office",
+    "svg_id": "ROTC Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "ROTC Office.",
+    "image": "/images/offices/ROTCOffice.JPG",
+    "keywords": [
+      "ao-009",
+      "rotc office",
+      "standalone"
+    ],
+    "x": 859,
+    "y": 708
+  },
+  {
+    "id": "AO-014",
+    "room_id": "AO-014",
+    "name": "CTU-DOST-NICER Office",
+    "type": "office",
+    "svgId": "CTU-DOST-NICER Office",
+    "svg_id": "CTU-DOST-NICER Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "CTU-DOST-NICER Office.",
+    "image": "/images/offices/CTUACNICEROffice.JPG",
+    "keywords": [
+      "ao-014",
+      "ctu-dost-nicer office",
+      "standalone"
+    ],
+    "x": 943.56,
+    "y": 442.68
+  },
+  {
+    "id": "AO-028",
+    "room_id": "AO-028",
+    "name": "Tourism Management Office",
+    "type": "office",
+    "svgId": "Tourism Management Office",
+    "svg_id": "Tourism Management Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "Tourism Management Office.",
+    "image": [
+      "/images/offices/TMOffice.JPG",
+      "/images/offices/TMOffice2.JPG"
+    ],
+    "keywords": [
+      "ao-028",
+      "tourism management office",
+      "standalone"
+    ],
+    "x": 670,
+    "y": 878.5
+  },
+  {
+    "id": "AO-032",
+    "room_id": "AO-032",
+    "name": "DRRMO",
+    "type": "office",
+    "svgId": "DRRMO",
+    "svg_id": "DRRMO",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "DRRMO.",
+    "image": "/images/offices/DRRMO.JPG",
+    "keywords": [
+      "ao-032",
+      "drrmo",
+      "standalone"
+    ],
+    "x": 646.5,
+    "y": 853
+  },
+  {
+    "id": "AO-034",
+    "room_id": "AO-034",
+    "name": "STO Office",
+    "type": "office",
+    "svgId": "STO Office",
+    "svg_id": "STO Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "STO Office.",
+    "image": "/images/offices/STOOffice.JPG",
+    "keywords": [
+      "ao-034",
+      "sto office",
+      "standalone"
+    ],
+    "x": 612,
+    "y": 858
+  },
+  {
+    "id": "AO-036",
+    "room_id": "AO-036",
+    "name": "Utility Office",
+    "type": "office",
+    "svgId": "Utility Office",
+    "svg_id": "Utility Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "Utility Office.",
+    "image": "/images/offices/UtilityOffice.JPG",
+    "keywords": [
+      "ao-036",
+      "utility office",
+      "standalone"
+    ],
+    "x": 612,
+    "y": 878
+  },
+  {
+    "id": "AO-037",
+    "room_id": "AO-037",
+    "name": "Student Affairs Office (SAO)",
+    "type": "office",
+    "svgId": "Student Affairs Office (SAO)",
+    "svg_id": "Student Affairs Office (SAO)",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "Student Affairs Office (SAO).",
+    "image": "/images/offices/SAO.JPG",
+    "keywords": [
+      "ao-037",
+      "student affairs office (sao)",
+      "standalone"
+    ],
+    "x": 617,
+    "y": 914
+  },
+  {
+    "id": "AO-038",
+    "room_id": "AO-038",
+    "name": "Cultural Office",
+    "type": "office",
+    "svgId": "Cultural Office",
+    "svg_id": "Cultural Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "Cultural Office.",
+    "image": "/images/offices/CulturalOffice.JPG",
+    "keywords": [
+      "ao-038",
+      "cultural office",
+      "standalone"
+    ],
+    "x": 617,
+    "y": 930
+  },
+  {
+    "id": "AO-039",
+    "room_id": "AO-039",
+    "name": "SSG Office",
+    "type": "office",
+    "svgId": "SSG Office",
+    "svg_id": "SSG Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "SSG Office.",
+    "image": "/images/offices/SSG.JPG",
+    "keywords": [
+      "ao-039",
+      "ssg office",
+      "standalone"
+    ],
+    "x": 617,
+    "y": 946
+  },
+  {
+    "id": "AO-040",
+    "room_id": "AO-040",
+    "name": "FSTLP",
+    "type": "office",
+    "svgId": "FSTLP",
+    "svg_id": "FSTLP",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "FSTLP.",
+    "image": "/images/offices/FSTLP.JPG",
+    "keywords": [
+      "ao-040",
+      "fstlp",
+      "standalone"
+    ],
+    "x": 617,
+    "y": 962
+  },
+  {
+    "id": "AO-041",
+    "room_id": "AO-041",
+    "name": "Campus Ministry",
+    "type": "office",
+    "svgId": "Campus Ministry",
+    "svg_id": "Campus Ministry",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "Campus Ministry.",
+    "image": "/images/offices/CampusMinistry.JPG",
+    "keywords": [
+      "ao-041",
+      "campus ministry",
+      "standalone"
+    ],
+    "x": 617,
+    "y": 978
+  },
+  {
+    "id": "AO-042",
+    "room_id": "AO-042",
+    "name": "COOP Office",
+    "type": "office",
+    "svgId": "COOP Office",
+    "svg_id": "COOP Office",
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Office",
+    "description": "COOP Office.",
+    "image": [
+      "/images/offices/COOPOffice.JPG",
+      "/images/offices/COOP2.JPG"
+    ],
+    "keywords": [
+      "ao-042",
+      "coop office",
+      "standalone"
+    ],
+    "x": 616.5,
+    "y": 1005
+  }
+]
