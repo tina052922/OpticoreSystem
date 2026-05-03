@@ -30,8 +30,15 @@ function getSupabaseAdminConfig(): AdminOk | AdminErr {
   if (!url) missing.push("NEXT_PUBLIC_SUPABASE_URL");
   if (!key) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length) {
+    const runningOnVercel = Boolean(process.env.VERCEL);
+    const locationHint = runningOnVercel
+      ? "in Vercel Project Settings -> Environment Variables"
+      : "in web/.env.local";
+    const actionHint = runningOnVercel
+      ? "Redeploy after saving."
+      : "Restart the dev server after saving.";
     return {
-      error: `Missing ${missing.join(" and ")} in web/.env.local (both are required for instructor and student self-registration APIs). Restart the dev server after saving.`,
+      error: `Missing ${missing.join(" and ")} ${locationHint} (both are required for instructor and student self-registration APIs). ${actionHint}`,
     };
   }
   // Narrowed: both url and key are non-empty after checks above
