@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Calendar, Cloud, LogIn, Users } from "lucide-react";
+import { BarChart3, Calendar, Cloud, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 
@@ -50,9 +50,8 @@ export function PublicLandingPage() {
               size="sm"
               className="shrink-0 bg-[#a30000] hover:bg-[#8b0000] text-white font-semibold rounded-full px-3 sm:px-5 h-9 sm:h-10 sm:text-sm"
             >
-              <Link href="/login" className="inline-flex items-center gap-2">
-                <LogIn className="w-4 h-4 shrink-0" aria-hidden />
-                <span className="whitespace-nowrap">Sign in</span>
+              <Link href="/login" className="inline-flex items-center justify-center whitespace-nowrap">
+                Sign in
               </Link>
             </Button>
           </div>
@@ -195,18 +194,6 @@ export function PublicLandingPage() {
                 </div>
               );
             })}
-          </div>
-          <div className="mt-8 sm:mt-10 flex justify-center px-1">
-            <Button
-              asChild
-              size="lg"
-              className="w-full sm:w-auto min-w-[12rem] justify-center bg-[#a30000] hover:bg-[#8b0000] text-white font-semibold rounded-full px-7"
-            >
-              <Link href="/login" className="inline-flex items-center gap-2">
-                <LogIn className="w-4 h-4 shrink-0" aria-hidden />
-                Sign in to continue
-              </Link>
-            </Button>
           </div>
         </div>
       </section>
