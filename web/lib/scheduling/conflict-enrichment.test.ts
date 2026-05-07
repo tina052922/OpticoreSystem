@@ -13,7 +13,7 @@ function mkIssue(type: EnrichedCampusIssue["type"]): EnrichedCampusIssue {
       when: "Monday 8:00 AM–9:00 AM",
       where: "IT LAB 2",
       who: "Prof A",
-      collegeName: "CTE",
+      collegeName: "COTE",
     },
     rowB: {
       entryId: "b",
@@ -21,7 +21,7 @@ function mkIssue(type: EnrichedCampusIssue["type"]): EnrichedCampusIssue {
       when: "Monday 8:00 AM–9:00 AM",
       where: "IT LAB 2",
       who: "Prof B",
-      collegeName: "CTE",
+      collegeName: "COTE",
     },
   };
 }

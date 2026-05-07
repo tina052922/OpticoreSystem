@@ -16,6 +16,10 @@ type FacultyPayload = {
   weeklyHours: number;
   weeklyMeetingRowCount?: number;
   assignedSectionCount?: number;
+  policyMaxWeeklyHours?: number;
+  policyRemainingHours?: number;
+  policyOverloadBy?: number;
+  policyStatus?: "within_limit" | "over_limit";
 };
 
 export type FacultyDashboardSurface = "campus-intelligence" | "my-schedule";
@@ -68,6 +72,12 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
   const advisoryName = data?.advisorySectionName?.trim() ?? "";
   const advisoryId = data?.advisorySectionId?.trim() ?? "";
   const assignedSectionCount = data?.assignedSectionCount ?? data?.sectionIds?.length ?? 0;
+
+  const policyMax = data?.policyMaxWeeklyHours;
+  const policyRemaining = data?.policyRemainingHours;
+  const policyOverload = data?.policyOverloadBy ?? 0;
+  const policyStatus = data?.policyStatus;
+  const hasPolicyCap = typeof policyMax === "number" && policyMax > 0;
 
   const scheduleSectionNames = useMemo(
     () => [...new Set(rows.map((r) => r.section?.name).filter(Boolean))] as string[],
@@ -122,17 +132,74 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="rounded-xl bg-white border border-black/10 p-4 shadow-sm flex items-center gap-3">
-          <div className="h-11 w-11 rounded-lg bg-[var(--color-opticore-orange)]/15 flex items-center justify-center text-[var(--color-opticore-orange)]">
-            <Clock className="w-5 h-5" />
+      {hasPolicyCap ? (
+        <div
+          className={cn(
+            "rounded-xl border p-4 sm:p-5 shadow-sm",
+            policyStatus === "over_limit"
+              ? "border-red-300 bg-red-50/90"
+              : "border-emerald-200/90 bg-emerald-50/60",
+          )}
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-black/50 mb-3">Teaching load vs policy</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <p className="text-[11px] font-medium text-black/50">Total assigned hours</p>
+              <p className="text-2xl font-bold tabular-nums text-black">{Number(weeklyHours.toFixed(2))}</p>
+              <p className="text-[10px] text-black/45 mt-0.5">From your schedule rows this term.</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-black/50">Maximum allowed hours</p>
+              <p className="text-2xl font-bold tabular-nums text-black">{policyMax}</p>
+              <p className="text-[10px] text-black/45 mt-0.5">Based on your faculty profile (designation / status).</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-black/50">Remaining hours</p>
+              <p
+                className={cn(
+                  "text-2xl font-bold tabular-nums",
+                  policyStatus === "over_limit" ? "text-red-800" : "text-emerald-900",
+                )}
+              >
+                {policyStatus === "over_limit"
+                  ? `0 (over by ${typeof policyOverload === "number" ? policyOverload : "—"})`
+                  : typeof policyRemaining === "number"
+                    ? policyRemaining
+                    : "—"}
+              </p>
+              <p className="text-[10px] text-black/45 mt-0.5">
+                {policyStatus === "over_limit"
+                  ? "You are above the campus teaching cap for this profile."
+                  : "Headroom under the weekly teaching cap."}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Weekly contact (est.)</p>
-            <p className="text-xl font-bold text-black">{weeklyHours} hrs</p>
-            <p className="text-[10px] text-black/45 mt-0.5 leading-snug">Sum of class meeting lengths from your rows.</p>
-          </div>
+          <p
+            className={cn(
+              "mt-3 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+              policyStatus === "over_limit" ? "bg-red-200/80 text-red-950" : "bg-emerald-200/80 text-emerald-950",
+            )}
+          >
+            {policyStatus === "over_limit" ? "Over policy limit (overload)" : "Within policy limit"}
+          </p>
         </div>
+      ) : null}
+
+      <div className={cn("grid grid-cols-1 gap-4", hasPolicyCap ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+        {!hasPolicyCap ? (
+          <div className="rounded-xl bg-white border border-black/10 p-4 shadow-sm flex items-center gap-3">
+            <div className="h-11 w-11 rounded-lg bg-[var(--color-opticore-orange)]/15 flex items-center justify-center text-[var(--color-opticore-orange)]">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-black/50 uppercase tracking-wide">Weekly contact (est.)</p>
+              <p className="text-xl font-bold text-black">{weeklyHours} hrs</p>
+              <p className="text-[10px] text-black/45 mt-0.5 leading-snug">Sum of class meeting lengths from your rows.</p>
+            </div>
+          </div>
+        ) : null}
         <div className="rounded-xl bg-white border border-black/10 p-4 shadow-sm flex items-center gap-3">
           <div className="h-11 w-11 rounded-lg bg-[var(--color-opticore-orange)]/15 flex items-center justify-center text-[var(--color-opticore-orange)]">
             <BookOpen className="w-5 h-5" />

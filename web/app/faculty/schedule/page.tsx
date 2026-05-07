@@ -4,8 +4,8 @@ import { INSFormFaculty } from "@/components/ins/INSFormFaculty";
 import { requireRoles } from "@/lib/auth/require-role";
 
 /**
- * My schedule = same official INS Form 5A (Faculty) as chairman/college: `ScheduleEntry` grid, print, and
- * clickable cells → Request schedule change (see `INSFormFaculty` instructor read-only mode).
+ * My schedule = official INS Form 5A (Faculty): `ScheduleEntry` grid, print, and
+ * cell clicks → Request schedule change (`INSFormFaculty` instructor mode).
  */
 export default async function FacultySchedulePage() {
   const profile = await requireRoles(["instructor"]);
@@ -24,20 +24,9 @@ export default async function FacultySchedulePage() {
 
   return (
     <div>
-      <ChairmanPageHeader
-        title="My schedule"
-        subtitle="Official INS Form (Faculty). Click a class in the grid to request a change, or use Print / PDF."
-      />
+      <ChairmanPageHeader title="My schedule" />
 
-      <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-3">
-        <p className="text-xs text-black/55 max-w-3xl">
-          Same layout as chairman and college admin. Use{" "}
-          <a className="text-[#780301] font-medium underline" href="/faculty/ins?tab=section">
-            INS Form
-          </a>{" "}
-          for section or room views, or <span className="font-medium text-black/70">Request schedule change</span> in
-          the toolbar below.
-        </p>
+      <div className="px-4 sm:px-6 lg:px-8 pb-6">
         <div className="rounded-xl border border-black/10 bg-white shadow-sm overflow-hidden">
           <Suspense
             fallback={<div className="min-h-[280px] text-sm text-black/50 py-12 text-center">Loading schedule…</div>}

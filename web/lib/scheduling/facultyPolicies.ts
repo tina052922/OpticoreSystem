@@ -89,6 +89,20 @@ function isPartTimeFacultyStatus(status: string | null | undefined): boolean {
   return /^part[-\s]?time\b/i.test(s);
 }
 
+/**
+ * Numeric weekly teaching-contact cap for UI summaries (portal "remaining hours").
+ * Mirrors {@link collectTeachingLoadCapViolations} ceilings only (part-time → 27 h, designation max, else 24 h typical).
+ */
+export function instructorMaxWeeklyTeachingCapFromProfile(
+  profile: Pick<FacultyProfile, "designation" | "status"> | null,
+): number {
+  const C = FACULTY_POLICY_CONSTANTS;
+  const partTime = isPartTimeFacultyStatus(profile?.status);
+  if (partTime) return C.PARTTIME_MAX_WEEKLY_HOURS;
+  const desCap = designationTeachingCapHours(profile?.designation ?? null);
+  return desCap ?? C.STANDARD_WEEKLY_TEACHING_HOURS;
+}
+
 /** Weekly teaching-contact cap violations only — these gate the VPAA justification modal. */
 function collectTeachingLoadCapViolations(
   ctx: FacultyContext,

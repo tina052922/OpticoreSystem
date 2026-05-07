@@ -5,6 +5,9 @@ import {
   getInstructorScheduleRows,
   sumWeeklyContactHours,
 } from "@/lib/server/dashboard-data";
+import { instructorMaxWeeklyTeachingCapFromProfile } from "@/lib/scheduling/facultyPolicies";
+import { Q } from "@/lib/supabase/catalog-columns";
+import type { FacultyProfile } from "@/types/db";
 
 /**
  * GET ?periodId= — instructor schedule summary for Campus Intelligence (no enrolled-student PII).
@@ -45,6 +48,21 @@ export async function GET(request: Request) {
 
   const weeklyHours = sumWeeklyContactHours(rows);
 
+  const { data: fpRow } = await supabase.from("FacultyProfile").select(Q.facultyProfilePolicy).eq("userId", user.id).maybeSingle();
+
+  const fpPolicy: Pick<FacultyProfile, "designation" | "status"> | null = fpRow
+    ? {
+        designation: fpRow.designation ?? null,
+        status: fpRow.status ?? null,
+      }
+    : null;
+
+  const maxWeeklyHours = instructorMaxWeeklyTeachingCapFromProfile(fpPolicy);
+  const overloadBy = weeklyHours > maxWeeklyHours + 1e-6 ? weeklyHours - maxWeeklyHours : 0;
+  const remainingHours = Math.max(0, maxWeeklyHours - weeklyHours);
+  const policyStatus =
+    weeklyHours <= maxWeeklyHours + 1e-6 ? ("within_limit" as const) : ("over_limit" as const);
+
   return NextResponse.json({
     rows,
     sectionIds,
@@ -54,5 +72,9 @@ export async function GET(request: Request) {
     weeklyMeetingRowCount: rows.length,
     /** Distinct sections (teaching + advisory) — shown on dashboard without student names. */
     assignedSectionCount: sectionIds.length,
+    policyMaxWeeklyHours: maxWeeklyHours,
+    policyRemainingHours: Number(remainingHours.toFixed(2)),
+    policyOverloadBy: overloadBy > 0 ? Number(overloadBy.toFixed(2)) : 0,
+    policyStatus,
   });
 }

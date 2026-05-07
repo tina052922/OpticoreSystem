@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
@@ -74,6 +74,9 @@ export function FacultyScheduleChangeModal({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  /** When this differs from current `scheduleEntryId`, resetting day/start/end comes from DB row bounds. */
+  const lastHydratedScheduleEntryIdRef = useRef<string>("");
+
   const loadEntries = useCallback(async () => {
     if (!academicPeriodId) return;
     setLoadingEntries(true);
@@ -110,18 +113,37 @@ export function FacultyScheduleChangeModal({
     setDone(false);
     setError(null);
     setReason("");
+    lastHydratedScheduleEntryIdRef.current = "";
   }, [open, initialScheduleEntryId]);
 
-  /** Match requested slot length to the selected class (e.g. 3h lab → 3h proposed window). */
+  useEffect(() => {
+    if (!open) return;
+    if (!scheduleEntryId) {
+      lastHydratedScheduleEntryIdRef.current = "";
+    }
+  }, [open, scheduleEntryId]);
+
+  /**
+   * Keep requested window duration equal to the selected class: changing start recomputes end (e.g. 3h stays 3h).
+   */
   useEffect(() => {
     if (!open || !scheduleEntryId || entries.length === 0) return;
     const sel = entries.find((e) => e.id === scheduleEntryId);
     if (!sel) return;
-    const dur = Math.max(1, timeToMinutes(sel.endTime) - timeToMinutes(sel.startTime));
-    setRequestedDay(sel.day);
-    setRequestedStartTime(toTimeInputValue(sel.startTime));
-    setRequestedEndTime(addMinutesToTimeInput(sel.startTime, dur));
-  }, [open, scheduleEntryId, entries]);
+    const dur = Math.max(30, timeToMinutes(sel.endTime) - timeToMinutes(sel.startTime));
+
+    const entryChanged = scheduleEntryId !== lastHydratedScheduleEntryIdRef.current;
+    if (entryChanged) {
+      lastHydratedScheduleEntryIdRef.current = scheduleEntryId;
+      setRequestedDay(sel.day);
+      const nextStart = toTimeInputValue(sel.startTime);
+      setRequestedStartTime(nextStart);
+      setRequestedEndTime(addMinutesToTimeInput(nextStart, dur));
+      return;
+    }
+
+    setRequestedEndTime(addMinutesToTimeInput(requestedStartTime, dur));
+  }, [open, scheduleEntryId, entries, requestedStartTime]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -276,12 +298,17 @@ export function FacultyScheduleChangeModal({
                       <input
                         id="fac-sc-end"
                         type="time"
-                        className="w-full h-11 rounded-lg border border-black/15 px-3 text-sm"
+                        readOnly
+                        aria-readonly="true"
+                        title="End time stays aligned with your class length when you change the start time."
+                        className="w-full h-11 rounded-lg border border-black/15 bg-black/[0.03] px-3 text-sm text-black/75"
                         value={requestedEndTime}
-                        onChange={(e) => setRequestedEndTime(e.target.value)}
                       />
                     </div>
                   </div>
+                  <p className="text-[11px] text-black/50 -mt-1">
+                    Duration matches your selected meeting: adjusting start moves the end time automatically.
+                  </p>
 
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-black" htmlFor="fac-sc-reason">

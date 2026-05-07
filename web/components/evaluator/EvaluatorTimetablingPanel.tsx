@@ -947,6 +947,22 @@ export function EvaluatorTimetablingPanel({
       return;
     }
 
+    const mergedSparse = mergedEntriesForPolicy
+      .map((e) => scheduleEntryToSparseBlock(e))
+      .filter((b): b is NonNullable<typeof b> => Boolean(b));
+    const conflictScan = scanAllSparseScheduleConflicts(mergedSparse);
+    if (conflictScan.issues.length > 0) {
+      const previews = conflictScan.issueSummaries.slice(0, 3);
+      const more =
+        conflictScan.issueSummaries.length > 3
+          ? ` (+${conflictScan.issueSummaries.length - 3} more)`
+          : "";
+      const msg = `${previews.join(" · ")}${more}`;
+      setSaveMsg(msg);
+      toast.error("Resolve timetable conflicts before saving", msg || "Unresolved clashes in the plotted schedule.");
+      return;
+    }
+
     setPolicySaving(true);
     try {
       const {
@@ -1020,7 +1036,7 @@ export function EvaluatorTimetablingPanel({
         return;
       }
 
-      dispatchInsCatalogReload();
+      dispatchInsCatalogReload({ academicPeriodId });
       if (author?.role === "chairman_admin" && effectiveCollegeId) {
         const auditRows = rows.map((e) => ({
           subjectCode: subjectCodeById.get(e.subjectId) ?? "—",

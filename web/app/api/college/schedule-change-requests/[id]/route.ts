@@ -15,7 +15,7 @@ type Ctx = { params: Promise<{ id: string }> };
 type PatchBody = {
   action?: "approve" | "reject" | "approve_with_solution";
   adminSuggestion?: string | null;
-  /** When true, applies `roomId` from the last conflict check’s suggested mitigation (if present). */
+  /** Deprecated: ignored (alternatives are never auto-applied). */
   applySuggestedMitigation?: boolean;
 };
 
@@ -42,12 +42,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => null)) as PatchBody | null;
-  const action = body?.action;
+  const actionRaw = body?.action;
+  /** `approve_with_solution` kept for backwards compatibility → same as approve (no automatic mitigation). */
+  const action =
+    actionRaw === "approve_with_solution" ? "approve" : actionRaw;
   const adminSuggestion = body?.adminSuggestion?.trim() || null;
-  const applySuggestedMitigation = Boolean(body?.applySuggestedMitigation);
 
-  if (action !== "approve" && action !== "reject" && action !== "approve_with_solution") {
-    return NextResponse.json({ error: "action must be approve, reject, or approve_with_solution" }, { status: 400 });
+  if (action !== "approve" && action !== "reject") {
+    return NextResponse.json({ error: "action must be approve or reject" }, { status: 400 });
   }
 
   const { data: reqRow, error: fetchErr } = await supabase
@@ -151,33 +153,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     );
   }
 
-  if (action === "approve_with_solution" && !adminSuggestion) {
-    return NextResponse.json({ error: "approve_with_solution requires adminSuggestion text." }, { status: 400 });
-  }
-
-  if (severity === "small" && action === "approve" && !adminSuggestion) {
-    return NextResponse.json(
-      {
-        error:
-          "Small conflicts remain — add adminSuggestion (mitigation) or use approve_with_solution with a note.",
-        severity,
-        hits: hitsEnriched,
-      },
-      { status: 400 },
-    );
-  }
-
-  const finalStatus: ScheduleChangeStatus =
-    severity === "small" || action === "approve_with_solution" ? "approved_with_solution" : "approved";
-
-  const detailsPayload = row.conflictDetails as
-    | { suggestedMitigation?: { roomId?: string; label?: string } }
-    | null
-    | undefined;
-  const mitigationRoomId =
-    applySuggestedMitigation && detailsPayload?.suggestedMitigation?.roomId
-      ? detailsPayload.suggestedMitigation.roomId
-      : undefined;
+  /** Approve applies exactly the instructor’s requested slot. Alternatives shown in conflict check are never auto-applied. */
+  const finalStatus: ScheduleChangeStatus = "approved";
 
   const { error: updEntryErr } = await supabase
     .from("ScheduleEntry")
@@ -186,7 +163,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
       startTime: row.requestedStartTime,
       endTime: row.requestedEndTime,
       status: "draft",
-      ...(mitigationRoomId ? { roomId: mitigationRoomId } : {}),
     })
     .eq("id", row.scheduleEntryId);
 
@@ -205,7 +181,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     .eq("id", id);
 
   const slotLabel = `${row.requestedDay} ${row.requestedStartTime}–${row.requestedEndTime}`;
-  const roomIdApplied = mitigationRoomId ?? e.roomId;
+  const roomIdApplied = e.roomId;
 
   const admin = createSupabaseAdminClient();
   if (admin) {
@@ -250,10 +226,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       }
     } catch (err) {
       console.error("[schedule-change-requests] approve broadcast notifications failed", err);
-      const notifBody =
-        finalStatus === "approved_with_solution"
-          ? `Approved (with solution). ${adminSuggestion ?? ""} Applied slot: ${slotLabel}.`
-          : `Approved. Your class is now scheduled at ${slotLabel}.`;
+      const notifBody = adminSuggestion
+        ? `Approved. College Admin note: ${adminSuggestion} Your class is now at ${slotLabel}.`
+        : `Approved. Your class is now scheduled at ${slotLabel}.`;
       const { error: apprNotifErr } = await notifyInstructor(
         supabase,
         row.instructorId,
@@ -265,10 +240,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       }
     }
   } else {
-    const notifBody =
-      finalStatus === "approved_with_solution"
-        ? `Approved (with solution). ${adminSuggestion ?? ""} Applied slot: ${slotLabel}.`
-        : `Approved. Your class is now scheduled at ${slotLabel}.`;
+    const notifBody = adminSuggestion
+      ? `Approved. College Admin note: ${adminSuggestion} Your class is now at ${slotLabel}.`
+      : `Approved. Your class is now scheduled at ${slotLabel}.`;
     const { error: apprNotifErr } = await notifyInstructor(supabase, row.instructorId, "Schedule change request", notifBody);
     if (apprNotifErr) {
       console.error("[schedule-change-requests] approve notification insert failed", apprNotifErr);
