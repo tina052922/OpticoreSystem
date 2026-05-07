@@ -22,8 +22,10 @@ alter table public."User" add column if not exists "chairmanProgramId" text refe
 
 insert into public."College" (id, code, name)
 values
-  ('col-tech-eng', 'CTE', 'College of Technology and Engineering')
-on conflict (code) do nothing;
+  ('col-tech-eng', 'COTE', 'College of Technology and Engineering')
+on conflict (id) do update set
+  code = excluded.code,
+  name = excluded.name;
 
 insert into public."AcademicPeriod" (id, name, semester, "academicYear", "isCurrent", "startDate", "endDate")
 values

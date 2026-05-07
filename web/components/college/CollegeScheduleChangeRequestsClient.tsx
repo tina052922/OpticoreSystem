@@ -17,6 +17,15 @@ type Mitigation = {
   endTime?: string;
 };
 
+type AlternativeSolutionRow = {
+  kind?: string;
+  label?: string;
+  day?: string;
+  startTime?: string;
+  endTime?: string;
+  roomCode?: string;
+};
+
 type ConflictHitRow = {
   type?: string;
   message?: string;
@@ -31,7 +40,11 @@ type Row = ScheduleChangeRequest & {
   currentDay?: string;
   currentStartTime?: string;
   currentEndTime?: string;
-  conflictDetails?: { hits?: ConflictHitRow[]; suggestedMitigation?: Mitigation } | null;
+  conflictDetails?: {
+    hits?: ConflictHitRow[];
+    suggestedMitigation?: Mitigation;
+    alternativeSolutions?: AlternativeSolutionRow[];
+  } | null;
 };
 
 /**
@@ -50,8 +63,8 @@ export function CollegeScheduleChangeRequestsClient() {
     summary?: string;
     hits?: ConflictHitRow[];
     suggestedMitigation?: Mitigation | null;
+    alternativeSolutions?: AlternativeSolutionRow[];
   } | null>(null);
-  const [applySuggestedMitigation, setApplySuggestedMitigation] = useState(false);
   /** Avoid re-running campus check when `requests` refreshes after the same selection. */
   const autoCheckDoneForSelected = useRef<string | null>(null);
   /** Set from API for Supabase Realtime filter (same college as the signed-in admin). */
@@ -128,6 +141,7 @@ export function CollegeScheduleChangeRequestsClient() {
         summary?: string;
         hits?: ConflictHitRow[];
         suggestedMitigation?: Mitigation | null;
+        alternativeSolutions?: AlternativeSolutionRow[];
         error?: string;
       };
       if (!res.ok) throw new Error(data.error || "Check failed");
@@ -136,6 +150,7 @@ export function CollegeScheduleChangeRequestsClient() {
         summary: data.summary,
         hits: data.hits,
         suggestedMitigation: data.suggestedMitigation ?? null,
+        alternativeSolutions: data.alternativeSolutions ?? [],
       });
       if ((data.severity ?? "none") === "none") {
         toast.success("No conflicts detected");
@@ -150,11 +165,10 @@ export function CollegeScheduleChangeRequestsClient() {
     } finally {
       setBusy(null);
     }
-  }, [selectedId, requests, load]);
+  }, [selectedId, requests, load, toast]);
 
   useEffect(() => {
     setAdminNote("");
-    setApplySuggestedMitigation(false);
     setCheckResult(null);
     autoCheckDoneForSelected.current = null;
   }, [selectedId]);
@@ -168,7 +182,7 @@ export function CollegeScheduleChangeRequestsClient() {
     void runConflictCheck();
   }, [selectedId, requests, runConflictCheck]);
 
-  async function patch(action: "approve" | "reject" | "approve_with_solution") {
+  async function patch(action: "approve" | "reject") {
     if (!selected || selected.status !== "pending") return;
     setBusy(action);
     setError(null);
@@ -180,7 +194,6 @@ export function CollegeScheduleChangeRequestsClient() {
         body: JSON.stringify({
           action,
           adminSuggestion: adminNote.trim() || null,
-          applySuggestedMitigation: applySuggestedMitigation,
         }),
       });
       const data = (await res.json()) as {
@@ -202,7 +215,6 @@ export function CollegeScheduleChangeRequestsClient() {
       dispatchInsCatalogReload();
       if (action === "approve") toast.success("Request approved");
       else if (action === "reject") toast.success("Request rejected");
-      else toast.success("Request approved");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Update failed";
       setError(msg);
@@ -355,20 +367,27 @@ export function CollegeScheduleChangeRequestsClient() {
                             </ul>
                           ) : null}
                           {checkResult.suggestedMitigation?.label ? (
-                            <div className="mt-2 pt-2 border-t border-black/10">
-                              <p className="text-xs font-semibold text-black/60">Suggested mitigation</p>
-                              <p className="text-sm text-black/80">{checkResult.suggestedMitigation.label}</p>
-                              <label className="mt-2 flex items-start gap-2 text-sm text-black/75 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="mt-1 rounded border-black/20"
-                                  checked={applySuggestedMitigation}
-                                  onChange={(e) => setApplySuggestedMitigation(e.target.checked)}
-                                />
-                                <span>
-                                  On approval, apply the suggested room change (same day/time as requested).
-                                </span>
-                              </label>
+                            <p className="mt-2 text-[12px] text-black/75">
+                              <span className="font-semibold text-black/60">Suggested room (reference):</span>{" "}
+                              {checkResult.suggestedMitigation.label}
+                            </p>
+                          ) : null}
+                          {checkResult.alternativeSolutions && checkResult.alternativeSolutions.length > 0 ? (
+                            <div className="mt-3 pt-3 border-t border-black/10 space-y-2">
+                              <p className="text-xs font-semibold text-black/70">
+                                Alternative times / days / rooms (reference only — never applied automatically)
+                              </p>
+                              <ul className="list-disc pl-5 space-y-1.5 text-[12px] text-black/85">
+                                {checkResult.alternativeSolutions.map((alt, i) => (
+                                  <li key={`${alt.kind ?? "alt"}-${i}`}>
+                                    <span className="font-semibold capitalize text-black/70">{alt.kind ?? "idea"}:</span>{" "}
+                                    {alt.label}
+                                    {alt.roomCode ? (
+                                      <span className="text-black/55"> ({alt.roomCode})</span>
+                                    ) : null}
+                                  </li>
+                                ))}
+                              </ul>
                             </div>
                           ) : null}
                         </div>
@@ -377,19 +396,14 @@ export function CollegeScheduleChangeRequestsClient() {
                           <p className="text-black/70">
                             Stored severity: <strong>{selected.conflictSeverity}</strong> (run check again to refresh)
                           </p>
-                          {selected.conflictDetails?.suggestedMitigation?.label ? (
-                            <div className="pt-2 border-t border-black/10">
-                              <p className="text-xs font-semibold text-black/60">Stored suggested mitigation</p>
-                              <p className="text-sm text-black/80">{selected.conflictDetails.suggestedMitigation.label}</p>
-                              <label className="mt-2 flex items-start gap-2 text-sm text-black/75 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="mt-1 rounded border-black/20"
-                                  checked={applySuggestedMitigation}
-                                  onChange={(e) => setApplySuggestedMitigation(e.target.checked)}
-                                />
-                                <span>Apply suggested room on approval</span>
-                              </label>
+                          {(selected.conflictDetails?.alternativeSolutions?.length ?? 0) > 0 ? (
+                            <div className="pt-2 border-t border-black/10 space-y-1">
+                              <p className="text-xs font-semibold text-black/60">Stored alternatives (reference)</p>
+                              <ul className="list-disc pl-5 text-[11px] text-black/80 space-y-1">
+                                {(selected.conflictDetails?.alternativeSolutions ?? []).map((alt, i) => (
+                                  <li key={`st-${i}`}>{alt.label}</li>
+                                ))}
+                              </ul>
                             </div>
                           ) : null}
                         </div>
@@ -397,7 +411,7 @@ export function CollegeScheduleChangeRequestsClient() {
 
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-black" htmlFor="admin-note">
-                          Admin note (mitigation, approval context, or rejection reason — shown to the instructor when
+                          Admin note (optional approval context or rejection reason — shown to the instructor when
                           relevant)
                         </label>
                         <textarea
@@ -420,14 +434,6 @@ export function CollegeScheduleChangeRequestsClient() {
                         </Button>
                         <Button
                           type="button"
-                          className="bg-[var(--color-opticore-orange)] hover:bg-[#e88909] text-white"
-                          disabled={busy !== null}
-                          onClick={() => void patch("approve_with_solution")}
-                        >
-                          {busy === "approve_with_solution" ? "…" : "Approve with solution"}
-                        </Button>
-                        <Button
-                          type="button"
                           variant="outline"
                           className="border-red-300 text-red-800"
                           disabled={busy !== null}
@@ -437,8 +443,8 @@ export function CollegeScheduleChangeRequestsClient() {
                         </Button>
                       </div>
                       <p className="text-xs text-black/45 leading-relaxed">
-                        Large conflicts block approval (HTTP 409). Small conflicts require a note or &quot;Approve with
-                        solution&quot;. Notifications are sent to the instructor after approval or rejection.
+                        Approving saves the instructor’s requested day and time as-is. Severe clashes block approval (HTTP
+                        409). Alternatives listed above are informational only — adjust the master schedule manually if needed.
                       </p>
                     </>
                   ) : (

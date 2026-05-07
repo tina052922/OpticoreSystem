@@ -24,7 +24,7 @@ on conflict (code) do update set
   "collegeId" = excluded."collegeId";
 
 -- If your College row uses a different id, fix collegeId above or insert College first:
--- insert into public."College" (id, code, name) values ('col-tech-eng', 'CTE', 'College of Technology and Engineering')
+-- insert into public."College" (id, code, name) values ('col-tech-eng', 'COTE', 'College of Technology and Engineering')
 -- on conflict (code) do nothing;
 
 -- -----------------------------------------------------------------------------

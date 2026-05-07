@@ -8,6 +8,7 @@ import {
   detectConflictsSparse,
   scanAllSparseScheduleConflicts,
   scheduleBlockToSparseBlock,
+  scheduleEntryToSparseBlock,
 } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "@/lib/scheduling/facultyPolicies";
@@ -1624,6 +1625,31 @@ export function BsitChairmanEvaluatorWorksheet({
           }
         };
 
+        const mergedPolicy = buildWorksheetPolicyScheduleEntries({
+          rows,
+          allTermScheduleEntries,
+          academicPeriodId,
+          programId,
+          programCodeForSummary,
+        });
+        const sparseForScan = mergedPolicy
+          .map((e) => scheduleEntryToSparseBlock(e))
+          .filter((b): b is NonNullable<typeof b> => Boolean(b));
+        const conflictScan = scanAllSparseScheduleConflicts(sparseForScan);
+        if (conflictScan.issues.length > 0) {
+          const preview = conflictScan.issueSummaries.slice(0, 3).join(" · ");
+          const more =
+            conflictScan.issueSummaries.length > 3
+              ? ` (+${conflictScan.issueSummaries.length - 3} more)`
+              : "";
+          const msg = `${preview}${more}`;
+          if (source === "manual") {
+            setSaveScheduleMsg(`Resolve timetable conflicts before saving: ${msg}`);
+            toast.error("Cannot save until conflicts are resolved", msg);
+          }
+          return;
+        }
+
         if (removedIds.length > 0) {
           const { error: delErr } = await supabase.from("ScheduleEntry").delete().in("id", removedIds);
           if (delErr) {
@@ -1718,7 +1744,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary, programId, allTermScheduleEntries],
   );
 
   /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */

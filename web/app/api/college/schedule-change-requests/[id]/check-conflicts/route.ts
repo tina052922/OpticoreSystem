@@ -4,6 +4,7 @@ import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { checkConflictForProposedMove } from "@/lib/schedule-change/conflict-check";
 import { suggestMitigationForScheduleChange } from "@/lib/schedule-change/suggested-mitigation";
 import { Q } from "@/lib/supabase/catalog-columns";
+import { buildScheduleChangeAlternatives } from "@/lib/schedule-change/schedule-change-alternatives";
 import { enrichConflictHitsForDisplay } from "@/lib/schedule-change/enrich-conflict-hits";
 import { getRoomsForCollege, getScheduleEntriesForAcademicPeriod } from "@/lib/server/schedule-change-queries";
 import type { ScheduleEntry } from "@/types/db";
@@ -70,16 +71,26 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   const { severity, hits } = checkConflictForProposedMove(e, requestedDay, requestedStartTime, requestedEndTime, allCampus);
 
+  const hitsEnriched = await enrichConflictHitsForDisplay(supabase, hits, allCampus);
+
   const suggestedMitigation =
     severity !== "none"
       ? suggestMitigationForScheduleChange(e, requestedDay, requestedStartTime, requestedEndTime, allCampus, rooms)
       : null;
 
-  const hitsEnriched = await enrichConflictHitsForDisplay(supabase, hits, allCampus);
+  const alternativeSolutions = buildScheduleChangeAlternatives(
+    e,
+    requestedDay,
+    requestedStartTime,
+    requestedEndTime,
+    allCampus,
+    rooms,
+  );
 
   const conflictDetails = {
     hits: hitsEnriched,
     suggestedMitigation: suggestedMitigation ?? undefined,
+    alternativeSolutions,
   };
 
   const { error: upErr } = await supabase
@@ -98,6 +109,7 @@ export async function POST(_req: Request, ctx: Ctx) {
     severity,
     hits: hitsEnriched,
     suggestedMitigation,
+    alternativeSolutions,
     summary: summarizeHits(severity, hitsEnriched.length),
   });
 }
@@ -106,6 +118,6 @@ function summarizeHits(severity: string, n: number): string {
   if (severity === "none")
     return "No conflicts detected (campus-wide scan: all programs and sections this term). Schedule can be approved.";
   if (severity === "small")
-    return `Severity: small — ${n} issue(s) (campus-wide). Review each conflict below, suggested mitigation (if any), add a note, then approve or approve with solution.`;
+    return `Severity: small — ${n} issue(s). Review conflicts and optional alternative times/days/rooms below (for reference only — not applied automatically). Then Approve or Reject.`;
   return `Severity: large — ${n} issue(s) (campus-wide). Reject or resolve conflicts on the master schedule before approving.`;
 }
