@@ -210,11 +210,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const hitsEnriched = await enrichConflictHitsForDisplay(supabase, hits, allCampus);
 
-  if (severity === "large") {
+  if (severity !== "none") {
     return NextResponse.json(
       {
         error:
-          "Conflicts are too large to approve safely (campus-wide scan). Pick a different solution or resolve clashes on the master schedule first.",
+          "Timetable conflicts remain for this slot (campus-wide). Choose a conflict-free alternative or clear overlaps on the master schedule before approving.",
         severity,
         hits: hitsEnriched,
       },

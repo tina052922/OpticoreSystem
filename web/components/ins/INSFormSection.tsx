@@ -332,8 +332,7 @@ export function INSFormSection({
           >
             <p className="font-semibold">This section has {sectionConflictCount} conflicting slot(s) this term</p>
             <p className="text-xs text-red-950/85">
-              Overlaps are highlighted in the schedule grid. Resolve in the Evaluator or apply one automated fix
-              below.
+              Fix overlaps in Evaluator or use automated fix below.
             </p>
             {enableInsAltApply ? (
               <Button

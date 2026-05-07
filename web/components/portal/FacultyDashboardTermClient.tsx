@@ -7,6 +7,7 @@ import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { cn } from "@/components/ui/utils";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
 
 type FacultyPayload = {
   rows: ScheduleRowView[];
@@ -246,7 +247,7 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
                 <li key={r.entry.id} className="flex flex-wrap gap-2 px-3 py-2.5 text-sm">
                   <span className="font-medium w-20">{r.entry.day}</span>
                   <span className="text-black/70 tabular-nums w-28">
-                    {r.entry.startTime}–{r.entry.endTime}
+                    {formatTimeRange12h(r.entry.startTime, r.entry.endTime)}
                   </span>
                   <span className="flex-1 min-w-[140px] font-medium text-black"> {r.subject?.code}</span>
                   <span className="text-black/60">{r.section?.name}</span>

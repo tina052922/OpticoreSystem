@@ -116,8 +116,8 @@ export async function POST(_req: Request, ctx: Ctx) {
 
 function summarizeHits(severity: string, n: number): string {
   if (severity === "none")
-    return "No conflicts detected (campus-wide scan: all programs and sections this term). You can approve using the instructor’s requested slot or another option below.";
+    return "No conflicts (campus-wide). Safe to approve the instructor slot or listed alternative.";
   if (severity === "small")
-    return `Severity: small — ${n} issue(s). Review conflicts, select the instructor’s requested slot or an alternative (time / day / room), then use Approve with selected solution.`;
-  return `Severity: large — ${n} issue(s) (campus-wide). The instructor’s slot may be blocked; pick a conflict-free alternative if listed, or reject and fix the master schedule.`;
+    return `Conflicts found (${n}). Approval is blocked for the instructor’s slot until you choose a clash-free alternative or fix the timetable.`;
+  return `Multiple conflicts (${n}). Approval is blocked until a clash-free alternative is chosen or clashes are cleared.`;
 }

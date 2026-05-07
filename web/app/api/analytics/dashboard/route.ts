@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentAcademicPeriod } from "@/lib/server/dashboard-data";
 import { TIME_SLOT_OPTIONS, FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { slotDurationHours } from "@/lib/scheduling/time";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
 
 function parseTimeToMinutes(t: string): number {
   const [h, m] = t.split(":").map((x) => parseInt(x, 10));
@@ -119,7 +120,7 @@ export async function GET(req: Request) {
       if (overlapsSlot(r.startTime, r.endTime, slot.startTime, slot.endTime)) occupied.add(r.roomId);
     }
     const pct = roomCount > 0 ? Math.round((occupied.size / roomCount) * 100) : 0;
-    return { time: slot.label.split("–")[0]?.trim() ?? slot.label, utilization: pct };
+    return { time: formatTimeRange12h(slot.startTime, slot.endTime), utilization: pct };
   });
 
   // Faculty load distribution: sum weekly contact hours by instructor for the term rows in scope

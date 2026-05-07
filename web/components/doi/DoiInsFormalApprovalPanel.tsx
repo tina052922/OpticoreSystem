@@ -169,10 +169,7 @@ export function DoiInsFormalApprovalPanel({
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
             <h3 className="text-lg font-bold text-gray-800">Formal approval &amp; campus-wide check</h3>
-            <p className="text-sm text-gray-600 mt-1">
-              Select the same academic term as the INS grid below. Run a full conflict scan, then record VPAA approval
-              with digital signature.
-            </p>
+            <p className="text-sm text-gray-600 mt-1">Match INS term • scan • sign.</p>
           </div>
           <div className="flex flex-col gap-1 min-w-[220px]">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Academic term</label>
@@ -475,10 +472,7 @@ export function DoiInsFormalApprovalPanel({
             </Button>
           </div>
           <p className="text-xs text-gray-500">
-            Approval marks every plotted row in this term as <strong>final</strong>, sets VPAA lock timestamps
-            (no further editing by chair or college admin), and notifies instructors, students, CAS/GEC, and college
-            leadership with links to the correct INS views. Rejection records the decision without changing timetable
-            rows.
+            Approve: marks term rows final with VPAA lock. Reject: logs only — no timetable change.
           </p>
         </div>
       </div>
