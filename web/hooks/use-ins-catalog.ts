@@ -390,28 +390,14 @@ export function useInsCatalog(args: {
   }, [loadScheduleEntriesForPeriod]);
 
   /**
-   * Cross-user reflection fallback:
-   * If Supabase Realtime is misconfigured (e.g., `ScheduleEntry` not in `supabase_realtime` publication),
-   * other users won't receive `postgres_changes` events. A lightweight periodic refresh keeps INS views
-   * consistent without forcing heavy catalog reloads.
+   * NOTE: We intentionally avoid periodic polling here.
+   * Polling creates the perception of "constant refreshing" during demos and can cause user-facing jitter.
+   * We rely on:
+   * - Supabase Realtime `postgres_changes`
+   * - Same-tab + cross-tab broadcast (`dispatchInsCatalogReload`)
+   * - Explicit user navigation/visibility refresh
    */
-  useEffect(() => {
-    if (!args.collegeId && !args.campusWide) return;
-    if (!academicPeriodId) return;
-    let stopped = false;
-    const tick = () => {
-      if (stopped) return;
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      void loadScheduleEntriesForPeriod({ soft: true });
-    };
-    /** Small jitter to avoid thundering herd if many clients are open. */
-    const jitterMs = 400 + Math.round(Math.random() * 900);
-    const id = window.setInterval(tick, 18_000 + jitterMs);
-    return () => {
-      stopped = true;
-      window.clearInterval(id);
-    };
-  }, [args.collegeId, args.campusWide, academicPeriodId, loadScheduleEntriesForPeriod]);
+  // (polling fallback removed)
 
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;

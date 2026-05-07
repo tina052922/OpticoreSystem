@@ -88,26 +88,14 @@ export function useScheduleEntryCrossReload(
   }, [enabled, academicPeriodId]);
 
   /**
-   * Cross-user reflection fallback:
-   * When Supabase Realtime isn't delivering `ScheduleEntry` events (common when the publication is missing),
-   * periodically refetch the term rows. This keeps Central Hub / GEC hub aligned with INS without lag.
+   * NOTE: We intentionally avoid periodic polling here.
+   * In production/presentations, polling can look like "constant refreshing" and can fight with user interactions.
+   * We rely on:
+   * - Supabase Realtime `postgres_changes`
+   * - Cross-tab BroadcastChannel (`dispatchInsCatalogReload`)
+   * - Visibility refresh (when returning to the tab)
    */
-  useEffect(() => {
-    if (!enabled || !academicPeriodId) return;
-    let stopped = false;
-    const tick = () => {
-      if (stopped) return;
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      void loadRef.current();
-    };
-    /** 8s + jitter: keeps hubs aligned if Realtime publication is missing, without hammering PostgREST. */
-    const jitterMs = 350 + Math.round(Math.random() * 800);
-    const id = window.setInterval(tick, 8_000 + jitterMs);
-    return () => {
-      stopped = true;
-      window.clearInterval(id);
-    };
-  }, [enabled, academicPeriodId]);
+  // (polling fallback removed)
 
   useEffect(() => {
     if (!enabled || !academicPeriodId) return;

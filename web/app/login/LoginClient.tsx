@@ -16,12 +16,16 @@ export function LoginClient() {
   const nextParam = useMemo(() => params.get("next"), [params]);
   const errorParam = params.get("error");
 
+  const [phase, setPhase] = useState<"login" | "otp">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [otpGenerated, setOtpGenerated] = useState<string | null>(null);
+  const [otpInput, setOtpInput] = useState("");
 
   useEffect(() => {
     if (errorParam === "forbidden" || errorParam === "forbidden_doi" || errorParam === "forbidden_role") {
@@ -45,6 +49,11 @@ export function LoginClient() {
       );
     }
   }, [errorParam]);
+
+  function makeOtp(): string {
+    const n = Math.floor(Math.random() * 1_000_000);
+    return String(n).padStart(6, "0");
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,6 +105,16 @@ export function LoginClient() {
         await supabase.auth.signOut();
         throw new Error("Account not found.");
       }
+
+      // Instructor flow: show a one-time OTP on-screen and require verification before redirect.
+      if (role === "instructor") {
+        const code = makeOtp();
+        setOtpGenerated(code);
+        setOtpInput("");
+        setPhase("otp");
+        return;
+      }
+
       const home = getDefaultHomeForRole(role);
       const target =
         nextParam && nextParam.length > 0 && pathAllowedForRole(role, nextParam) ? nextParam : home;
@@ -103,6 +122,39 @@ export function LoginClient() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login failed";
       setError(msg || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!otpGenerated) {
+      setPhase("login");
+      return;
+    }
+    const normalized = otpInput.replace(/\s+/g, "");
+    if (!/^\d{6}$/.test(normalized)) {
+      setError("Enter the 6-digit code.");
+      return;
+    }
+    if (normalized !== otpGenerated) {
+      setError("Incorrect code.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) throw new Error("Missing Supabase environment variables.");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const meta = (user?.user_metadata ?? {}) as { must_change_password?: boolean };
+      const mustChange = meta.must_change_password === true;
+      window.location.assign(mustChange ? "/faculty/change-password" : "/faculty");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setLoading(false);
     }
@@ -117,6 +169,14 @@ export function LoginClient() {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       setError("Supabase is not configured.");
+      return;
+    }
+    // Requirement: do not send email codes/links for instructors.
+    const emailNormalized = trimmed.toLowerCase();
+    const { data: row } = await supabase.from("User").select("role").eq("email", emailNormalized).maybeSingle();
+    const role = (row as { role?: string } | null)?.role ?? null;
+    if (role === "instructor") {
+      setError("Instructor password reset is disabled for the demo. Contact your admin.");
       return;
     }
     setError(null);
@@ -162,7 +222,61 @@ export function LoginClient() {
           </p>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-6">
+        {phase === "otp" ? (
+          <form onSubmit={(e) => void onVerifyOtp(e)} className="space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-lg sm:text-xl font-bold text-black">One-time password</h2>
+              {otpGenerated ? (
+                <div className="mx-auto inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-6 py-3 text-3xl font-black tracking-[0.35em] tabular-nums">
+                  {otpGenerated}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="otp" className="block text-sm font-medium text-[#181818]">
+                Enter code
+              </label>
+              <Input
+                id="otp"
+                inputMode="numeric"
+                pattern="\\d{6}"
+                placeholder="6-digit code"
+                value={otpInput}
+                onChange={(e) => setOtpInput(e.target.value)}
+                className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 text-sm shadow-sm placeholder:text-neutral-500 text-center tracking-[0.25em] tabular-nums"
+                required
+              />
+            </div>
+
+            {error ? (
+              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>
+            ) : null}
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="h-12 w-full rounded-xl bg-[#780301] text-base font-semibold tracking-wide text-white shadow-md hover:bg-[#5a0201]"
+            >
+              {loading ? "Verifying…" : "Verify"}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading}
+              className="h-12 w-full rounded-xl"
+              onClick={() => {
+                setPhase("login");
+                setOtpGenerated(null);
+                setOtpInput("");
+              }}
+            >
+              Back
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={onSubmit} className="space-y-6">
           <div className="space-y-2">
             <label htmlFor="email" className="block text-sm font-medium text-[#181818]">
               Email
@@ -257,6 +371,7 @@ export function LoginClient() {
             </Link>
           </p>
         </form>
+        )}
       </div>
     </LoginContainer>
   );

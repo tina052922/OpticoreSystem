@@ -684,7 +684,6 @@ export function GecCentralHubEvaluatorClient() {
       startTime: pad(s.startTime),
       endTime: pad(s.endTime),
       roomId: s.roomId,
-      instructorId: s.instructorId,
     });
   }
 
@@ -734,6 +733,7 @@ export function GecCentralHubEvaluatorClient() {
         academicPeriodId: entry.academicPeriodId,
         excludeEntryId: entry.id,
         durationHours,
+        fixedInstructorId: entry.instructorId,
         roomIds,
         instructorIds,
         generations: 16,

@@ -361,7 +361,6 @@ export function DoiInsFormalApprovalPanel({
                                   startTime: s.startTime,
                                   endTime: s.endTime,
                                   roomId: s.roomId,
-                                  instructorId: s.instructorId,
                                 });
                                 await reloadCatalog?.();
                                 setGaOpen(false);
