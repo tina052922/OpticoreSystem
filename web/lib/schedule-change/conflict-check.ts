@@ -21,7 +21,8 @@ export function entryToBlock(e: ScheduleEntry): ScheduleBlock {
 }
 
 /**
- * Proposed move: same entry id at new day/time. Universe = all other entries in the college for this period.
+ * Proposed move: same entry id at new day/time (and optionally a different room).
+ * Universe = all other entries in the college for this period.
  */
 export function checkConflictForProposedMove(
   original: ScheduleEntry,
@@ -29,12 +30,16 @@ export function checkConflictForProposedMove(
   requestedStart: string,
   requestedEnd: string,
   allEntriesInCollege: ScheduleEntry[],
+  /** When set, conflict scan uses this room on the candidate (e.g. admin-applied room alternative). */
+  roomIdOverride?: string | null,
 ): { severity: ConflictSeverity; hits: ConflictHit[] } {
+  const base = entryToBlock(original);
   const candidate: ScheduleBlock = {
-    ...entryToBlock(original),
+    ...base,
     day: requestedDay,
     startTime: requestedStart,
     endTime: requestedEnd,
+    ...(roomIdOverride != null && String(roomIdOverride).trim() !== "" ? { roomId: roomIdOverride } : {}),
   };
 
   const others: ScheduleBlock[] = allEntriesInCollege

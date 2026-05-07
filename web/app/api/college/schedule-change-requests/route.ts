@@ -8,6 +8,7 @@ export type ScheduleChangeRequestRow = ScheduleChangeRequest & {
   instructorName?: string;
   subjectCode?: string;
   sectionName?: string;
+  academicPeriodId?: string;
   currentDay?: string;
   currentStartTime?: string;
   currentEndTime?: string;
@@ -15,6 +16,7 @@ export type ScheduleChangeRequestRow = ScheduleChangeRequest & {
 
 type ScheduleEntryRow = {
   id: string;
+  academicPeriodId: string;
   day: string;
   startTime: string;
   endTime: string;
@@ -60,7 +62,7 @@ export async function GET() {
       ? supabase.from("User").select("id, name").in("id", instructorIds)
       : { data: [] as { id: string; name: string }[] },
     entryIds.length
-      ? supabase.from("ScheduleEntry").select("id, day, startTime, endTime, subjectId, sectionId").in("id", entryIds)
+      ? supabase.from("ScheduleEntry").select("id, academicPeriodId, day, startTime, endTime, subjectId, sectionId").in("id", entryIds)
       : { data: [] as ScheduleEntryRow[] },
   ]);
 
@@ -86,6 +88,7 @@ export async function GET() {
       instructorName: nameById[r.instructorId] ?? r.instructorId,
       subjectCode: e ? codeBySub[e.subjectId] : undefined,
       sectionName: e ? nameBySec[e.sectionId] : undefined,
+      academicPeriodId: e?.academicPeriodId,
       currentDay: e?.day,
       currentStartTime: e?.startTime,
       currentEndTime: e?.endTime,

@@ -4,9 +4,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { notifyScheduleChangeApproved } from "@/lib/server/notify-schedule-change-approved";
 import { checkConflictForProposedMove } from "@/lib/schedule-change/conflict-check";
+import { buildScheduleChangeAlternatives } from "@/lib/schedule-change/schedule-change-alternatives";
 import { Q } from "@/lib/supabase/catalog-columns";
 import { enrichConflictHitsForDisplay } from "@/lib/schedule-change/enrich-conflict-hits";
-import { getScheduleEntriesForAcademicPeriod } from "@/lib/server/schedule-change-queries";
+import { getRoomsForCollege, getScheduleEntriesForAcademicPeriod } from "@/lib/server/schedule-change-queries";
 import type { ScheduleChangeStatus } from "@/types/db";
 import type { ScheduleEntry } from "@/types/db";
 
@@ -17,6 +18,11 @@ type PatchBody = {
   adminSuggestion?: string | null;
   /** Deprecated: ignored (alternatives are never auto-applied). */
   applySuggestedMitigation?: boolean;
+  /** What to write to `ScheduleEntry`: instructor’s request, or a campus-built alternative by index. */
+  approveSolution?:
+    | { kind: "instructor_request" }
+    | { kind: "alternative"; index: number }
+    | undefined;
 };
 
 /**
@@ -103,6 +109,33 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ ok: true, status: "rejected" });
   }
 
+  const rawSol = body?.approveSolution;
+  let parsedApproveSolution: { kind: "instructor_request" } | { kind: "alternative"; index: number };
+  if (rawSol == null) {
+    parsedApproveSolution = { kind: "instructor_request" };
+  } else if (typeof rawSol === "object") {
+    const k = (rawSol as { kind?: unknown }).kind;
+    if (k === "instructor_request") {
+      parsedApproveSolution = { kind: "instructor_request" };
+    } else if (k === "alternative") {
+      const idx = (rawSol as { index?: unknown }).index;
+      if (typeof idx !== "number" || !Number.isInteger(idx)) {
+        return NextResponse.json(
+          { error: "approveSolution.alternative requires integer index" },
+          { status: 400 },
+        );
+      }
+      parsedApproveSolution = { kind: "alternative", index: idx };
+    } else {
+      return NextResponse.json(
+        { error: "approveSolution.kind must be instructor_request or alternative" },
+        { status: 400 },
+      );
+    }
+  } else {
+    return NextResponse.json({ error: "approveSolution must be an object or omitted" }, { status: 400 });
+  }
+
   const { data: entry, error: entErr } = await supabase
     .from("ScheduleEntry")
     .select(Q.scheduleEntry)
@@ -123,29 +156,65 @@ export async function PATCH(req: Request, ctx: Ctx) {
     );
   }
   const allCampus = await getScheduleEntriesForAcademicPeriod(supabase, e.academicPeriodId);
-  const { severity, hits } = checkConflictForProposedMove(
+  const rooms = await getRoomsForCollege(supabase, profile.collegeId);
+
+  const alternatives = buildScheduleChangeAlternatives(
     e,
     row.requestedDay,
     row.requestedStartTime,
     row.requestedEndTime,
     allCampus,
+    rooms,
+  );
+
+  let appliedDay: string;
+  let appliedStart: string;
+  let appliedEnd: string;
+  let appliedRoomId: string;
+
+  const sol = parsedApproveSolution;
+  if (sol.kind === "instructor_request") {
+    appliedDay = row.requestedDay;
+    appliedStart = row.requestedStartTime;
+    appliedEnd = row.requestedEndTime;
+    appliedRoomId = e.roomId;
+  } else {
+    const idx = sol.index;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= alternatives.length) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid alternative index. Run the conflict checker again, choose a listed solution, or approve the instructor’s requested slot.",
+        },
+        { status: 400 },
+      );
+    }
+    const alt = alternatives[idx]!;
+    appliedDay = alt.day;
+    appliedStart = alt.startTime;
+    appliedEnd = alt.endTime;
+    appliedRoomId = alt.roomId ?? e.roomId;
+  }
+
+  const roomOverrideForCheck =
+    appliedRoomId !== e.roomId ? appliedRoomId : null;
+
+  const { severity, hits } = checkConflictForProposedMove(
+    e,
+    appliedDay,
+    appliedStart,
+    appliedEnd,
+    allCampus,
+    roomOverrideForCheck,
   );
 
   const hitsEnriched = await enrichConflictHitsForDisplay(supabase, hits, allCampus);
-
-  await supabase
-    .from("ScheduleChangeRequest")
-    .update({
-      conflictSeverity: severity,
-      conflictDetails: { hits: hitsEnriched },
-    })
-    .eq("id", id);
 
   if (severity === "large") {
     return NextResponse.json(
       {
         error:
-          "Conflicts are too large to approve safely (campus-wide scan). Reject this request or adjust the master schedule first.",
+          "Conflicts are too large to approve safely (campus-wide scan). Pick a different solution or resolve clashes on the master schedule first.",
         severity,
         hits: hitsEnriched,
       },
@@ -153,17 +222,28 @@ export async function PATCH(req: Request, ctx: Ctx) {
     );
   }
 
-  /** Approve applies exactly the instructor’s requested slot. Alternatives shown in conflict check are never auto-applied. */
+  /** Approve persists the chosen slot (instructor request or admin-selected alternative). */
   const finalStatus: ScheduleChangeStatus = "approved";
+
+  const entryUpdate: {
+    day: string;
+    startTime: string;
+    endTime: string;
+    status: "draft";
+    roomId?: string;
+  } = {
+    day: appliedDay,
+    startTime: appliedStart,
+    endTime: appliedEnd,
+    status: "draft",
+  };
+  if (appliedRoomId !== e.roomId) {
+    entryUpdate.roomId = appliedRoomId;
+  }
 
   const { error: updEntryErr } = await supabase
     .from("ScheduleEntry")
-    .update({
-      day: row.requestedDay,
-      startTime: row.requestedStartTime,
-      endTime: row.requestedEndTime,
-      status: "draft",
-    })
+    .update(entryUpdate)
     .eq("id", row.scheduleEntryId);
 
   if (updEntryErr) {
@@ -180,8 +260,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     })
     .eq("id", id);
 
-  const slotLabel = `${row.requestedDay} ${row.requestedStartTime}–${row.requestedEndTime}`;
-  const roomIdApplied = e.roomId;
+  const slotLabel = `${appliedDay} ${appliedStart}–${appliedEnd}`;
+  const roomIdApplied = appliedRoomId;
 
   const admin = createSupabaseAdminClient();
   if (admin) {
@@ -216,9 +296,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
             sectionId: e.sectionId,
             subjectId: e.subjectId,
             academicPeriodId: e.academicPeriodId,
-            day: row.requestedDay,
-            startTime: row.requestedStartTime,
-            endTime: row.requestedEndTime,
+            day: appliedDay,
+            startTime: appliedStart,
+            endTime: appliedEnd,
           },
         });
       } else {
@@ -249,7 +329,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
   }
 
-  return NextResponse.json({ ok: true, status: finalStatus, severity, hits: hitsEnriched });
+  return NextResponse.json({
+    ok: true,
+    status: finalStatus,
+    severity,
+    hits: hitsEnriched,
+    academicPeriodId: e.academicPeriodId,
+    applied: { day: appliedDay, startTime: appliedStart, endTime: appliedEnd, roomId: appliedRoomId },
+  });
 }
 
 async function notifyInstructor(

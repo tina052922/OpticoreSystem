@@ -61,16 +61,26 @@ export function buildScheduleChangeAlternatives(
     allCampus,
     rooms,
   );
-  if (roomMit) {
-    push({
-      kind: "room",
-      label: `Room: use ${roomMit.roomCode ?? "another room"} (same day/time as requested).`,
-      day: requestedDay,
-      startTime: requestedStart,
-      endTime: requestedEnd,
-      roomId: roomMit.roomId,
-      roomCode: roomMit.roomCode,
-    });
+  if (roomMit && roomMit.roomId) {
+    const { severity } = checkConflictForProposedMove(
+      entry,
+      requestedDay,
+      requestedStart,
+      requestedEnd,
+      allCampus,
+      roomMit.roomId,
+    );
+    if (severity === "none") {
+      push({
+        kind: "room",
+        label: `Room: use ${roomMit.roomCode ?? "another room"} (same day/time as requested).`,
+        day: requestedDay,
+        startTime: requestedStart,
+        endTime: requestedEnd,
+        roomId: roomMit.roomId,
+        roomCode: roomMit.roomCode,
+      });
+    }
   }
 
   const durationH = Math.max(0.5, slotDurationHours(requestedStart, requestedEnd));
