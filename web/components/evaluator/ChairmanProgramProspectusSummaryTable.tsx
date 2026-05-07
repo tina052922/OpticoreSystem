@@ -39,7 +39,7 @@ type Props = {
  */
 export function ChairmanProgramProspectusSummaryTable({
   programCode,
-  programName,
+  programName: _programName,
   selectedSectionId,
   yearLevelFilter,
   filterSemester = null,
@@ -63,10 +63,6 @@ export function ChairmanProgramProspectusSummaryTable({
     setActiveCode(null);
   }, [programCode, selectedSectionId, yearLevelFilter, filterSemester]);
 
-  const label = programName?.trim()
-    ? `${programName.trim()} (${programCode || "—"})`
-    : programCode || "—";
-
   const scopeDescription = useMemo(() => {
     if (yearLevelFilter == null) return null;
     const y = `Year ${yearLevelFilter}`;
@@ -78,10 +74,9 @@ export function ChairmanProgramProspectusSummaryTable({
     <div className={`${className}`}>
       <div className="px-2 py-2">
         <div className="text-[12px] font-semibold text-[#780301]">Summary of Subjects</div>
-        <div className="text-[11px] text-black/55">
-          Program: <span className="font-medium text-black/70">{label}</span>
-          {scopeDescription ? <span> · {scopeDescription}</span> : null}
-        </div>
+        {scopeDescription ? (
+          <div className="text-[11px] text-black/55">{scopeDescription}</div>
+        ) : null}
       </div>
       {!programCode.trim() ? (
         <p className="text-sm text-black/55 px-2 py-4">No program code in scope.</p>

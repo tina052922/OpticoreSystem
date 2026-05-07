@@ -21,7 +21,9 @@ export function isScheduleRelatedNotificationMessage(message: string): boolean {
   // - Triggered by College/DOI publication workflow fan-out
   const schedulePatterns = [
     "master schedule for",
-    "schedule change request",
+    "your schedule change was approved",
+    "schedule change approved",
+    "your class has been changed",
     "your class is now scheduled",
     "your schedule change request",
     "approved.",

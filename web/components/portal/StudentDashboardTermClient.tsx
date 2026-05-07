@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Calendar, MapPin, ChevronRight, Clock } from "lucide-react";
+import { MapPin, ChevronRight, Clock } from "lucide-react";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
@@ -155,13 +155,6 @@ export function StudentDashboardTermClient({
           </DashboardCard>
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-xl border border-dashed border-black/15 bg-white/80 p-4 text-xs text-black/50 leading-relaxed">
-            <Calendar className="w-4 h-4 mb-2 text-[var(--color-opticore-orange)]" />
-            Schedules follow the official repository in OptiCore. Use the semester selector in the navigation bar to
-            switch terms.
-          </div>
-        </div>
       </div>
     </div>
   );

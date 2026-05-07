@@ -67,13 +67,48 @@ export async function POST(req: Request) {
 
   const { data: placeholder } = await admin
     .from("User")
-    .select("id, collegeId")
+    .select("id, collegeId, email")
     .eq("employeeId", employeeId)
     .maybeSingle();
 
   if (placeholder) {
     const { data: authLookup } = await admin.auth.admin.getUserById(placeholder.id);
     if (authLookup?.user) {
+      const authUser = authLookup.user;
+      const authEmail = (authUser.email ?? "").trim().toLowerCase();
+      if (authEmail && authEmail !== email) {
+        return NextResponse.json(
+          { error: "This Employee ID is linked to a different email. Sign in with the email on file or contact admin." },
+          { status: 409 },
+        );
+      }
+      const meta = (authUser.user_metadata ?? {}) as { must_change_password?: boolean; full_name?: string };
+      /** Account exists but first-time setup (password change) not finished — allow resuming without a false "already registered" error. */
+      if (meta.must_change_password === true) {
+        const temporaryPassword = generateInstructorTempPassword();
+        const { error: pwdErr } = await admin.auth.admin.updateUserById(placeholder.id, {
+          password: temporaryPassword,
+          user_metadata: {
+            ...meta,
+            must_change_password: true,
+            full_name: fullName,
+          },
+        });
+        if (pwdErr) {
+          return NextResponse.json({ error: pwdErr.message ?? "Could not refresh sign-in credentials." }, { status: 400 });
+        }
+        await admin
+          .from("User")
+          .update({ email, name: fullName, collegeId: collegeId ?? placeholder.collegeId })
+          .eq("id", placeholder.id);
+        await admin.from("FacultyProfile").update({ fullName }).eq("userId", placeholder.id);
+        return NextResponse.json({
+          ok: true,
+          resumedIncompleteSetup: true,
+          message: "Finish setup: verify the on-screen code, then set your new password.",
+          temporaryPassword,
+        });
+      }
       return NextResponse.json(
         { error: "This instructor is already registered. Sign in with your email." },
         { status: 409 },

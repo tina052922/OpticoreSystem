@@ -51,10 +51,7 @@ export default async function CollegePolicyReviewsPage() {
 
   return (
     <div>
-      <ChairmanPageHeader
-        title="Policy reviews"
-        subtitle="Load-policy justifications from your college’s chairs. Pending items need VPAA action; you are notified when a decision is made (accept or reject)."
-      />
+      <ChairmanPageHeader title="Policy reviews" />
       <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-5xl mx-auto">
         <CollegePolicyReviewsClient rows={vms} realtimeCollegeId={profile.collegeId} />
       </div>

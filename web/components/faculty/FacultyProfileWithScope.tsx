@@ -6,6 +6,7 @@ import { FacultyProfileWorkspace } from "@/components/faculty/FacultyProfileWork
 
 export function FacultyProfileWithScope({ initialCollegeId }: { initialCollegeId?: string | null }) {
   const [scopeCollegeId, setScopeCollegeId] = useState<string | null>(initialCollegeId ?? null);
+  const [scopeProgramId, setScopeProgramId] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialCollegeId) setScopeCollegeId(initialCollegeId);
@@ -16,10 +17,13 @@ export function FacultyProfileWithScope({ initialCollegeId }: { initialCollegeId
       <div className="px-4 sm:px-6 lg:px-8 pb-2">
         <CampusScopeFilters
           initialCollegeId={initialCollegeId ?? undefined}
-          onScopeChange={(s) => setScopeCollegeId(s.collegeId)}
+          onScopeChange={(s) => {
+            setScopeCollegeId(s.collegeId);
+            setScopeProgramId(s.programId);
+          }}
         />
       </div>
-      <FacultyProfileWorkspace scopeCollegeId={scopeCollegeId} />
+      <FacultyProfileWorkspace scopeCollegeId={scopeCollegeId} scopeProgramId={scopeProgramId} />
     </>
   );
 }

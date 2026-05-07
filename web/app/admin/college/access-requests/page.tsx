@@ -4,10 +4,7 @@ import { AccessRequestsReview } from "@/components/access/AccessRequestsReview";
 export default function CollegeAccessRequestsPage() {
   return (
     <div>
-      <ChairmanPageHeader
-        title="Access requests"
-        subtitle="Review scoped requests from GEC Chairman. Approve to grant access to Evaluator, INS views, or vacant GEC slot editing."
-      />
+      <ChairmanPageHeader title="Access requests" />
       <div className="px-8 pb-10 max-w-6xl">
         <AccessRequestsReview />
       </div>

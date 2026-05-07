@@ -27,6 +27,8 @@ export type FacultyProfileWorkspaceProps = {
   viewerCollegeId?: string | null;
   /** From `FacultyProfileWithScope` + CampusScopeFilters */
   scopeCollegeId?: string | null;
+  /** When set, list only faculty with teaching or advisory activity in this program. */
+  scopeProgramId?: string | null;
   /** Chairman Faculty Profile page: edit status & designation on list rows (updates evaluator load rules). */
   enableFacultyListEdit?: boolean;
   /**
@@ -46,6 +48,7 @@ export function FacultyProfileWorkspace({
   chairmanProgramCode = null,
   viewerCollegeId = null,
   scopeCollegeId = null,
+  scopeProgramId = null,
   enableFacultyListEdit = false,
   gecFacultyFilter = false,
 }: FacultyProfileWorkspaceProps) {
@@ -172,16 +175,38 @@ export function FacultyProfileWorkspace({
       setError(secRes.error.message);
       return;
     }
-    setSections((secRes.data ?? []) as Section[]);
+    const allSections = (secRes.data ?? []) as Section[];
+    const sectionsScoped = scopeProgramId
+      ? allSections.filter((s) => s.programId === scopeProgramId)
+      : allSections;
+    setSections(sectionsScoped);
 
-    const byUser = new Map((profsRes.data as FacultyProfile[] | null)?.map((p) => [p.userId, p]) ?? []);
+    const profs = (profsRes.data as FacultyProfile[] | null) ?? [];
+    const byUser = new Map(profs.map((p) => [p.userId, p]));
+
+    if (scopeProgramId) {
+      const secIds = new Set(sectionsScoped.map((s) => s.id));
+      if (secIds.size === 0) {
+        setRows([]);
+        return;
+      }
+      const { data: sePlot } = await supabase.from("ScheduleEntry").select("instructorId").in("sectionId", [...secIds]);
+      const plotted = new Set((sePlot ?? []).map((r) => String(r.instructorId)));
+      list = list.filter((u) => {
+        if (plotted.has(u.id)) return true;
+        const fp = byUser.get(u.id);
+        const adv = fp?.advisorySectionId;
+        return adv != null && secIds.has(adv);
+      });
+    }
+
     setRows(
       list.map((u) => ({
         user: { id: u.id, name: u.name, employeeId: u.employeeId },
         profile: byUser.get(u.id) ?? null,
       })),
     );
-  }, [collegeId, gecFacultyFilter]);
+  }, [collegeId, gecFacultyFilter, scopeProgramId]);
 
   useEffect(() => {
     void loadFaculty();
