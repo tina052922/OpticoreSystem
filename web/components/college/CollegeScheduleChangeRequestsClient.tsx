@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
@@ -24,6 +24,7 @@ type AlternativeSolutionRow = {
   startTime?: string;
   endTime?: string;
   roomCode?: string;
+  roomId?: string;
 };
 
 type ConflictHitRow = {
@@ -37,6 +38,7 @@ type Row = ScheduleChangeRequest & {
   instructorName?: string;
   subjectCode?: string;
   sectionName?: string;
+  academicPeriodId?: string;
   currentDay?: string;
   currentStartTime?: string;
   currentEndTime?: string;
@@ -70,7 +72,22 @@ export function CollegeScheduleChangeRequestsClient() {
   /** Set from API for Supabase Realtime filter (same college as the signed-in admin). */
   const [realtimeCollegeId, setRealtimeCollegeId] = useState<string | null>(null);
 
+  /** Instructor request or index into merged campus-built alternatives list. */
+  const [approveSolutionChoice, setApproveSolutionChoice] = useState<"instructor" | number>("instructor");
+
   const selected = requests.find((r) => r.id === selectedId) ?? null;
+
+  /** Prefer freshest conflict-check response; fallback to persisted `conflictDetails` on the row. */
+  const effectiveAlternatives = useMemo((): AlternativeSolutionRow[] => {
+    if (checkResult) return checkResult.alternativeSolutions ?? [];
+    return selected?.conflictDetails?.alternativeSolutions ?? [];
+  }, [checkResult, selected?.conflictDetails?.alternativeSolutions]);
+
+  useEffect(() => {
+    setApproveSolutionChoice((c) =>
+      typeof c === "number" && (c < 0 || c >= effectiveAlternatives.length) ? "instructor" : c,
+    );
+  }, [effectiveAlternatives.length, selectedId]);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -170,6 +187,7 @@ export function CollegeScheduleChangeRequestsClient() {
   useEffect(() => {
     setAdminNote("");
     setCheckResult(null);
+    setApproveSolutionChoice("instructor");
     autoCheckDoneForSelected.current = null;
   }, [selectedId]);
 
@@ -184,6 +202,25 @@ export function CollegeScheduleChangeRequestsClient() {
 
   async function patch(action: "approve" | "reject") {
     if (!selected || selected.status !== "pending") return;
+    if (
+      action === "approve" &&
+      typeof approveSolutionChoice === "number" &&
+      (approveSolutionChoice < 0 || approveSolutionChoice >= effectiveAlternatives.length)
+    ) {
+      toast.error(
+        "Choose a listed alternative",
+        "Select an alternative from the list, or choose the instructor’s requested slot.",
+      );
+      return;
+    }
+
+    const approveSolutionBody =
+      action === "approve"
+        ? approveSolutionChoice === "instructor"
+          ? { kind: "instructor_request" as const }
+          : { kind: "alternative" as const, index: approveSolutionChoice }
+        : undefined;
+
     setBusy(action);
     setError(null);
     try {
@@ -194,6 +231,7 @@ export function CollegeScheduleChangeRequestsClient() {
         body: JSON.stringify({
           action,
           adminSuggestion: adminNote.trim() || null,
+          ...(approveSolutionBody ? { approveSolution: approveSolutionBody } : {}),
         }),
       });
       const data = (await res.json()) as {
@@ -201,6 +239,7 @@ export function CollegeScheduleChangeRequestsClient() {
         status?: string;
         severity?: string;
         hits?: ConflictHitRow[];
+        academicPeriodId?: string;
       };
       if (res.status === 409) {
         setError(data.error ?? "Conflicts too large — approve blocked.");
@@ -211,9 +250,11 @@ export function CollegeScheduleChangeRequestsClient() {
       if (!res.ok) throw new Error(data.error || "Update failed");
       setCheckResult(null);
       setAdminNote("");
+      setApproveSolutionChoice("instructor");
       await load();
-      dispatchInsCatalogReload();
-      if (action === "approve") toast.success("Request approved");
+      const periodId = data.academicPeriodId ?? selected.academicPeriodId;
+      dispatchInsCatalogReload(periodId ? { academicPeriodId: periodId } : undefined);
+      if (action === "approve") toast.success("Schedule updated and request approved");
       else if (action === "reject") toast.success("Request rejected");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Update failed";
@@ -368,27 +409,9 @@ export function CollegeScheduleChangeRequestsClient() {
                           ) : null}
                           {checkResult.suggestedMitigation?.label ? (
                             <p className="mt-2 text-[12px] text-black/75">
-                              <span className="font-semibold text-black/60">Suggested room (reference):</span>{" "}
+                              <span className="font-semibold text-black/60">Suggested room (same list as alternatives):</span>{" "}
                               {checkResult.suggestedMitigation.label}
                             </p>
-                          ) : null}
-                          {checkResult.alternativeSolutions && checkResult.alternativeSolutions.length > 0 ? (
-                            <div className="mt-3 pt-3 border-t border-black/10 space-y-2">
-                              <p className="text-xs font-semibold text-black/70">
-                                Alternative times / days / rooms (reference only — never applied automatically)
-                              </p>
-                              <ul className="list-disc pl-5 space-y-1.5 text-[12px] text-black/85">
-                                {checkResult.alternativeSolutions.map((alt, i) => (
-                                  <li key={`${alt.kind ?? "alt"}-${i}`}>
-                                    <span className="font-semibold capitalize text-black/70">{alt.kind ?? "idea"}:</span>{" "}
-                                    {alt.label}
-                                    {alt.roomCode ? (
-                                      <span className="text-black/55"> ({alt.roomCode})</span>
-                                    ) : null}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
                           ) : null}
                         </div>
                       ) : selected.conflictSeverity ? (
@@ -396,18 +419,50 @@ export function CollegeScheduleChangeRequestsClient() {
                           <p className="text-black/70">
                             Stored severity: <strong>{selected.conflictSeverity}</strong> (run check again to refresh)
                           </p>
-                          {(selected.conflictDetails?.alternativeSolutions?.length ?? 0) > 0 ? (
-                            <div className="pt-2 border-t border-black/10 space-y-1">
-                              <p className="text-xs font-semibold text-black/60">Stored alternatives (reference)</p>
-                              <ul className="list-disc pl-5 text-[11px] text-black/80 space-y-1">
-                                {(selected.conflictDetails?.alternativeSolutions ?? []).map((alt, i) => (
-                                  <li key={`st-${i}`}>{alt.label}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : null}
                         </div>
                       ) : null}
+
+                      <fieldset className="rounded-lg border border-black/15 bg-white px-3 py-3 space-y-2.5">
+                        <legend className="text-sm font-semibold text-black px-1">Apply on approve</legend>
+                        <p className="text-xs text-black/55 pb-1 leading-relaxed">
+                          Select one solution. The schedule row updates immediately for all INS views and the evaluator
+                          hub. Severe campus-wide clashes block approval (HTTP 409).
+                          {!checkResult?.summary ? " Run the conflict checker for the freshest alternative list." : null}
+                        </p>
+                        <label className="flex gap-2.5 items-start cursor-pointer text-sm">
+                          <input
+                            type="radio"
+                            name={`scr-sol-${selected.id}`}
+                            className="mt-1 shrink-0"
+                            checked={approveSolutionChoice === "instructor"}
+                            onChange={() => setApproveSolutionChoice("instructor")}
+                          />
+                          <span>
+                            <span className="font-semibold text-black">Instructor’s requested slot</span>
+                            <span className="text-black/70 block text-xs tabular-nums">
+                              {selected.requestedDay} {selected.requestedStartTime}–{selected.requestedEndTime}
+                            </span>
+                          </span>
+                        </label>
+                        {effectiveAlternatives.map((alt, idx) => (
+                          <label
+                            key={`${alt.kind ?? "alt"}-${idx}-${alt.day ?? ""}-${alt.startTime ?? ""}`}
+                            className="flex gap-2.5 items-start cursor-pointer text-sm"
+                          >
+                            <input
+                              type="radio"
+                              name={`scr-sol-${selected.id}`}
+                              className="mt-1 shrink-0"
+                              checked={approveSolutionChoice === idx}
+                              onChange={() => setApproveSolutionChoice(idx)}
+                            />
+                            <span>
+                              <span className="font-semibold capitalize text-black">{alt.kind ?? "Alternative"}</span>
+                              <span className="text-black/80 block text-xs leading-snug">{alt.label}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </fieldset>
 
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-black" htmlFor="admin-note">
@@ -430,7 +485,7 @@ export function CollegeScheduleChangeRequestsClient() {
                           disabled={busy !== null}
                           onClick={() => void patch("approve")}
                         >
-                          {busy === "approve" ? "…" : "Approve"}
+                          {busy === "approve" ? "…" : "Approve with selected solution"}
                         </Button>
                         <Button
                           type="button"
@@ -443,8 +498,8 @@ export function CollegeScheduleChangeRequestsClient() {
                         </Button>
                       </div>
                       <p className="text-xs text-black/45 leading-relaxed">
-                        Approving saves the instructor’s requested day and time as-is. Severe clashes block approval (HTTP
-                        409). Alternatives listed above are informational only — adjust the master schedule manually if needed.
+                        Notifications go to the instructor, students in the section, and relevant admins. INS forms and hubs
+                        refresh via realtime and catalog reload after approval.
                       </p>
                     </>
                   ) : (
