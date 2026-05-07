@@ -1083,10 +1083,9 @@ export function CentralHubEvaluatorView({
         {panel === "timetabling" ? (
           <>
             {showDoiGovernance ? (
-              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-[13px] text-gray-900">
-                <strong className="text-gray-950">Campus-wide view:</strong> set <em>College</em> to{" "}
-                <strong>All colleges (campus-wide)</strong> below to list every class in the selected term. Use the VPAA
-                panel to run a full conflict check and approve the term.
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/90 px-4 py-2 text-[13px] text-gray-900">
+                <strong>Vice President’s scope:</strong> set <em>College</em> to <strong>All colleges</strong> below for
+                campus-wide listing and approval.
               </div>
             ) : null}
 
@@ -1295,10 +1294,6 @@ export function CentralHubEvaluatorView({
               <div className="text-sm text-black/60 py-8">Loading schedule…</div>
             ) : (
               <>
-                <p className="text-[12px] text-black/60 mb-2">
-                  After <strong>Run conflict check</strong>, overlapping rows are highlighted; click a row to edit time
-                  or room, or apply a suggested fix above.
-                </p>
                 <EvaluatorScheduleOverviewTable
                   rows={tableRows}
                   showCollegeColumn={isCampusWide}

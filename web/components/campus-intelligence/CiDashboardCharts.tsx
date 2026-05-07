@@ -102,10 +102,7 @@ export function CiDashboardCharts({
           <TrendingUp className="w-5 h-5 text-[#FF990A]" />
           Room utilization by time slot
         </h3>
-        <p className="text-sm text-gray-600 mb-4">
-          For each standard period, the share of rooms in scope that have at least one class overlapping that period
-          (0–100%).
-        </p>
+        <p className="text-xs text-gray-600 mb-3">Rooms in use per period (% of rooms in scope).</p>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={roomUtilizationData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -118,7 +115,7 @@ export function CiDashboardCharts({
             />
             <Tooltip
               formatter={(value) => [`${value}%`, "Rooms in use"]}
-              labelFormatter={(label) => `Slot starting ${label}`}
+              labelFormatter={(label) => String(label)}
             />
             <Bar dataKey="utilization" name="Rooms in use" fill="#FF990A" radius={[4, 4, 0, 0]} />
           </BarChart>
@@ -130,10 +127,7 @@ export function CiDashboardCharts({
           <BarChart3 className="w-5 h-5 text-[#FF990A]" />
           Faculty workload bands
         </h3>
-        <p className="text-sm text-gray-600 mb-4">
-          Count of instructors in scope by estimated weekly teaching hours from plotted schedule rows:
-          partial (&lt;18 hrs), full (18–24 hrs typical cap), overloaded (above 24 hrs).
-        </p>
+        <p className="text-xs text-gray-600 mb-3">Instructor counts by weekly contact-band.</p>
         <div className="flex flex-col sm:flex-row items-center justify-center min-h-[250px] gap-4">
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
@@ -161,10 +155,10 @@ export function CiDashboardCharts({
                   <p className="text-sm font-medium text-gray-800">{item.name}</p>
                   <p className="text-xs text-gray-600">
                     {item.name === "Partial Load"
-                      ? "Fewer than ~18 contact hours per week on file."
+                      ? "<18 hrs/wk estimated."
                       : item.name === "Full Load"
-                        ? "About 18 up to the usual 24 hr teaching cap."
-                        : "Above the standard weekly teaching cap (needs review / justification)."}
+                        ? "~18–24 hrs/wk estimated."
+                        : "Above usual cap — review."}
                   </p>
                   <p className="text-sm text-gray-800 mt-0.5">
                     <span className="tabular-nums font-semibold">{item.value}</span> instructor

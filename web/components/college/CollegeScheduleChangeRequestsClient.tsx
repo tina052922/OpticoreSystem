@@ -7,6 +7,7 @@ import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { ScheduleChangeRequest } from "@/types/db";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
 
 type Mitigation = {
   roomId?: string;
@@ -214,6 +215,8 @@ export function CollegeScheduleChangeRequestsClient() {
       return;
     }
 
+    const scanSnap = action === "approve" ? checkResult : null;
+
     const approveSolutionBody =
       action === "approve"
         ? approveSolutionChoice === "instructor"
@@ -242,9 +245,18 @@ export function CollegeScheduleChangeRequestsClient() {
         academicPeriodId?: string;
       };
       if (res.status === 409) {
-        setError(data.error ?? "Conflicts too large — approve blocked.");
-        setCheckResult({ severity: data.severity, hits: data.hits });
-        toast.error("Request approval blocked", data.error ?? "Conflicts too large — approve blocked.");
+        setError(data.error ?? "Approve blocked — timetable conflicts remain.");
+        setCheckResult((prev) => ({
+          severity: data.severity,
+          hits: data.hits,
+          summary:
+            typeof data.error === "string"
+              ? data.error
+              : "This choice still clashes — pick another alternative or reject.",
+          alternativeSolutions: prev?.alternativeSolutions ?? [],
+          suggestedMitigation: prev?.suggestedMitigation ?? null,
+        }));
+        toast.error("Approve blocked", data.error ?? "Pick a clash-free alternative or reject.");
         return;
       }
       if (!res.ok) throw new Error(data.error || "Update failed");
@@ -254,8 +266,13 @@ export function CollegeScheduleChangeRequestsClient() {
       await load();
       const periodId = data.academicPeriodId ?? selected.academicPeriodId;
       dispatchInsCatalogReload(periodId ? { academicPeriodId: periodId } : undefined);
-      if (action === "approve") toast.success("Schedule updated and request approved");
-      else if (action === "reject") toast.success("Request rejected");
+      if (action === "approve") {
+        const hadPriorConflict = Boolean(scanSnap?.severity && scanSnap.severity !== "none");
+        toast.success(
+          hadPriorConflict ? "Conflicts resolved — request approved." : "Request approved — schedule updated.",
+          "INS forms and evaluator refresh for all users.",
+        );
+      } else if (action === "reject") toast.success("Request rejected");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Update failed";
       setError(msg);
@@ -264,6 +281,17 @@ export function CollegeScheduleChangeRequestsClient() {
       setBusy(null);
     }
   }
+
+  const approveDisabled =
+    busy !== null ||
+    !checkResult?.summary ||
+    (approveSolutionChoice === "instructor" &&
+      Boolean(checkResult?.severity && checkResult.severity !== "none"));
+
+  const instructorSlotBlockedHint =
+    approveSolutionChoice === "instructor" &&
+    checkResult?.severity != null &&
+    checkResult.severity !== "none";
 
   return (
     <div>
@@ -346,13 +374,17 @@ export function CollegeScheduleChangeRequestsClient() {
                     <div>
                       <dt className="text-black/50">Current</dt>
                       <dd className="font-medium">
-                        {selected.currentDay} {selected.currentStartTime}–{selected.currentEndTime}
+                        {selected.currentDay}{" "}
+                        {selected.currentStartTime && selected.currentEndTime
+                          ? formatTimeRange12h(selected.currentStartTime, selected.currentEndTime)
+                          : "—"}
                       </dd>
                     </div>
                     <div className="sm:col-span-2">
                       <dt className="text-black/50">Requested</dt>
                       <dd className="font-medium">
-                        {selected.requestedDay} {selected.requestedStartTime}–{selected.requestedEndTime}
+                        {selected.requestedDay}{" "}
+                        {formatTimeRange12h(selected.requestedStartTime, selected.requestedEndTime)}
                       </dd>
                     </div>
                     <div className="sm:col-span-2">
@@ -425,10 +457,20 @@ export function CollegeScheduleChangeRequestsClient() {
                       <fieldset className="rounded-lg border border-black/15 bg-white px-3 py-3 space-y-2.5">
                         <legend className="text-sm font-semibold text-black px-1">Apply on approve</legend>
                         <p className="text-xs text-black/55 pb-1 leading-relaxed">
-                          Select one solution. The schedule row updates immediately for all INS views and the evaluator
-                          hub. Severe campus-wide clashes block approval (HTTP 409).
-                          {!checkResult?.summary ? " Run the conflict checker for the freshest alternative list." : null}
+                          One choice per approve. Allowed only when the selected slot has <strong>zero</strong> clashes
+                          after campus-wide check.
+                          {!checkResult?.summary ? " Run the conflict checker." : null}
                         </p>
+                        {checkResult?.severity === "none" ? (
+                          <p className="text-xs font-medium text-emerald-800 bg-emerald-50/80 border border-emerald-200/80 rounded-md px-2 py-1.5">
+                            Ready to approve — no conflicts on last check for the instructor&apos;s proposed slot.
+                          </p>
+                        ) : null}
+                        {instructorSlotBlockedHint ? (
+                          <p className="text-xs font-medium text-amber-900 bg-amber-50/90 border border-amber-200/80 rounded-md px-2 py-1.5">
+                            Instructor proposed slot conflicts — choose a clash-free alternative or reject.
+                          </p>
+                        ) : null}
                         <label className="flex gap-2.5 items-start cursor-pointer text-sm">
                           <input
                             type="radio"
@@ -440,7 +482,8 @@ export function CollegeScheduleChangeRequestsClient() {
                           <span>
                             <span className="font-semibold text-black">Instructor’s requested slot</span>
                             <span className="text-black/70 block text-xs tabular-nums">
-                              {selected.requestedDay} {selected.requestedStartTime}–{selected.requestedEndTime}
+                              {selected.requestedDay}{" "}
+                              {formatTimeRange12h(selected.requestedStartTime, selected.requestedEndTime)}
                             </span>
                           </span>
                         </label>
@@ -466,8 +509,7 @@ export function CollegeScheduleChangeRequestsClient() {
 
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-black" htmlFor="admin-note">
-                          Admin note (optional approval context or rejection reason — shown to the instructor when
-                          relevant)
+                          Admin note (optional)
                         </label>
                         <textarea
                           id="admin-note"
@@ -482,7 +524,7 @@ export function CollegeScheduleChangeRequestsClient() {
                         <Button
                           type="button"
                           className="bg-emerald-700 hover:bg-emerald-800 text-white"
-                          disabled={busy !== null}
+                          disabled={approveDisabled}
                           onClick={() => void patch("approve")}
                         >
                           {busy === "approve" ? "…" : "Approve with selected solution"}
@@ -498,8 +540,7 @@ export function CollegeScheduleChangeRequestsClient() {
                         </Button>
                       </div>
                       <p className="text-xs text-black/45 leading-relaxed">
-                        Notifications go to the instructor, students in the section, and relevant admins. INS forms and hubs
-                        refresh via realtime and catalog reload after approval.
+                        Notifications cover instructor and related users where configured.
                       </p>
                     </>
                   ) : (

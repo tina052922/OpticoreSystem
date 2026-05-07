@@ -1,14 +1,11 @@
 import { detectConflictsSparse, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import type { FacultyProfile, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
 
-/** Match Central Hub / Figma column formatting. */
+/** Match Central Hub / evaluator tables: readable 12-hour range. */
 export function formatTimeRange(start: string, end: string): string {
-  const fmt = (t: string) => {
-    const [h, m] = t.split(":").map((x) => parseInt(x, 10));
-    return `${h}:${String(m ?? 0).padStart(2, "0")}`;
-  };
-  return `${fmt(start)}-${fmt(end)}`;
+  return formatTimeRange12h(start, end);
 }
 
 export function dayAbbrev(day: string): string {

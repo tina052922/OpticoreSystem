@@ -334,9 +334,7 @@ export function INSFormRoom({
             role="status"
           >
             <p className="font-semibold">This room has {roomConflictCount} conflicting slot(s) this term</p>
-            <p className="text-xs text-red-950/85">
-              Overlaps are highlighted in the grid. Resolve in the Evaluator or apply one automated fix below.
-            </p>
+            <p className="text-xs text-red-950/85">Fix overlaps in Evaluator or use automated fix below.</p>
             {enableInsAltApply ? (
               <Button
                 type="button"
