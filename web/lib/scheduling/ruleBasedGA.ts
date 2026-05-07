@@ -9,6 +9,17 @@ import { DEFAULT_MAX_FACULTY_HOURS_PER_WEEK, TIME_SLOT_OPTIONS, WEEKDAYS } from 
 import { detectConflictsForEntry } from "./conflicts";
 import type { GASuggestion, ScheduleBlock } from "./types";
 
+function addHoursClamped(startTime: string, hours: number, latestEndHour = 19): { startTime: string; endTime: string } {
+  const [hStr, mStr] = startTime.split(":");
+  const h = parseInt(hStr || "7", 10);
+  const m = parseInt(mStr || "0", 10);
+  const endH = Math.min(latestEndHour, h + Math.max(1, Math.ceil(hours)));
+  return {
+    startTime,
+    endTime: `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+  };
+}
+
 function slotDurationHours(start: string, end: string): number {
   const [sh, sm] = start.split(":").map((x) => parseInt(x, 10));
   const [eh, em] = end.split(":").map((x) => parseInt(x, 10));
@@ -30,6 +41,8 @@ export type GAParams = {
   subjectId: string;
   /** Academic period id. */
   academicPeriodId: string;
+  /** Required duration (hours) for the plotted class; used to compute end times from slot starts. */
+  durationHours: number;
   /** Omit this entry id from conflict checks (editing an existing draft). */
   excludeEntryId?: string;
   /** Candidate pools */
@@ -54,14 +67,16 @@ function randomPick<T>(arr: T[], rng: () => number): T {
 
 function buildCandidatePool(p: GAParams): Gene[] {
   const pool: Gene[] = [];
+  const starts = TIME_SLOT_OPTIONS.map((t) => t.startTime);
   for (const day of WEEKDAYS) {
-    for (const slot of TIME_SLOT_OPTIONS) {
+    for (const startTime of starts) {
+      const { startTime: st, endTime } = addHoursClamped(startTime, p.durationHours);
       for (const roomId of p.roomIds) {
         for (const instructorId of p.instructorIds) {
           pool.push({
             day,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
+            startTime: st,
+            endTime,
             roomId,
             instructorId,
           });

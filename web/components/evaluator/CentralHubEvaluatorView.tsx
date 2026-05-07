@@ -24,6 +24,7 @@ import {
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
+import { slotDurationHours } from "@/lib/scheduling/time";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import type {
   AcademicPeriod,
@@ -519,12 +520,14 @@ export function CentralHubEvaluatorView({
         .filter((u) => u.collegeId === cid && (u.role === "instructor" || u.role === "chairman_admin"))
         .map((u) => u.id);
       if (roomIds.length === 0 || instructorIds.length === 0) return [];
+      const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
       return runRuleBasedGeneticAlgorithm({
         universe,
         sectionId: entry.sectionId,
         subjectId: entry.subjectId,
         academicPeriodId: entry.academicPeriodId,
         excludeEntryId: entry.id,
+        durationHours,
         roomIds,
         instructorIds,
         generations: 40,
@@ -734,11 +737,13 @@ export function CentralHubEvaluatorView({
     }
     setAltBusy(true);
     try {
+      const durationHours = slotDurationHours(first.startTime, first.endTime) || 2;
       const sug = runRuleBasedGeneticAlgorithm({
         universe,
         sectionId: first.sectionId,
         subjectId: first.subjectId,
         academicPeriodId: first.academicPeriodId,
+        durationHours,
         roomIds,
         instructorIds,
         generations: 40,

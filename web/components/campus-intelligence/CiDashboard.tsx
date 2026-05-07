@@ -52,6 +52,11 @@ export type CiDashboardProps = {
   liveStats?: CiDashboardLiveStats | null;
   /** Shown under the main subtitle (e.g. “Scope: BSIT program”). */
   scopeHint?: string | null;
+  /**
+   * Dashboard analytics scope (for live charts).
+   * Pages already compute `liveStats`; this tells the charts what slice to aggregate.
+   */
+  analyticsScope?: { mode: "program" | "college" | "campus"; collegeId?: string | null; programId?: string | null } | null;
 };
 
 const recentActivities = [
@@ -113,6 +118,7 @@ export function CiDashboard({
   conflictBanner = null,
   liveStats = null,
   scopeHint = null,
+  analyticsScope = null,
 }: CiDashboardProps) {
   const stats = [
     {
@@ -233,7 +239,7 @@ export function CiDashboard({
         })}
       </div>
 
-      <CiDashboardCharts />
+      <CiDashboardCharts analyticsScope={analyticsScope} />
 
       <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
         <h3 className="text-lg font-bold text-gray-800 mb-4">Quick Access</h3>

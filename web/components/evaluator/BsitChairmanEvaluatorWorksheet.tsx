@@ -14,6 +14,7 @@ import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } fro
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
+import { slotDurationHours } from "@/lib/scheduling/time";
 import type { FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -848,12 +849,15 @@ export function BsitChairmanEvaluatorWorksheet({
               : undefined) ??
             "";
           if (!sectionId || !subjectId) continue;
+          const durationHours =
+            metaFromDb?.startTime && metaFromDb?.endTime ? slotDurationHours(metaFromDb.startTime, metaFromDb.endTime) : 2;
           const sug = runRuleBasedGeneticAlgorithm({
             universe: mergedBlocksForCampusScan,
             sectionId,
             subjectId,
             academicPeriodId,
             excludeEntryId: block?.id,
+            durationHours,
             roomIds,
             instructorIds,
             generations: 28,

@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { AcademicPeriod, Program, Room, ScheduleEntry, Section, StudentProfile, Subject, User } from "@/types/db";
+import { isScheduleRelatedNotificationMessage } from "@/lib/notifications/notification-relevance";
 
 const USER_SCHEDULE_LOOKUP = "id,name,email,role,collegeId,employeeId";
 
@@ -188,6 +189,15 @@ export async function getRecentNotifications(userId: string, limit = 6) {
     .order("createdAt", { ascending: false })
     .limit(limit);
   return data ?? [];
+}
+
+/**
+ * In-app “schedule updates” feed for instructors/students.
+ * Uses keyword relevance filtering because Notification has no category column yet.
+ */
+export async function getRecentScheduleNotifications(userId: string, limit = 6) {
+  const all = await getRecentNotifications(userId, limit);
+  return all.filter((n) => isScheduleRelatedNotificationMessage(n.message));
 }
 
 /**

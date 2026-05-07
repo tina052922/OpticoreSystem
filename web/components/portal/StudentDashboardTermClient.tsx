@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Calendar, MapPin, Megaphone, ChevronRight, Clock } from "lucide-react";
+import { Calendar, MapPin, ChevronRight, Clock } from "lucide-react";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
-import type { Notification, Program, Section } from "@/types/db";
+import type { Program, Section } from "@/types/db";
 
 type StudentPayload = {
   rows: ScheduleRowView[];
@@ -16,10 +16,8 @@ type StudentPayload = {
 
 export function StudentDashboardTermClient({
   profileName,
-  notifications,
 }: {
   profileName: string;
-  notifications: Notification[];
 }) {
   const { selectedPeriodId, selectedPeriod, ready } = useSemesterFilter();
   const [data, setData] = useState<StudentPayload | null>(null);
@@ -158,31 +156,6 @@ export function StudentDashboardTermClient({
         </div>
 
         <div className="space-y-6">
-          <DashboardCard title="Announcements">
-            {notifications.length === 0 ? (
-              <div className="flex items-start gap-2 text-sm text-black/55">
-                <Megaphone className="w-4 h-4 mt-0.5 shrink-0 text-[var(--color-opticore-orange)]" />
-                <span>No advisories yet. Department posts will appear here.</span>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {notifications.map((n) => (
-                  <li key={n.id} className="text-sm border-b border-black/5 pb-3 last:border-0 last:pb-0">
-                    <p className="text-black/85">{n.message}</p>
-                    <p className="text-xs text-black/40 mt-1">{new Date(n.createdAt).toLocaleString()}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <Link
-              href="/student/announcements"
-              className="mt-4 inline-flex w-full justify-center items-center gap-2 rounded-lg border border-black/15 py-2.5 text-sm font-semibold hover:bg-black/[0.03]"
-            >
-              View announcements
-              <ChevronRight className="w-4 h-4" />
-            </Link>
-          </DashboardCard>
-
           <div className="rounded-xl border border-dashed border-black/15 bg-white/80 p-4 text-xs text-black/50 leading-relaxed">
             <Calendar className="w-4 h-4 mb-2 text-[var(--color-opticore-orange)]" />
             Schedules follow the official repository in OptiCore. Use the semester selector in the navigation bar to

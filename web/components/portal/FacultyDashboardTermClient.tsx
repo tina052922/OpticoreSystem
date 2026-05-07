@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Clock, MapPin, Megaphone, BookOpen, LayoutGrid, Layers } from "lucide-react";
+import { ChevronRight, Clock, MapPin, BookOpen, LayoutGrid, Layers } from "lucide-react";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { cn } from "@/components/ui/utils";
@@ -237,16 +237,6 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link
-          href="/faculty/announcements"
-          className="flex items-center justify-between rounded-xl border border-black/10 bg-white p-4 shadow-sm hover:border-[var(--color-opticore-orange)]/40 transition-colors"
-        >
-          <span className="flex items-center gap-2 font-semibold text-black">
-            <Megaphone className="w-5 h-5 text-[var(--color-opticore-orange)]" />
-            View announcements
-          </span>
-          <ChevronRight className="w-4 h-4 text-black/40" />
-        </Link>
         <Link
           href="/campus-navigation"
           className="flex items-center justify-between rounded-xl border border-black/10 bg-white p-4 shadow-sm hover:border-[var(--color-opticore-orange)]/40 transition-colors"

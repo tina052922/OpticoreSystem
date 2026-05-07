@@ -28,6 +28,7 @@ export default async function CasAdminDashboardPage() {
         basePath="/admin/cas"
         variant="full"
         liveStats={liveStats}
+        analyticsScope={{ mode: "college", collegeId: profile.collegeId }}
         scopeHint="CAS coordination — same college scope as your profile when a college is assigned"
         conflictBanner={
           conflictBanner
