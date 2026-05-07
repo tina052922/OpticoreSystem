@@ -15,7 +15,7 @@ export default async function ChairmanLayout({ children }: { children: React.Rea
       profileImageUrl={session.profileImageUrl}
       userEmail={session.email}
       navItems={CHAIRMAN_NAV}
-      roleLabel="Chairman admin · CTE"
+      roleLabel="Chairman admin · COTE"
       profileHref="/chairman/profile"
     >
       {children}

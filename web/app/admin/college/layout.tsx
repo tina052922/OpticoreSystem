@@ -13,7 +13,7 @@ export default async function CollegeAdminLayout({ children }: { children: React
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       navItems={COLLEGE_ADMIN_NAV}
-      roleLabel="College admin · CTE"
+      roleLabel="College admin · COTE"
       profileHref="/admin/college/profile"
       scheduleChangeRequestsBadgeCollegeId={profile.collegeId}
       accessRequestsBadgeCollegeId={profile.collegeId}

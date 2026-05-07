@@ -746,19 +746,36 @@ export function BsitChairmanEvaluatorWorksheet({
     setSaveScheduleMsg(null);
     setChairmanEnrichedIssues([]);
     setChairmanGaByIssueKey({});
-    const scan = scanAllSparseScheduleConflicts(sparseCampusUniverse);
-    setCampusScanConflictIds(new Set(scan.conflictingEntryIds));
-    if (scan.issueSummaries.length === 0) {
-      setSaveScheduleMsg(
-        "No conflicts — faculty, room, and section times are clear campus-wide for this term (all programs).",
-      );
-    } else {
-      setSaveScheduleMsg(
-        `Campus-wide scan: ${scan.conflictingEntryIds.size} schedule row(s) have overlapping faculty, room, or section assignments. Open details below.`,
-      );
-    }
     setConflictDetailLoading(true);
     try {
+      const res = await fetch("/api/scheduling/scope-conflict-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          academicPeriodId,
+          mode: "doi_campus",
+          collegeId: null,
+          programId: null,
+        }),
+      });
+      const api = (await res.json().catch(() => null)) as
+        | {
+            conflictingEntryIds?: string[];
+            issues?: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
+            issueSummaries?: string[];
+            error?: string;
+          }
+        | null;
+      if (!res.ok) {
+        setSaveScheduleMsg(api?.error ?? "Conflict scan failed.");
+        setCampusScanConflictIds(new Set());
+        return;
+      }
+      const ids = new Set<string>(api?.conflictingEntryIds ?? []);
+      setCampusScanConflictIds(ids);
+      const summary = api?.issueSummaries ?? [];
+      setSaveScheduleMsg(summary.length === 0 ? "No conflicts detected." : `Conflicts found: ${ids.size} row(s).`);
+
       /**
        * Build conflict detail + GA alternatives locally so the UI always shows solutions immediately after a scan,
        * without depending on an extra API call.
@@ -799,7 +816,7 @@ export function BsitChairmanEvaluatorWorksheet({
         };
       };
 
-      for (const raw of scan.issues) {
+      for (const raw of api?.issues ?? []) {
         if (!raw.relatedEntryId) continue;
         const t = raw.type;
         if (t !== "faculty" && t !== "room" && t !== "section") continue;
@@ -858,6 +875,7 @@ export function BsitChairmanEvaluatorWorksheet({
             academicPeriodId,
             excludeEntryId: block?.id,
             durationHours,
+            fixedInstructorId: metaFromDb?.instructorId ?? undefined,
             roomIds,
             instructorIds,
             generations: 28,

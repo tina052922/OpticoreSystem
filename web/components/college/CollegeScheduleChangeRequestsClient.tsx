@@ -216,7 +216,7 @@ export function CollegeScheduleChangeRequestsClient() {
     <div>
       <ChairmanPageHeader
         title="Schedule change requests"
-        subtitle="Review instructor requests. Conflict check scans the whole campus for the term (all programs and sections). Approve applies ScheduleEntry updates immediately; INS views refresh via realtime + catalog reload."
+        subtitle="Review instructor requests."
       />
       <div className="px-4 md:px-8 pb-10 max-w-6xl mx-auto space-y-6">
         {error ? (

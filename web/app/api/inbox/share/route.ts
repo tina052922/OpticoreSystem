@@ -55,8 +55,8 @@ export async function POST(req: Request) {
   }
 
   const msg = appendWorkflowMessage({
-    from: "Chairman Admin (CTE)",
-    to: "College Admin (CTE)",
+    from: "Chairman Admin (COTE)",
+    to: "College Admin (COTE)",
     subject,
     body: text,
     mailFor: ["college"],
