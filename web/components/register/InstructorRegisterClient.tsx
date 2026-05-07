@@ -6,14 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type CollegeRow = { id: string; code: string; name: string };
 
-/**
- * Self-registration for instructors (Gmail + college). Server creates auth user, User row, FacultyProfile,
- * and emails a temporary password when Resend is configured.
- */
 export function InstructorRegisterClient() {
+  const [phase, setPhase] = useState<"register" | "otp">("register");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [employeeId, setEmployeeId] = useState("");
@@ -23,7 +21,13 @@ export function InstructorRegisterClient() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [devPassword, setDevPassword] = useState<string | null>(null);
+  const [otpGenerated, setOtpGenerated] = useState<string | null>(null);
+  const [otpInput, setOtpInput] = useState("");
+
+  function makeOtp(): string {
+    const n = Math.floor(Math.random() * 1_000_000);
+    return String(n).padStart(6, "0");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +51,8 @@ export function InstructorRegisterClient() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    setDevPassword(null);
+    setOtpGenerated(null);
+    setOtpInput("");
     if (!employeeId.trim() || employeeId.trim().length < 2) {
       setError("Employee ID is required.");
       return;
@@ -69,19 +74,46 @@ export function InstructorRegisterClient() {
         ok?: boolean;
         error?: string;
         message?: string;
-        devOnlyPassword?: string;
-        devWarning?: string;
+        temporaryPassword?: string;
       };
       if (!res.ok) throw new Error(data.error || "Registration failed");
+      const tempPassword = data.temporaryPassword ?? "";
+      if (!tempPassword) throw new Error("Temporary password not returned.");
+
+      // Auto sign-in using the server-generated temporary password
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) throw new Error("Supabase is not configured.");
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: tempPassword,
+      });
+      if (signInErr) throw signInErr;
+
       setSuccess(data.message ?? "Account created.");
-      if (data.devOnlyPassword) {
-        setDevPassword(data.devOnlyPassword);
-      }
+      setOtpGenerated(makeOtp());
+      setOtpInput("");
+      setPhase("otp");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function onVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!otpGenerated) return;
+    const normalized = otpInput.replace(/\s+/g, "");
+    if (!/^\d{6}$/.test(normalized)) {
+      setError("Enter the 6-digit code.");
+      return;
+    }
+    if (normalized !== otpGenerated) {
+      setError("Incorrect code.");
+      return;
+    }
+    window.location.assign("/faculty/change-password");
   }
 
   return (
@@ -109,23 +141,37 @@ export function InstructorRegisterClient() {
             Cebu Technological University
           </h1>
           <h2 className="text-xl sm:text-2xl font-bold text-black">Instructor registration</h2>
-          <p className="text-base sm:text-lg text-black/90">
-            OptiCore — use your <strong>@gmail.com</strong> address. A temporary password will be sent to your inbox.
-          </p>
         </div>
 
         {success ? (
           <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
             <p className="text-sm font-medium">{success}</p>
-            {devPassword ? (
-              <div className="rounded-lg bg-white/80 border border-emerald-300 p-3 text-sm font-mono">
-                <p className="text-xs text-amber-900 mb-1">Development only — save this password; email was not sent:</p>
-                {devPassword}
-              </div>
-            ) : null}
-            <Button asChild className="w-full h-12 bg-[#780301] hover:bg-[#5a0201] text-white">
-              <Link href="/login">Continue to sign in</Link>
-            </Button>
+            {phase === "otp" && otpGenerated ? (
+              <form onSubmit={(e) => void onVerifyOtp(e)} className="space-y-4">
+                <div className="mx-auto inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-6 py-3 text-3xl font-black tracking-[0.35em] tabular-nums">
+                  {otpGenerated}
+                </div>
+                <Input
+                  inputMode="numeric"
+                  pattern="\\d{6}"
+                  placeholder="Enter 6-digit code"
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value)}
+                  className="h-12 text-center tracking-[0.25em] tabular-nums"
+                  required
+                />
+                {error ? (
+                  <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>
+                ) : null}
+                <Button type="submit" className="w-full h-12 bg-[#780301] hover:bg-[#5a0201] text-white">
+                  Verify OTP
+                </Button>
+              </form>
+            ) : (
+              <Button asChild className="w-full h-12 bg-[#780301] hover:bg-[#5a0201] text-white">
+                <Link href="/login">Continue to sign in</Link>
+              </Button>
+            )}
           </div>
         ) : (
           <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
@@ -204,7 +250,7 @@ export function InstructorRegisterClient() {
               disabled={submitting || loadingColleges}
               className="w-full h-14 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg text-lg font-semibold"
             >
-              {submitting ? "Creating account…" : "Register & email password"}
+              {submitting ? "Creating account…" : "Register"}
             </Button>
 
             <p className="text-center text-base">

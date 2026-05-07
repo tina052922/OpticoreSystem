@@ -730,16 +730,45 @@ export function EvaluatorTimetablingPanel({
   }, [academicPeriodId, scopeCollegeForConflicts, chairmanProgramId, programId]);
 
   function runFullConflictCheck() {
-    const { conflictingEntryIds, issueSummaries, issues } = scanAllSparseScheduleConflicts(scopeBlocksForFullCheck);
-    setFullConflictIds(conflictingEntryIds);
-    setFullConflictSummaries(issueSummaries);
-    setFullConflictDetails(issues);
+    if (!academicPeriodId) return;
     setFullCheckRan(true);
-    if (issueSummaries.length === 0) {
-      toast.success("No conflicts detected");
-    } else {
-      toast.info("Conflicts found – see details below", `${issueSummaries.length} issue(s) detected.`);
-    }
+    void (async () => {
+      try {
+        const res = await fetch("/api/scheduling/scope-conflict-scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            academicPeriodId,
+            mode: "doi_campus",
+            collegeId: null,
+            programId: null,
+          }),
+        });
+        const j = (await res.json().catch(() => null)) as
+          | {
+              conflictingEntryIds?: string[];
+              issueSummaries?: string[];
+              issues?: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
+              error?: string;
+            }
+          | null;
+        if (!res.ok) {
+          toast.error("Conflict scan failed", j?.error ?? "Please try again.");
+          return;
+        }
+        const ids = new Set<string>(j?.conflictingEntryIds ?? []);
+        setFullConflictIds(ids);
+        setFullConflictSummaries(j?.issueSummaries ?? []);
+        setFullConflictDetails(j?.issues ?? []);
+        if ((j?.issueSummaries ?? []).length === 0) {
+          toast.success("No conflicts detected");
+        } else {
+          toast.info("Conflicts found – see details below", `${(j?.issueSummaries ?? []).length} issue(s) detected.`);
+        }
+      } catch (e: unknown) {
+        toast.error("Conflict scan failed", e instanceof Error ? e.message : "Please try again.");
+      }
+    })();
   }
 
   /**

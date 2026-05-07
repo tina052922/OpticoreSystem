@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient, getSupabaseAdminConfigError } from "@/lib/supabase/admin";
 import { generateInstructorTempPassword } from "@/lib/auth/instructor-registration";
 import { migrateInstructorPlaceholderToAuthUser } from "@/lib/server/instructor-placeholder-migrate";
-import { sendInstructorWelcomeEmail } from "@/lib/server/send-instructor-welcome-email";
 
 type Body = {
   fullName?: string;
@@ -76,7 +75,7 @@ export async function POST(req: Request) {
     const { data: authLookup } = await admin.auth.admin.getUserById(placeholder.id);
     if (authLookup?.user) {
       return NextResponse.json(
-        { error: "This Employee ID is already linked to an account. Sign in with your email." },
+        { error: "This instructor is already registered. Sign in with your email." },
         { status: 409 },
       );
     }
@@ -115,30 +114,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Could not link your account to existing records: ${mig.error}` }, { status: 500 });
     }
 
-    const origin = new URL(req.url).origin;
-    const emailResult = await sendInstructorWelcomeEmail({
-      to: email,
-      name: fullName,
-      temporaryPassword,
-      appOrigin: origin,
-    });
-
+    // Demo requirement: do not send email codes/passwords. Client will show OTP and force password change.
     const payload: Record<string, unknown> = {
       ok: true,
       linkedPlaceholder: true,
-      message: emailResult.sent
-        ? "Your account is linked to your plotted schedule. Check Gmail for your temporary password."
-        : process.env.RESEND_API_KEY
-          ? `Account linked, but email could not be sent (${emailResult.error ?? "unknown"}). Contact your college admin.`
-          : "Account linked. Configure RESEND_API_KEY to enable email delivery.",
-      emailSent: emailResult.sent,
+      message: "Account linked. Continue to OTP verification.",
+      temporaryPassword,
     };
-
-    if (process.env.NODE_ENV === "development" && !emailResult.sent) {
-      (payload as { devOnlyPassword?: string }).devOnlyPassword = temporaryPassword;
-      (payload as { devWarning?: string }).devWarning =
-        "Development only: temporary password included because email was not sent. Do not enable in production.";
-    }
 
     return NextResponse.json(payload);
   }
@@ -191,29 +173,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Could not create faculty profile. Try again or contact support." }, { status: 500 });
   }
 
-  const origin = new URL(req.url).origin;
-  const emailResult = await sendInstructorWelcomeEmail({
-    to: email,
-    name: fullName,
-    temporaryPassword,
-    appOrigin: origin,
-  });
-
+  // Demo requirement: do not send email codes/passwords. Client will show OTP and force password change.
   const payload: Record<string, unknown> = {
     ok: true,
-    message: emailResult.sent
-      ? "Check your Gmail inbox for your temporary password and next steps."
-      : process.env.RESEND_API_KEY
-        ? `Account created, but email could not be sent (${emailResult.error ?? "unknown"}). Contact your college admin.`
-        : "Account created. Configure RESEND_API_KEY to enable email delivery.",
-    emailSent: emailResult.sent,
+    message: "Account created. Continue to OTP verification.",
+    temporaryPassword,
   };
-
-  if (process.env.NODE_ENV === "development" && !emailResult.sent) {
-    (payload as { devOnlyPassword?: string }).devOnlyPassword = temporaryPassword;
-    (payload as { devWarning?: string }).devWarning =
-      "Development only: temporary password included because email was not sent. Do not enable in production.";
-  }
 
   return NextResponse.json(payload);
 }

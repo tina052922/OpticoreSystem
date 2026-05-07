@@ -33,7 +33,7 @@ function seed(): InboxMessage[] {
     {
       id: "m-reg",
       from: "Registrar Office",
-      to: "Chairman Admin (CTE)",
+      to: "Chairman Admin (COTE)",
       subject: "INS Form submission deadline",
       body: "Reminder: All INS Forms must be submitted by the published college deadline. This is a system notification.",
       status: "Unread",
@@ -44,11 +44,11 @@ function seed(): InboxMessage[] {
     },
     {
       id: "m-draft-college",
-      from: "Chairman Admin (CTE)",
-      to: "College Admin (CTE)",
+      from: "Chairman Admin (COTE)",
+      to: "College Admin (COTE)",
       subject: "Draft schedule — 2nd Semester AY 2025-2026 (non-conflict)",
       body:
-        "The Evaluator draft for CTE has been finalized for conflict review at the chairman level. " +
+        "The Evaluator draft for COTE has been finalized for conflict review at the chairman level. " +
         "Please open Schedule review, run conflict check, and finalize for CAS Admin.\n\n" +
         "Attached context: BSIT / BIT sections, room and faculty assignments as plotted in the Evaluator module.",
       status: "Unread",
@@ -59,7 +59,7 @@ function seed(): InboxMessage[] {
     },
     {
       id: "m-college-cas",
-      from: "College Admin (CTE)",
+      from: "College Admin (COTE)",
       to: "CAS Admin",
       subject: "Forwarded: College-validated draft schedule",
       body:

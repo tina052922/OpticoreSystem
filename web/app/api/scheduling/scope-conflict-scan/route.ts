@@ -4,6 +4,7 @@ import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { buildConflictScanPayload } from "@/lib/scheduling/conflict-scan-server";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { Program, ScheduleEntry, Section } from "@/types/db";
+import { createSupabaseAdminClient, getSupabaseAdminConfigError } from "@/lib/supabase/admin";
 
 const ALLOWED_ROLES = new Set([
   "chairman_admin",
@@ -56,21 +57,42 @@ export async function POST(req: Request) {
 
   const mode = body.mode ?? "gec_campus";
 
-  const { data: rawEntries, error } = await supabase
+  /**
+   * IMPORTANT: for chairman/college roles, RLS may hide cross-college rows.
+   * Conflict detection must be campus-wide and consistent with INS, so we prefer the service-role client
+   * for reads (server-only) when configured.
+   */
+  const admin = createSupabaseAdminClient();
+  const reader = admin ?? supabase;
+  if (!admin && (mode === "gec_campus" || mode === "doi_campus")) {
+    // Campus-wide scan requested but admin client isn't configured; RLS may hide rows.
+    const detail = getSupabaseAdminConfigError();
+    return NextResponse.json(
+      {
+        error:
+          detail ??
+          "Campus-wide conflict scan requires SUPABASE_SERVICE_ROLE_KEY (to avoid RLS hiding cross-college rows).",
+      },
+      { status: 503 },
+    );
+  }
+
+  const { data: rawEntries, error } = await reader
     .from("ScheduleEntry")
     .select(Q.scheduleEntry)
     .eq("academicPeriodId", periodId);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   let entries = (rawEntries ?? []) as ScheduleEntry[];
 
   if (mode === "gec_campus" || mode === "doi_campus") {
     /* full timetable */
   } else {
-    const { data: sections } = await supabase.from("Section").select(Q.section);
-    const { data: programs } = await supabase.from("Program").select(Q.program);
+    const { data: sections, error: secErr } = await reader.from("Section").select(Q.section);
+    const { data: programs, error: progErr } = await reader.from("Program").select(Q.program);
+    if (secErr || progErr) {
+      return NextResponse.json({ error: (secErr ?? progErr)!.message }, { status: 400 });
+    }
     const sectionById = new Map<string, Section>((sections as Section[] | null)?.map((s) => [s.id, s]) ?? []);
     const programById = new Map<string, Program>((programs as Program[] | null)?.map((p) => [p.id, p]) ?? []);
 
@@ -89,7 +111,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { error: buildErr, payload } = await buildConflictScanPayload(supabase, entries);
+  const { error: buildErr, payload } = await buildConflictScanPayload(reader, entries);
   if (buildErr || !payload) {
     return NextResponse.json({ error: buildErr ?? "Conflict scan failed" }, { status: 400 });
   }
