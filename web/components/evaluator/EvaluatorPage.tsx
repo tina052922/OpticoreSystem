@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { BsitChairmanEvaluatorWorksheet } from "@/components/evaluator/BsitChairmanEvaluatorWorksheet";
 import { CentralHubEvaluatorView } from "@/components/evaluator/CentralHubEvaluatorView";
@@ -33,6 +33,9 @@ export function EvaluatorPage({
   chairmanProgramCode = null,
   chairmanProgramName = null,
 }: EvaluatorPageProps) {
+  const [tab, setTab] = useState<"timetabling" | "load">("timetabling");
+  const [policySnapshot, setPolicySnapshot] = useState<ChairmanPolicySnapshot | null>(null);
+
   if (variant === "college" || variant === "cas" || variant === "doi") {
     return (
       <CentralHubEvaluatorView
@@ -43,19 +46,9 @@ export function EvaluatorPage({
     );
   }
 
-  const [tab, setTab] = useState<"timetabling" | "load">("timetabling");
-  const [policySnapshot, setPolicySnapshot] = useState<ChairmanPolicySnapshot | null>(null);
-
-  const tabLabel = useMemo(() => {
-    if (tab === "timetabling") return "Timetabling & optimization — schedule grid and plotting tools";
-    return "Hours, units, preps, and remarks (sample institutional summary)";
-  }, [tab]);
-
-  const subtitle = "Timetabling and load summary";
-
   return (
     <div>
-      <ChairmanPageHeader title="Evaluator" subtitle={subtitle} />
+      <ChairmanPageHeader title="Evaluator" />
 
       <div className="px-4 md:px-8 pb-8">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -77,8 +70,6 @@ export function EvaluatorPage({
             ))}
           </div>
         </div>
-
-        <p className="text-[13px] text-black/55 mb-4">{tabLabel}</p>
 
         <div className={tab !== "timetabling" ? "hidden" : ""}>
           <BsitChairmanEvaluatorWorksheet

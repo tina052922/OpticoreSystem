@@ -13,7 +13,7 @@ export function insHmToMinutes(raw: string): number {
 /** One row on the INS weekly table (e.g. "7:00-8:00"). */
 export function insSlotBoundsMinutes(slotLabel: string): { startMin: number; endMin: number } {
   const [a, b] = slotLabel.split("-").map((x) => x.trim());
-  let startMin = insHmToMinutes(a ?? "0:00");
+  const startMin = insHmToMinutes(a ?? "0:00");
   let endMin = insHmToMinutes(b ?? "0:00");
   if (endMin <= startMin) endMin += 24 * 60;
   return { startMin, endMin };
@@ -57,7 +57,7 @@ export function insParseCellTimeMinutes(cell: InsTimedCell): { startMin: number;
   const st = cell.startTime?.trim();
   const et = cell.endTime?.trim();
   if (st && et) {
-    let s = insHmToMinutes(st.slice(0, 8));
+    const s = insHmToMinutes(st.slice(0, 8));
     let e = insHmToMinutes(et.slice(0, 8));
     if (e <= s) e += 24 * 60;
     return { startMin: s, endMin: e };
@@ -67,7 +67,7 @@ export function insParseCellTimeMinutes(cell: InsTimedCell): { startMin: number;
   if (dash < 0) return null;
   const left = label.slice(0, dash).trim();
   const right = label.slice(dash + 1).trim();
-  let s = insHmToMinutes(left);
+  const s = insHmToMinutes(left);
   let e = insHmToMinutes(right);
   if (e <= s) e += 24 * 60;
   return { startMin: s, endMin: e };

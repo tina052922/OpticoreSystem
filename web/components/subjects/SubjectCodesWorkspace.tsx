@@ -123,7 +123,7 @@ export function SubjectCodesWorkspace({
   }, [loadSubjects]);
 
   const filteredDbSubjects = useMemo(() => {
-    let base = gecCurriculumOnly ? dbSubjects.filter((s) => isGecCurriculumSubjectCode(s.code)) : dbSubjects;
+    const base = gecCurriculumOnly ? dbSubjects.filter((s) => isGecCurriculumSubjectCode(s.code)) : dbSubjects;
     const q = subjectSearch.trim().toLowerCase();
     if (!q) return base;
     return base.filter(

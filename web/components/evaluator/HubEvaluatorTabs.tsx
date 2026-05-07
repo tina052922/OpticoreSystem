@@ -47,10 +47,7 @@ export function HubEvaluatorTabs({ basePath, collegeSlug, panel, collegeAdminLan
         Colleges
       </Link>
       {isLanding && collegeAdminLanding && !timetablingHref ? (
-        <span
-          className={`${tabClass(false)} cursor-not-allowed opacity-50`}
-          title="Select a college below, then open Timetabling & Optimization."
-        >
+        <span className={`${tabClass(false)} cursor-not-allowed opacity-50`}>
           Timetabling & Optimization
         </span>
       ) : timetablingHref ? (

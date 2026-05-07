@@ -50,8 +50,6 @@ export type CiDashboardProps = {
   conflictBanner?: CiDashboardConflictBanner | null;
   /** Real-time catalog + draft counts; omit to show placeholders (legacy). */
   liveStats?: CiDashboardLiveStats | null;
-  /** Shown under the main subtitle (e.g. “Scope: BSIT program”). */
-  scopeHint?: string | null;
   /**
    * Dashboard analytics scope (for live charts).
    * Pages already compute `liveStats`; this tells the charts what slice to aggregate.
@@ -72,7 +70,6 @@ export function CiDashboard({
   variant: _variant = "full",
   conflictBanner = null,
   liveStats = null,
-  scopeHint = null,
   analyticsScope = null,
 }: CiDashboardProps) {
   const stats = [
@@ -116,11 +113,6 @@ export function CiDashboard({
         ) : null}
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Campus Intelligence Core</h2>
         <p className="text-gray-600 text-sm">High-level view of today&apos;s academic activity and room usage.</p>
-        {scopeHint ? (
-          <p className="text-[12px] text-gray-500 mt-1">
-            <span className="font-semibold text-gray-600">Scope:</span> {scopeHint}
-          </p>
-        ) : null}
       </div>
 
       {conflictBanner && conflictBanner.conflictingRowCount > 0 ? (
