@@ -43,6 +43,11 @@ export type GAParams = {
   academicPeriodId: string;
   /** Required duration (hours) for the plotted class; used to compute end times from slot starts. */
   durationHours: number;
+  /**
+   * If set, GA suggestions must keep the instructor fixed (time/room-only alternatives).
+   * This also satisfies "specialization" constraints when no explicit qualification table exists.
+   */
+  fixedInstructorId?: string;
   /** Omit this entry id from conflict checks (editing an existing draft). */
   excludeEntryId?: string;
   /** Candidate pools */
@@ -68,11 +73,12 @@ function randomPick<T>(arr: T[], rng: () => number): T {
 function buildCandidatePool(p: GAParams): Gene[] {
   const pool: Gene[] = [];
   const starts = TIME_SLOT_OPTIONS.map((t) => t.startTime);
+  const instructorPool = p.fixedInstructorId ? [p.fixedInstructorId] : p.instructorIds;
   for (const day of WEEKDAYS) {
     for (const startTime of starts) {
       const { startTime: st, endTime } = addHoursClamped(startTime, p.durationHours);
       for (const roomId of p.roomIds) {
-        for (const instructorId of p.instructorIds) {
+        for (const instructorId of instructorPool) {
           pool.push({
             day,
             startTime: st,

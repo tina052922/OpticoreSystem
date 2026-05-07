@@ -845,6 +845,7 @@ export function EvaluatorTimetablingPanel({
       subjectId: candidate.subjectId,
       academicPeriodId: candidate.academicPeriodId,
       durationHours: subjectContactHours,
+      fixedInstructorId: candidate.instructorId,
       roomIds,
       instructorIds,
       generations: 40,
@@ -1157,6 +1158,7 @@ export function EvaluatorTimetablingPanel({
         subjectId: first.subjectId,
         academicPeriodId: first.academicPeriodId,
         durationHours,
+        fixedInstructorId: first.instructorId,
         roomIds,
         instructorIds,
         generations: 40,
@@ -1173,7 +1175,7 @@ export function EvaluatorTimetablingPanel({
     "w-full h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
   if (loading) {
-    return <div className="text-sm text-black/60">Loading catalog from Supabase…</div>;
+    return <div className="text-sm text-black/60">Loading…</div>;
   }
   if (loadError) {
     return <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>;
@@ -1798,10 +1800,6 @@ export function EvaluatorTimetablingPanel({
             aria-modal="true"
           >
             <h2 className="text-lg font-semibold mb-2">Alternative suggestions</h2>
-            <p className="text-sm text-black/65 mb-4">
-              Rule-based optimization for the first scheduled row in the current program/term scope (same engine as the
-              plotter).
-            </p>
             {altSuggestions.length === 0 ? (
               <p className="text-sm text-black/55">No suggestions returned. Add rooms, faculty, and schedule rows.</p>
             ) : (

@@ -528,6 +528,7 @@ export function CentralHubEvaluatorView({
         academicPeriodId: entry.academicPeriodId,
         excludeEntryId: entry.id,
         durationHours,
+        fixedInstructorId: entry.instructorId,
         roomIds,
         instructorIds,
         generations: 40,
@@ -744,6 +745,7 @@ export function CentralHubEvaluatorView({
         subjectId: first.subjectId,
         academicPeriodId: first.academicPeriodId,
         durationHours,
+        fixedInstructorId: first.instructorId,
         roomIds,
         instructorIds,
         generations: 40,
@@ -773,7 +775,6 @@ export function CentralHubEvaluatorView({
             startTime: pad(s.startTime),
             endTime: pad(s.endTime),
             roomId: s.roomId,
-            instructorId: s.instructorId,
           })
           .eq("id", iss.rowA.entryId);
         if (error) throw new Error(error.message);
@@ -894,10 +895,6 @@ export function CentralHubEvaluatorView({
               panel={landingPanelForTabs}
               collegeAdminLanding
             />
-            <p className="text-[14px] text-black/70 mb-6 text-center">
-              Select a college below to work with schedules. Use the <strong>Hrs · Units · Preps · Remarks</strong> tab for
-              the load summary.
-            </p>
             <div id="college-hub-tiles" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {CENTRAL_HUB_COLLEGES.slice(0, 4).map((c) => (
                 <Link
@@ -919,9 +916,6 @@ export function CentralHubEvaluatorView({
                 </Link>
               </div>
             ) : null}
-            <p className="text-[12px] text-black/45 mt-8 text-center">
-              Campus-wide (all colleges) is available to CAS / DOI from their hubs — not from College Admin.
-            </p>
           </div>
         </div>
       );
@@ -934,9 +928,6 @@ export function CentralHubEvaluatorView({
         />
         <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
           <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="timetabling" />
-          <p className="text-[14px] text-black/70 mb-8 text-center">
-            Campus-wide scope — select one college or <strong>all colleges</strong> to search and filter by department.
-          </p>
           <div className="mb-4 flex justify-center">
             <Link
               href={`${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}`}
