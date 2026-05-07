@@ -32,6 +32,7 @@ export default async function ChairmanDashboardPage() {
         basePath="/chairman"
         variant="full"
         liveStats={liveStats}
+        analyticsScope={{ mode: "program", collegeId: session.collegeId, programId: session.programId }}
         scopeHint={
           session.programCode
             ? `Your program (${session.programCode}) — rooms & sections for this program; faculty in your college`

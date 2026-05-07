@@ -21,6 +21,7 @@ import {
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
+import { slotDurationHours } from "@/lib/scheduling/time";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
 import type {
   AcademicPeriod,
@@ -719,12 +720,14 @@ export function useInsCatalog(args: {
       const entry = entryById.get(iss.rowA.entryId);
       if (entry && roomIds.length > 0 && instructorIds.length > 0) {
         const universeForGa = termRows.map(toScheduleBlock);
+        const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
         const sug = runRuleBasedGeneticAlgorithm({
           universe: universeForGa,
           sectionId: entry.sectionId,
           subjectId: entry.subjectId,
           academicPeriodId: entry.academicPeriodId,
           excludeEntryId: entry.id,
+          durationHours,
           roomIds,
           instructorIds,
           generations: 28,
@@ -803,12 +806,14 @@ export function useInsCatalog(args: {
         const entry = aE?.instructorId === instructorId ? aE : bE;
         if (entry && roomIds.length > 0 && instructorIds.length > 0) {
           const universeForGa = termRows.map(toScheduleBlock);
+          const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
           const sug = runRuleBasedGeneticAlgorithm({
             universe: universeForGa,
             sectionId: entry.sectionId,
             subjectId: entry.subjectId,
             academicPeriodId: entry.academicPeriodId,
             excludeEntryId: entry.id,
+            durationHours,
             roomIds,
             instructorIds,
             generations: 28,
@@ -937,12 +942,14 @@ export function useInsCatalog(args: {
         return { ok: false, message: "Not enough rooms or instructors in catalog to suggest alternatives." };
       }
       const universeForGa = termRows.map(toScheduleBlock);
+      const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
       const sug = runRuleBasedGeneticAlgorithm({
         universe: universeForGa,
         sectionId: entry.sectionId,
         subjectId: entry.subjectId,
         academicPeriodId: entry.academicPeriodId,
         excludeEntryId: entry.id,
+        durationHours,
         roomIds,
         instructorIds,
         generations: 28,

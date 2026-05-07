@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { isScheduleRelatedNotificationMessage } from "@/lib/notifications/notification-relevance";
 
 type Row = { id: string; message: string; isRead: boolean; createdAt: string };
 
@@ -24,13 +25,25 @@ export function NotificationBell() {
     } = await supabase.auth.getUser();
     if (!user?.id) return;
     setUserId(user.id);
+
+    // For instructors/students, only show schedule-related notifications.
+    // Admin roles keep the full notification feed for workflow visibility.
+    const { data: userRow } = await supabase.from("User").select("role").eq("id", user.id).maybeSingle();
+    const role = userRow?.role as string | null;
+
     const { data } = await supabase
       .from("Notification")
       .select("id,message,isRead,createdAt")
       .eq("userId", user.id)
       .order("createdAt", { ascending: false })
       .limit(25);
-    setItems((data ?? []) as Row[]);
+
+    const rows = (data ?? []) as Row[];
+    if (role === "student" || role === "instructor") {
+      setItems(rows.filter((r) => isScheduleRelatedNotificationMessage(r.message)));
+    } else {
+      setItems(rows);
+    }
   }, []);
 
   useEffect(() => {

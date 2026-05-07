@@ -25,6 +25,7 @@ export default async function GecChairmanDashboardPage() {
         basePath="/admin/gec"
         variant="gec"
         liveStats={liveStats}
+        analyticsScope={{ mode: "campus" }}
         scopeHint="Campus-wide — all colleges, programs, rooms, and faculty in the catalog"
         conflictBanner={
           conflictBanner

@@ -25,6 +25,7 @@ export default async function DoiDashboardPage() {
         basePath="/doi"
         variant="doi"
         liveStats={liveStats}
+        analyticsScope={{ mode: "campus" }}
         scopeHint="Full campus — all colleges and programs (VPAA / institutional view)"
         conflictBanner={
           conflictBanner

@@ -1,6 +1,7 @@
 "use client";
 
 import { TrendingUp, BarChart3 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -14,28 +15,86 @@ import {
   Cell,
 } from "recharts";
 
-const roomUtilizationData = [
-  { time: "7:00 AM", utilization: 45 },
-  { time: "8:00 AM", utilization: 78 },
-  { time: "9:00 AM", utilization: 92 },
-  { time: "10:00 AM", utilization: 95 },
-  { time: "11:00 AM", utilization: 88 },
-  { time: "12:00 PM", utilization: 65 },
-  { time: "1:00 PM", utilization: 82 },
-  { time: "2:00 PM", utilization: 89 },
-  { time: "3:00 PM", utilization: 76 },
-  { time: "4:00 PM", utilization: 58 },
-  { time: "5:00 PM", utilization: 32 },
-];
-
-const facultyLoadData = [
-  { name: "Full Load", value: 28, color: "#FF990A" },
-  { name: "Partial Load", value: 12, color: "#FFC107" },
-  { name: "Overloaded", value: 5, color: "#F44336" },
-];
-
 /** Split out so the main dashboard shell can load without the heavy recharts chunk. */
-export function CiDashboardCharts() {
+export function CiDashboardCharts({
+  analyticsScope,
+}: {
+  analyticsScope?: { mode: "program" | "college" | "campus"; collegeId?: string | null; programId?: string | null } | null;
+}) {
+  const [roomUtilizationData, setRoomUtilizationData] = useState<Array<{ time: string; utilization: number }>>([]);
+  const [facultyLoadData, setFacultyLoadData] = useState<Array<{ name: string; value: number; color: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const qs = useMemo(() => {
+    if (!analyticsScope) return "";
+    const p = new URLSearchParams();
+    p.set("mode", analyticsScope.mode);
+    if (analyticsScope.collegeId) p.set("collegeId", analyticsScope.collegeId);
+    if (analyticsScope.programId) p.set("programId", analyticsScope.programId);
+    return p.toString();
+  }, [analyticsScope]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const url = qs ? `/api/analytics/dashboard?${qs}` : "/api/analytics/dashboard";
+        const res = await fetch(url, { credentials: "include" });
+        const j = (await res.json().catch(() => null)) as
+          | {
+              roomUtilizationBySlot?: Array<{ time: string; utilization: number }>;
+              facultyLoadDistribution?: Array<{ name: string; value: number; color: string }>;
+              error?: string;
+            }
+          | null;
+        if (!res.ok) {
+          if (!cancelled) setError(j?.error ?? "Could not load dashboard analytics.");
+          return;
+        }
+        if (!cancelled) {
+          setRoomUtilizationData(j?.roomUtilizationBySlot ?? []);
+          setFacultyLoadData(j?.facultyLoadDistribution ?? []);
+        }
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load dashboard analytics.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [qs]);
+
+  if (!analyticsScope) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="h-[320px] rounded-lg bg-gray-100/80 border border-gray-200" />
+        <div className="h-[320px] rounded-lg bg-gray-100/80 border border-gray-200" />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="h-[320px] rounded-lg bg-gray-100/80 animate-pulse border border-gray-200" />
+        <div className="h-[320px] rounded-lg bg-gray-100/80 animate-pulse border border-gray-200" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        {error}
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">

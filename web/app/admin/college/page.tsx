@@ -29,6 +29,7 @@ export default async function CollegeAdminDashboardPage() {
         basePath="/admin/college"
         variant="full"
         liveStats={liveStats}
+        analyticsScope={{ mode: "college", collegeId: profile.collegeId }}
         scopeHint="Your entire college — all programs, sections, rooms linked to the college, and college faculty"
         conflictBanner={
           conflictBanner

@@ -7,6 +7,7 @@ import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, WEEKDAYS } from "@/lib/schedu
 import { detectConflictsForEntry, scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "@/lib/scheduling/facultyPolicies";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
+import { slotDurationHours } from "@/lib/scheduling/time";
 import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import type { ConflictHit, GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import type {
@@ -843,6 +844,7 @@ export function EvaluatorTimetablingPanel({
       sectionId: candidate.sectionId,
       subjectId: candidate.subjectId,
       academicPeriodId: candidate.academicPeriodId,
+      durationHours: subjectContactHours,
       roomIds,
       instructorIds,
       generations: 40,
@@ -1148,11 +1150,13 @@ export function EvaluatorTimetablingPanel({
     }
     setAltBusy(true);
     try {
+      const durationHours = slotDurationHours(first.startTime, first.endTime) || 2;
       const sug = runRuleBasedGeneticAlgorithm({
         universe,
         sectionId: first.sectionId,
         subjectId: first.subjectId,
         academicPeriodId: first.academicPeriodId,
+        durationHours,
         roomIds,
         instructorIds,
         generations: 40,

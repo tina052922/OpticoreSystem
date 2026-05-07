@@ -186,8 +186,7 @@ export function FacultyScheduleChangeModal({
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-950 text-sm">
               <p className="font-semibold mb-1">Request sent</p>
               <p className="leading-relaxed">
-                College Admin will review and run a conflict check. Watch <strong>Announcements</strong> for status
-                updates.
+                College Admin will review and run a conflict check. Watch the notification bell for status updates.
               </p>
               <Button
                 type="button"

@@ -17,6 +17,7 @@ import {
   type EnrichedCampusIssue,
 } from "@/lib/scheduling/conflict-enrichment";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
+import { slotDurationHours } from "@/lib/scheduling/time";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import type {
   AcademicPeriod,
@@ -725,12 +726,14 @@ export function GecCentralHubEvaluatorClient() {
       const entry = mergedEntries.find((e) => e.id === iss.rowA.entryId);
       if (!entry) continue;
       if (roomIds.length === 0 || instructorIds.length === 0) continue;
+      const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
       const sug = runRuleBasedGeneticAlgorithm({
         universe,
         sectionId: entry.sectionId,
         subjectId: entry.subjectId,
         academicPeriodId: entry.academicPeriodId,
         excludeEntryId: entry.id,
+        durationHours,
         roomIds,
         instructorIds,
         generations: 16,
