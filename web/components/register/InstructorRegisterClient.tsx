@@ -104,7 +104,7 @@ export function InstructorRegisterClient() {
     e.preventDefault();
     setError(null);
     if (!otpGenerated) return;
-    const normalized = otpInput.replace(/\s+/g, "");
+    const normalized = otpInput.replace(/\D/g, "");
     if (!/^\d{6}$/.test(normalized)) {
       setError("Enter the 6-digit code.");
       return;
@@ -147,18 +147,20 @@ export function InstructorRegisterClient() {
           <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
             <p className="text-sm font-medium">{success}</p>
             {phase === "otp" && otpGenerated ? (
-              <form onSubmit={(e) => void onVerifyOtp(e)} className="space-y-4">
+              <form noValidate onSubmit={(e) => void onVerifyOtp(e)} className="space-y-4">
                 <div className="mx-auto inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-6 py-3 text-3xl font-black tracking-[0.35em] tabular-nums">
                   {otpGenerated}
                 </div>
                 <Input
+                  type="text"
+                  name="instructor-registration-otp"
                   inputMode="numeric"
-                  maxLength={12}
+                  autoComplete="off"
+                  maxLength={6}
                   placeholder="Enter 6-digit code"
                   value={otpInput}
                   onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   className="h-12 text-center tracking-[0.25em] tabular-nums"
-                  required
                 />
                 {error ? (
                   <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>

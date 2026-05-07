@@ -145,7 +145,7 @@ export function LoginClient() {
       setPhase("login");
       return;
     }
-    const normalized = otpInput.replace(/\s+/g, "");
+    const normalized = otpInput.replace(/\D/g, "");
     if (!/^\d{6}$/.test(normalized)) {
       setError("Enter the 6-digit code.");
       return;
@@ -234,7 +234,7 @@ export function LoginClient() {
         </div>
 
         {phase === "otp" ? (
-          <form onSubmit={(e) => void onVerifyOtp(e)} className="space-y-6">
+          <form noValidate onSubmit={(e) => void onVerifyOtp(e)} className="space-y-6">
             <div className="text-center space-y-2">
               <h2 className="text-lg sm:text-xl font-bold text-black">One-time password</h2>
               {otpGenerated ? (
@@ -250,13 +250,15 @@ export function LoginClient() {
               </label>
               <Input
                 id="otp"
+                type="text"
+                name="instructor-otp"
                 inputMode="numeric"
-                maxLength={12}
+                autoComplete="off"
+                maxLength={6}
                 placeholder="6-digit code"
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 text-sm shadow-sm placeholder:text-neutral-500 text-center tracking-[0.25em] tabular-nums"
-                required
               />
             </div>
 
