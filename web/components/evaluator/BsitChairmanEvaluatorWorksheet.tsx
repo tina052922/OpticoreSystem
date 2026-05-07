@@ -1383,7 +1383,6 @@ export function BsitChairmanEvaluatorWorksheet({
             startTime: pad(s.startTime),
             endTime: pad(s.endTime),
             roomId: s.roomId,
-            instructorId: s.instructorId,
           })
           .eq("id", iss.rowA.entryId);
         if (error) throw new Error(error.message);
@@ -1410,7 +1409,6 @@ export function BsitChairmanEvaluatorWorksheet({
                 startTime: pad(s.startTime),
                 endTime: pad(s.endTime),
                 roomId: s.roomId,
-                instructorId: s.instructorId,
               },
             },
           }),
