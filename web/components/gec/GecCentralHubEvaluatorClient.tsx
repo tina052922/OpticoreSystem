@@ -1157,9 +1157,6 @@ export function GecCentralHubEvaluatorClient() {
         </div>
 
         <div className="flex flex-wrap gap-3 items-end">
-          <p className="text-[12px] text-black/55 max-w-xs self-end pb-2">
-            Term is selected in the sidebar / header.
-          </p>
           <label className="text-[13px] font-semibold text-black/70">
             Section
             <select

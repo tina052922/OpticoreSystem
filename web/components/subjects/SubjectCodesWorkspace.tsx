@@ -249,14 +249,7 @@ export function SubjectCodesWorkspace({
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6 max-h-[min(78vh,960px)] overflow-y-auto">
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-          <div>
-            <div className="text-[16px] font-semibold">Add Subject</div>
-            <p className="text-[12px] text-black/55 mt-1">
-              {gecCurriculumOnly
-                ? "Only GEC- / GEE- codes (general education). Saved under the BSIT program for this college."
-                : "New offerings are saved to Supabase for the selected program. Codes are unique across the database."}
-            </p>
-          </div>
+          <div className="text-[16px] font-semibold">Add Subject</div>
           <Button
             type="button"
             className="bg-[#ff990a] text-white hover:bg-[#e68a09]"

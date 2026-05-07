@@ -404,7 +404,7 @@ export function DoiInsFormalApprovalPanel({
               {finalization.notes ? <p>Notes: {finalization.notes}</p> : null}
             </div>
           ) : (
-            <p className="text-sm text-gray-600">No VPAA decision recorded for this term yet.</p>
+            <p className="text-sm text-gray-600">No decision recorded for this term yet.</p>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

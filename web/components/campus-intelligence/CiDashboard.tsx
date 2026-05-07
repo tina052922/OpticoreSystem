@@ -59,51 +59,6 @@ export type CiDashboardProps = {
   analyticsScope?: { mode: "program" | "college" | "campus"; collegeId?: string | null; programId?: string | null } | null;
 };
 
-const recentActivities = [
-  {
-    type: "submission",
-    user: "Dr. Maria Santos",
-    action: "submitted BSIT 3A schedule for approval",
-    time: "5 minutes ago",
-    status: "pending",
-  },
-  {
-    type: "approval",
-    user: "Dean Roberto Cruz",
-    action: "approved BSCS 2B schedule",
-    time: "15 minutes ago",
-    status: "approved",
-  },
-  {
-    type: "conflict",
-    user: "System",
-    action: "detected room conflict in Room 304 (Mon 10:00 AM)",
-    time: "23 minutes ago",
-    status: "warning",
-  },
-  {
-    type: "justification",
-    user: "Prof. Juan Dela Cruz",
-    action: "requested justification for 24-unit teaching load",
-    time: "1 hour ago",
-    status: "pending",
-  },
-  {
-    type: "submission",
-    user: "Prof. Ana Reyes",
-    action: "submitted BSED 1A schedule for review",
-    time: "2 hours ago",
-    status: "pending",
-  },
-  {
-    type: "approval",
-    user: "Dean Roberto Cruz",
-    action: "approved faculty profile update for Dr. Santos",
-    time: "3 hours ago",
-    status: "approved",
-  },
-];
-
 /**
  * Campus Intelligence Core dashboard (ported from Opticore-CampusIntelligence `Dashboard.tsx`).
  */
@@ -113,8 +68,8 @@ function fmtCount(n: number): string {
 
 export function CiDashboard({
   welcomeName,
-  basePath,
-  variant = "full",
+  basePath: _basePath,
+  variant: _variant = "full",
   conflictBanner = null,
   liveStats = null,
   scopeHint = null,
@@ -152,29 +107,6 @@ export function CiDashboard({
       color: conflictBanner ? "#F44336" : "#9E9E9E",
     },
   ];
-
-  const fullQuickLinks: { label: string; href: string }[] = [
-    { label: "Evaluator", href: `${basePath}/evaluator` },
-    { label: "INS Form", href: `${basePath}/ins?tab=faculty` },
-    { label: "Subject Codes", href: `${basePath}/subject-codes` },
-    { label: "Faculty Profile", href: `${basePath}/faculty-profile` },
-  ];
-  if (basePath !== "/chairman" && basePath !== "/admin/college" && basePath !== "/doi") {
-    fullQuickLinks.push({ label: "Inbox", href: `${basePath}/inbox` });
-  }
-
-  if (variant === "doi") {
-    fullQuickLinks.push({ label: "Policy justifications (VPAA)", href: "/doi/dashboard#policy-justifications" });
-  }
-
-  const gecQuickLinks = [
-    { label: "Central Hub Evaluator", href: "/admin/gec/evaluator" },
-    { label: "INS Form", href: "/admin/gec/ins?tab=faculty" },
-    { label: "Request access", href: "/admin/gec/request-access" },
-    { label: "Campus navigation", href: "/campus-navigation" },
-  ];
-
-  const quickLinks = variant === "gec" ? gecQuickLinks : fullQuickLinks;
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -240,57 +172,6 @@ export function CiDashboard({
       </div>
 
       <CiDashboardCharts analyticsScope={analyticsScope} />
-
-      <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Quick Access</h3>
-        <div className="flex gap-3 flex-wrap">
-          {quickLinks.map((item) => (
-            <Link
-              key={item.href + item.label}
-              href={item.href}
-              className="bg-[#FF990A] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#e88909] transition-colors text-center text-sm"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          {recentActivities.map((activity, index) => (
-            <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-              <div
-                className={`w-2 h-2 rounded-full mt-2 ${
-                  activity.status === "approved"
-                    ? "bg-green-500"
-                    : activity.status === "warning"
-                      ? "bg-yellow-500"
-                      : "bg-blue-500"
-                }`}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-800">
-                  <span className="font-semibold">{activity.user}</span> {activity.action}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
-              </div>
-              <span
-                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${
-                  activity.status === "approved"
-                    ? "bg-green-100 text-green-700"
-                    : activity.status === "warning"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-blue-100 text-blue-700"
-                }`}
-              >
-                {activity.status}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

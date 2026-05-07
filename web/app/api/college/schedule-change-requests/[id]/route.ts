@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
+import { notifyScheduleChangeApproved } from "@/lib/server/notify-schedule-change-approved";
 import { checkConflictForProposedMove } from "@/lib/schedule-change/conflict-check";
 import { Q } from "@/lib/supabase/catalog-columns";
 import { enrichConflictHitsForDisplay } from "@/lib/schedule-change/enrich-conflict-hits";
@@ -203,14 +205,74 @@ export async function PATCH(req: Request, ctx: Ctx) {
     .eq("id", id);
 
   const slotLabel = `${row.requestedDay} ${row.requestedStartTime}–${row.requestedEndTime}`;
-  const notifBody =
-    finalStatus === "approved_with_solution"
-      ? `Approved (with solution). ${adminSuggestion ?? ""} Applied slot: ${slotLabel}.`
-      : `Approved. Your class is now scheduled at ${slotLabel}.`;
+  const roomIdApplied = mitigationRoomId ?? e.roomId;
 
-  const { error: apprNotifErr } = await notifyInstructor(supabase, row.instructorId, "Schedule change request", notifBody);
-  if (apprNotifErr) {
-    console.error("[schedule-change-requests] approve notification insert failed", apprNotifErr);
+  const admin = createSupabaseAdminClient();
+  if (admin) {
+    try {
+      const { data: secRow } = await admin.from("Section").select("id, name, programId").eq("id", e.sectionId).maybeSingle();
+      const { data: progRow } = await admin
+        .from("Program")
+        .select("id, collegeId")
+        .eq("id", (secRow as { programId?: string } | null)?.programId ?? "")
+        .maybeSingle();
+      const { data: subRow } = await admin.from("Subject").select("code").eq("id", e.subjectId).maybeSingle();
+      const { data: instRow } = await admin.from("User").select("name").eq("id", row.instructorId).maybeSingle();
+      let roomLabel: string | null = null;
+      if (roomIdApplied) {
+        const { data: rm } = await admin.from("Room").select("code").eq("id", roomIdApplied).maybeSingle();
+        roomLabel = (rm as { code?: string } | null)?.code ?? null;
+      }
+      const collegeIdForRow = (progRow as { collegeId?: string } | null)?.collegeId;
+      const programIdForRow = (secRow as { programId?: string } | null)?.programId;
+      if (collegeIdForRow && programIdForRow && secRow) {
+        await notifyScheduleChangeApproved(admin, {
+          collegeId: collegeIdForRow,
+          programId: programIdForRow,
+          sectionId: e.sectionId,
+          instructorId: row.instructorId,
+          instructorName: (instRow as { name?: string } | null)?.name ?? "Instructor",
+          subjectCode: (subRow as { code?: string } | null)?.code ?? "Subject",
+          sectionName: (secRow as { name?: string }).name ?? "Section",
+          slotLabel,
+          roomLabel,
+          entryAfter: {
+            sectionId: e.sectionId,
+            subjectId: e.subjectId,
+            academicPeriodId: e.academicPeriodId,
+            day: row.requestedDay,
+            startTime: row.requestedStartTime,
+            endTime: row.requestedEndTime,
+          },
+        });
+      } else {
+        throw new Error("Missing section/program context for notifications");
+      }
+    } catch (err) {
+      console.error("[schedule-change-requests] approve broadcast notifications failed", err);
+      const notifBody =
+        finalStatus === "approved_with_solution"
+          ? `Approved (with solution). ${adminSuggestion ?? ""} Applied slot: ${slotLabel}.`
+          : `Approved. Your class is now scheduled at ${slotLabel}.`;
+      const { error: apprNotifErr } = await notifyInstructor(
+        supabase,
+        row.instructorId,
+        "Schedule change request",
+        notifBody,
+      );
+      if (apprNotifErr) {
+        console.error("[schedule-change-requests] approve instructor fallback notification failed", apprNotifErr);
+      }
+    }
+  } else {
+    const notifBody =
+      finalStatus === "approved_with_solution"
+        ? `Approved (with solution). ${adminSuggestion ?? ""} Applied slot: ${slotLabel}.`
+        : `Approved. Your class is now scheduled at ${slotLabel}.`;
+    const { error: apprNotifErr } = await notifyInstructor(supabase, row.instructorId, "Schedule change request", notifBody);
+    if (apprNotifErr) {
+      console.error("[schedule-change-requests] approve notification insert failed", apprNotifErr);
+    }
   }
 
   return NextResponse.json({ ok: true, status: finalStatus, severity, hits: hitsEnriched });

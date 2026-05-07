@@ -1300,10 +1300,7 @@ export function EvaluatorTimetablingPanel({
                 <p className="font-semibold text-red-950">Suggested remedies</p>
                 <ul className="list-disc pl-4 mt-1 space-y-0.5">
                   <li>Move one of the overlapping classes to a different day or time block.</li>
-                  <li>Assign a different room or instructor if policy allows.</li>
-                  <li>
-                    Use <strong>Alternative Suggestion</strong> above for rule-based GA picks scoped to your program.
-                  </li>
+                  <li>Assign a different room if policy allows.</li>
                 </ul>
               </div>
               {fullConflictDetails.length > 0 ? (

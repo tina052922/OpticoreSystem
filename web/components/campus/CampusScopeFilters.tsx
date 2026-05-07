@@ -104,25 +104,6 @@ export function CampusScopeFilters({
     >
       <div className="flex flex-col gap-1 mb-3">
         <p className="text-[13px] font-bold text-black/85">Search & scope</p>
-        <p className="text-[12px] text-black/55 leading-snug">
-          {isChairman ? (
-            chairmanProgramLocked ? (
-              <>
-                Scoped to your assigned program only — <strong>{chairmanProgramCode ?? "Program"}</strong>. No campus-wide
-                or full-college filters.
-              </>
-            ) : (
-              <>
-                Your college only — choose <strong>program</strong> (e.g. BSIT). No campus-wide or college switcher.
-              </>
-            )
-          ) : (
-            <>
-              Campus-wide directory — narrow results by <strong>college</strong> and{" "}
-              <strong>department</strong> (program).
-            </>
-          )}
-        </p>
       </div>
       <div className={`grid grid-cols-1 gap-4 ${isChairman ? "" : "md:grid-cols-2"}`}>
         {!isChairman ? (

@@ -4,7 +4,7 @@ import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 
 type ChairmanScopedPageProps = {
   title: string;
-  subtitle: string;
+  subtitle?: string | null;
   chairmanCollegeId: string | null;
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
@@ -24,7 +24,7 @@ export function ChairmanScopedPage({
 }: ChairmanScopedPageProps) {
   return (
     <div>
-      <ChairmanPageHeader title={title} subtitle={subtitle} />
+      <ChairmanPageHeader title={title} subtitle={subtitle ?? undefined} />
       <div className="px-4 sm:px-6 lg:px-8 pb-2">
         <CampusScopeFilters
           variant="chairman"

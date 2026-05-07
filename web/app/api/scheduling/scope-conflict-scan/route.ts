@@ -58,20 +58,18 @@ export async function POST(req: Request) {
   const mode = body.mode ?? "gec_campus";
 
   /**
-   * IMPORTANT: for chairman/college roles, RLS may hide cross-college rows.
-   * Conflict detection must be campus-wide and consistent with INS, so we prefer the service-role client
-   * for reads (server-only) when configured.
+   * IMPORTANT: for all admin conflict scans, RLS may hide rows and cause false "no conflicts".
+   * Require the service-role client when configured; otherwise return 503 rather than a misleading scan.
    */
   const admin = createSupabaseAdminClient();
   const reader = admin ?? supabase;
-  if (!admin && (mode === "gec_campus" || mode === "doi_campus")) {
-    // Campus-wide scan requested but admin client isn't configured; RLS may hide rows.
+  if (!admin) {
     const detail = getSupabaseAdminConfigError();
     return NextResponse.json(
       {
         error:
           detail ??
-          "Campus-wide conflict scan requires SUPABASE_SERVICE_ROLE_KEY (to avoid RLS hiding cross-college rows).",
+          "Conflict scan requires SUPABASE_SERVICE_ROLE_KEY (to avoid RLS hiding schedule rows outside your role scope).",
       },
       { status: 503 },
     );

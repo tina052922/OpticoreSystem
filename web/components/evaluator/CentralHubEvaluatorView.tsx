@@ -17,11 +17,8 @@ import {
 import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import {
   buildConflictGridHints,
-  buildConflictSummaryLines,
-  enrichCampusConflictIssues,
   type CampusConflictScanApiPayload,
 } from "@/lib/scheduling/conflict-enrichment";
-import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { slotDurationHours } from "@/lib/scheduling/time";
@@ -279,11 +276,7 @@ export function CentralHubEvaluatorView({
     void load();
   }, [load]);
 
-  /**
-   * Realtime / cross-tab reload should be lightweight: only refresh term `ScheduleEntry` rows.
-   * Full catalog refresh (Program/Section/Subject/Room/User) is handled by `load()` on mount and by a periodic
-   * soft refresh for College Admin mode.
-   */
+  /** Realtime / cross-tab reload: lightweight refresh of term `ScheduleEntry` rows only. Full catalog loads on mount. */
   const reloadScheduleEntriesSoft = useCallback(async () => {
     if (!academicPeriodId) return;
     const supabase = createSupabaseBrowserClient();
@@ -298,19 +291,6 @@ export function CentralHubEvaluatorView({
     academicPeriodId,
     enabled: Boolean(academicPeriodId),
   });
-
-  /**
-   * College Admin: Chairman plots are the same ScheduleEntry rows (Section→Program→college). Soft-refresh
-   * periodically so new sections/subjects appear even if Realtime was not added to supabase_realtime.
-   */
-  useEffect(() => {
-    if (hubAccessMode !== "collegeAdmin" || !academicPeriodId) return;
-    const id = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      void load({ soft: true });
-    }, 90_000);
-    return () => window.clearInterval(id);
-  }, [hubAccessMode, academicPeriodId, load]);
 
   useEffect(() => {
     if (!academicPeriodId) return;
@@ -588,75 +568,54 @@ export function CentralHubEvaluatorView({
   const runScopedConflictScan = useCallback(() => {
     if (!academicPeriodId) return;
     setConflictScanBusy(true);
-    try {
-      /**
-       * Conflict scan for College Admin / CAS / GEC / DOI should be campus-wide for the term to avoid missed
-       * conflicts when filters are applied in the UI (department/section filters are for browsing only).
-       */
-      const scoped = entries.filter((e) => e.academicPeriodId === academicPeriodId);
-      if (scoped.length === 0) {
-        setCampusConflictScan({
-          entryCount: 0,
-          conflictingEntryIds: [],
-          issueSummaries: [],
-          issues: [],
-          enrichedIssues: [],
+    void (async () => {
+      try {
+        const res = await fetch("/api/scheduling/scope-conflict-scan", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            academicPeriodId,
+            mode: "doi_campus",
+            collegeId: null,
+            programId: null,
+          }),
         });
+        const j = (await res.json().catch(() => null)) as CampusConflictScanApiPayload & { error?: string };
+        if (!res.ok) {
+          toast.error("Conflict scan failed", j?.error ?? "Please try again.");
+          setCampusConflictScan(null);
+          setHubConflictGaByIssueKey({});
+          return;
+        }
+        const payload: CampusConflictScanApiPayload = {
+          entryCount: j.entryCount ?? 0,
+          conflictingEntryIds: j.conflictingEntryIds ?? [],
+          issueSummaries: j.issueSummaries ?? [],
+          issues: j.issues ?? [],
+          enrichedIssues: j.enrichedIssues ?? [],
+        };
+        setCampusConflictScan(payload);
+        const summaries = payload.issueSummaries ?? [];
+        if (summaries.length === 0) {
+          toast.success("No conflicts detected");
+        } else {
+          toast.info("Conflicts found – see details below", `${summaries.length} issue(s) detected.`);
+        }
+        const gaMap: Record<string, GASuggestion[]> = {};
+        for (const iss of payload.enrichedIssues.slice(0, 12)) {
+          gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 5);
+        }
+        setHubConflictGaByIssueKey(gaMap);
+      } catch (e) {
+        toast.error("Conflict scan failed", e instanceof Error ? e.message : "Please try again.");
+        setCampusConflictScan(null);
         setHubConflictGaByIssueKey({});
-        toast.info("No conflicts detected", "No schedule rows in scope to scan.");
-        return;
+      } finally {
+        setConflictScanBusy(false);
       }
-      const sparseBlocks = scoped
-        .map((e) => scheduleEntryToSparseBlock(e))
-        .filter((b): b is NonNullable<typeof b> => b != null);
-      const scan = scanAllSparseScheduleConflicts(sparseBlocks);
-      const entryById = new Map(entries.map((e) => [e.id, e]));
-      const enriched = enrichCampusConflictIssues(
-        scan.issues,
-        entryById,
-        subjectById,
-        sectionById,
-        roomById,
-        userById,
-        programById,
-        collegeNameById,
-      );
-      const summaryLines = enriched.length > 0 ? buildConflictSummaryLines(enriched, 14) : scan.issueSummaries;
-      setCampusConflictScan({
-        entryCount: sparseBlocks.length,
-        conflictingEntryIds: [...scan.conflictingEntryIds],
-        issueSummaries: summaryLines,
-        issues: scan.issues,
-        enrichedIssues: enriched,
-      });
-      if (summaryLines.length === 0) {
-        toast.success("No conflicts detected");
-      } else {
-        toast.info("Conflicts found – see details below", `${summaryLines.length} issue(s) detected.`);
-      }
-      const gaMap: Record<string, GASuggestion[]> = {};
-      for (const iss of enriched.slice(0, 12)) {
-        gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 5);
-      }
-      setHubConflictGaByIssueKey(gaMap);
-    } finally {
-      setConflictScanBusy(false);
-    }
-  }, [
-    academicPeriodId,
-    entries,
-    scopeCollegeId,
-    programId,
-    sectionById,
-    programById,
-    subjectById,
-    roomById,
-    userById,
-    collegeNameById,
-    suggestAlternativesForEntry,
-    sectionFilterId,
-    toast,
-  ]);
+    })();
+  }, [academicPeriodId, suggestAlternativesForEntry, toast]);
 
   const tableRows = useMemo(() => {
     if (!academicPeriodId) return [];
@@ -865,10 +824,7 @@ export function CentralHubEvaluatorView({
       if (landingPanelForTabs === "hrs") {
         return (
           <div>
-            <ChairmanPageHeader
-              title="Central Hub Evaluator"
-              subtitle="Institutional load summary (sample rows)."
-            />
+            <ChairmanPageHeader title="Central Hub Evaluator" />
             <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
               <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="hrs" collegeAdminLanding />
               <HrsUnitsPrepsRemarksTable />
@@ -884,10 +840,7 @@ export function CentralHubEvaluatorView({
 
       return (
         <div>
-          <ChairmanPageHeader
-            title="Central Hub Evaluator"
-            subtitle="Choose a college to open Timetabling & Optimization. Your own college is available immediately; other colleges require approval from that college's admin."
-          />
+          <ChairmanPageHeader title="Central Hub Evaluator" />
           <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
             <HubEvaluatorTabs
               basePath={basePath}
@@ -922,10 +875,7 @@ export function CentralHubEvaluatorView({
     }
     return (
       <div>
-        <ChairmanPageHeader
-          title="Central Hub Evaluator"
-          subtitle="High-level view of today's academic activity and room usage."
-        />
+        <ChairmanPageHeader title="Central Hub Evaluator" />
         <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
           <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="timetabling" />
           <div className="mb-4 flex justify-center">
@@ -957,9 +907,6 @@ export function CentralHubEvaluatorView({
               </Link>
             </div>
           ) : null}
-          <p className="text-[12px] text-black/45 mt-8 text-center">
-            College Admin, CAS Admin, and DOI Admin use this hub to review schedules across colleges.
-          </p>
         </div>
       </div>
     );
@@ -1103,14 +1050,9 @@ export function CentralHubEvaluatorView({
 
   const collegeRow = scopeCollegeId ? colleges.find((c) => c.id === scopeCollegeId) : null;
 
-  const hubPageSubtitle =
-    hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId
-      ? `Review schedules saved by Program Chairmen for ${collegeRow?.name ?? hub?.name ?? "this college"} — all programs and sections in your department scope.`
-      : "Campus-wide data — narrow by college and department (program).";
-
   return (
     <div>
-      <ChairmanPageHeader title="Central Hub Evaluator" subtitle={hubPageSubtitle} />
+      <ChairmanPageHeader title="Central Hub Evaluator" />
 
       <div className="px-4 md:px-8 pb-8">
         <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
@@ -1206,11 +1148,6 @@ export function CentralHubEvaluatorView({
 
             {hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId ? (
               <div className="space-y-6 max-w-[1400px] mx-auto mb-6">
-                <p className="text-[12px] text-black/60 leading-relaxed">
-                  Classes shown here are the same ones Program Chairmen save from the Evaluator — all sections and
-                  programs under <strong>{collegeRow?.name ?? hub?.name}</strong>. Use Department and Section to narrow
-                  the grid.
-                </p>
                 <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
                   <span>Department (program)</span>
                   <select
@@ -1302,11 +1239,6 @@ export function CentralHubEvaluatorView({
 
             <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
               <div className="flex flex-wrap gap-3 items-center">
-                <p className="text-[12px] text-black/55 max-w-md">
-                  {hubAccessMode === "collegeAdmin"
-                    ? "Term is selected in the header. Conflict scan is for review only — College Admin cannot edit Chairman plots here."
-                    : "Academic term is selected in the sidebar / header. Change it there to filter this grid."}
-                </p>
                 <Button
                   type="button"
                   variant="outline"
@@ -1317,16 +1249,14 @@ export function CentralHubEvaluatorView({
                   <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
                   {conflictScanBusy ? "Scanning…" : "Run conflict check"}
                 </Button>
-                {hubAccessMode !== "collegeAdmin" ? (
-                  <Button
-                    type="button"
-                    className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
-                    disabled={altBusy || loading}
-                    onClick={() => runAlternativeSuggestion()}
-                  >
-                    {altBusy ? "Working…" : "Alternative Suggestion"}
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
+                  disabled={altBusy || loading}
+                  onClick={() => runAlternativeSuggestion()}
+                >
+                  {altBusy ? "Working…" : "Alternative Suggestion"}
+                </Button>
               </div>
             </div>
 
@@ -1338,7 +1268,7 @@ export function CentralHubEvaluatorView({
                   suggestionsByIssueKey={hubConflictGaByIssueKey}
                   busyIssueKey={busyConflictApplyKey}
                   onApplySuggestion={(key, s) => void applyHubConflictSuggestion(key, s)}
-                  allowApply={hubAccessMode !== "collegeAdmin"}
+                  allowApply
                   maxIssues={14}
                   formatSuggestionLabel={(s) =>
                     formatGaSuggestionShortLabel(s, {
@@ -1366,17 +1296,8 @@ export function CentralHubEvaluatorView({
             ) : (
               <>
                 <p className="text-[12px] text-black/60 mb-2">
-                  {hubAccessMode === "collegeAdmin" ? (
-                    <>
-                      After <strong>Run conflict check</strong>, overlapping rows are highlighted. This grid is read-only
-                      for College Admin.
-                    </>
-                  ) : (
-                    <>
-                      After <strong>Run conflict check</strong>, overlapping rows are highlighted; click a row to edit
-                      time, room, or instructor, or apply a suggested fix above.
-                    </>
-                  )}
+                  After <strong>Run conflict check</strong>, overlapping rows are highlighted; click a row to edit time
+                  or room, or apply a suggested fix above.
                 </p>
                 <EvaluatorScheduleOverviewTable
                   rows={tableRows}
@@ -1385,13 +1306,12 @@ export function CentralHubEvaluatorView({
                   focusRowId={focusEntryId}
                   conflictDetailsByRowId={conflictDetailsByRowId}
                   rowDomIdPrefix="central-eval-row"
-                  onRowClick={hubAccessMode === "collegeAdmin" ? undefined : (id) => setEditEntryId(id)}
+                  onRowClick={(id) => setEditEntryId(id)}
                 />
               </>
             )}
 
-            {hubAccessMode !== "collegeAdmin" ? (
-              <DoiScheduleEntryQuickEditDialog
+            <DoiScheduleEntryQuickEditDialog
                 open={Boolean(editEntryId)}
                 onOpenChange={(o) => {
                   if (!o) setEditEntryId(null);
@@ -1440,7 +1360,6 @@ export function CentralHubEvaluatorView({
                   }
                 }}
               />
-            ) : null}
 
             {altOpen ? (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">

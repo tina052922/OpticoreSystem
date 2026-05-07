@@ -214,10 +214,7 @@ export function CollegeScheduleChangeRequestsClient() {
 
   return (
     <div>
-      <ChairmanPageHeader
-        title="Schedule change requests"
-        subtitle="Review instructor requests."
-      />
+      <ChairmanPageHeader title="Schedule change requests" />
       <div className="px-4 md:px-8 pb-10 max-w-6xl mx-auto space-y-6">
         {error ? (
           <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>

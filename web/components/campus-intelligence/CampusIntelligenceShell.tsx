@@ -76,7 +76,7 @@ export type CampusIntelligenceShellProps = {
   userEmail?: string;
   /** Sidebar navigation (Chairman, College, CAS, GEC, DOI). */
   navItems: AdminNavItem[];
-  /** Shown above the semester chip (e.g. "College admin · CTE"). */
+  /** Shown above the semester chip (e.g. “College admin · COTE”). */
   roleLabel?: string;
   profileHref: string;
   /** Kept for layouts that pass it; inbox is only in the sidebar, not the avatar menu. */

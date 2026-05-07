@@ -1794,15 +1794,6 @@ export function BsitChairmanEvaluatorWorksheet({
         <div className="px-4 py-3 border-b border-black/10 bg-black/[0.02] flex flex-col gap-3">
           <div>
             <h3 className="text-sm font-bold text-black/90">Evaluator plotting grid</h3>
-            <p className="text-[11px] text-black/55 mt-0.5">
-              Real-time conflict cells use a <strong>campus-wide</strong> timetable (all programs). Run the scan to
-              highlight conflicting rows in this worksheet.
-            </p>
-            <p className="text-[11px] text-black/60 leading-relaxed">
-              Pick instructors by <strong>full name</strong> (from Faculty Profile). Rows store{" "}
-              <code className="text-[10px] bg-black/[0.04] px-1 rounded">User.id</code>; when the instructor
-              self-registers with Gmail using the same Employee ID, plots attach to their account automatically.
-            </p>
             {instructorPlotOptions.length === 0 ? (
               <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 No instructors with an Employee ID in this college. Add faculty in <strong>Faculty Profile</strong> and

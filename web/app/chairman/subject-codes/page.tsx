@@ -10,7 +10,6 @@ export default async function ChairmanSubjectCodesPage() {
   return (
     <ChairmanScopedPage
       title="Subject Codes"
-      subtitle="Official curriculum reference for your assigned program (static prospectus when available in the registry)."
       chairmanCollegeId={session.collegeId}
       chairmanProgramId={session.programId}
       chairmanProgramCode={session.programCode}

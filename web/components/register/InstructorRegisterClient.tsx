@@ -153,10 +153,10 @@ export function InstructorRegisterClient() {
                 </div>
                 <Input
                   inputMode="numeric"
-                  pattern="\\d{6}"
+                  maxLength={12}
                   placeholder="Enter 6-digit code"
                   value={otpInput}
-                  onChange={(e) => setOtpInput(e.target.value)}
+                  onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   className="h-12 text-center tracking-[0.25em] tabular-nums"
                   required
                 />

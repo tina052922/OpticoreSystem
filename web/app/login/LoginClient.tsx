@@ -106,12 +106,23 @@ export function LoginClient() {
         throw new Error("Account not found.");
       }
 
-      // Instructor flow: show a one-time OTP on-screen and require verification before redirect.
+      /**
+       * Instructor demo flow: OTP only while `must_change_password` is true (first-time setup).
+       * After the faculty changes their password, subsequent logins use password only.
+       */
       if (role === "instructor") {
-        const code = makeOtp();
-        setOtpGenerated(code);
-        setOtpInput("");
-        setPhase("otp");
+        const {
+          data: { user: signedUser },
+        } = await supabase.auth.getUser();
+        const insMeta = (signedUser?.user_metadata ?? {}) as { must_change_password?: boolean };
+        if (insMeta.must_change_password === true) {
+          const code = makeOtp();
+          setOtpGenerated(code);
+          setOtpInput("");
+          setPhase("otp");
+          return;
+        }
+        window.location.assign("/faculty");
         return;
       }
 
@@ -240,10 +251,10 @@ export function LoginClient() {
               <Input
                 id="otp"
                 inputMode="numeric"
-                pattern="\\d{6}"
+                maxLength={12}
                 placeholder="6-digit code"
                 value={otpInput}
-                onChange={(e) => setOtpInput(e.target.value)}
+                onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 text-sm shadow-sm placeholder:text-neutral-500 text-center tracking-[0.25em] tabular-nums"
                 required
               />
