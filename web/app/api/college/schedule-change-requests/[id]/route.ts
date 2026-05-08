@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseAdminClient, getSupabaseAdminConfigError } from "@/lib/supabase/admin";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { notifyScheduleChangeApproved } from "@/lib/server/notify-schedule-change-approved";
 import { checkConflictForProposedMove } from "@/lib/schedule-change/conflict-check";
@@ -155,7 +155,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
       { status: 423 },
     );
   }
-  const allCampus = await getScheduleEntriesForAcademicPeriod(supabase, e.academicPeriodId);
+  const allCampusReader = createSupabaseAdminClient();
+  if (!allCampusReader) {
+    const detail = getSupabaseAdminConfigError();
+    return NextResponse.json(
+      {
+        error:
+          detail ??
+          "Approval conflict verification requires SUPABASE_SERVICE_ROLE_KEY for a full campus scan.",
+      },
+      { status: 503 },
+    );
+  }
+  const allCampus = await getScheduleEntriesForAcademicPeriod(allCampusReader, e.academicPeriodId);
   const rooms = await getRoomsForCollege(supabase, profile.collegeId);
 
   const alternatives = buildScheduleChangeAlternatives(

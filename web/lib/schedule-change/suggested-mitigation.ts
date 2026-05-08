@@ -1,7 +1,10 @@
-import { detectConflictsForEntry } from "@/lib/scheduling/conflicts";
-import type { ScheduleBlock } from "@/lib/scheduling/types";
+import {
+  detectConflictsSparse,
+  hhmmForConflict,
+  scheduleEntryToSparseBlock,
+  type SparseScheduleBlock,
+} from "@/lib/scheduling/conflicts";
 import type { Room, ScheduleEntry } from "@/types/db";
-import { entryToBlock } from "./conflict-check";
 
 export type SuggestedMitigation = {
   roomId: string;
@@ -15,6 +18,8 @@ export type SuggestedMitigation = {
 /**
  * If the proposed slot only fails on room (or has small room issues), try another room in the college
  * at the same day/time. First conflict-free room wins.
+ *
+ * Uses sparse overlap rules (aligned with Evaluator / INS grids).
  */
 export function suggestMitigationForScheduleChange(
   entry: ScheduleEntry,
@@ -24,20 +29,28 @@ export function suggestMitigationForScheduleChange(
   allEntriesInCollege: ScheduleEntry[],
   rooms: Room[],
 ): SuggestedMitigation | null {
-  const others = allEntriesInCollege.filter((e) => e.id !== entry.id);
-  const otherBlocks = others.map((e) => entryToBlock(e));
+  const othersSparse: SparseScheduleBlock[] = [];
+  for (const row of allEntriesInCollege) {
+    if (row.id === entry.id) continue;
+    const b = scheduleEntryToSparseBlock(row);
+    if (b) othersSparse.push(b);
+  }
 
-  const base = entryToBlock(entry);
-  const candidateBase: ScheduleBlock = {
-    ...base,
-    day: requestedDay,
-    startTime: requestedStart,
-    endTime: requestedEnd,
-  };
+  const startNorm = hhmmForConflict(requestedStart);
+  const endNorm = hhmmForConflict(requestedEnd);
 
   for (const room of rooms) {
-    const candidate: ScheduleBlock = { ...candidateBase, roomId: room.id };
-    const hits = detectConflictsForEntry(candidate, otherBlocks);
+    const candidate: SparseScheduleBlock = {
+      id: entry.id,
+      academicPeriodId: entry.academicPeriodId,
+      day: requestedDay,
+      startTime: startNorm,
+      endTime: endNorm,
+      instructorId: entry.instructorId?.trim() ? entry.instructorId : null,
+      sectionId: entry.sectionId?.trim() ? entry.sectionId : null,
+      roomId: room.id,
+    };
+    const hits = detectConflictsSparse(candidate, othersSparse, entry.id);
     if (hits.length === 0) {
       return {
         roomId: room.id,

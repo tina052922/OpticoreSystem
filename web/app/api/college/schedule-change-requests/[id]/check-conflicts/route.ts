@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient, getSupabaseAdminConfigError } from "@/lib/supabase/admin";
 import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { checkConflictForProposedMove } from "@/lib/schedule-change/conflict-check";
 import { suggestMitigationForScheduleChange } from "@/lib/schedule-change/suggested-mitigation";
@@ -61,8 +62,20 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   const e = entry as ScheduleEntry;
   const periodId = e.academicPeriodId;
-  /** Campus-wide: all programs/sections for this term (not only this college). */
-  const allCampus = await getScheduleEntriesForAcademicPeriod(supabase, periodId);
+  /** Full campus term rows — service role so RLS cannot hide clashes (matches Evaluator scope-conflict-scan). */
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    const detail = getSupabaseAdminConfigError();
+    return NextResponse.json(
+      {
+        error:
+          detail ??
+          "Conflict check requires SUPABASE_SERVICE_ROLE_KEY so all campus schedule rows are visible (same as Evaluator conflict scan).",
+      },
+      { status: 503 },
+    );
+  }
+  const allCampus = await getScheduleEntriesForAcademicPeriod(admin, periodId);
   const rooms = await getRoomsForCollege(supabase, profile.collegeId);
 
   const requestedDay = (reqRow as { requestedDay: string }).requestedDay;

@@ -31,7 +31,7 @@ export async function getScheduleEntriesForCollegePeriod(
   return data as ScheduleEntry[];
 }
 
-/** Entire campus: all schedule rows for a term (every program / section). Used for schedule-change conflict review. */
+/** Entire campus: all schedule rows for a term. For conflict scans, pass the service-role Supabase client so RLS does not hide rows (same as Evaluator). */
 export async function getScheduleEntriesForAcademicPeriod(
   supabase: SupabaseClient,
   academicPeriodId: string,
