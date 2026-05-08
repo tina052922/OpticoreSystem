@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { detectConflictsForEntry, intervalsOverlap } from "./conflicts";
+import { detectConflictsForEntry, intervalsOverlap, normalizeDayForConflict } from "./conflicts";
 import type { ScheduleBlock } from "./types";
 
+describe("normalizeDayForConflict", () => {
+  it("maps abbreviations to canonical weekdays", () => {
+    expect(normalizeDayForConflict("Mon")).toBe("Monday");
+    expect(normalizeDayForConflict("thu")).toBe("Thursday");
+  });
+});
+
 describe("intervalsOverlap", () => {
+  it("treats Mon and Monday as the same day", () => {
+    expect(intervalsOverlap("Mon", "7:00", "9:00", "Monday", "8:00", "10:00")).toBe(true);
+  });
   it("returns false on different days", () => {
     expect(intervalsOverlap("Monday", "7:00", "9:00", "Tuesday", "7:00", "9:00")).toBe(false);
   });

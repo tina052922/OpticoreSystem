@@ -2,8 +2,40 @@ import type { ScheduleEntry } from "@/types/db";
 import type { ConflictHit, ScheduleBlock } from "./types";
 
 function toMinutes(t: string): number {
-  const [h, m] = t.split(":").map((x) => parseInt(x, 10));
-  return h * 60 + (m || 0);
+  const s = t.trim();
+  const norm = s.length > 5 ? s.slice(0, 5) : s;
+  const parts = norm.split(":");
+  const h = parseInt(parts[0] ?? "0", 10);
+  const m = parseInt(parts[1] ?? "0", 10);
+  return h * 60 + (Number.isFinite(m) ? m : 0);
+}
+
+/** Collapse common weekday spellings/casing so clashes are not missed (e.g. Mon vs Monday). */
+export function normalizeDayForConflict(day: string): string {
+  const raw = day.trim();
+  if (!raw) return raw;
+  const key = raw.toLowerCase().replace(/\.$/, "");
+  const map: Record<string, string> = {
+    mon: "Monday",
+    monday: "Monday",
+    tue: "Tuesday",
+    tues: "Tuesday",
+    tuesday: "Tuesday",
+    wed: "Wednesday",
+    weds: "Wednesday",
+    wednesday: "Wednesday",
+    thu: "Thursday",
+    thur: "Thursday",
+    thurs: "Thursday",
+    thursday: "Thursday",
+    fri: "Friday",
+    friday: "Friday",
+    sat: "Saturday",
+    saturday: "Saturday",
+    sun: "Sunday",
+    sunday: "Sunday",
+  };
+  return map[key] ?? raw;
 }
 
 /** True if [s1,e1) overlaps [s2,e2) on the same calendar day. */
@@ -15,7 +47,7 @@ export function intervalsOverlap(
   s2: string,
   e2: string,
 ): boolean {
-  if (day1 !== day2) return false;
+  if (normalizeDayForConflict(day1) !== normalizeDayForConflict(day2)) return false;
   const a = toMinutes(s1);
   const b = toMinutes(e1);
   const c = toMinutes(s2);
@@ -167,7 +199,7 @@ export function scheduleEntryToSparseBlock(e: ScheduleEntry): SparseScheduleBloc
   return {
     id: e.id,
     academicPeriodId: e.academicPeriodId,
-    day: e.day,
+    day: normalizeDayForConflict(e.day),
     startTime: hhmmForConflict(e.startTime),
     endTime: hhmmForConflict(e.endTime),
     instructorId: e.instructorId?.trim() ? e.instructorId : null,
@@ -181,7 +213,7 @@ export function scheduleBlockToSparseBlock(b: ScheduleBlock): SparseScheduleBloc
   return {
     id: b.id,
     academicPeriodId: b.academicPeriodId,
-    day: b.day,
+    day: normalizeDayForConflict(b.day),
     startTime: hhmmForConflict(b.startTime),
     endTime: hhmmForConflict(b.endTime),
     instructorId: b.instructorId?.trim() ? b.instructorId : null,

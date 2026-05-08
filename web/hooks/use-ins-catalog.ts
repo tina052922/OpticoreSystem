@@ -733,6 +733,13 @@ export function useInsCatalog(args: {
       lines.push("");
     }
 
+    if (n === 0 && scan.issueSummaries.length > 0) {
+      for (const msg of scan.issueSummaries.slice(0, 12)) {
+        lines.push(`• ${msg}`);
+      }
+      lines.push("");
+    }
+
     return lines.join("\n").trim();
   }, [
     academicPeriodId,

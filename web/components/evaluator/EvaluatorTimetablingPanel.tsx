@@ -5,6 +5,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, WEEKDAYS } from "@/lib/scheduling/constants";
 import { detectConflictsForEntry, scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
+import {
+  buildConflictSummaryLines,
+  enrichCampusConflictIssues,
+} from "@/lib/scheduling/conflict-enrichment";
 import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "@/lib/scheduling/facultyPolicies";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { slotDurationHours } from "@/lib/scheduling/time";
@@ -733,9 +737,68 @@ export function EvaluatorTimetablingPanel({
     if (!academicPeriodId) return;
     setFullCheckRan(true);
     void (async () => {
+      const termMerged = mergedScheduleEntries.filter((e) => e.academicPeriodId === academicPeriodId);
+      const entryById = new Map(termMerged.map((e) => [e.id, e]));
+      const localBlocks = termMerged
+        .map((e) => scheduleEntryToSparseBlock(e))
+        .filter((b): b is NonNullable<typeof b> => b != null);
+      const localScan = scanAllSparseScheduleConflicts(localBlocks);
+      const localEnriched = enrichCampusConflictIssues(
+        localScan.issues,
+        entryById,
+        subjectById,
+        sectionById,
+        roomById,
+        userById,
+        programById,
+        collegeNameById,
+      );
+
+      function issueEdgeKey(i: { entryId: string; type: string; relatedEntryId?: string }) {
+        if (!i.relatedEntryId) return `${i.type}:${i.entryId}`;
+        const [a, b] = [i.entryId, i.relatedEntryId].sort();
+        return `${i.type}:${a}:${b}`;
+      }
+
+      const applyLocalMerge = (
+        serverIssues: typeof localScan.issues,
+        serverEnriched: typeof localEnriched,
+        apiIds: string[],
+        apiIssueSummaries: string[] = [],
+      ) => {
+        const mergedByKey = new Map<string, (typeof localEnriched)[0]>();
+        for (const iss of serverEnriched) mergedByKey.set(iss.key, iss);
+        for (const iss of localEnriched) {
+          if (!mergedByKey.has(iss.key)) mergedByKey.set(iss.key, iss);
+        }
+        const mergedEnriched = [...mergedByKey.values()];
+
+        const conflictSet = new Set<string>();
+        for (const id of apiIds) conflictSet.add(id);
+        for (const id of localScan.conflictingEntryIds) conflictSet.add(id);
+
+        setFullConflictIds(conflictSet);
+        const summaryLines =
+          mergedEnriched.length > 0
+            ? buildConflictSummaryLines(mergedEnriched, 14)
+            : [...new Set([...apiIssueSummaries, ...localScan.issueSummaries])];
+        setFullConflictSummaries(summaryLines);
+
+        const detailMap = new Map<string, (typeof localScan.issues)[0]>();
+        for (const issue of serverIssues) detailMap.set(issueEdgeKey(issue), issue);
+        for (const issue of localScan.issues) {
+          const k = issueEdgeKey(issue);
+          if (!detailMap.has(k)) detailMap.set(k, issue);
+        }
+        setFullConflictDetails([...detailMap.values()]);
+
+        return { conflictSet, summaryLines };
+      };
+
       try {
         const res = await fetch("/api/scheduling/scope-conflict-scan", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             academicPeriodId,
@@ -749,24 +812,49 @@ export function EvaluatorTimetablingPanel({
               conflictingEntryIds?: string[];
               issueSummaries?: string[];
               issues?: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
+              enrichedIssues?: typeof localEnriched;
               error?: string;
             }
           | null;
+
         if (!res.ok) {
-          toast.error("Conflict scan failed", j?.error ?? "Please try again.");
+          const { conflictSet, summaryLines } = applyLocalMerge([], [], []);
+          if (conflictSet.size === 0) {
+            toast.error("Conflict scan failed", j?.error ?? "Please try again.");
+          } else if (res.status === 503) {
+            toast.info(
+              "Conflicts from plotted timetable",
+              `${summaryLines.length} issue(s). Campus API unavailable — includes unsaved rows on this screen.`,
+            );
+          } else {
+            toast.error(
+              "Server scan failed",
+              `${summaryLines.length} issue(s) from plotted rows (including drafts). ${j?.error ?? ""}`.trim(),
+            );
+          }
           return;
         }
-        const ids = new Set<string>(j?.conflictingEntryIds ?? []);
-        setFullConflictIds(ids);
-        setFullConflictSummaries(j?.issueSummaries ?? []);
-        setFullConflictDetails(j?.issues ?? []);
-        if ((j?.issueSummaries ?? []).length === 0) {
+
+        const apiIds = j?.conflictingEntryIds ?? [];
+        const serverIssues = j?.issues ?? [];
+        const serverEnriched = j?.enrichedIssues ?? [];
+        const { conflictSet, summaryLines } = applyLocalMerge(serverIssues, serverEnriched, apiIds, j?.issueSummaries ?? []);
+
+        if (conflictSet.size === 0) {
           toast.success("No conflicts detected");
         } else {
-          toast.info("Conflicts found – see details below", `${(j?.issueSummaries ?? []).length} issue(s) detected.`);
+          toast.info("Conflicts found – see details below", `${summaryLines.length} issue(s) detected.`);
         }
       } catch (e: unknown) {
-        toast.error("Conflict scan failed", e instanceof Error ? e.message : "Please try again.");
+        const { conflictSet, summaryLines } = applyLocalMerge([], [], []);
+        if (conflictSet.size === 0) {
+          toast.error("Conflict scan failed", e instanceof Error ? e.message : "Please try again.");
+        } else {
+          toast.error(
+            "Network error during scan",
+            `${summaryLines.length} issue(s) detected from plotted rows. ${e instanceof Error ? e.message : ""}`.trim(),
+          );
+        }
       }
     })();
   }
