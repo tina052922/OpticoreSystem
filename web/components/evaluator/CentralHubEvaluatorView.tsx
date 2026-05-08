@@ -17,8 +17,11 @@ import {
 import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import {
   buildConflictGridHints,
+  buildConflictSummaryLines,
+  enrichCampusConflictIssues,
   type CampusConflictScanApiPayload,
 } from "@/lib/scheduling/conflict-enrichment";
+import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { slotDurationHours } from "@/lib/scheduling/time";
@@ -569,6 +572,73 @@ export function CentralHubEvaluatorView({
     if (!academicPeriodId) return;
     setConflictScanBusy(true);
     void (async () => {
+      const termEntries = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+      const entryById = new Map(termEntries.map((e) => [e.id, e]));
+      const localBlocks = termEntries
+        .map((e) => scheduleEntryToSparseBlock(e))
+        .filter((b): b is NonNullable<typeof b> => b != null);
+      const localScan = scanAllSparseScheduleConflicts(localBlocks);
+      const localEnriched = enrichCampusConflictIssues(
+        localScan.issues,
+        entryById,
+        subjectById,
+        sectionById,
+        roomById,
+        userById,
+        programById,
+        collegeNameById,
+      );
+
+      function issueEdgeKey(i: { entryId: string; type: string; relatedEntryId?: string }) {
+        if (!i.relatedEntryId) return `${i.type}:${i.entryId}`;
+        const [a, b] = [i.entryId, i.relatedEntryId].sort();
+        return `${i.type}:${a}:${b}`;
+      }
+
+      function mergePayload(server: CampusConflictScanApiPayload | null): CampusConflictScanApiPayload {
+        const serverIssues = server?.issues ?? [];
+        const serverEnriched = server?.enrichedIssues ?? [];
+        const issueMap = new Map<string, (typeof localScan.issues)[0]>();
+        for (const i of serverIssues) issueMap.set(issueEdgeKey(i), i);
+        for (const i of localScan.issues) {
+          const k = issueEdgeKey(i);
+          if (!issueMap.has(k)) issueMap.set(k, i);
+        }
+        const mergedIssues = [...issueMap.values()];
+
+        const mergedByKey = new Map<string, (typeof localEnriched)[0]>();
+        for (const iss of serverEnriched) mergedByKey.set(iss.key, iss);
+        for (const iss of localEnriched) {
+          if (!mergedByKey.has(iss.key)) mergedByKey.set(iss.key, iss);
+        }
+        const mergedEnriched = [...mergedByKey.values()];
+
+        const conflictSet = new Set<string>();
+        for (const id of server?.conflictingEntryIds ?? []) conflictSet.add(id);
+        for (const id of localScan.conflictingEntryIds) conflictSet.add(id);
+
+        const issueSummaries =
+          mergedEnriched.length > 0
+            ? buildConflictSummaryLines(mergedEnriched, 14)
+            : [...new Set([...(server?.issueSummaries ?? []), ...localScan.issueSummaries])];
+
+        return {
+          entryCount: Math.max(server?.entryCount ?? 0, localBlocks.length),
+          conflictingEntryIds: [...conflictSet],
+          issueSummaries,
+          issues: mergedIssues,
+          enrichedIssues: mergedEnriched,
+        };
+      }
+
+      const applyGa = (payload: CampusConflictScanApiPayload) => {
+        const gaMap: Record<string, GASuggestion[]> = {};
+        for (const iss of payload.enrichedIssues.slice(0, 12)) {
+          gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 5);
+        }
+        setHubConflictGaByIssueKey(gaMap);
+      };
+
       try {
         const res = await fetch("/api/scheduling/scope-conflict-scan", {
           method: "POST",
@@ -582,40 +652,71 @@ export function CentralHubEvaluatorView({
           }),
         });
         const j = (await res.json().catch(() => null)) as CampusConflictScanApiPayload & { error?: string };
+
         if (!res.ok) {
-          toast.error("Conflict scan failed", j?.error ?? "Please try again.");
-          setCampusConflictScan(null);
-          setHubConflictGaByIssueKey({});
+          const payload = mergePayload(null);
+          setCampusConflictScan(payload);
+          applyGa(payload);
+          if (payload.conflictingEntryIds.length === 0) {
+            toast.error("Conflict scan failed", j?.error ?? "Please try again.");
+          } else if (res.status === 503) {
+            toast.info(
+              "Conflicts from hub timetable",
+              `${payload.issueSummaries.length} issue(s). Campus API unavailable — includes rows shown in this hub.`,
+            );
+          } else {
+            toast.error(
+              "Server scan failed",
+              `${payload.issueSummaries.length} issue(s) from hub timetable. ${j?.error ?? ""}`.trim(),
+            );
+          }
           return;
         }
-        const payload: CampusConflictScanApiPayload = {
+
+        const serverPayload: CampusConflictScanApiPayload = {
           entryCount: j.entryCount ?? 0,
           conflictingEntryIds: j.conflictingEntryIds ?? [],
           issueSummaries: j.issueSummaries ?? [],
           issues: j.issues ?? [],
           enrichedIssues: j.enrichedIssues ?? [],
         };
+        const payload = mergePayload(serverPayload);
         setCampusConflictScan(payload);
-        const summaries = payload.issueSummaries ?? [];
-        if (summaries.length === 0) {
+        applyGa(payload);
+
+        if (payload.conflictingEntryIds.length === 0) {
           toast.success("No conflicts detected");
         } else {
-          toast.info("Conflicts found – see details below", `${summaries.length} issue(s) detected.`);
+          toast.info("Conflicts found – see details below", `${payload.issueSummaries.length} issue(s) detected.`);
         }
-        const gaMap: Record<string, GASuggestion[]> = {};
-        for (const iss of payload.enrichedIssues.slice(0, 12)) {
-          gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 5);
-        }
-        setHubConflictGaByIssueKey(gaMap);
       } catch (e) {
-        toast.error("Conflict scan failed", e instanceof Error ? e.message : "Please try again.");
-        setCampusConflictScan(null);
-        setHubConflictGaByIssueKey({});
+        const payload = mergePayload(null);
+        setCampusConflictScan(payload);
+        applyGa(payload);
+        if (payload.conflictingEntryIds.length === 0) {
+          toast.error("Conflict scan failed", e instanceof Error ? e.message : "Please try again.");
+        } else {
+          toast.error(
+            "Network error during scan",
+            `${payload.issueSummaries.length} issue(s) from hub timetable.`,
+          );
+        }
       } finally {
         setConflictScanBusy(false);
       }
     })();
-  }, [academicPeriodId, suggestAlternativesForEntry, toast]);
+  }, [
+    academicPeriodId,
+    entries,
+    subjectById,
+    sectionById,
+    roomById,
+    userById,
+    programById,
+    collegeNameById,
+    suggestAlternativesForEntry,
+    toast,
+  ]);
 
   const tableRows = useMemo(() => {
     if (!academicPeriodId) return [];
