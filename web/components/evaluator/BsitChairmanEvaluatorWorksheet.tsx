@@ -749,8 +749,17 @@ export function BsitChairmanEvaluatorWorksheet({
     setChairmanGaByIssueKey({});
     setConflictDetailLoading(true);
     try {
+      const localScan = scanAllSparseScheduleConflicts(sparseCampusUniverse);
+
+      function issueEdgeKey(i: { entryId: string; type: string; relatedEntryId?: string }) {
+        if (!i.relatedEntryId) return `${i.type}:${i.entryId}`;
+        const [a, b] = [i.entryId, i.relatedEntryId].sort();
+        return `${i.type}:${a}:${b}`;
+      }
+
       const res = await fetch("/api/scheduling/scope-conflict-scan", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           academicPeriodId,
@@ -767,20 +776,22 @@ export function BsitChairmanEvaluatorWorksheet({
             error?: string;
           }
         | null;
-      if (!res.ok) {
-        setSaveScheduleMsg(api?.error ?? "Conflict scan failed.");
-        setCampusScanConflictIds(new Set());
-        return;
-      }
-      const ids = new Set<string>(api?.conflictingEntryIds ?? []);
-      setCampusScanConflictIds(ids);
-      const summary = api?.issueSummaries ?? [];
-      setSaveScheduleMsg(summary.length === 0 ? "No conflicts detected." : `Conflicts found: ${ids.size} row(s).`);
 
-      /**
-       * Build conflict detail + GA alternatives locally so the UI always shows solutions immediately after a scan,
-       * without depending on an extra API call.
-       */
+      const issueMap = new Map<string, (typeof localScan.issues)[0]>();
+      if (res.ok) {
+        for (const i of api?.issues ?? []) issueMap.set(issueEdgeKey(i), i);
+      }
+      for (const i of localScan.issues) {
+        const k = issueEdgeKey(i);
+        if (!issueMap.has(k)) issueMap.set(k, i);
+      }
+      const mergedIssueList = [...issueMap.values()];
+
+      const ids = new Set<string>();
+      if (res.ok) for (const id of api?.conflictingEntryIds ?? []) ids.add(id);
+      for (const id of localScan.conflictingEntryIds) ids.add(id);
+      setCampusScanConflictIds(ids);
+
       const entryById = new Map(allTermScheduleEntries.map((e) => [e.id, e] as const));
       const rowById = new Map(rows.map((r) => [r.id, r] as const));
       /**
@@ -817,7 +828,7 @@ export function BsitChairmanEvaluatorWorksheet({
         };
       };
 
-      for (const raw of api?.issues ?? []) {
+      for (const raw of mergedIssueList) {
         if (!raw.relatedEntryId) continue;
         const t = raw.type;
         if (t !== "faculty" && t !== "room" && t !== "section") continue;
@@ -886,6 +897,18 @@ export function BsitChairmanEvaluatorWorksheet({
         }
       }
       setChairmanGaByIssueKey(gaMap);
+
+      if (ids.size === 0) {
+        setSaveScheduleMsg(res.ok ? "No conflicts detected." : api?.error ?? "Conflict scan failed.");
+      } else if (!res.ok) {
+        setSaveScheduleMsg(
+          res.status === 503
+            ? `Conflicts found: ${ids.size} row(s) — on-screen scan (campus-wide API unavailable).`
+            : `Conflicts found: ${ids.size} row(s). Server scan failed: ${api?.error ?? "error"}`,
+        );
+      } else {
+        setSaveScheduleMsg(`Conflicts found: ${ids.size} row(s).`);
+      }
     } finally {
       setConflictDetailLoading(false);
     }
@@ -896,6 +919,8 @@ export function BsitChairmanEvaluatorWorksheet({
     chairmanCollegeId,
     rooms,
     dbInstructors,
+    allTermScheduleEntries,
+    rows,
     roomById,
     sectionNameById,
     subjectCodeById,
