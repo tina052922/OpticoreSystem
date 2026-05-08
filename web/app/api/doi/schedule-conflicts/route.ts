@@ -4,6 +4,7 @@ import { fetchMyUserRowForAuth } from "@/lib/supabase/fetch-my-user-profile";
 import { buildConflictScanPayload } from "@/lib/scheduling/conflict-scan-server";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { ScheduleEntry } from "@/types/db";
+import { createSupabaseAdminClient, getSupabaseAdminConfigError } from "@/lib/supabase/admin";
 
 /**
  * Campus-wide conflict scan for DOI: every ScheduleEntry in the term is checked for overlapping
@@ -32,7 +33,24 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "periodId is required" }, { status: 400 });
   }
 
-  const { data: entries, error } = await supabase
+  /**
+   * RLS can hide rows outside the caller's scope and yield false "no conflicts".
+   * Require service role for the timetable read (same as POST /api/scheduling/scope-conflict-scan).
+   */
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    const detail = getSupabaseAdminConfigError();
+    return NextResponse.json(
+      {
+        error:
+          detail ??
+          "Conflict scan requires SUPABASE_SERVICE_ROLE_KEY (to avoid RLS hiding schedule rows outside your role scope).",
+      },
+      { status: 503 },
+    );
+  }
+
+  const { data: entries, error } = await admin
     .from("ScheduleEntry")
     .select(Q.scheduleEntry)
     .eq("academicPeriodId", periodId);
@@ -41,7 +59,7 @@ export async function GET(req: Request) {
   }
 
   const entryList = (entries ?? []) as ScheduleEntry[];
-  const { error: buildErr, payload } = await buildConflictScanPayload(supabase, entryList);
+  const { error: buildErr, payload } = await buildConflictScanPayload(admin, entryList);
   if (buildErr || !payload) {
     return NextResponse.json({ error: buildErr ?? "Conflict scan failed" }, { status: 400 });
   }

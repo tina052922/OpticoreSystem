@@ -14,6 +14,7 @@ import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import {
   buildConflictSummaryLines,
   enrichCampusConflictIssues,
+  type CampusConflictScanApiPayload,
   type EnrichedCampusIssue,
 } from "@/lib/scheduling/conflict-enrichment";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
@@ -693,66 +694,121 @@ export function GecCentralHubEvaluatorClient() {
    */
   function runConflictCheck() {
     if (!academicPeriodId) return;
-    const sparseBlocks = mergedEntries
-      .filter((e) => e.academicPeriodId === academicPeriodId)
-      .map((e) => scheduleEntryToSparseBlock(e))
-      .filter((b): b is NonNullable<typeof b> => b != null);
-    const scan = scanAllSparseScheduleConflicts(sparseBlocks);
-    setConflictIds(scan.conflictingEntryIds);
+    void (async () => {
+      const entryById = new Map(mergedEntries.map((e) => [e.id, e]));
+      const sparseBlocks = mergedEntries
+        .filter((e) => e.academicPeriodId === academicPeriodId)
+        .map((e) => scheduleEntryToSparseBlock(e))
+        .filter((b): b is NonNullable<typeof b> => b != null);
+      const localScan = scanAllSparseScheduleConflicts(sparseBlocks);
+      const localEnriched = enrichCampusConflictIssues(
+        localScan.issues,
+        entryById,
+        subjectById,
+        sectionById,
+        roomById,
+        userById,
+        programById,
+        collegeNameById,
+      );
 
-    const entryById = new Map(mergedEntries.map((e) => [e.id, e]));
-    const enriched = enrichCampusConflictIssues(
-      scan.issues,
-      entryById,
-      subjectById,
-      sectionById,
-      roomById,
-      userById,
-      programById,
-      collegeNameById,
-    );
-    setGecEnrichedConflicts(enriched);
-    setConflictSummary(enriched.length > 0 ? buildConflictSummaryLines(enriched, 14) : scan.issueSummaries);
+      let serverPayload: CampusConflictScanApiPayload | null = null;
+      try {
+        const res = await fetch("/api/scheduling/scope-conflict-scan", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            academicPeriodId,
+            mode: "doi_campus",
+            collegeId: null,
+            programId: null,
+          }),
+        });
+        const j = (await res.json().catch(() => null)) as (CampusConflictScanApiPayload & { error?: string }) | null;
+        if (!res.ok) {
+          if (res.status === 503) {
+            toast.info(
+              "Campus-wide scan limited",
+              j?.error ??
+                "Configure SUPABASE_SERVICE_ROLE_KEY for full campus conflict detection. Showing conflicts from this session and unsaved edits.",
+            );
+          } else {
+            toast.error("Conflict scan failed", j?.error ?? "Please try again.");
+          }
+        } else if (j) {
+          serverPayload = {
+            entryCount: j.entryCount ?? 0,
+            conflictingEntryIds: j.conflictingEntryIds ?? [],
+            issueSummaries: j.issueSummaries ?? [],
+            issues: j.issues ?? [],
+            enrichedIssues: j.enrichedIssues ?? [],
+          };
+        }
+      } catch (e: unknown) {
+        toast.error("Conflict scan failed", e instanceof Error ? e.message : "Please try again.");
+      }
 
-    const universe = mergedEntries.filter((e) => e.academicPeriodId === academicPeriodId).map(toBlock);
-    const gaMap: Record<string, GASuggestion[]> = {};
-    /** Search all rooms and all teaching staff campus-wide so suggestions can move across programs when needed. */
-    const roomIds = rooms.map((r) => r.id);
-    const instructorIds = users
-      .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
-      .map((u) => u.id);
-    for (const iss of enriched.slice(0, 3)) {
-      const entry = mergedEntries.find((e) => e.id === iss.rowA.entryId);
-      if (!entry) continue;
-      if (roomIds.length === 0 || instructorIds.length === 0) continue;
-      const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
-      const sug = runRuleBasedGeneticAlgorithm({
-        universe,
-        sectionId: entry.sectionId,
-        subjectId: entry.subjectId,
-        academicPeriodId: entry.academicPeriodId,
-        excludeEntryId: entry.id,
-        durationHours,
-        fixedInstructorId: entry.instructorId,
-        roomIds,
-        instructorIds,
-        generations: 16,
-        populationSize: 24,
-      });
-      gaMap[iss.key] = sug.slice(0, 5);
-    }
-    setGecGaByIssueKey(gaMap);
+      const mergedByKey = new Map<string, EnrichedCampusIssue>();
+      for (const iss of serverPayload?.enrichedIssues ?? []) mergedByKey.set(iss.key, iss);
+      for (const iss of localEnriched) {
+        if (!mergedByKey.has(iss.key)) mergedByKey.set(iss.key, iss);
+      }
+      const mergedEnriched = [...mergedByKey.values()];
 
-    if (scan.issueSummaries.length === 0) {
-      setSaveMsg("No conflicts detected — faculty, room, and section times are clear for this term.");
-      setGecEnrichedConflicts([]);
-      setGecGaByIssueKey({});
-      toast.success("No conflicts detected");
-    } else {
-      setSaveMsg(null);
-      const summaryCount = (enriched.length > 0 ? buildConflictSummaryLines(enriched, 14).length : scan.issueSummaries.length);
-      toast.info("Conflicts found – see details below", `${summaryCount} issue(s) detected.`);
-    }
+      const conflictSet = new Set<string>();
+      for (const id of serverPayload?.conflictingEntryIds ?? []) conflictSet.add(id);
+      for (const id of localScan.conflictingEntryIds) conflictSet.add(id);
+
+      setConflictIds(conflictSet);
+      setGecEnrichedConflicts(mergedEnriched);
+
+      const summaryLines =
+        mergedEnriched.length > 0
+          ? buildConflictSummaryLines(mergedEnriched, 14)
+          : [...new Set([...(serverPayload?.issueSummaries ?? []), ...localScan.issueSummaries])];
+      setConflictSummary(summaryLines);
+
+      const universe = mergedEntries.filter((e) => e.academicPeriodId === academicPeriodId).map(toBlock);
+      const gaMap: Record<string, GASuggestion[]> = {};
+      const roomIds = rooms.map((r) => r.id);
+      const instructorIds = users
+        .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+        .map((u) => u.id);
+      for (const iss of mergedEnriched.slice(0, 3)) {
+        const entry = mergedEntries.find((e) => e.id === iss.rowA.entryId);
+        if (!entry) continue;
+        if (roomIds.length === 0 || instructorIds.length === 0) continue;
+        const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
+        const sug = runRuleBasedGeneticAlgorithm({
+          universe,
+          sectionId: entry.sectionId,
+          subjectId: entry.subjectId,
+          academicPeriodId: entry.academicPeriodId,
+          excludeEntryId: entry.id,
+          durationHours,
+          fixedInstructorId: entry.instructorId,
+          roomIds,
+          instructorIds,
+          generations: 16,
+          populationSize: 24,
+        });
+        gaMap[iss.key] = sug.slice(0, 5);
+      }
+      setGecGaByIssueKey(gaMap);
+
+      if (conflictSet.size === 0 && mergedEnriched.length === 0) {
+        setSaveMsg("No conflicts detected — faculty, room, and section times are clear for this term.");
+        setGecEnrichedConflicts([]);
+        setGecGaByIssueKey({});
+        toast.success("No conflicts detected");
+      } else {
+        setSaveMsg(null);
+        const summaryCount =
+          mergedEnriched.length > 0 ? buildConflictSummaryLines(mergedEnriched, 14).length : summaryLines.length;
+        toast.info("Conflicts found – see details below", `${summaryCount} issue(s) detected.`);
+      }
+    })();
   }
 
   /** Campus Intelligence dashboard → Central Hub Evaluator with ?conflicts=1: auto-run the same scan + row highlights. */
