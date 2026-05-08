@@ -1,4 +1,9 @@
-import { detectConflictsForEntry } from "@/lib/scheduling/conflicts";
+import {
+  detectConflictsSparse,
+  hhmmForConflict,
+  scheduleEntryToSparseBlock,
+  type SparseScheduleBlock,
+} from "@/lib/scheduling/conflicts";
 import type { ConflictHit } from "@/lib/scheduling/types";
 import type { ScheduleBlock } from "@/lib/scheduling/types";
 import type { ScheduleEntry } from "@/types/db";
@@ -21,8 +26,11 @@ export function entryToBlock(e: ScheduleEntry): ScheduleBlock {
 }
 
 /**
- * Proposed move: same entry id at new day/time (and optionally a different room).
- * Universe = all other entries in the college for this period.
+ * Proposed move for one row vs the rest of the term.
+ *
+ * Uses **sparse** overlap rules ({@link detectConflictsSparse}) and normalized HH:MM — same semantics as the
+ * Evaluator grid / {@link scanAllSparseScheduleConflicts}. Pass **all campus rows** for the term (typically via
+ * service-role client) so RLS does not hide clashes.
  */
 export function checkConflictForProposedMove(
   original: ScheduleEntry,
@@ -33,20 +41,29 @@ export function checkConflictForProposedMove(
   /** When set, conflict scan uses this room on the candidate (e.g. admin-applied room alternative). */
   roomIdOverride?: string | null,
 ): { severity: ConflictSeverity; hits: ConflictHit[] } {
-  const base = entryToBlock(original);
-  const candidate: ScheduleBlock = {
-    ...base,
+  const effectiveRoom =
+    roomIdOverride != null && String(roomIdOverride).trim() !== ""
+      ? roomIdOverride
+      : original.roomId;
+  const candidate: SparseScheduleBlock = {
+    id: original.id,
+    academicPeriodId: original.academicPeriodId,
     day: requestedDay,
-    startTime: requestedStart,
-    endTime: requestedEnd,
-    ...(roomIdOverride != null && String(roomIdOverride).trim() !== "" ? { roomId: roomIdOverride } : {}),
+    startTime: hhmmForConflict(requestedStart),
+    endTime: hhmmForConflict(requestedEnd),
+    instructorId: original.instructorId?.trim() ? original.instructorId : null,
+    sectionId: original.sectionId?.trim() ? original.sectionId : null,
+    roomId: effectiveRoom?.trim() ? effectiveRoom : null,
   };
 
-  const others: ScheduleBlock[] = allEntriesInCollege
-    .filter((e) => e.id !== original.id)
-    .map(entryToBlock);
+  const others: SparseScheduleBlock[] = [];
+  for (const row of allEntriesInCollege) {
+    if (row.id === original.id) continue;
+    const b = scheduleEntryToSparseBlock(row);
+    if (b) others.push(b);
+  }
 
-  const hits = detectConflictsForEntry(candidate, others);
+  const hits = detectConflictsSparse(candidate, others, original.id);
   const severity = classifyConflictSeverity(hits);
   return { severity, hits };
 }
