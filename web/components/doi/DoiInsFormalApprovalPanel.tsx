@@ -216,12 +216,20 @@ export function DoiInsFormalApprovalPanel({
                 : "Remaining conflicts — review details before approving (room, faculty, and section overlaps)."}
             </p>
             <p className="text-gray-700 mt-1">Schedule rows scanned: {conflict.entryCount ?? 0}</p>
+            {!gridIntegration ? (
+              <p className="mt-2 text-sm text-gray-800">
+                <a href="/doi/evaluator" className="font-semibold text-[#780301] underline hover:text-[#ff990a]">
+                  Open Central Hub Evaluator
+                </a>{" "}
+                to apply time, day, or room fixes and manual edits.
+              </p>
+            ) : null}
             {!noProblemsAcrossCampus && conflict.enrichedIssues && conflict.enrichedIssues.length > 0 ? (
               <div className="mt-3">
                 <EnrichedConflictIssuesPanel
                   title="Campus-wide conflict detail"
                   issues={conflict.enrichedIssues}
-                  allowApply={false}
+                  allowApply={Boolean(gridIntegration?.applySchedulePatch)}
                   maxIssues={16}
                   renderIssueFooter={(iss) => (
                     <>

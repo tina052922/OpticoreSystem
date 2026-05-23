@@ -262,6 +262,18 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: updEntryErr.message }, { status: 400 });
   }
 
+  const hadPriorConflict =
+    row.conflictSeverity != null && row.conflictSeverity !== "none";
+  const priorDetails =
+    row.conflictDetails && typeof row.conflictDetails === "object" && !Array.isArray(row.conflictDetails)
+      ? (row.conflictDetails as Record<string, unknown>)
+      : {};
+  const mergedConflictDetails = {
+    ...priorDetails,
+    conflictsResolved: hadPriorConflict,
+    approvedAt: now,
+  };
+
   await supabase
     .from("ScheduleChangeRequest")
     .update({
@@ -269,6 +281,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       reviewedById: user.id,
       reviewedAt: now,
       adminSuggestion: adminSuggestion,
+      conflictDetails: mergedConflictDetails,
+      conflictSeverity: "none",
     })
     .eq("id", id);
 
@@ -347,6 +361,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     severity,
     hits: hitsEnriched,
     academicPeriodId: e.academicPeriodId,
+    conflictsResolved: hadPriorConflict,
     applied: { day: appliedDay, startTime: appliedStart, endTime: appliedEnd, roomId: appliedRoomId },
   });
 }

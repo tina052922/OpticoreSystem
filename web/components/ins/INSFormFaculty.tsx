@@ -211,11 +211,6 @@ export function INSFormFaculty({
         <div className="max-w-[1200px] mx-auto space-y-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
-            {instructorReadOnlyPortal ? (
-              <p className="text-gray-600 text-sm">Browse by faculty, section, or room for the term in the header.</p>
-            ) : (
-              <p className="text-gray-600 text-sm">Program by Teacher (5A). Use the header to pick the term.</p>
-            )}
           </div>
 
           {instructorReadOnlyPortal && live.academicPeriodId ? (

@@ -112,7 +112,6 @@ export function CiDashboard({
           <p className="text-sm font-medium text-gray-600 mb-1">Welcome, {welcomeName}</p>
         ) : null}
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Campus Intelligence Core</h2>
-        <p className="text-gray-600 text-sm">High-level view of today&apos;s academic activity and room usage.</p>
       </div>
 
       {conflictBanner && conflictBanner.conflictingRowCount > 0 ? (

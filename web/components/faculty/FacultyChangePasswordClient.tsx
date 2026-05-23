@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 /**
- * First-login flow: instructor must replace the emailed temporary password.
+ * First-login flow: instructor must replace the temporary password shown at registration.
  * Clears `must_change_password` in user_metadata after success.
  */
 export function FacultyChangePasswordClient() {
