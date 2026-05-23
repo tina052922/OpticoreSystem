@@ -12,6 +12,7 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { SEMESTER_FILTER_STORAGE_KEY, SEMESTER_FILTER_URL_PARAM } from "@/lib/semester-filter-storage";
+import { SYSTEM_CONFIG_RELOAD_EVENT, subscribeSystemConfigBroadcast } from "@/lib/system-configuration/system-config-reload";
 import type { AcademicPeriod } from "@/types/db";
 
 export type SemesterFilterContextValue = {
@@ -70,57 +71,77 @@ export function SemesterFilterProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  // Load catalog once
+  const reloadPeriods = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      setError("Supabase is not configured.");
+      setLoading(false);
+      setReady(true);
+      return;
+    }
+    const { data, error: e } = await supabase
+      .from("AcademicPeriod")
+      .select(Q.academicPeriod)
+      .order("startDate", { ascending: false });
+    if (e) {
+      setError(e.message);
+      setLoading(false);
+      setReady(true);
+      return;
+    }
+    const list = (data ?? []) as AcademicPeriod[];
+    setPeriods(list);
+
+    setSelectedPeriodIdState((prev) => {
+      const urlId = readUrlPeriodId();
+      const stored = readStoredPeriodId();
+      const fallback = defaultAcademicPeriodId(list);
+      if (prev && list.some((p) => p.id === prev)) return prev;
+      if (urlId && list.some((p) => p.id === urlId)) return urlId;
+      if (stored && list.some((p) => p.id === stored)) return stored;
+      return fallback;
+    });
+    setLoading(false);
+    setReady(true);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) {
-        if (!cancelled) {
-          setError("Supabase is not configured.");
-          setLoading(false);
-          setReady(true);
-        }
-        return;
-      }
-      const { data, error: e } = await supabase
-        .from("AcademicPeriod")
-        .select(Q.academicPeriod)
-        .order("startDate", { ascending: false });
-      if (cancelled) return;
-      if (e) {
-        setError(e.message);
-        setLoading(false);
-        setReady(true);
-        return;
-      }
-      const list = (data ?? []) as AcademicPeriod[];
-      setPeriods(list);
-
-      const urlId = readUrlPeriodId();
-      const stored = readStoredPeriodId();
-      const fallback = defaultAcademicPeriodId(list);
-      let pick = "";
-      if (urlId && list.some((p) => p.id === urlId)) pick = urlId;
-      else if (stored && list.some((p) => p.id === stored)) pick = stored;
-      else pick = fallback;
-
-      setSelectedPeriodIdState(pick);
-      try {
-        if (pick) localStorage.setItem(SEMESTER_FILTER_STORAGE_KEY, pick);
-      } catch {
-        /* ignore */
-      }
-      writeUrlPeriodId(pick);
-      setLoading(false);
-      setReady(true);
+      if (!cancelled) await reloadPeriods();
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadPeriods]);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel("semester-filter:academic-period")
+      .on("postgres_changes", { event: "*", schema: "public", table: "AcademicPeriod" }, () => {
+        void reloadPeriods();
+      })
+      .subscribe();
+
+    const onConfig = () => {
+      void reloadPeriods();
+    };
+    window.addEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onConfig);
+    const unsubBc = subscribeSystemConfigBroadcast((d) => {
+      if (d?.source === "academicPeriod") void reloadPeriods();
+    });
+
+    return () => {
+      void supabase.removeChannel(channel);
+      window.removeEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onConfig);
+      unsubBc();
+    };
+  }, [reloadPeriods]);
 
   const setSelectedPeriodId = useCallback((id: string) => {
     setSelectedPeriodIdState(id);

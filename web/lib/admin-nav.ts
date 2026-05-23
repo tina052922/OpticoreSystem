@@ -15,7 +15,8 @@ export type NavIconKey =
   | "CalendarPlus"
   | "KeyRound"
   | "History"
-  | "Megaphone";
+  | "Megaphone"
+  | "Settings";
 
 export type AdminNavItem = {
   label: string;
@@ -45,6 +46,7 @@ export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
   { label: "Faculty Profile", href: "/admin/college/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/college/subject-codes", icon: "Layers" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
+  { label: "System Configuration", href: "/admin/college/system-configuration", icon: "Settings" },
 ];
 
 /** CAS Admin */
@@ -92,4 +94,5 @@ export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
+  { label: "System Configuration", href: "/doi/system-configuration", icon: "Settings" },
 ];

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, WEEKDAYS } from "@/lib/scheduling/constants";
+import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { detectConflictsForEntry, scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import {
   buildConflictSummaryLines,
@@ -94,6 +95,9 @@ export function EvaluatorTimetablingPanel({
 }: EvaluatorTimetablingPanelProps) {
   const toast = useOpticoreToast();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
+  const systemConfig = useSystemConfigurationOptional();
+  const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
+  const maxFacultyHours = systemConfig?.defaultMaxFacultyHoursPerWeek;
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -649,8 +653,9 @@ export function EvaluatorTimetablingPanel({
       profileByUserId,
       effectiveCollegeId,
       (sid) => sectionToCollegeId(sid),
+      policyConstants,
     );
-  }, [mergedEntriesForPolicy, subjectById, userById, profileByUserId, effectiveCollegeId, sectionToCollegeId]);
+  }, [mergedEntriesForPolicy, subjectById, userById, profileByUserId, effectiveCollegeId, sectionToCollegeId, policyConstants]);
 
   const majorsForProgram = useMemo(() => {
     if (!programId) return [] as string[];
@@ -965,6 +970,7 @@ export function EvaluatorTimetablingPanel({
       fixedInstructorId: candidate.instructorId,
       roomIds,
       instructorIds,
+      maxFacultyHours,
       generations: 40,
       populationSize: 56,
     });
@@ -1294,6 +1300,7 @@ export function EvaluatorTimetablingPanel({
         fixedInstructorId: first.instructorId,
         roomIds,
         instructorIds,
+        maxFacultyHours,
         generations: 40,
         populationSize: 56,
       });

@@ -1,5 +1,6 @@
 import type { FacultyProfile, ScheduleEntry, Subject, User } from "@/types/db";
 import { FACULTY_POLICY_CONSTANTS } from "./constants";
+import type { ResolvedFacultyPolicyConstants } from "@/lib/system-configuration/scheduling-policy";
 import { designationTeachingCapHours } from "@/lib/faculty/designation-system";
 
 function parseTimeToMinutes(t: string): number {
@@ -95,8 +96,9 @@ function isPartTimeFacultyStatus(status: string | null | undefined): boolean {
  */
 export function instructorMaxWeeklyTeachingCapFromProfile(
   profile: Pick<FacultyProfile, "designation" | "status"> | null,
+  policyConstants: ResolvedFacultyPolicyConstants = FACULTY_POLICY_CONSTANTS as ResolvedFacultyPolicyConstants,
 ): number {
-  const C = FACULTY_POLICY_CONSTANTS;
+  const C = policyConstants;
   const partTime = isPartTimeFacultyStatus(profile?.status);
   if (partTime) return C.PARTTIME_MAX_WEEKLY_HOURS;
   const desCap = designationTeachingCapHours(profile?.designation ?? null);
@@ -107,9 +109,10 @@ export function instructorMaxWeeklyTeachingCapFromProfile(
 function collectTeachingLoadCapViolations(
   ctx: FacultyContext,
   weeklyTotal: number,
+  policyConstants: ResolvedFacultyPolicyConstants,
 ): FacultyPolicyViolation[] {
   const v: FacultyPolicyViolation[] = [];
-  const C = FACULTY_POLICY_CONSTANTS;
+  const C = policyConstants;
 
   const desCap = designationTeachingCapHours(ctx.designation);
   const partTime = isPartTimeFacultyStatus(ctx.status);
@@ -137,9 +140,14 @@ function collectTeachingLoadCapViolations(
 }
 
 /** Secondary checks (lab/lecture mix, resident reference) — informative only; do not force load justification. */
-function collectSecondaryPolicyViolations(weeklyTotal: number, weeklyLec: number, weeklyLab: number): FacultyPolicyViolation[] {
+function collectSecondaryPolicyViolations(
+  weeklyTotal: number,
+  weeklyLec: number,
+  weeklyLab: number,
+  policyConstants: ResolvedFacultyPolicyConstants,
+): FacultyPolicyViolation[] {
   const v: FacultyPolicyViolation[] = [];
-  const C = FACULTY_POLICY_CONSTANTS;
+  const C = policyConstants;
 
   if (weeklyLab > C.MAX_WEEKLY_LAB_CONTACT_HOURS + 1e-6) {
     v.push({
@@ -180,6 +188,7 @@ export function evaluateFacultyLoadsForCollege(
   profileByUserId: Map<string, FacultyProfile>,
   _collegeId: string,
   _sectionToCollegeId: (sectionId: string) => string | null,
+  policyConstants: ResolvedFacultyPolicyConstants = FACULTY_POLICY_CONSTANTS as ResolvedFacultyPolicyConstants,
 ): { rows: FacultyLoadRow[]; hasAnyViolation: boolean; hasTeachingLoadJustificationViolation: boolean } {
   const byInstructor = new Map<
     string,
@@ -204,9 +213,9 @@ export function evaluateFacultyLoadsForCollege(
   for (const [instructorId, hrs] of byInstructor) {
     const ctx = buildFacultyContext(instructorId, userById, profileByUserId);
     const desCap = designationTeachingCapHours(ctx.designation);
-    const effectiveTeachingCap = desCap ?? FACULTY_POLICY_CONSTANTS.STANDARD_WEEKLY_TEACHING_HOURS;
-    const teaching = collectTeachingLoadCapViolations(ctx, hrs.total);
-    const secondary = collectSecondaryPolicyViolations(hrs.total, hrs.lec, hrs.lab);
+    const effectiveTeachingCap = desCap ?? policyConstants.STANDARD_WEEKLY_TEACHING_HOURS;
+    const teaching = collectTeachingLoadCapViolations(ctx, hrs.total, policyConstants);
+    const secondary = collectSecondaryPolicyViolations(hrs.total, hrs.lec, hrs.lab, policyConstants);
     const violations = [...teaching, ...secondary];
     if (violations.length > 0) hasAnyViolation = true;
     if (teaching.length > 0) hasTeachingLoadJustificationViolation = true;

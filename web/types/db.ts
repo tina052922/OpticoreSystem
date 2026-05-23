@@ -1,3 +1,5 @@
+import type { SchedulingPolicyConfig } from "@/lib/system-configuration/scheduling-policy";
+
 export type UserRole =
   | "chairman_admin"
   | "college_admin"
@@ -43,6 +45,8 @@ export interface CampusInsSettings {
   campusDirectorSignatureImageUrl?: string | null;
   /** DOI: optional overrides for campus-wide INS lines (typically VPAA / approved). */
   insSignerDisplay?: CollegeInsSignerDisplay | null;
+  /** Campus-wide teaching load limits and scheduler defaults (System Configuration). */
+  schedulingPolicy?: SchedulingPolicyConfig | null;
   updatedAt: string;
 }
 

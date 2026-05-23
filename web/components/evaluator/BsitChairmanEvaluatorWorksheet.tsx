@@ -44,8 +44,9 @@ import {
 } from "@/lib/campus/campus-navigation-catalog";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
-import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
+import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
+import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { readEvaluatorBackupSnapshot, writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
@@ -310,6 +311,9 @@ export function BsitChairmanEvaluatorWorksheet({
   const toast = useOpticoreToast();
   const searchParams = useSearchParams();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
+  const systemConfig = useSystemConfigurationOptional();
+  const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
+  const maxFacultyHours = systemConfig?.defaultMaxFacultyHoursPerWeek;
   const [sections, setSections] = useState<Section[]>([]);
   const [programsCatalog, setProgramsCatalog] = useState<Pick<Program, "id" | "collegeId">[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -892,6 +896,7 @@ export function BsitChairmanEvaluatorWorksheet({
             fixedInstructorId: metaFromDb?.instructorId ?? undefined,
             roomIds,
             instructorIds,
+            maxFacultyHours,
             generations: 28,
             populationSize: 44,
           });
@@ -1007,6 +1012,7 @@ export function BsitChairmanEvaluatorWorksheet({
       profileByUserId,
       chairmanCollegeId,
       (sid) => sectionToCollegeId(sid),
+      policyConstants,
     );
   }, [
     mergedEntriesForCollegePolicy,
@@ -1016,6 +1022,7 @@ export function BsitChairmanEvaluatorWorksheet({
     userById,
     profileByUserId,
     sectionToCollegeId,
+    policyConstants,
   ]);
 
   useEffect(() => {
@@ -1070,6 +1077,7 @@ export function BsitChairmanEvaluatorWorksheet({
       profileByUserId,
       chairmanCollegeId,
       (sid) => sectionToCollegeId(sid),
+      policyConstants,
     );
     if (!polJustif.hasTeachingLoadJustificationViolation) {
       setJustificationMsg("No teaching load overage detected; a justification is not required.");
@@ -1166,6 +1174,7 @@ export function BsitChairmanEvaluatorWorksheet({
     userById,
     profileByUserId,
     sectionToCollegeId,
+    policyConstants,
   ],
 );
 
@@ -1225,6 +1234,7 @@ export function BsitChairmanEvaluatorWorksheet({
         profileByUserId,
         chairmanCollegeId,
         (sid) => sectionToCollegeId(sid),
+        policyConstants,
       );
       const hit = pol.rows.find(
         (x) => x.instructorId === candidate.instructorId && rowNeedsTeachingLoadJustification(x),
@@ -2349,7 +2359,7 @@ export function BsitChairmanEvaluatorWorksheet({
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 space-y-2">
           <div className="text-[14px] font-semibold text-amber-950">Justification (DOI / VPAA review)</div>
           <p className="text-[12px] text-amber-950/85 leading-relaxed">
-            Faculty load rules are exceeded for this draft ({FACULTY_POLICY_CONSTANTS.STANDARD_WEEKLY_TEACHING_HOURS}{" "}
+            Faculty load rules are exceeded for this draft ({policyConstants.STANDARD_WEEKLY_TEACHING_HOURS}{" "}
             hrs/wk reference). Enter a reason below; it will be available to DOI Admin for inspection and approval.
           </p>
           <textarea
