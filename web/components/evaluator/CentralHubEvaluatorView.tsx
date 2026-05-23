@@ -131,6 +131,24 @@ export function CentralHubEvaluatorView({
       cancelled = true;
     };
   }, [hubAccessMode]);
+
+  /** College Admin: open own college hub directly (college scope only — not campus-wide). */
+  useEffect(() => {
+    if (hubAccessMode !== "collegeAdmin" || collegeSlug || !myCollegeId || !collegeAdminProfileReady) return;
+    if (landingPanelForTabs === "hrs") return;
+    const slug = hubSlugForCollegeId(myCollegeId);
+    if (!slug) return;
+    router.replace(`${basePath}?college=${encodeURIComponent(slug)}&panel=timetabling`);
+  }, [
+    hubAccessMode,
+    collegeSlug,
+    myCollegeId,
+    collegeAdminProfileReady,
+    landingPanelForTabs,
+    router,
+    basePath,
+  ]);
+
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
@@ -270,10 +288,18 @@ export function CentralHubEvaluatorView({
       return;
     }
     setFacultyProfiles((fpRows ?? []) as FacultyProfile[]);
-    setEntries((sch ?? []) as ScheduleEntry[]);
+    const rawEntries = (sch ?? []) as ScheduleEntry[];
+    if (tileCollegeId && programIdsForScope && programIdsForScope.length > 0) {
+      const sectionIdsInScope = new Set(
+        ((sec ?? []) as Section[]).filter((s) => programIdsForScope!.includes(s.programId)).map((s) => s.id),
+      );
+      setEntries(rawEntries.filter((e) => sectionIdsInScope.has(e.sectionId)));
+    } else {
+      setEntries(rawEntries);
+    }
     setColleges((col ?? []) as College[]);
     if (!soft) setLoading(false);
-  }, [academicPeriodId]);
+  }, [academicPeriodId, collegeSlug, isCampusWide, hub?.collegeId]);
 
   useEffect(() => {
     void load();
@@ -949,27 +975,36 @@ export function CentralHubEvaluatorView({
               panel={landingPanelForTabs}
               collegeAdminLanding
             />
+            <p className="text-[13px] text-black/60 mb-4 text-center">
+              College scope: pick your college or request peer-college access from the hub.
+            </p>
             <div id="college-hub-tiles" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {CENTRAL_HUB_COLLEGES.slice(0, 4).map((c) => (
-                <Link
-                  key={c.slug}
-                  href={`${basePath}?college=${c.slug}`}
-                  className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
-                >
-                  {c.name}
-                </Link>
-              ))}
+              {CENTRAL_HUB_COLLEGES.filter((c) => !myCollegeId || c.collegeId === myCollegeId || !c.collegeId).map(
+                (c) => (
+                  <Link
+                    key={c.slug}
+                    href={`${basePath}?college=${c.slug}`}
+                    className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
+                  >
+                    {c.name}
+                    {myCollegeId && c.collegeId === myCollegeId ? (
+                      <span className="block text-[11px] font-medium opacity-90 mt-0.5">Your college</span>
+                    ) : null}
+                  </Link>
+                ),
+              )}
+              {myCollegeId
+                ? CENTRAL_HUB_COLLEGES.filter((c) => c.collegeId && c.collegeId !== myCollegeId).map((c) => (
+                    <Link
+                      key={c.slug}
+                      href={`${basePath}?college=${c.slug}`}
+                      className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-white border-2 border-[#ff990a] text-[#780301] font-bold text-[14px] text-center px-6 py-5 shadow-sm hover:bg-[#ff990a]/5 transition-colors"
+                    >
+                      {c.abbr} — peer access
+                    </Link>
+                  ))
+                : null}
             </div>
-            {CENTRAL_HUB_COLLEGES[4] ? (
-              <div className="flex justify-center mt-5">
-                <Link
-                  href={`${basePath}?college=${CENTRAL_HUB_COLLEGES[4]!.slug}`}
-                  className="flex items-center justify-center w-full sm:max-w-[calc(50%-10px)] min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
-                >
-                  {CENTRAL_HUB_COLLEGES[4]!.name}
-                </Link>
-              </div>
-            ) : null}
           </div>
         </div>
       );
@@ -1247,6 +1282,13 @@ export function CentralHubEvaluatorView({
             ) : null}
 
             {hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId ? (
+              <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50/80 px-4 py-2 text-[13px] text-sky-950">
+                <strong>College scope:</strong> schedules and departments below are limited to{" "}
+                {collegeRow?.name ?? hub?.name ?? "this college"}. Use department/section filters as needed.
+              </div>
+            ) : null}
+
+            {hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId ? (
               <div className="space-y-6 max-w-[1400px] mx-auto mb-6">
                 <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
                   <span>Department (program)</span>
@@ -1347,8 +1389,11 @@ export function CentralHubEvaluatorView({
                   onClick={() => runScopedConflictScan()}
                 >
                   <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
-                  {conflictScanBusy ? "Scanning…" : "Run conflict check"}
+                  {conflictScanBusy ? "Scanning…" : "Run conflict check (campus-wide)"}
                 </Button>
+                <span className="text-[11px] text-black/50 max-w-[220px] leading-snug">
+                  Scans all colleges for overlaps — unchanged by your hub scope filter.
+                </span>
                 <Button
                   type="button"
                   className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"

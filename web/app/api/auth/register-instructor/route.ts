@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient, getSupabaseAdminConfigError } from "@/lib/supabase/admin";
 import { generateInstructorTempPassword } from "@/lib/auth/instructor-registration";
+import {
+  facultyProfileRowFromRegistration,
+  type InstructorRegistrationProfileInput,
+} from "@/lib/auth/instructor-registration-profile";
 import { migrateInstructorPlaceholderToAuthUser } from "@/lib/server/instructor-placeholder-migrate";
 
-type Body = {
+type Body = InstructorRegistrationProfileInput & {
   fullName?: string;
   email?: string;
   employeeId?: string;
@@ -57,7 +61,28 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  if (!collegeId) {
+    return NextResponse.json({ error: "Please select your home college." }, { status: 400 });
+  }
 
+  const profileInput: InstructorRegistrationProfileInput = {
+    aka: body?.aka,
+    bsDegree: body?.bsDegree,
+    msDegree: body?.msDegree,
+    doctoralDegree: body?.doctoralDegree,
+    major1: body?.major1,
+    major2: body?.major2,
+    major3: body?.major3,
+    minor1: body?.minor1,
+    minor2: body?.minor2,
+    minor3: body?.minor3,
+    research: body?.research,
+    extension: body?.extension,
+    production: body?.production,
+    specialTraining: body?.specialTraining,
+    status: body?.status,
+    designation: body?.designation,
+  };
   if (collegeId) {
     const { data: col } = await admin.from("College").select("id").eq("id", collegeId).maybeSingle();
     if (!col) {
@@ -101,7 +126,10 @@ export async function POST(req: Request) {
           .from("User")
           .update({ email, name: fullName, collegeId: collegeId ?? placeholder.collegeId })
           .eq("id", placeholder.id);
-        await admin.from("FacultyProfile").update({ fullName }).eq("userId", placeholder.id);
+        await admin
+          .from("FacultyProfile")
+          .update(facultyProfileRowFromRegistration(placeholder.id, fullName, profileInput))
+          .eq("userId", placeholder.id);
         return NextResponse.json({
           ok: true,
           resumedIncompleteSetup: true,
@@ -148,6 +176,11 @@ export async function POST(req: Request) {
       await admin.auth.admin.deleteUser(uid);
       return NextResponse.json({ error: `Could not link your account to existing records: ${mig.error}` }, { status: 500 });
     }
+
+    await admin
+      .from("FacultyProfile")
+      .update(facultyProfileRowFromRegistration(uid, fullName, profileInput))
+      .eq("userId", uid);
 
     // Demo requirement: do not send email codes/passwords. Client will show OTP and force password change.
     const payload: Record<string, unknown> = {
@@ -198,8 +231,7 @@ export async function POST(req: Request) {
   }
 
   const { error: fpErr } = await admin.from("FacultyProfile").insert({
-    userId: uid,
-    fullName,
+    ...facultyProfileRowFromRegistration(uid, fullName, profileInput),
   });
 
   if (fpErr) {

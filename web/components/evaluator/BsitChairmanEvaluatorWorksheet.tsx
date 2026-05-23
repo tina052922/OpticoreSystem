@@ -54,6 +54,8 @@ import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { PolicyJustificationModal } from "@/components/evaluator/PolicyJustificationModal";
+import { EvaluatorGuidanceCards } from "@/components/evaluator/EvaluatorGuidanceCards";
+import { PolicyViolationFaq } from "@/components/evaluator/PolicyViolationFaq";
 import type { EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
 import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import {
@@ -1032,6 +1034,14 @@ export function BsitChairmanEvaluatorWorksheet({
   /** VPAA justification modal only when weekly teaching contact exceeds this instructor’s allowed load. */
   const showJustification = policyRows.hasTeachingLoadJustificationViolation;
 
+  const overloadedInstructorIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of policyRows.rows) {
+      if (rowNeedsTeachingLoadJustification(r)) ids.add(r.instructorId);
+    }
+    return ids;
+  }, [policyRows.rows]);
+
   /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
   const saveLoadJustificationForDoi = useCallback(
     async (rowsSnapshot?: PlotRow[]) => {
@@ -1840,6 +1850,10 @@ export function BsitChairmanEvaluatorWorksheet({
         lastPlottedSubjectCode={lastPlottedSubjectFlash}
       />
 
+      <EvaluatorGuidanceCards />
+
+      {showJustification ? <PolicyViolationFaq /> : null}
+
       {/* Plotting grid: actions above the scroll area (parity with GEC hub). */}
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10">
         <div className="px-4 py-3 border-b border-black/10 bg-black/[0.02] flex flex-col gap-3">
@@ -1869,7 +1883,7 @@ export function BsitChairmanEvaluatorWorksheet({
               onClick={() => void runCampusConflictCheck()}
             >
               <AlertTriangle className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
-              Run conflict check
+              Run conflict check (campus-wide)
             </Button>
             <Button
               type="button"
@@ -1948,8 +1962,8 @@ export function BsitChairmanEvaluatorWorksheet({
             </div>
           ) : null}
         </div>
-          <div className="max-h-[min(70vh,880px)] overflow-y-auto overflow-x-hidden min-h-0">
-          <table className="w-full table-fixed border-collapse">
+          <div className="max-h-[min(70vh,880px)] overflow-auto overflow-x-auto min-h-0 border border-black/15 rounded-lg">
+          <table className="w-full table-fixed border-collapse min-w-[1100px]">
             <colgroup>
               <col className="w-[4%]" />
               <col className="w-[6%]" />
@@ -2015,6 +2029,8 @@ export function BsitChairmanEvaluatorWorksheet({
                   const timeFmt = formatTimeRangeFromSlots(effectiveStart, dur);
                   const rowReadOnly = schedulePublished || Boolean(row.lockedByDoiAt);
                   const conflictHighlight = campusScanConflictIds.has(row.id);
+                  const policyHighlight =
+                    Boolean(row.instructorId) && overloadedInstructorIds.has(row.instructorId);
                   return (
                     <tr
                       key={row.id}
@@ -2022,9 +2038,11 @@ export function BsitChairmanEvaluatorWorksheet({
                       className={`text-[11px] ${
                         conflictHighlight
                           ? "bg-red-50/90 ring-2 ring-red-300/80"
-                          : i % 2 === 0
-                            ? "bg-white"
-                            : "bg-black/[0.02]"
+                          : policyHighlight
+                            ? "bg-red-50/70 ring-1 ring-red-400/70"
+                            : i % 2 === 0
+                              ? "bg-white"
+                              : "bg-black/[0.02]"
                       }`}
                     >
                       <td className="border border-black/10 px-2 py-1.5 font-semibold text-black/80">
@@ -2324,6 +2342,7 @@ export function BsitChairmanEvaluatorWorksheet({
         roomCodeById={roomCodeById}
         instructorDisplayById={instructorDisplayById}
         selectedSectionId={selectedSectionId}
+        insFormBasePath="/chairman/ins"
       />
 
       {showJustification ? (
@@ -2405,6 +2424,7 @@ function BsitWeekPreview({
   roomCodeById,
   instructorDisplayById,
   selectedSectionId,
+  insFormBasePath = "/chairman/ins",
 }: {
   rows: PlotRow[];
   programCodeForSummary: string;
@@ -2412,6 +2432,7 @@ function BsitWeekPreview({
   roomCodeById: Map<string, string>;
   instructorDisplayById: Map<string, string>;
   selectedSectionId: string;
+  insFormBasePath?: string;
 }) {
   const slots = BSIT_EVALUATOR_TIME_SLOTS;
   const filteredRows = useMemo(
@@ -2433,10 +2454,33 @@ function BsitWeekPreview({
     return m;
   }, [filteredRows, programCodeForSummary]);
 
+  const insSectionId =
+    selectedSectionId || filteredRows.find((r) => r.sectionId)?.sectionId || rows.find((r) => r.sectionId)?.sectionId || "";
+  const insPrintHref = insSectionId
+    ? `${insFormBasePath}?tab=section&sectionId=${encodeURIComponent(insSectionId)}&print=1`
+    : `${insFormBasePath}?tab=section`;
+
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
-      <div className="text-[15px] font-semibold text-black mb-1">Schedule preview (INS weekly grid)</div>
-      <p className="text-[12px] text-black/55 mb-4">Monday–Friday · 7:00 AM–5:00 PM · 1-hour slots · Plotted rows only</p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+        <div>
+          <div className="text-[15px] font-semibold text-black">Schedule preview (INS weekly grid)</div>
+          <p className="text-[12px] text-black/55 mt-1">Monday–Friday · 7:00 AM–5:00 PM · 1-hour slots · Plotted rows only</p>
+        </div>
+        <Button
+          type="button"
+          className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-9 text-xs shrink-0"
+          disabled={!insSectionId}
+          onClick={() => window.open(insPrintHref, "_blank", "noopener,noreferrer")}
+        >
+          Generate INS Form
+        </Button>
+      </div>
+      {!insSectionId ? (
+        <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+          Plot at least one row with a section to generate the printable INS Form 5B.
+        </p>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse border border-black text-[10px]">
           <thead>
