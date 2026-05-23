@@ -76,6 +76,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     requestedDay: string;
     requestedStartTime: string;
     requestedEndTime: string;
+    conflictSeverity: string | null;
     conflictDetails: unknown;
   };
 
