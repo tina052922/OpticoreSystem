@@ -16,7 +16,7 @@ export const Q = {
     "id,email,name,role,collegeId,employeeId,chairmanProgramId,signatureImageUrl",
   /** Includes employeeId — Evaluator plots by Employee ID (join key for instructor self-registration). */
   userChairmanScope: "id,email,name,role,collegeId,employeeId",
-  campusInsSettings: "id,campusDirectorSignatureImageUrl,insSignerDisplay,updatedAt",
+  campusInsSettings: "id,campusDirectorSignatureImageUrl,insSignerDisplay,schedulingPolicy,updatedAt",
   scheduleLoadJustification:
     "id,academicPeriodId,collegeId,authorUserId,authorName,authorEmail,facultyUserId,scheduleEntryId,justification,violationsSnapshot,createdAt,updatedAt,doiDecision,doiReviewedAt,doiReviewedById,doiReviewNote",
   /** Policy / evaluator loads (name + policy fields) */

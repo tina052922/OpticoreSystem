@@ -18,6 +18,7 @@ import {
   Menu,
   Scale,
   Send,
+  Settings,
   UserCircle,
   X,
 } from "lucide-react";
@@ -36,6 +37,7 @@ import type { AdminNavItem, NavIconKey } from "@/lib/admin-nav";
 import { isNavItemActive } from "@/lib/nav-active";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
+import { SystemConfigurationProvider } from "@/contexts/SystemConfigurationContext";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
 import { usePendingScheduleChangeRequestsCount } from "@/hooks/use-pending-schedule-change-requests-count";
@@ -57,6 +59,7 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   KeyRound,
   History,
   Megaphone,
+  Settings,
 };
 
 /** Sidebar link that shows a numeric badge (pending schedule change requests for College Admin). */
@@ -162,6 +165,7 @@ export function CampusIntelligenceShell({
   }
 
   return (
+    <SystemConfigurationProvider>
     <SemesterFilterProvider>
       <div className="flex min-h-screen flex-col bg-[var(--color-opticore-bg)] overflow-hidden">
       <header
@@ -354,5 +358,6 @@ export function CampusIntelligenceShell({
       </div>
       </div>
     </SemesterFilterProvider>
+    </SystemConfigurationProvider>
   );
 }
