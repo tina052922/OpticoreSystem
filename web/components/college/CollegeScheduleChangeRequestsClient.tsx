@@ -47,6 +47,7 @@ type Row = ScheduleChangeRequest & {
     hits?: ConflictHitRow[];
     suggestedMitigation?: Mitigation;
     alternativeSolutions?: AlternativeSolutionRow[];
+    conflictsResolved?: boolean;
   } | null;
 };
 
@@ -336,6 +337,12 @@ export function CollegeScheduleChangeRequestsClient() {
                               {r.status}
                             </span>
                             {r.conflictSeverity ? ` · conflicts: ${r.conflictSeverity}` : ""}
+                            {(r.status === "approved" || r.status === "approved_with_solution") &&
+                            r.conflictDetails?.conflictsResolved ? (
+                              <span className="ml-1 inline-flex rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-900">
+                                Conflicts resolved
+                              </span>
+                            ) : null}
                           </div>
                         </button>
                       </li>
