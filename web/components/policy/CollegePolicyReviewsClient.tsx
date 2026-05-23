@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ScheduleLoadJustification } from "@/types/db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { PolicyViolationFaq } from "@/components/evaluator/PolicyViolationFaq";
 
 export type CollegePolicyReviewRowVM = ScheduleLoadJustification & {
   collegeName: string;
@@ -99,15 +100,19 @@ export function CollegePolicyReviewsClient({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
-        No submissions yet. When a chairman saves a schedule that exceeds faculty load policy, the justification appears
-        here. You are notified when VPAA accepts or rejects a submission.
+      <div className="space-y-4">
+        <PolicyViolationFaq />
+        <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
+          No submissions yet. When a chairman saves a schedule that exceeds faculty load policy, the justification appears
+          here. You are notified when VPAA accepts or rejects a submission.
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <PolicyViolationFaq />
       <div className="flex flex-wrap items-center gap-2">
         {chip("pending", "Pending VPAA review", pendingRows.length)}
         {chip("all", "All submissions", rows.length)}

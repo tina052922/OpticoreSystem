@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ScheduleLoadJustification } from "@/types/db";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { PolicyViolationFaq } from "@/components/evaluator/PolicyViolationFaq";
 
 export type DoiPolicyReviewRowVM = ScheduleLoadJustification & {
   collegeName: string;
@@ -221,8 +222,11 @@ export function DoiPolicyReviewsClient({ rows: initialRows }: { rows: DoiPolicyR
 
   if (sorted.length === 0) {
     return (
-      <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
-        No submissions yet. When a chair submits a teaching-load explanation, it will appear here for review.
+      <div className="space-y-4">
+        <PolicyViolationFaq />
+        <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
+          No submissions yet. When a chair submits a teaching-load explanation, it will appear here for review.
+        </div>
       </div>
     );
   }
@@ -231,6 +235,7 @@ export function DoiPolicyReviewsClient({ rows: initialRows }: { rows: DoiPolicyR
 
   return (
     <div className="space-y-4">
+      <PolicyViolationFaq />
       <p className="text-sm text-black/60">
         <span className="font-semibold text-[#780301]">{pendingCount}</span>{" "}
         {pendingCount === 1 ? "submission needs" : "submissions need"} VPAA review (pending shown first).

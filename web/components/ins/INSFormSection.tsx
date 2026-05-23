@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, MoreHorizontal, Printer, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +37,10 @@ export type INSFormSectionProps = {
   /** Faculty portal: narrow catalog to sections this instructor teaches. */
   instructorPortalUserId?: string | null;
   hideInnerInsTabs?: boolean;
+  /** Deep link from evaluator schedule preview — pre-select section. */
+  initialSectionId?: string | null;
+  /** Open browser print dialog once the section view is ready. */
+  printOnLoad?: boolean;
 };
 
 const DEMO_SCHEDULE: Record<
@@ -67,6 +71,8 @@ export function INSFormSection({
   campusWide = false,
   instructorPortalUserId = null,
   hideInnerInsTabs = false,
+  initialSectionId = null,
+  printOnLoad = false,
 }: INSFormSectionProps) {
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
@@ -93,9 +99,22 @@ export function INSFormSection({
   const firstSectionId = catalog.sectionOptions[0]?.id ?? "";
 
   useEffect(() => {
+    const initial = initialSectionId?.trim();
+    if (initial && catalog.sectionOptions.some((s) => s.id === initial)) {
+      setSelectedSectionId(initial);
+      return;
+    }
     if (selectedSectionId) return;
     if (firstSectionId) setSelectedSectionId(firstSectionId);
-  }, [selectedSectionId, firstSectionId]);
+  }, [selectedSectionId, firstSectionId, initialSectionId, catalog.sectionOptions]);
+
+  const printOnLoadDoneRef = useRef(false);
+  useEffect(() => {
+    if (!printOnLoad || printOnLoadDoneRef.current || !selectedSectionId || catalog.loading) return;
+    printOnLoadDoneRef.current = true;
+    const t = window.setTimeout(() => window.print(), 600);
+    return () => window.clearTimeout(t);
+  }, [printOnLoad, selectedSectionId, catalog.loading]);
 
   const selectedSectionName =
     catalog.sectionOptions.find((x) => x.id === selectedSectionId)?.name ?? "Section";
