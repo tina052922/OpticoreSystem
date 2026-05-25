@@ -14,7 +14,9 @@ import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
 import type { PlotRow, RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
-import { emptyPlotRow } from "@/lib/evaluator/chairman-plot-row";
+import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
+import { formatLecLabDisplay } from "@/lib/evaluator/chairman-plot-leclab";
+import type { MajorOption } from "@/components/evaluator/ChairmanPlotScheduleModal";
 import type { InstructorPlotOption } from "@/lib/evaluator/instructor-employee-id";
 import type { Room, Section } from "@/types/db";
 
@@ -41,14 +43,6 @@ function rowTimeBounds(
   const startIdx = Math.min(row.startSlotIndex, maxS);
   if (startIdx < 0 || startIdx + dur > BSIT_EVALUATOR_TIME_SLOTS.length) return null;
   return { startIdx, dur };
-}
-
-function lecLabLabel(programCode: string, subjectCode: string): string {
-  const p = prospectusRowForProgram(programCode, subjectCode);
-  if (!p) return "—";
-  if (p.labUnits > 0 && p.lecUnits > 0) return "Lec+Lab";
-  if (p.labUnits > 0) return "Lab";
-  return "Lec";
 }
 
 function cellConflictClasses(
@@ -89,6 +83,7 @@ type ModalSession = {
 export type BsitChairmanInteractiveWeekGridProps = {
   rows: PlotRow[];
   programCodeForSummary: string;
+  majorOptions: MajorOption[];
   programSections: Section[];
   selectedSectionId: string;
   schedulePublished: boolean;
@@ -145,7 +140,7 @@ function PlotCellSummary({
       <div className="flex items-center justify-between gap-1">
         <span className="text-[9px] font-bold text-[#780301]">{programCodeForSummary}</span>
         {row.subjectCode ? (
-          <span className="text-[8px] font-semibold text-black/50">{lecLabLabel(programCodeForSummary, row.subjectCode)}</span>
+          <span className="text-[8px] font-semibold text-black/50">{formatLecLabDisplay(row.lecLabMode)}</span>
         ) : null}
       </div>
       {row.subjectCode ? (
@@ -172,6 +167,7 @@ function PlotCellSummary({
 export function BsitChairmanInteractiveWeekGrid({
   rows,
   programCodeForSummary,
+  majorOptions,
   programSections,
   selectedSectionId,
   schedulePublished,
@@ -245,7 +241,12 @@ export function BsitChairmanInteractiveWeekGrid({
       const pickedRoom = row.roomId ? roomById.get(row.roomId) : undefined;
       const buildingValue = roomBuildingByRowId[row.id] ?? (pickedRoom ? roomBuildingKey(pickedRoom) : "");
       setHighlightedCell(anchor);
-      setModal({ draft: { ...row }, buildingValue, isNew, anchor });
+      setModal({
+        draft: normalizePlotRow({ ...row }, programCodeForSummary),
+        buildingValue,
+        isNew,
+        anchor,
+      });
     },
     [schedulePublished, roomById, roomBuildingByRowId],
   );
@@ -253,12 +254,15 @@ export function BsitChairmanInteractiveWeekGrid({
   const openModalForEmptyCell = useCallback(
     (day: BsitEvaluatorWeekday, slotIdx: number) => {
       if (schedulePublished) return;
-      const draft: PlotRow = {
-        ...emptyPlotRow(),
-        day,
-        startSlotIndex: slotIdx,
-        sectionId: selectedSectionId || "",
-      };
+      const draft: PlotRow = normalizePlotRow(
+        {
+          ...emptyPlotRow(),
+          day,
+          startSlotIndex: slotIdx,
+          sectionId: selectedSectionId || "",
+        },
+        programCodeForSummary,
+      );
       setHighlightedCell({ day, slotIdx });
       setModal({ draft, buildingValue: "", isNew: true, anchor: { day, slotIdx } });
     },
@@ -466,6 +470,7 @@ export function BsitChairmanInteractiveWeekGrid({
         buildingValue={modal?.buildingValue ?? ""}
         onBuildingChange={(b) => setModal((m) => (m ? { ...m, buildingValue: b } : m))}
         programCodeForSummary={programCodeForSummary}
+        majorOptions={majorOptions}
         programSections={programSections}
         instructorPlotOptions={instructorPlotOptions}
         roomsForEvaluatorGrid={roomsForEvaluatorGrid}

@@ -8,16 +8,19 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
+import { scheduleDurationSlots, type BsitSemester } from "@/lib/chairman/bsit-prospectus";
+import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
+import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
-  normalizeProspectusCode,
-  scheduleDurationSlots,
-  type BsitSemester,
-} from "@/lib/chairman/bsit-prospectus";
-import {
-  prospectusRowForProgram,
-  prospectusSubjectsForProgramYearAndSemester,
-  prospectusSubjectsForProgramYearLevel,
-} from "@/lib/chairman/prospectus-registry";
+  formatLecLabDisplay,
+  getLecLabPair,
+  inferLecLabMode,
+  lecLabModesAvailable,
+  prospectusSubjectsForSectionPlot,
+  resolveSubjectCodeForLecLabMode,
+  subjectRowsForPlotDropdown,
+  type PlotLecLabMode,
+} from "@/lib/evaluator/chairman-plot-leclab";
 import { yearLevelFromSchedulingSectionName } from "@/lib/chairman/section-year-level";
 import { campusNavigationBuildingOptionLabel } from "@/lib/campus/campus-navigation-catalog";
 import {
@@ -47,13 +50,7 @@ function formatTimeRangeFromSlots(effectiveStart: number, dur: number): string {
   return `${start} – ${end}`;
 }
 
-function lecLabLabel(programCode: string, subjectCode: string): string {
-  const p = prospectusRowForProgram(programCode, subjectCode);
-  if (!p) return "—";
-  if (p.labUnits > 0 && p.lecUnits > 0) return "Lec + Lab";
-  if (p.labUnits > 0) return "Lab";
-  return "Lec";
-}
+export type MajorOption = { value: string; label: string };
 
 export type ChairmanPlotScheduleModalProps = {
   open: boolean;
@@ -63,6 +60,7 @@ export type ChairmanPlotScheduleModalProps = {
   buildingValue: string;
   onBuildingChange: (building: string) => void;
   programCodeForSummary: string;
+  majorOptions: MajorOption[];
   programSections: Section[];
   instructorPlotOptions: InstructorPlotOption[];
   roomsForEvaluatorGrid: Room[];
@@ -86,6 +84,7 @@ export function ChairmanPlotScheduleModal({
   buildingValue,
   onBuildingChange,
   programCodeForSummary,
+  majorOptions,
   programSections,
   instructorPlotOptions,
   roomsForEvaluatorGrid,
@@ -131,14 +130,46 @@ export function ChairmanPlotScheduleModal({
   const timeLine = pr ? formatTimeRangeFromSlots(effectiveStart, dur) : "Select subject for duration";
   const sectionName = draft.sectionId ? (sectionNameById.get(draft.sectionId) ?? "") : "";
   const yearLevel = sectionName ? yearLevelFromSchedulingSectionName(sectionName) : null;
-  const subjectOptions = useMemo(() => {
-    if (yearLevel == null) return [];
-    return termProspectusSemester != null
-      ? prospectusSubjectsForProgramYearAndSemester(programCodeForSummary, yearLevel, termProspectusSemester)
-      : prospectusSubjectsForProgramYearLevel(programCodeForSummary, yearLevel);
-  }, [yearLevel, termProspectusSemester, programCodeForSummary]);
+
+  const rawSubjectOptions = useMemo(
+    () =>
+      subjectRowsForPlotDropdown(
+        programCodeForSummary,
+        prospectusSubjectsForSectionPlot({
+          programCode: programCodeForSummary,
+          yearLevel,
+          termSemester: termProspectusSemester,
+        }),
+      ),
+    [programCodeForSummary, yearLevel, termProspectusSemester],
+  );
+
+  const { availableSubjects, alreadyScheduledSubjects } = useMemo(() => {
+    const plotted = draft.sectionId ? plottedCodesBySectionId.get(draft.sectionId) : undefined;
+    const available = rawSubjectOptions.filter(
+      (s) => !plotted || !plotted.has(normalizeProspectusCode(s.code)) || s.code === draft.subjectCode,
+    );
+    const already = rawSubjectOptions.filter(
+      (s) => plotted && plotted.has(normalizeProspectusCode(s.code)) && s.code !== draft.subjectCode,
+    );
+    return { availableSubjects: available, alreadyScheduledSubjects: already };
+  }, [rawSubjectOptions, draft.sectionId, draft.subjectCode, plottedCodesBySectionId]);
+
+  const lecLabModes = draft.subjectCode ? lecLabModesAvailable(programCodeForSummary, draft.subjectCode) : [];
+  const lecLabSelectable = lecLabModes.length > 1;
+
+  const subjectSelectValue = useMemo(() => {
+    if (!draft.subjectCode) return "";
+    const pair = getLecLabPair(programCodeForSummary, draft.subjectCode);
+    return pair.lecCode ?? draft.subjectCode;
+  }, [draft.subjectCode, programCodeForSummary]);
 
   const roomsInB = buildingValue ? roomsInBuildingSorted(roomsForEvaluatorGrid, buildingValue) : [];
+
+  const noSections = programSections.length === 0;
+  const noInstructors = instructorPlotOptions.length === 0;
+  const noBuildings = buildingLabelsForGrid.length === 0;
+  const noSubjectsForSection = Boolean(draft.sectionId) && rawSubjectOptions.length === 0;
 
   const hasConflict =
     conflictFlags.faculty === "Yes" || conflictFlags.room === "Yes" || conflictFlags.section === "Yes";
@@ -202,16 +233,64 @@ export function ChairmanPlotScheduleModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <span className={labelClass}>Major</span>
-              <p className="mt-1 min-h-10 flex items-center rounded-lg border border-black/10 bg-black/[0.03] px-3 text-sm font-semibold text-[#780301]">
-                {programCodeForSummary}
-              </p>
+              <label className={labelClass} htmlFor="plot-major">
+                Major
+              </label>
+              <select
+                id="plot-major"
+                className={`${fieldClass} mt-1`}
+                value={programCodeForSummary}
+                disabled={readOnly || majorOptions.length <= 1}
+                onChange={() => {
+                  /* Chairman scope is one program; dropdown documents the active major. */
+                }}
+              >
+                {majorOptions.length === 0 ? (
+                  <option value="">No program in scope</option>
+                ) : (
+                  majorOptions.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
             <div>
-              <span className={labelClass}>Lec / Lab</span>
-              <p className="mt-1 min-h-10 flex items-center rounded-lg border border-black/10 bg-black/[0.03] px-3 text-sm font-medium text-black/80">
-                {draft.subjectCode ? lecLabLabel(programCodeForSummary, draft.subjectCode) : "—"}
-              </p>
+              <label className={labelClass} htmlFor="plot-leclab">
+                Lec / Lab
+              </label>
+              <select
+                id="plot-leclab"
+                className={`${fieldClass} mt-1`}
+                value={draft.lecLabMode}
+                disabled={readOnly || !draft.subjectCode || !lecLabSelectable}
+                onChange={(e) => {
+                  const mode = e.target.value as PlotLecLabMode;
+                  const base = subjectSelectValue || draft.subjectCode;
+                  const subjectCode = resolveSubjectCodeForLecLabMode(programCodeForSummary, base, mode);
+                  const p = prospectusRowForProgram(programCodeForSummary, subjectCode);
+                  let startSlotIndex = draft.startSlotIndex;
+                  if (p) {
+                    const d = scheduleDurationSlots(p);
+                    const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
+                    if (startSlotIndex > maxS) startSlotIndex = maxS;
+                  }
+                  onDraftChange({ ...draft, lecLabMode: mode, subjectCode, startSlotIndex });
+                }}
+              >
+                {!draft.subjectCode ? (
+                  <option value="lec">Select subject first…</option>
+                ) : lecLabSelectable ? (
+                  lecLabModes.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {formatLecLabDisplay(mode)}
+                    </option>
+                  ))
+                ) : (
+                  <option value={draft.lecLabMode}>{formatLecLabDisplay(draft.lecLabMode)}</option>
+                )}
+              </select>
               {pr ? (
                 <p className="text-[10px] text-black/45 mt-0.5 tabular-nums">
                   {pr.lecUnits}u/{pr.lecHours}h lec · {pr.labUnits}u/{pr.labHours}h lab
@@ -228,7 +307,7 @@ export function ChairmanPlotScheduleModal({
               id="plot-section"
               className={`${fieldClass} mt-1`}
               value={draft.sectionId}
-              disabled={readOnly}
+              disabled={readOnly || noSections}
               onChange={(e) => {
                 const sectionId = e.target.value;
                 const name = programSections.find((s) => s.id === sectionId)?.name ?? "";
@@ -243,7 +322,7 @@ export function ChairmanPlotScheduleModal({
                 onDraftChange({ ...draft, sectionId, subjectCode });
               }}
             >
-              <option value="">Select section…</option>
+              <option value="">{noSections ? "No sections for this program" : "Select section…"}</option>
               {programSections.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -259,52 +338,57 @@ export function ChairmanPlotScheduleModal({
             <select
               id="plot-subject"
               className={`${fieldClass} mt-1`}
-              value={draft.subjectCode}
-              disabled={readOnly || !draft.sectionId || yearLevel == null}
+              value={subjectSelectValue}
+              disabled={readOnly || !draft.sectionId}
               onChange={(e) => {
-                const subjectCode = e.target.value;
-                const p = subjectCode ? prospectusRowForProgram(programCodeForSummary, subjectCode) : undefined;
+                const picked = e.target.value;
+                if (!picked) {
+                  onDraftChange({ ...draft, subjectCode: "", lecLabMode: "lec" });
+                  return;
+                }
+                const mode = inferLecLabMode(programCodeForSummary, picked);
+                const subjectCode = resolveSubjectCodeForLecLabMode(programCodeForSummary, picked, mode);
+                const p = prospectusRowForProgram(programCodeForSummary, subjectCode);
                 let startSlotIndex = draft.startSlotIndex;
                 if (p) {
                   const d = scheduleDurationSlots(p);
                   const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
                   if (startSlotIndex > maxS) startSlotIndex = maxS;
                 }
-                onDraftChange({ ...draft, subjectCode, startSlotIndex });
+                onDraftChange({ ...draft, subjectCode, lecLabMode: mode, startSlotIndex });
               }}
             >
-              <option value="">{!draft.sectionId ? "Select section first…" : "Select subject…"}</option>
-              {(() => {
-                const plotted = draft.sectionId ? plottedCodesBySectionId.get(draft.sectionId) : undefined;
-                const available = subjectOptions.filter(
-                  (s) => !plotted || !plotted.has(normalizeProspectusCode(s.code)) || s.code === draft.subjectCode,
-                );
-                const already = subjectOptions.filter(
-                  (s) => plotted && plotted.has(normalizeProspectusCode(s.code)) && s.code !== draft.subjectCode,
-                );
-                return (
-                  <>
-                    {available.length > 0 ? (
-                      <optgroup label="Available">
-                        {available.map((s) => (
-                          <option key={s.code} value={s.code}>
-                            {s.code} — {s.title}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {already.length > 0 ? (
-                      <optgroup label="Already scheduled">
-                        {already.map((s) => (
-                          <option key={s.code} value={s.code} disabled>
-                            ✓ {s.code} — {s.title}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                  </>
-                );
-              })()}
+              <option value="">
+                {!draft.sectionId
+                  ? "Select section first…"
+                  : noSubjectsForSection
+                    ? "No subjects for this section / term"
+                    : "Select subject…"}
+              </option>
+              {availableSubjects.length > 0 ? (
+                <optgroup label="Available">
+                  {availableSubjects.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.code} — {s.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {alreadyScheduledSubjects.length > 0 ? (
+                <optgroup label="Already scheduled">
+                  {alreadyScheduledSubjects.map((s) => (
+                    <option key={s.code} value={s.code} disabled>
+                      ✓ {s.code} — {s.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {draft.subjectCode &&
+              !availableSubjects.some((s) => normalizeProspectusCode(s.code) === normalizeProspectusCode(subjectSelectValue)) ? (
+                <option value={subjectSelectValue}>
+                  {draft.subjectCode} — {pr?.title ?? "Current selection"}
+                </option>
+              ) : null}
             </select>
           </div>
 
@@ -316,10 +400,10 @@ export function ChairmanPlotScheduleModal({
               id="plot-instructor"
               className={`${fieldClass} mt-1`}
               value={draft.instructorId}
-              disabled={readOnly}
+              disabled={readOnly || noInstructors}
               onChange={(e) => onDraftChange({ ...draft, instructorId: e.target.value })}
             >
-              <option value="">Select instructor…</option>
+              <option value="">{noInstructors ? "No instructors (set Employee ID in Faculty Profile)" : "Select instructor…"}</option>
               {instructorPlotOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>
                   {formatInstructorPlotOptionLabel(opt)}
@@ -337,7 +421,7 @@ export function ChairmanPlotScheduleModal({
                 id="plot-building"
                 className={`${fieldClass} mt-1`}
                 value={buildingValue}
-                disabled={readOnly}
+                disabled={readOnly || noBuildings}
                 onChange={(e) => {
                   const b = e.target.value;
                   onBuildingChange(b);
@@ -346,7 +430,7 @@ export function ChairmanPlotScheduleModal({
                   if (!keep) onDraftChange({ ...draft, roomId: "" });
                 }}
               >
-                <option value="">Select building…</option>
+                <option value="">{noBuildings ? "No rooms in catalog" : "Select building…"}</option>
                 {buildingLabelsForGrid.map((b) => (
                   <option key={b} value={b}>
                     {campusNavigationBuildingOptionLabel(b)}
