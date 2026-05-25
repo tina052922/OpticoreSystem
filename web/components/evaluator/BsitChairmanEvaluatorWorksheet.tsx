@@ -258,6 +258,11 @@ type BsitChairmanEvaluatorWorksheetProps = {
   chairmanProgramName?: string | null;
   /** Live load summary for the Evaluator &quot;Hrs-Units-Preps-Remarks&quot; tab. */
   onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
+  /** College Admin Central Hub: section filter lives in the parent shell. */
+  externalSectionId?: string;
+  hideSectionSelector?: boolean;
+  /** INS Form print target (default Program Chairman). */
+  insFormBasePath?: string;
 };
 
 function rowFullyPlotted(row: PlotRow, programCodeForSummary: string): boolean {
@@ -282,6 +287,9 @@ export function BsitChairmanEvaluatorWorksheet({
   chairmanProgramCode = null,
   chairmanProgramName = null,
   onPolicySnapshot,
+  externalSectionId,
+  hideSectionSelector = false,
+  insFormBasePath = "/chairman/ins",
 }: BsitChairmanEvaluatorWorksheetProps) {
   const toast = useOpticoreToast();
   const searchParams = useSearchParams();
@@ -321,7 +329,10 @@ export function BsitChairmanEvaluatorWorksheet({
   const [justificationText, setJustificationText] = useState("");
   const [justificationSaving, setJustificationSaving] = useState(false);
   const [justificationMsg, setJustificationMsg] = useState<string | null>(null);
-  const [selectedSectionId, setSelectedSectionId] = useState<string>("");
+  const [selectedSectionId, setSelectedSectionId] = useState<string>(externalSectionId ?? "");
+  useEffect(() => {
+    if (externalSectionId !== undefined) setSelectedSectionId(externalSectionId);
+  }, [externalSectionId]);
   /** Brief highlight in the prospectus summary when a new subject is plotted for the selected section. */
   const [lastPlottedSubjectFlash, setLastPlottedSubjectFlash] = useState<string | null>(null);
   const plottedSnapshotRef = useRef<string>("");
@@ -1868,22 +1879,24 @@ export function BsitChairmanEvaluatorWorksheet({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
-        <span>Section</span>
-        <select
-          className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
-          value={selectedSectionId}
-          disabled={schedulePublished}
-          onChange={(e) => setSelectedSectionId(e.target.value)}
-        >
-          <option value="">All sections</option>
-          {Array.from(sectionNameById.entries()).map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {hideSectionSelector ? null : (
+        <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
+          <span>Section</span>
+          <select
+            className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
+            value={selectedSectionId}
+            disabled={schedulePublished}
+            onChange={(e) => setSelectedSectionId(e.target.value)}
+          >
+            <option value="">All sections</option>
+            {Array.from(sectionNameById.entries()).map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <ChairmanProgramProspectusSummaryTable
         programCode={programCodeForSummary}
@@ -1919,7 +1932,7 @@ export function BsitChairmanEvaluatorWorksheet({
         onApplyPlot={applyPlotFromModal}
         onRemoveRow={removeRow}
         majorOptions={majorOptions}
-        insFormBasePath="/chairman/ins"
+        insFormBasePath={insFormBasePath}
         plottingActions={{
           onRunConflictCheck: () => void runCampusConflictCheck(),
           onSaveSchedule: () => {
