@@ -57,7 +57,10 @@ import {
   hasApprovedCrossCollegeEvaluatorAccess,
   pendingCrossCollegeEvaluatorRequest,
 } from "@/lib/evaluator-hub-access";
-import { BsitChairmanEvaluatorWorksheet } from "@/components/evaluator/BsitChairmanEvaluatorWorksheet";
+import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
+import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
+import { hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
+import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
@@ -465,25 +468,51 @@ export function CentralHubEvaluatorView({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [sections, programById, scopeCollegeId, programId]);
 
+  const currentPeriod = useMemo(
+    () => periods.find((p) => p.id === academicPeriodId) ?? null,
+    [periods, academicPeriodId],
+  );
+
+  const effectiveProgramCodeForSummary = useMemo(() => {
+    if (!scopeCollegeId) return "";
+    if (programId.trim()) {
+      return programs.find((p) => p.id === programId)?.code ?? "";
+    }
+    const withProspectus = programsInCollege.find((p) => hasProspectusForProgram(p.code));
+    return withProspectus?.code ?? programsInCollege[0]?.code ?? "";
+  }, [scopeCollegeId, programId, programs, programsInCollege]);
+
+  const effectiveProgramNameForSummary = useMemo(() => {
+    if (programId.trim()) {
+      return programs.find((p) => p.id === programId)?.name ?? null;
+    }
+    const code = effectiveProgramCodeForSummary;
+    return programsInCollege.find((p) => p.code === code)?.name ?? null;
+  }, [programId, programs, programsInCollege, effectiveProgramCodeForSummary]);
+
+  const summaryYearLevelFilter = useMemo(() => {
+    if (!sectionFilterId.trim()) return undefined;
+    const sec = sectionById.get(sectionFilterId);
+    if (!sec) return undefined;
+    return sec.yearLevel;
+  }, [sectionFilterId, sectionById]);
+
+  const plottedSubjectCodesForHub = useMemo(() => {
+    const set = new Set<string>();
+    if (!sectionFilterId.trim() || !academicPeriodId) return set;
+    for (const e of entries) {
+      if (e.academicPeriodId !== academicPeriodId || e.sectionId !== sectionFilterId) continue;
+      const sub = subjectById.get(e.subjectId);
+      if (sub?.code) set.add(normalizeProspectusCode(sub.code));
+    }
+    return set;
+  }, [entries, academicPeriodId, sectionFilterId, subjectById]);
+
   useEffect(() => {
     if (!sectionFilterId) return;
     const ok = sectionsInDepartmentScope.some((s) => s.id === sectionFilterId);
     if (!ok) setSectionFilterId("");
   }, [programId, sectionFilterId, sectionsInDepartmentScope]);
-
-  /** College Admin: INS weekly grid plotter (same shell as Program Chairman Evaluator). */
-  const collegeAdminPlotProgram = useMemo(
-    () => (programId.trim() ? programs.find((p) => p.id === programId) : undefined),
-    [programId, programs],
-  );
-
-  const collegeAdminPlottingActive = Boolean(
-    hubAccessMode === "collegeAdmin" &&
-      !isCampusWide &&
-      scopeCollegeId &&
-      programId.trim() &&
-      sectionFilterId.trim(),
-  );
 
   const universe = useMemo(() => entries.map(toBlock), [entries]);
 
@@ -1279,19 +1308,11 @@ export function CentralHubEvaluatorView({
                 <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
                   <span>Section</span>
                   <select
-                    className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                    className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
                     value={sectionFilterId}
-                    disabled={!programId.trim()}
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      setSectionFilterId(id);
-                      if (id) {
-                        const sec = sectionById.get(id);
-                        if (sec) setProgramId(sec.programId);
-                      }
-                    }}
+                    onChange={(e) => setSectionFilterId(e.target.value)}
                   >
-                    <option value="">Select section for plotting workspace…</option>
+                    <option value="">All sections</option>
                     {sectionsInDepartmentScope.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
@@ -1299,27 +1320,15 @@ export function CentralHubEvaluatorView({
                     ))}
                   </select>
                 </div>
-                {!programId.trim() ? (
-                  <p className="text-[12px] text-black/60">
-                    Select a <strong>department (program)</strong> first, then choose a section to open the INS weekly
-                    grid.
-                  </p>
-                ) : null}
-                {collegeAdminPlottingActive && collegeAdminPlotProgram ? (
-                  <BsitChairmanEvaluatorWorksheet
-                    chairmanCollegeId={scopeCollegeId}
-                    chairmanProgramId={collegeAdminPlotProgram.id}
-                    chairmanProgramCode={collegeAdminPlotProgram.code}
-                    chairmanProgramName={collegeAdminPlotProgram.name}
-                    externalSectionId={sectionFilterId}
-                    hideSectionSelector
-                    insFormBasePath="/admin/college/ins"
+                {effectiveProgramCodeForSummary.trim() && hasProspectusForProgram(effectiveProgramCodeForSummary) ? (
+                  <ChairmanProgramProspectusSummaryTable
+                    programCode={effectiveProgramCodeForSummary}
+                    programName={effectiveProgramNameForSummary}
+                    selectedSectionId={sectionFilterId}
+                    yearLevelFilter={summaryYearLevelFilter}
+                    filterSemester={prospectusSemesterFromAcademicPeriod(currentPeriod)}
+                    plottedSubjectCodes={plottedSubjectCodesForHub}
                   />
-                ) : programId.trim() && !sectionFilterId.trim() ? (
-                  <p className="text-[12px] text-black/60 rounded-lg border border-black/10 bg-white px-4 py-3">
-                    Pick a <strong>section</strong> to open the INS weekly grid (click cells to plot). The college-wide
-                    overview table appears below until a section is selected.
-                  </p>
                 ) : null}
               </div>
             ) : (
@@ -1370,37 +1379,33 @@ export function CentralHubEvaluatorView({
               </div>
             )}
 
-            {!collegeAdminPlottingActive ? (
-              <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
-                <div className="flex flex-wrap gap-3 items-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 px-5 border-amber-300 font-bold text-red-900 bg-white"
-                    disabled={loading || conflictScanBusy || !academicPeriodId}
-                    onClick={() => runScopedConflictScan()}
-                  >
-                    <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
-                    {conflictScanBusy ? "Scanning…" : "Run conflict check (campus-wide)"}
-                  </Button>
-                  <span className="text-[11px] text-black/50 max-w-[220px] leading-snug">
-                    Scans all colleges for overlaps — unchanged by your hub scope filter.
-                  </span>
-                  {hubAccessMode !== "collegeAdmin" ? (
-                    <Button
-                      type="button"
-                      className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
-                      disabled={altBusy || loading}
-                      onClick={() => runAlternativeSuggestion()}
-                    >
-                      {altBusy ? "Working…" : "Alternative Suggestion"}
-                    </Button>
-                  ) : null}
-                </div>
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
+              <div className="flex flex-wrap gap-3 items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 px-5 border-amber-300 font-bold text-red-900 bg-white"
+                  disabled={loading || conflictScanBusy || !academicPeriodId}
+                  onClick={() => runScopedConflictScan()}
+                >
+                  <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
+                  {conflictScanBusy ? "Scanning…" : "Run conflict check (campus-wide)"}
+                </Button>
+                <span className="text-[11px] text-black/50 max-w-[220px] leading-snug">
+                  Scans all colleges for overlaps — unchanged by your hub scope filter.
+                </span>
+                <Button
+                  type="button"
+                  className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
+                  disabled={altBusy || loading}
+                  onClick={() => runAlternativeSuggestion()}
+                >
+                  {altBusy ? "Working…" : "Alternative Suggestion"}
+                </Button>
               </div>
-            ) : null}
+            </div>
 
-            {!collegeAdminPlottingActive && campusConflictScan && campusConflictScan.enrichedIssues.length > 0 ? (
+            {campusConflictScan && campusConflictScan.enrichedIssues.length > 0 ? (
               <div className="mb-4">
                 <EnrichedConflictIssuesPanel
                   title="Conflicts & suggested fixes (scoped hub scan)"
@@ -1421,8 +1426,7 @@ export function CentralHubEvaluatorView({
                   }
                 />
               </div>
-            ) : !collegeAdminPlottingActive &&
-              campusConflictScan &&
+            ) : campusConflictScan &&
               campusConflictScan.conflictingEntryIds.length === 0 &&
               campusConflictScan.entryCount > 0 ? (
               <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-lg px-4 py-3 mb-4">
@@ -1430,7 +1434,7 @@ export function CentralHubEvaluatorView({
               </p>
             ) : null}
 
-            {collegeAdminPlottingActive ? null : loadError ? (
+            {loadError ? (
               <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>
             ) : loading ? (
               <div className="text-sm text-black/60 py-8">Loading schedule…</div>
@@ -1448,7 +1452,6 @@ export function CentralHubEvaluatorView({
               </>
             )}
 
-            {collegeAdminPlottingActive ? null : (
             <DoiScheduleEntryQuickEditDialog
                 open={Boolean(editEntryId)}
                 onOpenChange={(o) => {
@@ -1498,9 +1501,8 @@ export function CentralHubEvaluatorView({
                   }
                 }}
               />
-            )}
 
-            {collegeAdminPlottingActive ? null : altOpen ? (
+            {altOpen ? (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
                 <div
                   className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl border border-black/10"
