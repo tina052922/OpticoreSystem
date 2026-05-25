@@ -1,7 +1,15 @@
 "use client";
 
-import { useMemo, useCallback, useState, useEffect, type Dispatch, type SetStateAction } from "react";
-import { Plus } from "lucide-react";
+import {
+  useMemo,
+  useCallback,
+  useState,
+  useEffect,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
+import { AlertTriangle, Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChairmanPlotScheduleModal } from "@/components/evaluator/ChairmanPlotScheduleModal";
 import {
@@ -80,6 +88,17 @@ type ModalSession = {
   anchor: CellAnchor;
 };
 
+/** Primary schedule actions grouped in the grid header (UI only — handlers live in the worksheet). */
+export type ChairmanGridPlottingActions = {
+  onRunConflictCheck: () => void;
+  onSaveSchedule: () => void;
+  runConflictCheckDisabled?: boolean;
+  saveScheduleDisabled?: boolean;
+  saveScheduleBusy?: boolean;
+  connOnline?: boolean;
+  lastDraftSaveAt?: Date | null;
+};
+
 export type BsitChairmanInteractiveWeekGridProps = {
   rows: PlotRow[];
   programCodeForSummary: string;
@@ -103,6 +122,10 @@ export type BsitChairmanInteractiveWeekGridProps = {
   onApplyPlot: (draft: PlotRow, buildingValue: string) => void;
   onRemoveRow: (id: string) => void;
   insFormBasePath?: string;
+  /** Run conflict check + Save schedule beside Generate INS Form. */
+  plottingActions?: ChairmanGridPlottingActions;
+  /** Messages, conflict detail, etc. below the scrollable grid (same card). */
+  gridFooter?: ReactNode;
 };
 
 function PlotCellSummary({
@@ -187,6 +210,8 @@ export function BsitChairmanInteractiveWeekGrid({
   onApplyPlot,
   onRemoveRow,
   insFormBasePath = "/chairman/ins",
+  plottingActions,
+  gridFooter,
 }: BsitChairmanInteractiveWeekGridProps) {
   const slots = BSIT_EVALUATOR_TIME_SLOTS;
   const buildingLabelsForGrid = useMemo(
@@ -298,20 +323,62 @@ export function BsitChairmanInteractiveWeekGrid({
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold text-black">Schedule preview (INS weekly grid)</div>
           <p className="text-[12px] text-black/55 mt-1">
             Monday–Friday · 7:00 AM–5:00 PM · Click a cell to plot or edit · Merged cells follow subject duration
           </p>
         </div>
-        <Button
-          type="button"
-          className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-9 text-xs shrink-0"
-          disabled={!insSectionId}
-          onClick={() => window.open(insPrintHref, "_blank", "noopener,noreferrer")}
-        >
-          Generate INS Form
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {plottingActions ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-amber-300 bg-white font-bold shrink-0 h-9 text-xs"
+                disabled={plottingActions.runConflictCheckDisabled}
+                onClick={() => plottingActions.onRunConflictCheck()}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
+                Run conflict check (campus-wide)
+              </Button>
+              <Button
+                type="button"
+                className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold shrink-0 h-9 text-xs disabled:opacity-50"
+                disabled={plottingActions.saveScheduleDisabled || plottingActions.saveScheduleBusy}
+                onClick={() => plottingActions.onSaveSchedule()}
+              >
+                <Save className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
+                {plottingActions.saveScheduleBusy ? "Saving…" : "Save schedule"}
+              </Button>
+            </>
+          ) : null}
+          <Button
+            type="button"
+            className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-9 text-xs shrink-0"
+            disabled={!insSectionId}
+            onClick={() => window.open(insPrintHref, "_blank", "noopener,noreferrer")}
+          >
+            Generate INS Form
+          </Button>
+          {plottingActions ? (
+            <div className="flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[140px]">
+              <span className="font-semibold text-black/70">
+                {plottingActions.connOnline !== false ? (
+                  <span className="text-emerald-800">Online</span>
+                ) : (
+                  <span className="text-red-800">Offline</span>
+                )}
+                <span className="text-black/45 font-normal"> · Autosave ~9s</span>
+              </span>
+              <span className="tabular-nums">
+                {plottingActions.lastDraftSaveAt
+                  ? `Last draft sync: ${plottingActions.lastDraftSaveAt.toLocaleTimeString()}`
+                  : "Last draft sync: —"}
+              </span>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {!insSectionId ? (
@@ -461,6 +528,8 @@ export function BsitChairmanInteractiveWeekGrid({
           </tbody>
         </table>
       </div>
+
+      {gridFooter ? <div className="mt-4 space-y-3 border-t border-black/10 pt-4">{gridFooter}</div> : null}
 
       <ChairmanPlotScheduleModal
         open={modal != null}

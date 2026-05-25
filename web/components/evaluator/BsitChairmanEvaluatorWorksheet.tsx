@@ -18,7 +18,6 @@ import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { slotDurationHours } from "@/lib/scheduling/time";
 import type { FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
-import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   normalizeScheduleEntryDayForEvaluator,
@@ -56,7 +55,6 @@ import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { PolicyJustificationModal } from "@/components/evaluator/PolicyJustificationModal";
-import { EvaluatorGuidanceCards } from "@/components/evaluator/EvaluatorGuidanceCards";
 import { PolicyViolationFaq } from "@/components/evaluator/PolicyViolationFaq";
 import type { EnrichedCampusIssue } from "@/lib/scheduling/conflict-enrichment";
 import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
@@ -1897,111 +1895,7 @@ export function BsitChairmanEvaluatorWorksheet({
         lastPlottedSubjectCode={lastPlottedSubjectFlash}
       />
 
-      <EvaluatorGuidanceCards />
-
       {showJustification ? <PolicyViolationFaq /> : null}
-
-      {/* Plotting grid: actions above the scroll area (parity with GEC hub). */}
-      <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10">
-        <div className="px-4 py-3 border-b border-black/10 bg-black/[0.02] flex flex-col gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-black/90">Schedule plotting (INS weekly grid)</h3>
-            {instructorPlotOptions.length === 0 ? (
-              <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                No instructors with an Employee ID in this college. Add faculty in <strong>Faculty Profile</strong> and
-                set their Employee ID before plotting.
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="border-amber-300 bg-white font-bold shrink-0 h-9 text-xs"
-              disabled={schedulePublished || !academicPeriodId || mergedBlocksForCampusScan.length === 0}
-              onClick={() => void runCampusConflictCheck()}
-            >
-              <AlertTriangle className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
-              Run conflict check (campus-wide)
-            </Button>
-            <Button
-              type="button"
-              className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold shrink-0 h-9 text-xs disabled:opacity-50"
-              disabled={schedulePublished || saveScheduleBusy}
-              onClick={() => {
-                if (autosaveTimerRef.current) {
-                  clearTimeout(autosaveTimerRef.current);
-                  autosaveTimerRef.current = null;
-                }
-                if (policyRows.hasTeachingLoadJustificationViolation) {
-                  const t = justificationText.trim();
-                  if (t.length < 12) {
-                    setPolicyModalReason("save");
-                    setPolicyJustificationModalOpen(true);
-                    return;
-                  }
-                  void saveLoadJustificationForDoi().then((ok) => {
-                    if (!ok) return;
-                    return performSchedulePersist("manual");
-                  });
-                  return;
-                }
-                void performSchedulePersist("manual");
-              }}
-            >
-              <Save className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
-              {saveScheduleBusy ? "Saving…" : "Save schedule"}
-            </Button>
-            <div className="ml-auto flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[200px]">
-              <span className="font-semibold text-black/70">
-                {connOnline ? (
-                  <span className="text-emerald-800">Online</span>
-                ) : (
-                  <span className="text-red-800">Offline</span>
-                )}
-                <span className="text-black/45 font-normal"> · Autosave ~9s</span>
-              </span>
-              <span className="tabular-nums">
-                {lastDraftSaveAt
-                  ? `Last draft sync: ${lastDraftSaveAt.toLocaleTimeString()}`
-                  : "Last draft sync: —"}
-              </span>
-            </div>
-          </div>
-          {saveScheduleMsg ? (
-            <p className="text-[12px] text-black/70 border border-black/10 rounded-lg px-3 py-2 bg-emerald-50/80">
-              {saveScheduleMsg}
-            </p>
-          ) : null}
-          {conflictDetailLoading ? (
-            <p className="text-[11px] text-black/50">Loading conflict detail…</p>
-          ) : chairmanEnrichedIssues.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-[11px] text-black/55">
-                Detail below uses saved database rows; unsaved rows in this worksheet may add overlaps not listed.
-              </p>
-              <EnrichedConflictIssuesPanel
-                issues={chairmanEnrichedIssues}
-                allowApply={!schedulePublished}
-                suggestionsByIssueKey={chairmanGaByIssueKey}
-                busyIssueKey={busyChairmanApplyKey}
-                onApplySuggestion={(k, s) => void applyChairmanConflictSuggestion(k, s)}
-                formatSuggestionLabel={(sug) =>
-                  formatGaSuggestionShortLabel(sug, {
-                    roomCode: roomById.get(sug.roomId)?.code ?? sug.roomId,
-                    instructorDisplay: formatUserInstructorLabel(
-                      userById.get(sug.instructorId),
-                      facultyProfileByUserId.get(sug.instructorId),
-                    ),
-                  })
-                }
-                title="Conflicts & suggested fixes"
-                maxIssues={12}
-              />
-            </div>
-          ) : null}
-        </div>
-      </div>
 
       <BsitChairmanInteractiveWeekGrid
         rows={rows}
@@ -2026,6 +1920,77 @@ export function BsitChairmanEvaluatorWorksheet({
         onRemoveRow={removeRow}
         majorOptions={majorOptions}
         insFormBasePath="/chairman/ins"
+        plottingActions={{
+          onRunConflictCheck: () => void runCampusConflictCheck(),
+          onSaveSchedule: () => {
+            if (autosaveTimerRef.current) {
+              clearTimeout(autosaveTimerRef.current);
+              autosaveTimerRef.current = null;
+            }
+            if (policyRows.hasTeachingLoadJustificationViolation) {
+              const t = justificationText.trim();
+              if (t.length < 12) {
+                setPolicyModalReason("save");
+                setPolicyJustificationModalOpen(true);
+                return;
+              }
+              void saveLoadJustificationForDoi().then((ok) => {
+                if (!ok) return;
+                return performSchedulePersist("manual");
+              });
+              return;
+            }
+            void performSchedulePersist("manual");
+          },
+          runConflictCheckDisabled:
+            schedulePublished || !academicPeriodId || mergedBlocksForCampusScan.length === 0,
+          saveScheduleDisabled: schedulePublished,
+          saveScheduleBusy,
+          connOnline,
+          lastDraftSaveAt,
+        }}
+        gridFooter={
+          <>
+            {instructorPlotOptions.length === 0 ? (
+              <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                No instructors with an Employee ID in this college. Add faculty in <strong>Faculty Profile</strong> and
+                set their Employee ID before plotting.
+              </p>
+            ) : null}
+            {saveScheduleMsg ? (
+              <p className="text-[12px] text-black/70 border border-black/10 rounded-lg px-3 py-2 bg-emerald-50/80">
+                {saveScheduleMsg}
+              </p>
+            ) : null}
+            {conflictDetailLoading ? (
+              <p className="text-[11px] text-black/50">Loading conflict detail…</p>
+            ) : chairmanEnrichedIssues.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-black/55">
+                  Detail below uses saved database rows; unsaved rows in this worksheet may add overlaps not listed.
+                </p>
+                <EnrichedConflictIssuesPanel
+                  issues={chairmanEnrichedIssues}
+                  allowApply={!schedulePublished}
+                  suggestionsByIssueKey={chairmanGaByIssueKey}
+                  busyIssueKey={busyChairmanApplyKey}
+                  onApplySuggestion={(k, s) => void applyChairmanConflictSuggestion(k, s)}
+                  formatSuggestionLabel={(sug) =>
+                    formatGaSuggestionShortLabel(sug, {
+                      roomCode: roomById.get(sug.roomId)?.code ?? sug.roomId,
+                      instructorDisplay: formatUserInstructorLabel(
+                        userById.get(sug.instructorId),
+                        facultyProfileByUserId.get(sug.instructorId),
+                      ),
+                    })
+                  }
+                  title="Conflicts & suggested fixes"
+                  maxIssues={12}
+                />
+              </div>
+            ) : null}
+          </>
+        }
       />
 
       
