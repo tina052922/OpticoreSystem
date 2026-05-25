@@ -18,6 +18,8 @@ export function newPlotRowId(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `row-${Date.now()}-${Math.random()}`;
 }
 
+export type RowConflictFlags = { faculty: string; room: string; section: string };
+
 export function emptyPlotRow(): PlotRow {
   return {
     id: newPlotRowId(),
