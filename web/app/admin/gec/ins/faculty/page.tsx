@@ -1,5 +1,6 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { INSFormFaculty } from "@/components/ins/INSFormFaculty";
+import { LOAD_GENERATOR_NAV_LABEL } from "@/lib/admin-nav";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
 
 /** Same INS Form 5A behavior as College Admin when the profile has a college; otherwise campus-wide. */
@@ -10,7 +11,7 @@ export default async function GecInsFacultyPage() {
   return (
     <div>
       <ChairmanPageHeader
-        title="INS Form"
+        title={LOAD_GENERATOR_NAV_LABEL}
         subtitle={
           campusWide
             ? "Schedule view — campus-wide; use Faculty / Section / Room tabs to group schedules like College Admin."

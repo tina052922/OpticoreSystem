@@ -84,19 +84,11 @@ const selectClass =
 const daySelectClass =
   "w-full min-h-10 min-w-0 rounded-md border border-black/25 bg-white px-2 text-[11px] font-medium text-neutral-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
-export type PlotRow = {
-  id: string;
-  sectionId: string;
-  students: number | "";
-  subjectCode: string;
-  instructorId: string;
-  roomId: string;
-  /** First 1-hour slot index (0 = 7:00–8:00 AM … 9 = 4:00–5:00 PM). */
-  startSlotIndex: number;
-  day: BsitEvaluatorWeekday;
-  /** When set, VPAA published this row; RLS blocks chairman writes — do not upsert/delete. */
-  lockedByDoiAt?: string | null;
-};
+import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
+import { emptyPlotRow } from "@/lib/evaluator/chairman-plot-row";
+import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
+
+export type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 
 /** Plot fields merged from the grid; must win over stale DB refetches until save (see `locallyEditedRowIdsRef`). */
 const LOCAL_EDIT_PLOT_KEYS: (keyof PlotRow)[] = [
@@ -109,23 +101,6 @@ const LOCAL_EDIT_PLOT_KEYS: (keyof PlotRow)[] = [
   "students",
 ];
 
-function newRowId(): string {
-  return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `row-${Date.now()}-${Math.random()}`;
-}
-
-function emptyRow(): PlotRow {
-  return {
-    id: newRowId(),
-    sectionId: "",
-    students: "",
-    subjectCode: "",
-    instructorId: "",
-    roomId: "",
-    startSlotIndex: 0,
-    day: "Monday",
-    lockedByDoiAt: null,
-  };
-}
 
 /** Build a Subject-shaped object for faculty policy evaluation from the active program prospectus. */
 function subjectFromProspectus(code: string, programId: string, programCodeForSummary: string): Subject | undefined {
@@ -340,6 +315,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const [connOnline, setConnOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
   const [lastDraftSaveAt, setLastDraftSaveAt] = useState<Date | null>(null);
   const [addRowBusy, setAddRowBusy] = useState(false);
+  /** Dedupe real-time conflict toasts per row + conflict signature. */
+  const lastConflictToastRef = useRef<Map<string, string>>(new Map());
 
   const [rows, setRows] = useState<PlotRow[]>([]);
   const [justificationText, setJustificationText] = useState("");
@@ -624,16 +601,6 @@ export function BsitChairmanEvaluatorWorksheet({
    * Evaluator grid behavior: when the user selects a section, show only that section's rows.
    * This prevents "carry-over" confusion where previously plotted rows from other sections remain visible.
    */
-  const visibleRows = useMemo(() => {
-    return selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : rows;
-  }, [rows, selectedSectionId]);
-
-  const roomCodeById = useMemo(() => {
-    const m = new Map<string, string>();
-    roomsForEvaluatorGrid.forEach((r) => m.set(r.id, r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code));
-    return m;
-  }, [roomsForEvaluatorGrid]);
-
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
     for (const p of getProspectusSubjectsForProgram(programCodeForSummary)) {
@@ -746,6 +713,24 @@ export function BsitChairmanEvaluatorWorksheet({
       };
     },
     [academicPeriodId, sparseCampusUniverse, programCodeForSummary],
+  );
+
+  const notifyRealtimeConflicts = useCallback(
+    (row: PlotRow) => {
+      const cf = conflictForRow(row);
+      const sig = `${cf.faculty}|${cf.room}|${cf.section}`;
+      const prev = lastConflictToastRef.current.get(row.id);
+      if (prev === sig) return;
+      lastConflictToastRef.current.set(row.id, sig);
+      const hits: string[] = [];
+      if (cf.faculty === "Yes") hits.push("Faculty conflict");
+      if (cf.room === "Yes") hits.push("Room conflict");
+      if (cf.section === "Yes") hits.push("Section conflict");
+      if (hits.length === 0) return;
+      const sectionLabel = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "section") : "schedule";
+      toast.error(hits.join(" · "), `Overlapping assignment detected for ${sectionLabel}. Adjust day, time, room, or instructor.`);
+    },
+    [conflictForRow, sectionNameById, toast],
   );
 
   const runCampusConflictCheck = useCallback(async () => {
@@ -1194,13 +1179,16 @@ export function BsitChairmanEvaluatorWorksheet({
     if (LOCAL_EDIT_PLOT_KEYS.some((k) => patch[k] !== undefined)) {
       locallyEditedRowIdsRef.current.add(id);
     }
-    setRows((prev) =>
-      prev.map((r) => {
+    setRows((prev) => {
+      const next = prev.map((r) => {
         if (r.id !== id) return r;
         if (r.lockedByDoiAt) return r;
         return computePatchedPlotRow(r, patch);
-      }),
-    );
+      });
+      const updated = next.find((r) => r.id === id);
+      if (updated) window.setTimeout(() => notifyRealtimeConflicts(updated), 0);
+      return next;
+    });
   }
 
   /**
@@ -1249,13 +1237,30 @@ export function BsitChairmanEvaluatorWorksheet({
     updateRow(id, patch);
   }
 
+  const plotAtSlot = useCallback(
+    (day: BsitEvaluatorWeekday, startSlotIndex: number) => {
+      if (schedulePublished) return;
+      const base = emptyPlotRow();
+      const next: PlotRow = {
+        ...base,
+        day,
+        startSlotIndex,
+        sectionId: selectedSectionId || base.sectionId,
+      };
+      locallyEditedRowIdsRef.current.add(next.id);
+      setRows((prev) => [...prev, next]);
+      toast.info("New plot", `Plotting on ${day} at ${BSIT_EVALUATOR_TIME_SLOTS[startSlotIndex]?.label ?? "selected time"}.`);
+    },
+    [schedulePublished, selectedSectionId, toast],
+  );
+
   function addRow() {
     if (addRowBusy) return;
     setAddRowBusy(true);
     toast.info("Adding schedule…");
     setRows((prev) => {
       if (prev.some((r) => Boolean(r.lockedByDoiAt))) return prev;
-      const base = emptyRow();
+      const base = emptyPlotRow();
       /** UX: if the user selected a section filter, prefill it for new rows. */
       const next = selectedSectionId ? { ...base, sectionId: selectedSectionId } : base;
       return [...prev, next];
@@ -1868,7 +1873,7 @@ export function BsitChairmanEvaluatorWorksheet({
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10">
         <div className="px-4 py-3 border-b border-black/10 bg-black/[0.02] flex flex-col gap-3">
           <div>
-            <h3 className="text-sm font-bold text-black/90">Evaluator plotting grid</h3>
+            <h3 className="text-sm font-bold text-black/90">Schedule plotting (INS weekly grid)</h3>
             {instructorPlotOptions.length === 0 ? (
               <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 No instructors with an Employee ID in this college. Add faculty in <strong>Faculty Profile</strong> and
@@ -1972,388 +1977,34 @@ export function BsitChairmanEvaluatorWorksheet({
             </div>
           ) : null}
         </div>
-          <div className="max-h-[min(70vh,880px)] overflow-auto overflow-x-auto min-h-0 border border-black/15 rounded-lg">
-          <table className="w-full table-fixed border-collapse min-w-[1100px]">
-            <colgroup>
-              <col className="w-[4%]" />
-              <col className="w-[6%]" />
-              <col className="w-[4%]" />
-              <col className="w-[13%]" />
-              <col className="w-[4%]" />
-              <col className="w-[4%]" />
-              <col className="w-[13%]" />
-              <col className="w-[12%]" />
-              <col className="w-[14%]" />
-              <col className="w-[6%]" />
-              <col className="w-[5%]" />
-              <col className="w-[5%]" />
-              <col className="w-[5%]" />
-              <col className="w-[5%]" />
-            </colgroup>
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-[#ff990a] text-white text-[11px]">
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Major</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Section</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Students</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Subject code</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Lec</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Lab</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Instructor</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Building / Room</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Time</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Day</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Faculty conflict</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Room conflict</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold">Section conflict</th>
-                <th className="border border-black/10 px-2 py-2.5 text-left font-bold w-14"> </th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.length === 0 ? (
-                <tr>
-                  <td colSpan={14} className="px-4 py-10 text-center text-[13px] text-black/50">
-                    {selectedSectionId
-                      ? "No schedule rows for this section yet. Click “Add schedule row” to start plotting."
-                      : "No rows yet. Click “Add schedule row” to plot sections (Mon–Fri, 7:00 AM–5:00 PM)."}
-                  </td>
-                </tr>
-              ) : (
-                visibleRows.map((row, i) => {
-                  const pr = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
-                  const dur = pr ? scheduleDurationSlots(pr) : 1;
-                  const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
-                  const effectiveStart = Math.min(row.startSlotIndex, maxStart);
-                  const sectionName = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "";
-                  const yearLevel = sectionName ? yearLevelFromSchedulingSectionName(sectionName) : null;
-                  const subjectOptions =
-                    yearLevel == null
-                      ? []
-                      : termProspectusSemester != null
-                        ? prospectusSubjectsForProgramYearAndSemester(
-                            programCodeForSummary,
-                            yearLevel,
-                            termProspectusSemester,
-                          )
-                        : prospectusSubjectsForProgramYearLevel(programCodeForSummary, yearLevel);
-                  const cf = conflictForRow(row);
-                  const timeFmt = formatTimeRangeFromSlots(effectiveStart, dur);
-                  const rowReadOnly = schedulePublished || Boolean(row.lockedByDoiAt);
-                  const conflictHighlight = campusScanConflictIds.has(row.id);
-                  const policyHighlight =
-                    Boolean(row.instructorId) && overloadedInstructorIds.has(row.instructorId);
-                  return (
-                    <tr
-                      key={row.id}
-                      id={`chairman-eval-row-${row.id}`}
-                      className={`text-[11px] ${
-                        conflictHighlight
-                          ? "bg-red-50/90 ring-2 ring-red-300/80"
-                          : policyHighlight
-                            ? "bg-red-50/70 ring-1 ring-red-400/70"
-                            : i % 2 === 0
-                              ? "bg-white"
-                              : "bg-black/[0.02]"
-                      }`}
-                    >
-                      <td className="border border-black/10 px-2 py-1.5 font-semibold text-black/80">
-                        {programCodeForSummary}
-                      </td>
-                      <td className="border border-black/10 px-1 py-1">
-                        <select
-                          className={selectClass}
-                          value={row.sectionId}
-                          disabled={rowReadOnly}
-                          onChange={(e) => {
-                            const sectionId = e.target.value;
-                            const name = programSections.find((s) => s.id === sectionId)?.name ?? "";
-                            const yl = yearLevelFromSchedulingSectionName(name);
-                            let subjectCode = row.subjectCode;
-                            if (subjectCode && yl != null) {
-                              const s = prospectusRowForProgram(programCodeForSummary, subjectCode);
-                              const sem = termProspectusSemester;
-                              if (!s || s.yearLevel !== yl) subjectCode = "";
-                              else if (sem != null && s.semester !== sem) subjectCode = "";
-                            }
-                            commitRowPatch(row.id, { sectionId, subjectCode });
-                          }}
-                        >
-                          <option value="">Select…</option>
-                          {programSections.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="border border-black/10 px-1 py-1 w-20">
-                        <input
-                          type="number"
-                          min={0}
-                          className={`${selectClass} tabular-nums`}
-                          disabled={rowReadOnly}
-                          value={row.students === "" ? "" : row.students}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            updateRow(row.id, { students: v === "" ? "" : Math.max(0, parseInt(v, 10) || 0) });
-                          }}
-                          placeholder="0"
-                        />
-                      </td>
-                      <td className="border border-black/10 px-1 py-1 min-w-0 align-top">
-                        <select
-                          className={selectClass}
-                          value={row.subjectCode}
-                          disabled={rowReadOnly || !row.sectionId || yearLevel == null}
-                          onChange={(e) => {
-                            const subjectCode = e.target.value;
-                            const p = subjectCode ? prospectusRowForProgram(programCodeForSummary, subjectCode) : undefined;
-                            let startSlotIndex = row.startSlotIndex;
-                            if (p) {
-                              const d = scheduleDurationSlots(p);
-                              const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
-                              if (startSlotIndex > maxS) startSlotIndex = maxS;
-                            }
-                            commitRowPatch(row.id, { subjectCode, startSlotIndex });
-                          }}
-                        >
-                          <option value="">{!row.sectionId ? "Select section first…" : "Select…"}</option>
-                          {(() => {
-                            const plotted = row.sectionId ? plottedCodesBySectionId.get(row.sectionId) : undefined;
-                            const available = subjectOptions.filter(
-                              (s) => !plotted || !plotted.has(normalizeProspectusCode(s.code)) || s.code === row.subjectCode,
-                            );
-                            const already = subjectOptions.filter(
-                              (s) => plotted && plotted.has(normalizeProspectusCode(s.code)) && s.code !== row.subjectCode,
-                            );
-                            return (
-                              <>
-                                {available.length > 0 ? (
-                                  <optgroup label="Available">
-                                    {available.map((s) => (
-                                      <option key={s.code} value={s.code}>
-                                        {s.code} — {s.title}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                ) : null}
-                                {already.length > 0 ? (
-                                  <optgroup label="Already scheduled (read-only)">
-                                    {already.map((s) => (
-                                      <option key={s.code} value={s.code} disabled>
-                                        ✓ {s.code} — {s.title}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                ) : null}
-                              </>
-                            );
-                          })()}
-                        </select>
-                      </td>
-                      <td className="border border-black/10 px-2 py-1.5 tabular-nums text-black/80">
-                        {pr ? `${pr.lecUnits}u / ${pr.lecHours}h` : "—"}
-                      </td>
-                      <td className="border border-black/10 px-2 py-1.5 tabular-nums text-black/80">
-                        {pr ? `${pr.labUnits}u / ${pr.labHours}h` : "—"}
-                      </td>
-                      <td className="border border-black/10 px-1 py-1 min-w-0 align-top">
-                        <select
-                          className={selectClass}
-                          value={row.instructorId}
-                          disabled={rowReadOnly}
-                          onChange={(e) => commitRowPatch(row.id, { instructorId: e.target.value })}
-                          aria-label="Instructor"
-                        >
-                          <option value="">Select instructor…</option>
-                          {instructorPlotOptions.map((opt) => (
-                            <option key={opt.id} value={opt.id}>
-                              {formatInstructorPlotOptionLabel(opt)}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="border border-black/10 px-1 py-1 align-top">
-                        {(() => {
-                          const pickedRoom = row.roomId ? roomById.get(row.roomId) : undefined;
-                          const inferredBuilding = pickedRoom ? roomBuildingKey(pickedRoom) : "";
-                          const buildingValue = roomBuildingByRowId[row.id] ?? inferredBuilding;
-                          const roomsInB = buildingValue
-                            ? roomsInBuildingSorted(roomsForEvaluatorGrid, buildingValue)
-                            : [];
-                          return (
-                            <div className="flex min-w-0 flex-col gap-1">
-                              <select
-                                className={selectClass}
-                                value={buildingValue}
-                                disabled={rowReadOnly}
-                                aria-label="Building"
-                                onChange={(e) => {
-                                  const b = e.target.value;
-                                  setRoomBuildingByRowId((prev) => {
-                                    const next = { ...prev };
-                                    if (!b) delete next[row.id];
-                                    else next[row.id] = b;
-                                    return next;
-                                  });
-                                  if (!b) {
-                                    commitRowPatch(row.id, { roomId: "" });
-                                    return;
-                                  }
-                                  const keep =
-                                    row.roomId &&
-                                    roomsForEvaluatorGrid.some(
-                                      (r) => r.id === row.roomId && roomBuildingKey(r) === b,
-                                    );
-                                  if (!keep) commitRowPatch(row.id, { roomId: "" });
-                                }}
-                              >
-                                <option value="">Building…</option>
-                                {buildingLabelsForGrid.map((b) => (
-                                  <option key={b} value={b}>
-                                    {campusNavigationBuildingOptionLabel(b)}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                className={selectClass}
-                                value={row.roomId}
-                                disabled={rowReadOnly || !buildingValue}
-                                aria-label="Room"
-                                onChange={(e) => {
-                                  const id = e.target.value;
-                                  const r = roomsForEvaluatorGrid.find((x) => x.id === id);
-                                  setRoomBuildingByRowId((prev) => ({
-                                    ...prev,
-                                    [row.id]: r ? roomBuildingKey(r) : prev[row.id] ?? "",
-                                  }));
-                                  commitRowPatch(row.id, { roomId: id });
-                                }}
-                              >
-                                <option value="">{buildingValue ? "Room…" : "Select building first"}</option>
-                                {roomsInB.map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {formatRoomOptionLabel(r)}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="border border-black/10 px-1 py-1 min-w-0 align-top">
-                        <div className="flex min-w-0 flex-col gap-1">
-                          {pr ? (
-                            <>
-                              <div className="text-[11px] font-bold text-black leading-snug">{timeFmt.fullLine}</div>
-                              {dur > 1 ? (
-                                <ul className="text-[9px] text-black/75 border border-black/15 rounded-md bg-black/[0.02] px-1.5 py-1 space-y-0.5 tabular-nums">
-                                  {timeFmt.slotLines.map((line, li) => (
-                                    <li key={`${effectiveStart}-${li}-${line}`}>{line}</li>
-                                  ))}
-                                </ul>
-                              ) : null}
-                              <span className="text-[9px] font-medium text-black/60">First hour (start)</span>
-                            </>
-                          ) : null}
-                          <select
-                            className={selectClass}
-                            aria-label="First hour start slot"
-                            value={effectiveStart}
-                            disabled={rowReadOnly}
-                            onChange={(e) => commitRowPatch(row.id, { startSlotIndex: parseInt(e.target.value, 10) })}
-                          >
-                            {BSIT_EVALUATOR_TIME_SLOTS.slice(0, maxStart + 1).map((t, idx) => (
-                              <option key={`${idx}-${t.label}`} value={idx}>
-                                {t.label}
-                              </option>
-                            ))}
-                          </select>
-                          {pr ? (
-                            <span className="text-[9px] text-black/45">
-                              {dur}h from prospectus · {pr.labUnits > 0 ? `${pr.labUnits} lab unit(s)` : "lecture"}
-                            </span>
-                          ) : (
-                            <span className="text-[9px] text-black/45">Select subject for duration</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="border border-black/10 px-1 py-1">
-                        <select
-                          className={daySelectClass}
-                          value={row.day}
-                          disabled={rowReadOnly}
-                          onChange={(e) => commitRowPatch(row.id, { day: e.target.value as BsitEvaluatorWeekday })}
-                        >
-                          {BSIT_EVALUATOR_WEEKDAYS.map((d) => (
-                            <option key={d} value={d}>
-                              {d}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td
-                        className={`border border-black/10 px-2 py-1.5 font-semibold ${
-                          cf.faculty === "Yes"
-                            ? "text-red-700 bg-red-50"
-                            : cf.faculty === "—"
-                              ? "text-black/45 bg-black/[0.02]"
-                              : "text-green-800"
-                        }`}
-                      >
-                        {cf.faculty}
-                      </td>
-                      <td
-                        className={`border border-black/10 px-2 py-1.5 font-semibold ${
-                          cf.room === "Yes"
-                            ? "text-red-700 bg-red-50"
-                            : cf.room === "—"
-                              ? "text-black/45 bg-black/[0.02]"
-                              : "text-green-800"
-                        }`}
-                      >
-                        {cf.room}
-                      </td>
-                      <td
-                        className={`border border-black/10 px-2 py-1.5 font-semibold ${
-                          cf.section === "Yes"
-                            ? "text-red-700 bg-red-50"
-                            : cf.section === "—"
-                              ? "text-black/45 bg-black/[0.02]"
-                              : "text-green-800"
-                        }`}
-                      >
-                        {cf.section}
-                      </td>
-                      <td className="border border-black/10 px-1 py-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-[10px]"
-                          disabled={rowReadOnly}
-                          onClick={() => removeRow(row.id)}
-                        >
-                          Remove
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
 
-      <BsitWeekPreview
+      <BsitChairmanInteractiveWeekGrid
         rows={rows}
         programCodeForSummary={programCodeForSummary}
-        sectionNameById={sectionNameById}
-        roomCodeById={roomCodeById}
-        instructorDisplayById={instructorDisplayById}
+        programSections={programSections}
         selectedSectionId={selectedSectionId}
+        schedulePublished={schedulePublished}
+        instructorPlotOptions={instructorPlotOptions}
+        roomsForEvaluatorGrid={roomsForEvaluatorGrid}
+        roomById={roomById}
+        roomBuildingByRowId={roomBuildingByRowId}
+        setRoomBuildingByRowId={setRoomBuildingByRowId}
+        sectionNameById={sectionNameById}
+        instructorDisplayById={instructorDisplayById}
+        termProspectusSemester={termProspectusSemester}
+        plottedCodesBySectionId={plottedCodesBySectionId}
+        conflictForRow={conflictForRow}
+        campusScanConflictIds={campusScanConflictIds}
+        overloadedInstructorIds={overloadedInstructorIds}
+        commitRowPatch={commitRowPatch}
+        updateRow={updateRow}
+        removeRow={removeRow}
+        onPlotAtSlot={plotAtSlot}
         insFormBasePath="/chairman/ins"
       />
+
+      
 
       {showJustification ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 space-y-2">
@@ -2423,143 +2074,6 @@ export function BsitChairmanEvaluatorWorksheet({
           await performSchedulePersist("manual");
         }}
       />
-    </div>
-  );
-}
-
-function BsitWeekPreview({
-  rows,
-  programCodeForSummary,
-  sectionNameById,
-  roomCodeById,
-  instructorDisplayById,
-  selectedSectionId,
-  insFormBasePath = "/chairman/ins",
-}: {
-  rows: PlotRow[];
-  programCodeForSummary: string;
-  sectionNameById: Map<string, string>;
-  roomCodeById: Map<string, string>;
-  instructorDisplayById: Map<string, string>;
-  selectedSectionId: string;
-  insFormBasePath?: string;
-}) {
-  const slots = BSIT_EVALUATOR_TIME_SLOTS;
-  const filteredRows = useMemo(
-    () => (selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : rows),
-    [rows, selectedSectionId],
-  );
-  const skipSlot = useMemo(() => {
-    const m = new Set<string>();
-    for (const row of filteredRows) {
-      const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
-      if (!row.sectionId || !row.subjectCode || !p) continue;
-      const dur = scheduleDurationSlots(p);
-      const maxS = slots.length - dur;
-      const start = Math.min(row.startSlotIndex, maxS);
-      for (let k = 1; k < dur; k++) {
-        m.add(`${row.day}-${start + k}`);
-      }
-    }
-    return m;
-  }, [filteredRows, programCodeForSummary]);
-
-  const insSectionId =
-    selectedSectionId || filteredRows.find((r) => r.sectionId)?.sectionId || rows.find((r) => r.sectionId)?.sectionId || "";
-  const insPrintHref = insSectionId
-    ? `${insFormBasePath}?tab=section&sectionId=${encodeURIComponent(insSectionId)}&print=1`
-    : `${insFormBasePath}?tab=section`;
-
-  return (
-    <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
-        <div>
-          <div className="text-[15px] font-semibold text-black">Schedule preview (INS weekly grid)</div>
-          <p className="text-[12px] text-black/55 mt-1">Monday–Friday · 7:00 AM–5:00 PM · 1-hour slots · Plotted rows only</p>
-        </div>
-        <Button
-          type="button"
-          className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-9 text-xs shrink-0"
-          disabled={!insSectionId}
-          onClick={() => window.open(insPrintHref, "_blank", "noopener,noreferrer")}
-        >
-          Generate INS Form
-        </Button>
-      </div>
-      {!insSectionId ? (
-        <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-          Plot at least one row with a section to generate the printable INS Form 5B.
-        </p>
-      ) : null}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-black text-[10px]">
-          <thead>
-            <tr>
-              <th className="border border-black bg-white px-1 py-1 w-[72px] font-bold text-black">TIME</th>
-              {BSIT_EVALUATOR_WEEKDAYS.map((day) => (
-                <th key={day} className="border border-black bg-white px-1 py-1 min-w-[100px] font-bold text-black">
-                  {day}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {slots.map((slot, slotIdx) => (
-              <tr key={slot.label}>
-                <td className="border border-black px-1 py-1.5 text-center whitespace-nowrap text-black">{slot.label}</td>
-                {BSIT_EVALUATOR_WEEKDAYS.map((day) => {
-                  if (skipSlot.has(`${day}-${slotIdx}`)) return null;
-                  const atHere = filteredRows.filter((r) => {
-                    const p = r.subjectCode ? prospectusRowForProgram(programCodeForSummary, r.subjectCode) : undefined;
-                    if (!r.sectionId || !r.subjectCode || !p) return false;
-                    const dur = scheduleDurationSlots(p);
-                    const maxS = slots.length - dur;
-                    const start = Math.min(r.startSlotIndex, maxS);
-                    return r.day === day && start === slotIdx;
-                  });
-                  if (atHere.length === 0) {
-                    return (
-                      <td key={day} className="border border-black px-1 py-1 align-top text-black">
-                        <span className="text-black/25">—</span>
-                      </td>
-                    );
-                  }
-                  const rowspan = Math.max(
-                    ...atHere.map((r) => {
-                      const p = prospectusRowForProgram(programCodeForSummary, r.subjectCode);
-                      return p ? scheduleDurationSlots(p) : 1;
-                    }),
-                  );
-                  return (
-                    <td key={day} rowSpan={rowspan} className="border border-black px-1 py-1 align-top text-black">
-                      <ul className="space-y-1">
-                        {atHere.map((r) => {
-                          const sec = sectionNameById.get(r.sectionId) ?? r.sectionId;
-                          const room = roomCodeById.get(r.roomId) ?? "";
-                          const inst = instructorDisplayById.get(r.instructorId) ?? "";
-                          const p = prospectusRowForProgram(programCodeForSummary, r.subjectCode);
-                          const dur = p ? scheduleDurationSlots(p) : 1;
-                          const maxS = p ? slots.length - dur : 0;
-                          const eff = p ? Math.min(r.startSlotIndex, maxS) : 0;
-                          return (
-                            <li key={r.id} className="leading-tight">
-                              <span className="font-semibold">{r.subjectCode}</span>
-                              <span className="block text-[9px] text-black/60 font-medium">{formatTimeRangeFromSlots(eff, dur).fullLine}</span>
-                              <span className="block text-[9px] text-black/70">{sec}</span>
-                              <span className="block text-[9px] text-black/60">{room}</span>
-                              <span className="block text-[9px] text-black/60">{inst}</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
