@@ -6,6 +6,7 @@ import { INSFormSection } from "@/components/ins/INSFormSection";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
+import { LOAD_GENERATOR_NAV_LABEL } from "@/lib/admin-nav";
 
 type TabKey = "faculty" | "section" | "room";
 
@@ -52,7 +53,7 @@ export default async function CollegeInsIndexPage({
   return (
     <div>
       <ChairmanPageHeader
-        title="INS Form"
+        title={LOAD_GENERATOR_NAV_LABEL}
         subtitle="Schedule view"
       />
 

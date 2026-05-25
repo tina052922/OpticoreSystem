@@ -6,6 +6,7 @@ import { INSFormSection } from "@/components/ins/INSFormSection";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 import { getChairmanSession } from "@/lib/auth/chairman-session";
+import { LOAD_GENERATOR_NAV_LABEL } from "@/lib/admin-nav";
 import { redirect } from "next/navigation";
 
 type TabKey = "faculty" | "section" | "room";
@@ -52,7 +53,7 @@ export default async function ChairmanInsIndexPage({
 
   return (
     <div>
-      <ChairmanPageHeader title="INS Form" subtitle="Schedule view" />
+      <ChairmanPageHeader title={LOAD_GENERATOR_NAV_LABEL} subtitle="Schedule view" />
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-4">
         <div className="flex flex-wrap gap-2">

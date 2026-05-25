@@ -4,6 +4,7 @@ import { INSFormRoom } from "@/components/ins/INSFormRoom";
 import { INSFormSection } from "@/components/ins/INSFormSection";
 import { Button } from "@/components/ui/button";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
+import { LOAD_GENERATOR_NAV_LABEL } from "@/lib/admin-nav";
 import { cn } from "@/components/ui/utils";
 import Link from "next/link";
 
@@ -48,7 +49,7 @@ export default async function GecInsIndexPage({
 
   return (
     <div>
-      <ChairmanPageHeader title="INS Form" subtitle="Schedule view" />
+      <ChairmanPageHeader title={LOAD_GENERATOR_NAV_LABEL} subtitle="Schedule view" />
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-4">
         <div className="flex flex-wrap gap-2">

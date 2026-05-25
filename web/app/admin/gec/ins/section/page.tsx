@@ -1,5 +1,6 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { INSFormSection } from "@/components/ins/INSFormSection";
+import { LOAD_GENERATOR_NAV_LABEL } from "@/lib/admin-nav";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
 
 export default async function GecInsSectionPage() {
@@ -9,7 +10,7 @@ export default async function GecInsSectionPage() {
   return (
     <div>
       <ChairmanPageHeader
-        title="INS Form"
+        title={LOAD_GENERATOR_NAV_LABEL}
         subtitle={
           campusWide
             ? "Section schedule view — campus-wide; switch to Faculty or Room for other groupings (College Admin parity)."
