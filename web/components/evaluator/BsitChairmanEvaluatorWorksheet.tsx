@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
@@ -601,6 +602,12 @@ export function BsitChairmanEvaluatorWorksheet({
    * Evaluator grid behavior: when the user selects a section, show only that section's rows.
    * This prevents "carry-over" confusion where previously plotted rows from other sections remain visible.
    */
+  const roomCodeById = useMemo(() => {
+    const m = new Map<string, string>();
+    roomsForEvaluatorGrid.forEach((r) => m.set(r.id, r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code));
+    return m;
+  }, [roomsForEvaluatorGrid]);
+
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
     for (const p of getProspectusSubjectsForProgram(programCodeForSummary)) {
@@ -1195,8 +1202,8 @@ export function BsitChairmanEvaluatorWorksheet({
    * Before applying instructor/day/slot/subject/room changes on a fully plotted row, ensure overload policy:
    * if the hypothetical campus-wide load violates caps, require justification (same modal as Save).
    */
-  function commitRowPatch(id: string, patch: Partial<PlotRow>) {
-    const row = rows.find((r) => r.id === id);
+  function commitRowPatch(id: string, patch: Partial<PlotRow>, baseRow?: PlotRow) {
+    const row = baseRow ?? rows.find((r) => r.id === id);
     if (!row || row.lockedByDoiAt) return;
     const candidate = computePatchedPlotRow(row, patch);
     const loadKeys: (keyof PlotRow)[] = ["instructorId", "subjectCode", "startSlotIndex", "day", "roomId"];
@@ -1207,7 +1214,9 @@ export function BsitChairmanEvaluatorWorksheet({
       rowFullyPlotted(candidate, programCodeForSummary) &&
       candidate.instructorId
     ) {
-      const hypotheticalRows = rows.map((r) => (r.id === id ? candidate : r));
+      const hypotheticalRows = rows.some((r) => r.id === id)
+        ? rows.map((r) => (r.id === id ? candidate : r))
+        : [...rows, candidate];
       const merged = buildWorksheetPolicyScheduleEntries({
         rows: hypotheticalRows,
         allTermScheduleEntries,
@@ -1237,21 +1246,31 @@ export function BsitChairmanEvaluatorWorksheet({
     updateRow(id, patch);
   }
 
-  const plotAtSlot = useCallback(
-    (day: BsitEvaluatorWeekday, startSlotIndex: number) => {
-      if (schedulePublished) return;
-      const base = emptyPlotRow();
-      const next: PlotRow = {
-        ...base,
-        day,
-        startSlotIndex,
-        sectionId: selectedSectionId || base.sectionId,
+  const applyPlotFromModal = useCallback(
+    (draft: PlotRow, buildingValue: string) => {
+      if (schedulePublished || draft.lockedByDoiAt) return;
+      if (buildingValue) {
+        setRoomBuildingByRowId((prev) => ({ ...prev, [draft.id]: buildingValue }));
+      }
+      const exists = rows.some((r) => r.id === draft.id);
+      const plotPatch: Partial<PlotRow> = {
+        sectionId: draft.sectionId,
+        subjectCode: draft.subjectCode,
+        instructorId: draft.instructorId,
+        roomId: draft.roomId,
+        day: draft.day,
+        startSlotIndex: draft.startSlotIndex,
       };
-      locallyEditedRowIdsRef.current.add(next.id);
-      setRows((prev) => [...prev, next]);
-      toast.info("New plot", `Plotting on ${day} at ${BSIT_EVALUATOR_TIME_SLOTS[startSlotIndex]?.label ?? "selected time"}.`);
+      if (!exists) {
+        flushSync(() => {
+          locallyEditedRowIdsRef.current.add(draft.id);
+          setRows((prev) => [...prev, draft]);
+        });
+      }
+      commitRowPatch(draft.id, plotPatch, exists ? undefined : draft);
+      updateRow(draft.id, { students: draft.students });
     },
-    [schedulePublished, selectedSectionId, toast],
+    [rows, schedulePublished, commitRowPatch, updateRow],
   );
 
   function addRow() {
@@ -1992,15 +2011,14 @@ export function BsitChairmanEvaluatorWorksheet({
         setRoomBuildingByRowId={setRoomBuildingByRowId}
         sectionNameById={sectionNameById}
         instructorDisplayById={instructorDisplayById}
+        roomCodeById={roomCodeById}
         termProspectusSemester={termProspectusSemester}
         plottedCodesBySectionId={plottedCodesBySectionId}
         conflictForRow={conflictForRow}
         campusScanConflictIds={campusScanConflictIds}
         overloadedInstructorIds={overloadedInstructorIds}
-        commitRowPatch={commitRowPatch}
-        updateRow={updateRow}
-        removeRow={removeRow}
-        onPlotAtSlot={plotAtSlot}
+        onApplyPlot={applyPlotFromModal}
+        onRemoveRow={removeRow}
         insFormBasePath="/chairman/ins"
       />
 
