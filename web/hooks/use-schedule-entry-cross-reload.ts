@@ -10,12 +10,12 @@
  * that behavior for components that maintain their own `ScheduleEntry` fetch (`load`).
  */
 import { useEffect, useRef, useCallback } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   INS_CATALOG_RELOAD_EVENT,
   subscribeScheduleEntryBroadcast,
   type InsCatalogReloadDetail,
 } from "@/lib/ins/ins-catalog-reload";
+import { subscribeScheduleEntryRealtimePool } from "@/lib/ins/schedule-entry-realtime-pool";
 
 export function useScheduleEntryCrossReload(
   load: () => void | Promise<void>,
@@ -88,39 +88,18 @@ export function useScheduleEntryCrossReload(
   }, [enabled, academicPeriodId]);
 
   /**
-   * NOTE: We intentionally avoid periodic polling here.
-   * In production/presentations, polling can look like "constant refreshing" and can fight with user interactions.
-   * We rely on:
-   * - Supabase Realtime `postgres_changes`
-   * - Cross-tab BroadcastChannel (`dispatchInsCatalogReload`)
-   * - Visibility refresh (when returning to the tab)
+   * Shared Realtime channel per term (see `schedule-entry-realtime-pool.ts`).
+   * Safe when Central Hub + embedded Chairman worksheet both use this hook for the same period.
    */
-  // (polling fallback removed)
-
   useEffect(() => {
     if (!enabled || !academicPeriodId) return;
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) return;
-    const channel = supabase
-      .channel(`opticore-schedule-entry-sync-${academicPeriodId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "ScheduleEntry",
-          filter: `academicPeriodId=eq.${academicPeriodId}`,
-        },
-        () => scheduleDebouncedReload(),
-      )
-      .subscribe();
-
+    const unsub = subscribeScheduleEntryRealtimePool(academicPeriodId, scheduleDebouncedReload);
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
-      void supabase.removeChannel(channel);
+      unsub();
     };
   }, [enabled, academicPeriodId, scheduleDebouncedReload]);
 }
