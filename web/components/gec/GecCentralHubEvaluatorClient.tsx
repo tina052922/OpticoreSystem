@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultAcademicPeriodId, Q } from "@/lib/supabase/catalog-columns";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Save } from "lucide-react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
-import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
+import {
+  detectConflictsSparse,
+  scanAllSparseScheduleConflicts,
+  scheduleEntryToSparseBlock,
+} from "@/lib/scheduling/conflicts";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import {
   buildConflictSummaryLines,
@@ -39,9 +41,9 @@ import {
 import { GecVacantSlotsApprovalGate } from "@/components/access/GecVacantSlotsApprovalGate";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
-import { GecSectionPlottingTable, type GecPlotEditPatch } from "@/components/gec/GecSectionPlottingTable";
-import { GecSectionSchedulePreview } from "@/components/gec/GecSectionSchedulePreview";
-import { BSIT_EVALUATOR_TIME_SLOTS } from "@/lib/chairman/bsit-evaluator-constants";
+import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
+import type { GecPlotEditPatch } from "@/components/gec/GecSectionPlottingTable";
+import { BSIT_EVALUATOR_TIME_SLOTS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
 import {
   GEC_VACANT_INSTRUCTOR_USER_ID,
@@ -120,7 +122,8 @@ export function GecCentralHubEvaluatorClient() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [conflictIds, setConflictIds] = useState<Set<string>>(new Set());
   const [conflictSummary, setConflictSummary] = useState<string[]>([]);
-  const [addRowBusy, setAddRowBusy] = useState(false);
+  const [focusPlotEntryId, setFocusPlotEntryId] = useState<string | null>(null);
+  const [roomBuildingByEntryId, setRoomBuildingByEntryId] = useState<Record<string, string>>({});
   /** DOI-style enriched pairwise issues + GA alternatives (same engine as Central Hub / VPAA panel). */
   const [gecEnrichedConflicts, setGecEnrichedConflicts] = useState<EnrichedCampusIssue[]>([]);
   const [gecGaByIssueKey, setGecGaByIssueKey] = useState<Record<string, GASuggestion[]>>({});
@@ -942,13 +945,9 @@ export function GecCentralHubEvaluatorClient() {
     });
   }
 
-  function addGecScheduleRow() {
-    if (addRowBusy) return;
-    setAddRowBusy(true);
-    toast.info("Adding schedule…");
-    window.setTimeout(() => setAddRowBusy(false), 500);
+  function addGecScheduleRowAt(day: BsitEvaluatorWeekday, startIdx: number) {
     if (!canEditVacant || !sectionIdFilter || !academicPeriodId || !plotCollegeId) {
-      setSaveMsg("Select a section and ensure vacant-slot access is approved before adding rows.");
+      setSaveMsg("Select a section and ensure vacant-slot access is approved before plotting.");
       return;
     }
     const sec = sectionById.get(sectionIdFilter);
@@ -968,9 +967,9 @@ export function GecCentralHubEvaluatorClient() {
     }
     const dur = scheduleSlotDurationForSubject(programCode, firstSub);
     const maxIdx = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
-    const startIdx = 0;
-    const startSlot = BSIT_EVALUATOR_TIME_SLOTS[startIdx];
-    const endSlot = BSIT_EVALUATOR_TIME_SLOTS[startIdx + dur - 1];
+    const effIdx = Math.min(Math.max(0, startIdx), maxIdx);
+    const startSlot = BSIT_EVALUATOR_TIME_SLOTS[effIdx];
+    const endSlot = BSIT_EVALUATOR_TIME_SLOTS[effIdx + dur - 1];
     if (!startSlot || !endSlot) return;
     const roomPick = roomsForPlotting[0]?.id ?? "";
     if (!roomPick) {
@@ -987,12 +986,13 @@ export function GecCentralHubEvaluatorClient() {
       instructorId: GEC_VACANT_INSTRUCTOR_USER_ID,
       sectionId: sectionIdFilter,
       roomId: roomPick,
-      day: "Monday",
+      day,
       startTime: padTime(startSlot.startTime),
       endTime: padTime(endSlot.endTime),
       status: "draft",
     };
     setExtraEntries((prev) => [...prev, row]);
+    setFocusPlotEntryId(id);
     setSaveMsg(null);
   }
 
@@ -1057,6 +1057,46 @@ export function GecCentralHubEvaluatorClient() {
     }
     return set;
   }, [mergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
+
+  const gecSubjectsForPlot = useMemo(() => {
+    if (!selectedSection || !allowedSubjectIds || allowedSubjectIds.size === 0) return [];
+    return subjects
+      .filter(
+        (s) =>
+          s.programId === selectedSection.programId &&
+          isGecCurriculumSubjectCode(s.code) &&
+          allowedSubjectIds.has(s.id),
+      )
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [subjects, selectedSection, allowedSubjectIds]);
+
+  const sparseCampusWideUniverse = useMemo(() => {
+    if (!academicPeriodId) return [];
+    const list = [];
+    for (const e of mergedEntries) {
+      if (e.academicPeriodId !== academicPeriodId) continue;
+      const b = scheduleEntryToSparseBlock(e);
+      if (b) list.push(b);
+    }
+    return list;
+  }, [mergedEntries, academicPeriodId]);
+
+  const conflictForEntry = useCallback(
+    (e: ScheduleEntry) => {
+      const candidate = scheduleEntryToSparseBlock(e);
+      if (!candidate) return { faculty: "—", room: "—", section: "—" };
+      const hits = detectConflictsSparse(candidate, sparseCampusWideUniverse, candidate.id);
+      const fac = hits.some((h) => h.type === "faculty");
+      const room = hits.some((h) => h.type === "room");
+      const secHit = hits.some((h) => h.type === "section");
+      return {
+        faculty: !candidate.instructorId ? "—" : fac ? "Yes" : "No",
+        room: !candidate.roomId ? "—" : room ? "Yes" : "No",
+        section: !candidate.sectionId ? "—" : secHit ? "Yes" : "No",
+      };
+    },
+    [sparseCampusWideUniverse],
+  );
 
   if (loadError) {
     return <div className="px-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4 m-4">{loadError}</div>;
@@ -1228,92 +1268,12 @@ export function GecCentralHubEvaluatorClient() {
               ))}
             </select>
           </label>
-          {/* When a section workspace is open, Run / Save / alternatives live beside “Add schedule row” in the grid. */}
           {!sectionIdFilter ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-amber-300 bg-white font-bold h-11 px-5"
-                disabled={loading}
-                onClick={() => runConflictCheck()}
-              >
-                <AlertTriangle className="w-4 h-4 mr-2 inline" aria-hidden />
-                Run conflict check
-              </Button>
-              <Button
-                type="button"
-                className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-11 px-5 disabled:opacity-50"
-                disabled={saveBusy || !canEditVacant}
-                onClick={() => void saveVacantEdits()}
-              >
-                <Save className="w-4 h-4 mr-2 inline" aria-hidden />
-                {saveBusy ? "Saving…" : "Save Vacant Edits"}
-              </Button>
-            </>
+            <div className="ml-auto flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[200px] pb-0.5">
+              <span className="text-black/55">Select a section to open the INS weekly grid workspace.</span>
+            </div>
           ) : null}
-          <div className="ml-auto flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[200px] pb-0.5">
-            <span className="font-semibold text-black/70">
-              {connOnline ? <span className="text-emerald-800">Online</span> : <span className="text-red-800">Offline</span>}
-              <span className="text-black/45 font-normal">
-                {canEditVacant ? " · Autosave ~9s (vacant GEC)" : " · Vacant edit approval required"}
-              </span>
-            </span>
-            <span className="tabular-nums">
-              {lastDraftSaveAt
-                ? `Last draft sync: ${lastDraftSaveAt.toLocaleTimeString()}`
-                : "Last draft sync: —"}
-            </span>
-          </div>
         </div>
-
-        {gecEnrichedConflicts.length > 0 ? (
-          <div className="mb-4">
-            <EnrichedConflictIssuesPanel
-              variant="compact"
-              title="Conflicts & suggested fixes (campus-wide scan)"
-              issues={gecEnrichedConflicts}
-              suggestionsByIssueKey={gecGaByIssueKey}
-              allowApply={canEditVacant}
-              onApplySuggestion={(key, s) => {
-                const iss = gecEnrichedConflicts.find((i) => i.key === key);
-                if (!iss || !vacantGecSourceIds.has(iss.rowA.entryId)) return;
-                applyGecGaSuggestion(iss.rowA.entryId, s);
-              }}
-              formatSuggestionLabel={(sug) =>
-                formatGaSuggestionShortLabel(sug, {
-                  roomCode: roomById.get(sug.roomId)?.code ?? sug.roomId,
-                  instructorDisplay: formatUserInstructorLabel(
-                    userById.get(sug.instructorId),
-                    facultyProfileByUserId.get(sug.instructorId),
-                  ),
-                })
-              }
-              maxIssues={12}
-            />
-          </div>
-        ) : conflictSummary.length > 0 && !sectionIdFilter ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-            <strong>Conflicts ({conflictSummary.length} type(s)):</strong>
-            <ul className="list-disc pl-5 mt-2 space-y-1">
-              {conflictSummary.map((s) => (
-                <li key={s}>{s}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {saveMsg ? (
-          <div
-            className={`rounded-lg border px-4 py-2 text-sm ${
-              saveMsg.startsWith("Saved") || saveMsg.startsWith("No ")
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                : "border-amber-200 bg-amber-50 text-amber-950"
-            }`}
-          >
-            {saveMsg}
-          </div>
-        ) : null}
 
         {loading ? (
           <p className="text-sm text-black/55 py-8">Loading…</p>
@@ -1322,10 +1282,42 @@ export function GecCentralHubEvaluatorClient() {
             {!sectionIdFilter ? (
               <>
                 <p className="text-[12px] text-black/60">
-                  Pick a <strong>section</strong> to open the workspace: prospectus summary (top), chairman-style grid
-                  with <span className="text-emerald-800 font-semibold">light-green vacant GEC</span> rows (middle),
-                  and live INS weekly preview (bottom). Below is the college-wide overview until a section is selected.
+                  Pick a <strong>section</strong> to open the workspace: prospectus summary and the INS weekly grid
+                  (click cells to plot vacant GEC). Below is the college-wide overview until a section is selected.
                 </p>
+                {gecEnrichedConflicts.length > 0 ? (
+                  <EnrichedConflictIssuesPanel
+                    variant="compact"
+                    title="Conflicts & suggested fixes (campus-wide scan)"
+                    issues={gecEnrichedConflicts}
+                    suggestionsByIssueKey={gecGaByIssueKey}
+                    allowApply={canEditVacant}
+                    onApplySuggestion={(key, s) => {
+                      const iss = gecEnrichedConflicts.find((i) => i.key === key);
+                      if (!iss || !vacantGecSourceIds.has(iss.rowA.entryId)) return;
+                      applyGecGaSuggestion(iss.rowA.entryId, s);
+                    }}
+                    formatSuggestionLabel={(sug) =>
+                      formatGaSuggestionShortLabel(sug, {
+                        roomCode: roomById.get(sug.roomId)?.code ?? sug.roomId,
+                        instructorDisplay: formatUserInstructorLabel(
+                          userById.get(sug.instructorId),
+                          facultyProfileByUserId.get(sug.instructorId),
+                        ),
+                      })
+                    }
+                    maxIssues={12}
+                  />
+                ) : conflictSummary.length > 0 ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+                    <strong>Conflicts ({conflictSummary.length} type(s)):</strong>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      {conflictSummary.map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <EvaluatorScheduleOverviewTable
                   rows={tableRows}
                   showCollegeColumn={isCampusWide}
@@ -1337,13 +1329,12 @@ export function GecCentralHubEvaluatorClient() {
               </>
             ) : (
               <div className="space-y-6">
-                {/* Top: GEC-only prospectus for this section’s year (from section name) + term semester when known */}
                 {selectedYearLevel == null ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950">
                     <p className="font-semibold">Could not detect year level from the section name.</p>
                     <p className="mt-1 text-black/75">
                       Use a label like <strong>BSIT 3A</strong> or <strong>BSIT-3A</strong> so the summary can show only
-                      that year’s GEC subjects.
+                      that year&apos;s GEC subjects.
                     </p>
                   </div>
                 ) : (
@@ -1358,65 +1349,104 @@ export function GecCentralHubEvaluatorClient() {
                   />
                 )}
 
-                {/* Main plotting grid — same timetabling model as Program Chairman; only vacant GEC rows accept edits. */}
-                {plotCollegeId ? (
-                  <div className="space-y-2">
-                    {instructorPlotOptionsBase.length === 0 ? (
-                      <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                        No instructors with an Employee ID in this college. Add faculty in <strong>Faculty Profile</strong>{" "}
-                        first.
-                      </p>
-                    ) : null}
-                    <GecSectionPlottingTable
-                    collegeId={plotCollegeId}
-                    academicPeriodId={academicPeriodId}
+                {plotCollegeId && academicPeriodId ? (
+                  <GecInteractiveWeekGrid
+                    programCode={sectionProgram?.code ?? ""}
                     sectionId={sectionIdFilter}
+                    sectionName={selectedSection?.name ?? sectionIdFilter}
+                    academicPeriodId={academicPeriodId}
                     mergedEntries={mergedEntries}
-                    entries={allEntries}
+                    vacantGecSourceIds={vacantGecSourceIds}
                     subjectById={subjectById}
-                    sectionById={sectionById}
-                    programById={programById}
-                    instructorPlotOptions={instructorPlotOptionsBase}
+                    roomById={roomById}
                     userById={userById}
                     facultyProfileByUserId={facultyProfileByUserId}
+                    gecSubjects={gecSubjectsForPlot}
+                    instructorPlotOptions={instructorPlotOptionsBase}
                     rooms={roomsForPlotting}
-                    edits={edits}
-                    patchEdit={patchEdit}
+                    roomBuildingByEntryId={roomBuildingByEntryId}
+                    setRoomBuildingByEntryId={setRoomBuildingByEntryId}
                     canEditVacant={canEditVacant}
-                    allowedSubjectIds={allowedSubjectIds}
+                    conflictForEntry={conflictForEntry}
+                    highlightConflictEntryIds={conflictIds}
                     pickedSummaryCode={pickedSummaryCode}
                     pickedSubjectId={pickedSubjectId}
-                    onAddScheduleRow={addGecScheduleRow}
-                    showAddScheduleButton={canEditVacant}
-                    addScheduleRowBusy={addRowBusy}
-                    pendingNewEntryIds={pendingNewEntryIds}
+                    onPatchEntry={(entryId, patch) => patchEdit(entryId, patch)}
+                    onCreateVacantAtCell={addGecScheduleRowAt}
+                    focusEntryId={focusPlotEntryId}
+                    onFocusEntryHandled={() => setFocusPlotEntryId(null)}
                     onRemovePendingEntry={removePendingEntry}
-                    onRunConflictCheck={() => runConflictCheck()}
-                    runConflictCheckDisabled={loading || saveBusy}
-                    onSaveVacantEdits={() => void saveVacantEdits()}
-                    saveVacantEditsDisabled={!canEditVacant}
-                    saveVacantBusy={saveBusy}
-                    highlightConflictEntryIds={conflictIds}
+                    pendingNewEntryIds={pendingNewEntryIds}
+                    insFormBasePath="/admin/gec/ins"
+                    plottingActions={{
+                      onRunConflictCheck: () => runConflictCheck(),
+                      onSaveSchedule: () => void saveVacantEdits(),
+                      runConflictCheckDisabled: loading || saveBusy,
+                      saveScheduleDisabled: !canEditVacant,
+                      saveScheduleBusy: saveBusy,
+                      connOnline,
+                      lastDraftSaveAt,
+                    }}
+                    gridFooter={
+                      <>
+                        {instructorPlotOptionsBase.length === 0 ? (
+                          <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            No instructors with an Employee ID in this college. Add faculty in{" "}
+                            <strong>Faculty Profile</strong> first.
+                          </p>
+                        ) : null}
+                        {saveMsg ? (
+                          <div
+                            className={`rounded-lg border px-4 py-2 text-sm ${
+                              saveMsg.startsWith("Saved") || saveMsg.startsWith("No ")
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                                : "border-amber-200 bg-amber-50 text-amber-950"
+                            }`}
+                          >
+                            {saveMsg}
+                          </div>
+                        ) : null}
+                        {gecEnrichedConflicts.length > 0 ? (
+                          <EnrichedConflictIssuesPanel
+                            variant="compact"
+                            title="Conflicts & suggested fixes (campus-wide scan)"
+                            issues={gecEnrichedConflicts}
+                            suggestionsByIssueKey={gecGaByIssueKey}
+                            allowApply={canEditVacant}
+                            onApplySuggestion={(key, s) => {
+                              const iss = gecEnrichedConflicts.find((i) => i.key === key);
+                              if (!iss || !vacantGecSourceIds.has(iss.rowA.entryId)) return;
+                              applyGecGaSuggestion(iss.rowA.entryId, s);
+                            }}
+                            formatSuggestionLabel={(sug) =>
+                              formatGaSuggestionShortLabel(sug, {
+                                roomCode: roomById.get(sug.roomId)?.code ?? sug.roomId,
+                                instructorDisplay: formatUserInstructorLabel(
+                                  userById.get(sug.instructorId),
+                                  facultyProfileByUserId.get(sug.instructorId),
+                                ),
+                              })
+                            }
+                            maxIssues={12}
+                          />
+                        ) : conflictSummary.length > 0 ? (
+                          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+                            <strong>Conflicts ({conflictSummary.length} type(s)):</strong>
+                            <ul className="list-disc pl-5 mt-2 space-y-1">
+                              {conflictSummary.map((s) => (
+                                <li key={s}>{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </>
+                    }
                   />
-                  </div>
                 ) : (
                   <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
                     Could not resolve this section&apos;s college — check program linkage in the database.
                   </p>
                 )}
-
-                {/* Bottom: INS-style schedule preview — reflects merged local edits immediately */}
-                <GecSectionSchedulePreview
-                  programCode={sectionProgram?.code ?? ""}
-                  entries={mergedEntries}
-                  academicPeriodId={academicPeriodId}
-                  sectionId={sectionIdFilter}
-                  sectionName={selectedSection?.name ?? sectionIdFilter}
-                  subjectById={subjectById}
-                  roomById={roomById}
-                  userById={userById}
-                  facultyProfileByUserId={facultyProfileByUserId}
-                />
               </div>
             )}
           </>
