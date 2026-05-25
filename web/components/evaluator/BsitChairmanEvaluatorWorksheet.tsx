@@ -86,7 +86,7 @@ const daySelectClass =
   "w-full min-h-10 min-w-0 rounded-md border border-black/25 bg-white px-2 text-[11px] font-medium text-neutral-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
 import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
-import { emptyPlotRow } from "@/lib/evaluator/chairman-plot-row";
+import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
 
 export type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
@@ -97,6 +97,7 @@ const LOCAL_EDIT_PLOT_KEYS: (keyof PlotRow)[] = [
   "startSlotIndex",
   "sectionId",
   "subjectCode",
+  "lecLabMode",
   "instructorId",
   "roomId",
   "students",
@@ -315,7 +316,6 @@ export function BsitChairmanEvaluatorWorksheet({
   /** Shown in the grid header so testers see autosave + connectivity without opening the console. */
   const [connOnline, setConnOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
   const [lastDraftSaveAt, setLastDraftSaveAt] = useState<Date | null>(null);
-  const [addRowBusy, setAddRowBusy] = useState(false);
   /** Dedupe real-time conflict toasts per row + conflict signature. */
   const lastConflictToastRef = useRef<Map<string, string>>(new Map());
 
@@ -607,6 +607,18 @@ export function BsitChairmanEvaluatorWorksheet({
     roomsForEvaluatorGrid.forEach((r) => m.set(r.id, r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code));
     return m;
   }, [roomsForEvaluatorGrid]);
+
+  const majorOptions = useMemo(
+    () => [
+      {
+        value: programCodeForSummary,
+        label: chairmanProgramName?.trim()
+          ? `${programCodeForSummary} — ${chairmanProgramName.trim()}`
+          : programCodeForSummary,
+      },
+    ],
+    [programCodeForSummary, chairmanProgramName],
+  );
 
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
@@ -1256,6 +1268,7 @@ export function BsitChairmanEvaluatorWorksheet({
       const plotPatch: Partial<PlotRow> = {
         sectionId: draft.sectionId,
         subjectCode: draft.subjectCode,
+        lecLabMode: draft.lecLabMode,
         instructorId: draft.instructorId,
         roomId: draft.roomId,
         day: draft.day,
@@ -1272,20 +1285,6 @@ export function BsitChairmanEvaluatorWorksheet({
     },
     [rows, schedulePublished, commitRowPatch, updateRow],
   );
-
-  function addRow() {
-    if (addRowBusy) return;
-    setAddRowBusy(true);
-    toast.info("Adding schedule…");
-    setRows((prev) => {
-      if (prev.some((r) => Boolean(r.lockedByDoiAt))) return prev;
-      const base = emptyPlotRow();
-      /** UX: if the user selected a section filter, prefill it for new rows. */
-      const next = selectedSectionId ? { ...base, sectionId: selectedSectionId } : base;
-      return [...prev, next];
-    });
-    window.setTimeout(() => setAddRowBusy(false), 450);
-  }
 
   function removeRow(id: string) {
     locallyEditedRowIdsRef.current.delete(id);
@@ -1366,17 +1365,22 @@ export function BsitChairmanEvaluatorWorksheet({
     const nextRows: PlotRow[] = relevant.map((e) => {
       const normStart = normalizeSlotHHMM(e.startTime);
       const slotIdx = slotIndexByStartTime.get(normStart) ?? slotIndexByStartTime.get(e.startTime) ?? startSlotIndexFromScheduleEntryStartTime(e.startTime);
-      return {
-        id: e.id,
-        sectionId: e.sectionId,
-        students: "",
-        subjectCode: subjectCodeById.get(e.subjectId) ?? "",
-        instructorId: e.instructorId,
-        roomId: e.roomId,
-        startSlotIndex: slotIdx,
-        day: normalizeScheduleEntryDayForEvaluator(e.day),
-        lockedByDoiAt: e.lockedByDoiAt ?? null,
-      };
+      const subjectCode = subjectCodeById.get(e.subjectId) ?? "";
+      return normalizePlotRow(
+        {
+          id: e.id,
+          sectionId: e.sectionId,
+          students: "",
+          subjectCode,
+          lecLabMode: "lec",
+          instructorId: e.instructorId,
+          roomId: e.roomId,
+          startSlotIndex: slotIdx,
+          day: normalizeScheduleEntryDayForEvaluator(e.day),
+          lockedByDoiAt: e.lockedByDoiAt ?? null,
+        },
+        programCodeForSummary,
+      );
     });
 
     didHydrateFromDbRef.current = true;
@@ -1396,7 +1400,8 @@ export function BsitChairmanEvaluatorWorksheet({
             local.sectionId === nr.sectionId &&
             local.roomId === nr.roomId &&
             local.instructorId === nr.instructorId &&
-            local.subjectCode === nr.subjectCode;
+            local.subjectCode === nr.subjectCode &&
+            (local.lecLabMode ?? "lec") === (nr.lecLabMode ?? "lec");
           if (samePlot) {
             locallyEditedRowIdsRef.current.delete(nr.id);
             return nr;
@@ -1407,6 +1412,7 @@ export function BsitChairmanEvaluatorWorksheet({
             startSlotIndex: local.startSlotIndex,
             sectionId: local.sectionId,
             subjectCode: local.subjectCode,
+            lecLabMode: local.lecLabMode,
             instructorId: local.instructorId,
             roomId: local.roomId,
             students: local.students,
@@ -1421,6 +1427,7 @@ export function BsitChairmanEvaluatorWorksheet({
               startSlotIndex: localG.startSlotIndex,
               sectionId: localG.sectionId,
               subjectCode: localG.subjectCode,
+              lecLabMode: localG.lecLabMode,
               instructorId: localG.instructorId,
               roomId: localG.roomId,
               students: localG.students,
@@ -1436,7 +1443,7 @@ export function BsitChairmanEvaluatorWorksheet({
      * Do not hydrate `justificationText` here — `loadRowsFromSupabase` runs on Realtime/cross-reload and would
      * wipe the VPAA justification draft while the policy modal or textarea is in use (see effect below).
      */
-  }, [academicPeriodId, programSectionIdSet, subjectCodeById, chairmanCollegeId]);
+  }, [academicPeriodId, programSectionIdSet, subjectCodeById, chairmanCollegeId, programCodeForSummary]);
 
   useEffect(() => {
     void loadRowsFromSupabase();
@@ -1562,17 +1569,23 @@ export function BsitChairmanEvaluatorWorksheet({
     if (backup.programId !== chairmanProgramId) return;
     if (didHydrateFromDbRef.current && rows.length === 0 && backup.rows.length > 0) {
       setRows(
-        backup.rows.map((r) => ({
-          id: r.id,
-          sectionId: r.sectionId,
-          students: r.students,
-          subjectCode: r.subjectCode,
-          instructorId: r.instructorId,
-          roomId: r.roomId,
-          startSlotIndex: r.startSlotIndex,
-          day: r.day as BsitEvaluatorWeekday,
-          lockedByDoiAt: null,
-        })),
+        backup.rows.map((r) =>
+          normalizePlotRow(
+            {
+              id: r.id,
+              sectionId: r.sectionId,
+              students: r.students,
+              subjectCode: r.subjectCode,
+              lecLabMode: "lec",
+              instructorId: r.instructorId,
+              roomId: r.roomId,
+              startSlotIndex: r.startSlotIndex,
+              day: r.day as BsitEvaluatorWeekday,
+              lockedByDoiAt: null,
+            },
+            programCodeForSummary,
+          ),
+        ),
       );
       for (const r of backup.rows) {
         locallyEditedRowIdsRef.current.add(r.id);
@@ -1903,14 +1916,6 @@ export function BsitChairmanEvaluatorWorksheet({
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
-              className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold disabled:opacity-50 disabled:pointer-events-none shrink-0"
-              disabled={schedulePublished || addRowBusy}
-              onClick={addRow}
-            >
-              {addRowBusy ? "Adding…" : "+ Add schedule row"}
-            </Button>
-            <Button
-              type="button"
               variant="outline"
               className="border-amber-300 bg-white font-bold shrink-0 h-9 text-xs"
               disabled={schedulePublished || !academicPeriodId || mergedBlocksForCampusScan.length === 0}
@@ -2019,6 +2024,7 @@ export function BsitChairmanEvaluatorWorksheet({
         overloadedInstructorIds={overloadedInstructorIds}
         onApplyPlot={applyPlotFromModal}
         onRemoveRow={removeRow}
+        majorOptions={majorOptions}
         insFormBasePath="/chairman/ins"
       />
 
