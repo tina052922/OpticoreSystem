@@ -490,7 +490,7 @@ function RoomForm5CFooterBlock({
         ) : null}
       </div>
       <div className="text-sm text-neutral-900">{roleLabel}</div>
-      {scheduleApproved && slot ? (
+      {slot?.signerName && slot.signerName !== "—" ? (
         <div className="text-center text-xs text-neutral-600">{slot.signerName}</div>
       ) : scheduleApproved ? (
         <div className="text-center text-[11px] text-amber-900">No signature on file — upload in Profile</div>
@@ -730,7 +730,7 @@ export function OpticoreInsForm5B({
           ) : null}
         </div>
         <div className="mt-2 text-sm text-neutral-800">Campus Director</div>
-        {scheduleApproved && insSignatureSlots?.[0]?.signerName ? (
+        {insSignatureSlots?.[0]?.signerName && insSignatureSlots[0].signerName !== "—" ? (
           <div className="mt-1 text-xs font-medium text-neutral-900">{insSignatureSlots[0].signerName}</div>
         ) : !scheduleApproved ? (
           <div className="mt-1 text-[11px] text-neutral-500">Pending publication</div>

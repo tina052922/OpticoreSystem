@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { detectConflictsForEntry, intervalsOverlap, normalizeDayForConflict } from "./conflicts";
+import {
+  detectConflictsForEntry,
+  detectConflictsSparse,
+  intervalsOverlap,
+  normalizeDayForConflict,
+  scheduleEntryToSparseBlock,
+  scanAllSparseScheduleConflicts,
+} from "./conflicts";
+import type { ScheduleEntry } from "@/types/db";
 import type { ScheduleBlock } from "./types";
 
 describe("normalizeDayForConflict", () => {
@@ -80,5 +88,61 @@ describe("detectConflictsForEntry", () => {
   it("skips self when updating same id", () => {
     const same = block({ id: "same", instructorId: "faculty-x" });
     expect(detectConflictsForEntry(same, [same])).toHaveLength(0);
+  });
+});
+
+describe("scheduleEntryToSparseBlock + scanAllSparseScheduleConflicts", () => {
+  it("detects faculty overlap when end time was invalid (defaults to +1 hour)", () => {
+    const base: ScheduleEntry = {
+      id: "a",
+      academicPeriodId: "ap1",
+      subjectId: "s1",
+      instructorId: "fac-1",
+      sectionId: "sec-a",
+      roomId: "r1",
+      day: "Monday",
+      startTime: "13:00:00",
+      endTime: "13:00:00",
+      status: "draft",
+    };
+    const other: ScheduleEntry = {
+      ...base,
+      id: "b",
+      sectionId: "sec-b",
+      roomId: "r2",
+      startTime: "13:30:00",
+      endTime: "14:30:00",
+    };
+    const blocks = [base, other]
+      .map((e) => scheduleEntryToSparseBlock(e))
+      .filter((b): b is NonNullable<typeof b> => b != null);
+    const scan = scanAllSparseScheduleConflicts(blocks);
+    expect(scan.conflictingEntryIds.has("a")).toBe(true);
+    expect(scan.conflictingEntryIds.has("b")).toBe(true);
+  });
+
+  it("detects sparse faculty double-booking across partial rows", () => {
+    const a = {
+      id: "a",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "12:00",
+      endTime: "13:00",
+      instructorId: "fac-1",
+      sectionId: "sec-a",
+      roomId: null,
+    };
+    const b = {
+      id: "b",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "12:30",
+      endTime: "13:30",
+      instructorId: "fac-1",
+      sectionId: "sec-b",
+      roomId: "r2",
+    };
+    const hits = detectConflictsSparse(a, [a, b]);
+    expect(hits.some((h) => h.type === "faculty")).toBe(true);
   });
 });

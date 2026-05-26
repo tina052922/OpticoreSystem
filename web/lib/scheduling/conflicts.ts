@@ -1,13 +1,36 @@
 import type { ScheduleEntry } from "@/types/db";
 import type { ConflictHit, ScheduleBlock } from "./types";
 
-function toMinutes(t: string): number {
+/** Parse HH:MM or HH:MM:SS with optional AM/PM into minutes from midnight. */
+export function toMinutes(t: string): number {
   const s = t.trim();
-  const norm = s.length > 5 ? s.slice(0, 5) : s;
+  if (!s) return 0;
+  const ampm = s.match(/\s*(am|pm)\s*$/i);
+  const core = (ampm ? s.slice(0, ampm.index) : s).trim();
+  const norm = core.length > 5 ? core.slice(0, 5) : core;
   const parts = norm.split(":");
-  const h = parseInt(parts[0] ?? "0", 10);
+  let h = parseInt(parts[0] ?? "0", 10);
   const m = parseInt(parts[1] ?? "0", 10);
-  return h * 60 + (Number.isFinite(m) ? m : 0);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+  if (ampm) {
+    const pm = ampm[1]!.toLowerCase() === "pm";
+    if (h === 12) h = pm ? 12 : 0;
+    else if (pm) h += 12;
+  }
+  return h * 60 + m;
+}
+
+/** Ensure end is after start; default one-hour meeting when DB end is missing or invalid. */
+export function normalizeIntervalEnd(startTime: string, endTime: string): string {
+  const s = hhmmForConflict(startTime);
+  let e = hhmmForConflict(endTime);
+  if (toMinutes(e) <= toMinutes(s)) {
+    const endMin = toMinutes(s) + 60;
+    const h = Math.floor(endMin / 60) % 24;
+    const m = endMin % 60;
+    e = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+  return e;
 }
 
 /** Collapse common weekday spellings/casing so clashes are not missed (e.g. Mon vs Monday). */
@@ -196,12 +219,16 @@ export function hhmmForConflict(t: string): string {
  */
 export function scheduleEntryToSparseBlock(e: ScheduleEntry): SparseScheduleBlock | null {
   if (!e.academicPeriodId) return null;
+  const day = normalizeDayForConflict(e.day);
+  if (!day) return null;
+  const startTime = hhmmForConflict(e.startTime);
+  const endTime = normalizeIntervalEnd(e.startTime, e.endTime);
   return {
     id: e.id,
     academicPeriodId: e.academicPeriodId,
-    day: normalizeDayForConflict(e.day),
-    startTime: hhmmForConflict(e.startTime),
-    endTime: hhmmForConflict(e.endTime),
+    day,
+    startTime,
+    endTime,
     instructorId: e.instructorId?.trim() ? e.instructorId : null,
     sectionId: e.sectionId?.trim() ? e.sectionId : null,
     roomId: e.roomId?.trim() ? e.roomId : null,
@@ -231,7 +258,7 @@ export function scanAllSparseScheduleConflicts(blocks: SparseScheduleBlock[]): S
   const issues: SparseConflictScanResult["issues"] = [];
 
   for (const b of blocks) {
-    const hits = detectConflictsSparse(b, blocks, b.id);
+    const hits = detectConflictsSparse(b, blocks);
     for (const h of hits) {
       conflictingEntryIds.add(b.id);
       if (h.withEntryId) conflictingEntryIds.add(h.withEntryId);
