@@ -19,7 +19,11 @@ import {
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { normalizeSlotHHMM } from "@/lib/chairman/evaluator-schedule-hydration";
-import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
+import {
+  inferDurationSlotsFromTimes,
+  plotEntryDurationSlots,
+  timesFromSlotRange,
+} from "@/lib/evaluator/plot-duration";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import {
@@ -41,16 +45,12 @@ function startSlotIndexFromEntry(e: ScheduleEntry): number {
   return idx >= 0 ? idx : -1;
 }
 
-function durationForEntry(e: ScheduleEntry, programCode: string, subjectById: Map<string, Subject>): number {
-  return scheduleSlotDurationForSubject(programCode, subjectById.get(e.subjectId));
+function durationForEntry(e: ScheduleEntry): number {
+  return inferDurationSlotsFromTimes(e.startTime, e.endTime);
 }
 
-function entryTimeBounds(
-  e: ScheduleEntry,
-  programCode: string,
-  subjectById: Map<string, Subject>,
-): { startIdx: number; dur: number } | null {
-  const dur = durationForEntry(e, programCode, subjectById);
+function entryTimeBounds(e: ScheduleEntry): { startIdx: number; dur: number } | null {
+  const dur = durationForEntry(e);
   const startIdx = startSlotIndexFromEntry(e);
   if (startIdx < 0) return null;
   const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
@@ -102,6 +102,7 @@ type ModalSession = {
   entryId: string;
   draft: ScheduleEntry;
   buildingValue: string;
+  durationSlots: number;
   isNew: boolean;
   readOnly: boolean;
   anchor: CellAnchor;
@@ -125,7 +126,10 @@ export type GecInteractiveWeekGridProps = {
   setRoomBuildingByEntryId: Dispatch<SetStateAction<Record<string, string>>>;
   canEditVacant: boolean;
   conflictForEntry: (e: ScheduleEntry) => RowConflictFlags;
+  conflictDetailForEntry?: (e: ScheduleEntry) => string[];
   highlightConflictEntryIds: Set<string>;
+  /** GEC subject ids already on this section’s schedule (for split plotting). */
+  plottedGecSubjectIds: Set<string>;
   pickedSummaryCode: string | null;
   pickedSubjectId: string | null;
   onPatchEntry: (entryId: string, patch: Partial<ScheduleEntry>) => void;
@@ -158,7 +162,9 @@ export function GecInteractiveWeekGrid({
   setRoomBuildingByEntryId,
   canEditVacant,
   conflictForEntry,
+  conflictDetailForEntry,
   highlightConflictEntryIds,
+  plottedGecSubjectIds,
   pickedSummaryCode,
   pickedSubjectId,
   onPatchEntry,
@@ -193,17 +199,17 @@ export function GecInteractiveWeekGrid({
 
   useEffect(() => {
     if (!modal) return;
-    const bounds = entryTimeBounds(modal.draft, programCode, subjectById);
+    const bounds = entryTimeBounds(modal.draft);
     setHighlightedCell({
       day: modal.draft.day as BsitEvaluatorWeekday,
       slotIdx: bounds?.startIdx ?? startSlotIndexFromEntry(modal.draft),
     });
-  }, [modal?.draft.day, modal?.draft.startTime, modal?.draft.subjectId, modal, programCode, subjectById]);
+  }, [modal?.draft.day, modal?.draft.startTime, modal?.draft.endTime, modal?.draft.subjectId, modal]);
 
   const skipSlot = useMemo(() => {
     const m = new Set<string>();
     for (const e of sectionRows) {
-      const bounds = entryTimeBounds(e, programCode, subjectById);
+      const bounds = entryTimeBounds(e);
       if (!bounds) continue;
       const day = e.day as BsitEvaluatorWeekday;
       if (!BSIT_EVALUATOR_WEEKDAYS.includes(day)) continue;
@@ -218,7 +224,7 @@ export function GecInteractiveWeekGrid({
     () =>
       sectionRows.filter((e) => {
         if (!vacantGecSourceIds.has(e.id)) return false;
-        return entryTimeBounds(e, programCode, subjectById) == null;
+        return entryTimeBounds(e) == null;
       }),
     [sectionRows, vacantGecSourceIds, programCode, subjectById],
   );
@@ -236,6 +242,7 @@ export function GecInteractiveWeekGrid({
         entryId: e.id,
         draft: { ...e },
         buildingValue,
+        durationSlots: inferDurationSlotsFromTimes(e.startTime, e.endTime),
         isNew: pendingNewEntryIds.has(e.id),
         readOnly,
         anchor,
@@ -281,6 +288,7 @@ export function GecInteractiveWeekGrid({
   }, [modal, onRemovePendingEntry, closeModal]);
 
   const modalConflictFlags = modal ? conflictForEntry(modal.draft) : { faculty: "—", room: "—", section: "—" };
+  const modalConflictLines = modal && conflictDetailForEntry ? conflictDetailForEntry(modal.draft) : [];
   const anchorLabel = modal
     ? `${modal.draft.day} · ${BSIT_EVALUATOR_TIME_SLOTS[startSlotIndexFromEntry(modal.draft)]?.label ?? "Time slot"}`
     : "";
@@ -292,7 +300,7 @@ export function GecInteractiveWeekGrid({
     if (!focusEntryId) return;
     const e = sectionRows.find((r) => r.id === focusEntryId);
     if (!e) return;
-    const bounds = entryTimeBounds(e, programCode, subjectById);
+    const bounds = entryTimeBounds(e);
     openModalForEntry(e, {
       day: (e.day as BsitEvaluatorWeekday) || "Monday",
       slotIdx: bounds?.startIdx ?? Math.max(0, startSlotIndexFromEntry(e)),
@@ -307,7 +315,7 @@ export function GecInteractiveWeekGrid({
           <div className="text-[15px] font-semibold text-black">Schedule preview (INS weekly grid)</div>
           <p className="text-[12px] text-black/55 mt-1">
             Section <strong>{sectionName}</strong> · Monday–Friday · 7:00 AM–5:00 PM · Click a cell to plot or edit ·
-            Light green = vacant GEC (editable) · Gray = locked major
+            Split hours with 1-hour meetings + “Add another time slot” · Light green = vacant GEC · Gray = locked major
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -412,7 +420,7 @@ export function GecInteractiveWeekGrid({
                 {BSIT_EVALUATOR_WEEKDAYS.map((day) => {
                   if (skipSlot.has(`${day}-${slotIdx}`)) return null;
                   const atHere = sectionRows.filter((e) => {
-                    const bounds = entryTimeBounds(e, programCode, subjectById);
+                    const bounds = entryTimeBounds(e);
                     if (!bounds) return false;
                     if (e.day !== day) return false;
                     return bounds.startIdx === slotIdx;
@@ -444,7 +452,7 @@ export function GecInteractiveWeekGrid({
                   }
 
                   const rowspan = Math.max(
-                    ...atHere.map((e) => entryTimeBounds(e, programCode, subjectById)?.dur ?? 1),
+                    ...atHere.map((e) => entryTimeBounds(e)?.dur ?? 1),
                   );
                   const cfMerged = atHere.map((e) => conflictForEntry(e));
                   const scanHit = atHere.some((e) => highlightConflictEntryIds.has(e.id));
@@ -467,7 +475,7 @@ export function GecInteractiveWeekGrid({
                     >
                       <ul className="space-y-1">
                         {atHere.map((e) => {
-                          const bounds = entryTimeBounds(e, programCode, subjectById);
+                          const bounds = entryTimeBounds(e);
                           const anchor: CellAnchor = {
                             day: e.day as BsitEvaluatorWeekday,
                             slotIdx: bounds?.startIdx ?? Math.max(0, startSlotIndexFromEntry(e)),
@@ -551,6 +559,25 @@ export function GecInteractiveWeekGrid({
         rooms={rooms}
         buildingLabels={buildingLabels}
         conflictFlags={modalConflictFlags}
+        conflictDetailLines={modalConflictLines}
+        durationSlots={modal?.durationSlots ?? 1}
+        onDurationSlotsChange={(slots) =>
+          setModal((m) => {
+            if (!m) return m;
+            const sub = subjectById.get(m.draft.subjectId);
+            const d = plotEntryDurationSlots(programCode, sub, slots);
+            const startIdx = startSlotIndexFromEntry(m.draft);
+            const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
+            const eff = Math.min(Math.max(0, startIdx), maxS);
+            const times = timesFromSlotRange(eff, d);
+            return {
+              ...m,
+              durationSlots: slots,
+              draft: times ? { ...m.draft, startTime: times.startTime, endTime: times.endTime } : m.draft,
+            };
+          })
+        }
+        plottedGecSubjectIds={plottedGecSubjectIds}
         readOnly={modal?.readOnly ?? true}
         isNewPlot={modal?.isNew ?? false}
         anchorLabel={anchorLabel}
@@ -561,22 +588,21 @@ export function GecInteractiveWeekGrid({
             ? () => {
                 const sub = gecSubjects.find((s) => s.id === pickedSubjectId);
                 if (!sub) return;
-                const d = scheduleSlotDurationForSubject(programCode, sub);
+                const d = plotEntryDurationSlots(programCode, sub, 1);
                 const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
                 const eff = Math.min(startSlotIndexFromEntry(modal.draft), maxS);
-                const startSlot = BSIT_EVALUATOR_TIME_SLOTS[eff];
-                const endSlot = BSIT_EVALUATOR_TIME_SLOTS[eff + d - 1];
-                if (!startSlot || !endSlot) return;
-                const pad = (t: string) => (t.length <= 5 ? `${t}:00` : t);
+                const times = timesFromSlotRange(eff, d);
+                if (!times) return;
                 setModal((m) =>
                   m
                     ? {
                         ...m,
+                        durationSlots: 1,
                         draft: {
                           ...m.draft,
                           subjectId: pickedSubjectId,
-                          startTime: pad(startSlot.startTime),
-                          endTime: pad(endSlot.endTime),
+                          startTime: times.startTime,
+                          endTime: times.endTime,
                         },
                       }
                     : m,

@@ -17,7 +17,8 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { scheduleDurationSlots, type BsitSemester } from "@/lib/chairman/bsit-prospectus";
+import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
+import { plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
@@ -46,7 +47,7 @@ function rowTimeBounds(
 ): { startIdx: number; dur: number } | null {
   const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   if (!p) return null;
-  const dur = scheduleDurationSlots(p);
+  const dur = plotRowDurationSlots(p, row);
   const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
   const startIdx = Math.min(row.startSlotIndex, maxS);
   if (startIdx < 0 || startIdx + dur > BSIT_EVALUATOR_TIME_SLOTS.length) return null;
@@ -117,6 +118,7 @@ export type BsitChairmanInteractiveWeekGridProps = {
   termProspectusSemester: BsitSemester | null;
   plottedCodesBySectionId: Map<string, Set<string>>;
   conflictForRow: (row: PlotRow) => RowConflictFlags;
+  conflictDetailForRow?: (row: PlotRow) => string[];
   campusScanConflictIds: Set<string>;
   overloadedInstructorIds: Set<string>;
   onApplyPlot: (draft: PlotRow, buildingValue: string) => void;
@@ -144,7 +146,7 @@ function PlotCellSummary({
   conflictFlags: RowConflictFlags;
 }) {
   const pr = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
-  const dur = pr ? scheduleDurationSlots(pr) : 1;
+  const dur = pr ? plotRowDurationSlots(pr, row) : 1;
   const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
   const eff = pr ? Math.min(row.startSlotIndex, maxS) : 0;
   const sec = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "";
@@ -205,6 +207,7 @@ export function BsitChairmanInteractiveWeekGrid({
   termProspectusSemester,
   plottedCodesBySectionId,
   conflictForRow,
+  conflictDetailForRow,
   campusScanConflictIds,
   overloadedInstructorIds,
   onApplyPlot,
@@ -312,6 +315,7 @@ export function BsitChairmanInteractiveWeekGrid({
   }, [modal, onRemoveRow, closeModal]);
 
   const modalConflictFlags = modal ? conflictForRow(modal.draft) : { faculty: "—", room: "—", section: "—" };
+  const modalConflictLines = modal && conflictDetailForRow ? conflictDetailForRow(modal.draft) : [];
 
   const anchorLabel = modal
     ? `${modal.draft.day} · ${BSIT_EVALUATOR_TIME_SLOTS[modal.draft.startSlotIndex]?.label ?? "Time slot"}`
@@ -326,7 +330,7 @@ export function BsitChairmanInteractiveWeekGrid({
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold text-black">Schedule preview (INS weekly grid)</div>
           <p className="text-[12px] text-black/55 mt-1">
-            Monday–Friday · 7:00 AM–5:00 PM · Click a cell to plot or edit · Merged cells follow subject duration
+            Monday–Friday · 7:00 AM–5:00 PM · Click a cell to plot or edit · Split hours using 1-hour meetings + “Add another time slot”
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -548,6 +552,7 @@ export function BsitChairmanInteractiveWeekGrid({
         termProspectusSemester={termProspectusSemester}
         plottedCodesBySectionId={plottedCodesBySectionId}
         conflictFlags={modalConflictFlags}
+        conflictDetailLines={modalConflictLines}
         readOnly={schedulePublished || Boolean(modal?.draft.lockedByDoiAt)}
         isNewPlot={modal?.isNew ?? true}
         anchorLabel={anchorLabel}

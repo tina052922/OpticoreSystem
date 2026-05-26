@@ -13,6 +13,8 @@ export type PlotRow = {
   roomId: string;
   /** First 1-hour slot index (0 = 7:00–8:00 AM … 9 = 4:00–5:00 PM). */
   startSlotIndex: number;
+  /** Consecutive 1-hour slots for this meeting (default 1 — split contact across multiple rows). */
+  durationSlots?: number;
   day: BsitEvaluatorWeekday;
   /** When set, VPAA published this row; RLS blocks chairman writes — do not upsert/delete. */
   lockedByDoiAt?: string | null;

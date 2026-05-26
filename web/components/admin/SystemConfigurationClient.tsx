@@ -216,6 +216,12 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
     { key: "defaultMaxFacultyHoursPerWeek", label: "Default GA / optimizer soft cap (hrs/week)" },
   ];
 
+  const rateFields: { key: keyof SchedulingPolicyConfig; label: string }[] = [
+    { key: "ratePerHourDoctorate", label: "Rate per hour — Doctorate (₱)" },
+    { key: "ratePerHourMasters", label: "Rate per hour — Master’s (₱)" },
+    { key: "ratePerHourBaccalaureate", label: "Rate per hour — Baccalaureate (₱)" },
+  ];
+
   return (
     <div className="px-4 md:px-8 pb-12 max-w-3xl space-y-6">
       <p className="text-[13px] text-black/65 leading-relaxed">
@@ -224,6 +230,10 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
       </p>
 
       <SectionCard title="INS form signatories">
+        <p className="text-xs text-black/60 -mt-2">
+          Printed on Faculty, Section, and Room INS views after VPAA publishes the term. Edit signer names and titles below;
+          assign roster users for signature images where applicable.
+        </p>
         {mode === "doi" ? (
           <div className="space-y-4">
             <p className="text-xs text-black/60">Campus-wide VPAA approval line and Campus Director signature image.</p>
@@ -334,6 +344,41 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
           {policySaving ? "Saving…" : "Save teaching load policy"}
         </Button>
         {policyMsg ? <p className="text-sm text-emerald-800">{policyMsg}</p> : null}
+      </SectionCard>
+
+      <SectionCard title="Faculty rate per hour">
+        <p className="text-xs text-black/60">
+          Default undergraduate hourly rates from the merit system. Used when computing faculty load compensation on
+          profiles and reports.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {rateFields.map((f) => (
+            <label key={f.key} className="block text-sm">
+              <span className="font-medium text-black/80">{f.label}</span>
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                className="mt-1 h-10"
+                value={policyDraft[f.key] ?? ""}
+                onChange={(e) =>
+                  setPolicyDraft((prev) => ({
+                    ...prev,
+                    [f.key]: parseFloat(e.target.value) || undefined,
+                  }))
+                }
+              />
+            </label>
+          ))}
+        </div>
+        <Button
+          type="button"
+          className="mt-3 bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold"
+          disabled={policySaving}
+          onClick={() => void savePolicy()}
+        >
+          {policySaving ? "Saving…" : "Save rates & policy"}
+        </Button>
       </SectionCard>
 
       <SectionCard title="Academic year & semester">

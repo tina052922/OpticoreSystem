@@ -6,7 +6,7 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
+import { inferDurationSlotsFromTimes } from "@/lib/evaluator/plot-duration";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import type { FacultyProfile, Room, ScheduleEntry, Subject, User } from "@/types/db";
@@ -30,12 +30,8 @@ function startSlotIndexFromEntry(e: ScheduleEntry): number {
   return BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === h);
 }
 
-function durationForEntry(
-  e: ScheduleEntry,
-  programCode: string,
-  subjectById: Map<string, Subject>,
-): number {
-  return scheduleSlotDurationForSubject(programCode, subjectById.get(e.subjectId));
+function durationForEntry(e: ScheduleEntry): number {
+  return inferDurationSlotsFromTimes(e.startTime, e.endTime);
 }
 
 type Props = {
@@ -75,7 +71,7 @@ export function GecSectionSchedulePreview({
   const skipSlot = useMemo(() => {
     const m = new Set<string>();
     for (const e of list) {
-      const d = durationForEntry(e, programCode, subjectById);
+      const d = durationForEntry(e);
       const start = startSlotIndexFromEntry(e);
       if (start < 0) continue;
       const maxS = slots.length - d;
@@ -87,7 +83,7 @@ export function GecSectionSchedulePreview({
       }
     }
     return m;
-  }, [list, programCode, subjectById]);
+  }, [list]);
 
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
@@ -115,7 +111,7 @@ export function GecSectionSchedulePreview({
                   if (skipSlot.has(`${day}-${slotIdx}`)) return null;
                   const atHere = list.filter((e) => {
                     if (e.day !== day) return false;
-                    const d = durationForEntry(e, programCode, subjectById);
+                    const d = durationForEntry(e);
                     const start = startSlotIndexFromEntry(e);
                     if (start < 0) return false;
                     const maxS = slots.length - d;
@@ -131,7 +127,7 @@ export function GecSectionSchedulePreview({
                   }
                   const rowspan = Math.max(
                     ...atHere.map((e) => {
-                      const d = durationForEntry(e, programCode, subjectById);
+                      const d = durationForEntry(e);
                       const start = startSlotIndexFromEntry(e);
                       const maxS = slots.length - d;
                       const eff = Math.min(start, Math.max(0, maxS));
@@ -145,7 +141,7 @@ export function GecSectionSchedulePreview({
                           const sub = subjectById.get(e.subjectId);
                           const room = roomById.get(e.roomId);
                           const inst = userById.get(e.instructorId);
-                          const d = durationForEntry(e, programCode, subjectById);
+                          const d = durationForEntry(e);
                           const start = startSlotIndexFromEntry(e);
                           const maxS = slots.length - d;
                           const eff = Math.min(start, Math.max(0, maxS));

@@ -2,8 +2,8 @@ import { BSIT_EVALUATOR_TIME_SLOTS, type BsitEvaluatorWeekday } from "@/lib/chai
 import {
   normalizeProspectusCode,
   prospectusByCode,
-  scheduleDurationSlots,
 } from "@/lib/chairman/bsit-prospectus";
+import { inferDurationSlotsFromTimes, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import type { ScheduleEntry, Subject } from "@/types/db";
 
 /** Minimal row shape shared with `BsitChairmanEvaluatorWorksheet` for DB round-trip. */
@@ -15,6 +15,7 @@ export type ChairmanPersistablePlotRow = {
   instructorId: string;
   roomId: string;
   startSlotIndex: number;
+  durationSlots?: number;
   day: BsitEvaluatorWeekday;
 };
 
@@ -49,7 +50,7 @@ export function plotRowsToScheduleEntries(args: {
     if (!row.sectionId || !row.subjectCode || !row.instructorId || !row.roomId) continue;
     const p = prospectusByCode(row.subjectCode);
     if (!p) continue;
-    const dur = scheduleDurationSlots(p);
+    const dur = plotRowDurationSlots(p, row);
     const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
     const startIdx = Math.min(row.startSlotIndex, maxS);
     const startSlot = BSIT_EVALUATOR_TIME_SLOTS[startIdx];
@@ -94,10 +95,10 @@ export function scheduleEntriesToPlotRows(args: {
     if (!sub?.code) continue;
     const p = prospectusByCode(sub.code);
     if (!p) continue;
-    const dur = scheduleDurationSlots(p);
     const startH = hhmm(e.startTime);
     const startIdx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((s) => s.startTime === startH);
     if (startIdx < 0) continue;
+    const dur = inferDurationSlotsFromTimes(e.startTime, e.endTime);
     const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
     const clampedStart = Math.min(startIdx, Math.max(0, maxS));
 
@@ -109,6 +110,7 @@ export function scheduleEntriesToPlotRows(args: {
       instructorId: e.instructorId,
       roomId: e.roomId,
       startSlotIndex: clampedStart,
+      durationSlots: dur,
       day: e.day as BsitEvaluatorWeekday,
     });
   }

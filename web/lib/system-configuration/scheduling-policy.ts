@@ -9,6 +9,16 @@ export type SchedulingPolicyConfig = {
   maxWeeklyResidentContactHours?: number;
   /** Soft cap for GA / suggestions (hours/week). */
   defaultMaxFacultyHoursPerWeek?: number;
+  /** Merit-system hourly rates (undergraduate), editable campus-wide. */
+  ratePerHourDoctorate?: number;
+  ratePerHourMasters?: number;
+  ratePerHourBaccalaureate?: number;
+};
+
+export type ResolvedHourlyRates = {
+  DOCTORATE: number;
+  MASTERS: number;
+  BACCALAUREATE: number;
 };
 
 export type ResolvedFacultyPolicyConstants = {
@@ -26,6 +36,9 @@ export const DEFAULT_SCHEDULING_POLICY: SchedulingPolicyConfig = {
   maxWeeklyLectureOverloadHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS,
   maxWeeklyResidentContactHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_RESIDENT_CONTACT_HOURS,
   defaultMaxFacultyHoursPerWeek: 24,
+  ratePerHourDoctorate: 250,
+  ratePerHourMasters: 225,
+  ratePerHourBaccalaureate: 200,
 };
 
 function num(v: unknown, fallback: number): number {
@@ -64,6 +77,15 @@ export function resolveDefaultMaxFacultyHoursPerWeek(
 }
 
 /** Merge DB overrides with resolved teaching-load constants for the config form. */
+export function resolveHourlyRates(raw: SchedulingPolicyConfig | null | undefined): ResolvedHourlyRates {
+  const d = DEFAULT_SCHEDULING_POLICY;
+  return {
+    DOCTORATE: num(raw?.ratePerHourDoctorate, d.ratePerHourDoctorate!),
+    MASTERS: num(raw?.ratePerHourMasters, d.ratePerHourMasters!),
+    BACCALAUREATE: num(raw?.ratePerHourBaccalaureate, d.ratePerHourBaccalaureate!),
+  };
+}
+
 export function mergeSchedulingPolicyDraft(
   raw: SchedulingPolicyConfig | null | undefined,
   constants: ResolvedFacultyPolicyConstants,
@@ -72,5 +94,8 @@ export function mergeSchedulingPolicyDraft(
     ...schedulingPolicyFromResolved(constants),
     ...(raw ?? {}),
     defaultMaxFacultyHoursPerWeek: resolveDefaultMaxFacultyHoursPerWeek(raw),
+    ratePerHourDoctorate: resolveHourlyRates(raw).DOCTORATE,
+    ratePerHourMasters: resolveHourlyRates(raw).MASTERS,
+    ratePerHourBaccalaureate: resolveHourlyRates(raw).BACCALAUREATE,
   };
 }

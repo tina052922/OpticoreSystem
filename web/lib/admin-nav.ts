@@ -73,6 +73,7 @@ export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/gec", icon: "LayoutDashboard" },
   { label: LOAD_GENERATOR_NAV_LABEL, href: "/admin/gec/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
+  { label: "Request access", href: "/admin/gec/request-access", icon: "KeyRound" },
   { label: "Faculty Profile", href: "/admin/gec/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/gec/subject-codes", icon: "Layers" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },

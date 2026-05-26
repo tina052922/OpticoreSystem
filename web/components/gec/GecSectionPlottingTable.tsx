@@ -9,7 +9,11 @@ import {
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { normalizeSlotHHMM, startSlotIndexFromScheduleEntryStartTime } from "@/lib/chairman/evaluator-schedule-hydration";
-import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
+import {
+  inferDurationSlotsFromTimes,
+  plotEntryDurationSlots,
+  timesFromSlotRange,
+} from "@/lib/evaluator/plot-duration";
 import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecCurriculumSubjectCode, isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
@@ -216,14 +220,14 @@ export function GecSectionPlottingTable({
     };
   }
 
-  function applySlotRange(entryId: string, subjectId: string, startIdx: number) {
-    const dur = scheduleSlotDurationForSubject(programCode, subjectById.get(subjectId));
+  function applySlotRange(entryId: string, subjectId: string, startIdx: number, durationSlots = 1) {
+    const sub = subjectById.get(subjectId);
+    const dur = plotEntryDurationSlots(programCode, sub, durationSlots);
     const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
     const idx = Math.min(Math.max(0, startIdx), maxS);
-    const start = BSIT_EVALUATOR_TIME_SLOTS[idx];
-    const end = BSIT_EVALUATOR_TIME_SLOTS[idx + dur - 1];
-    if (!start || !end) return;
-    patchEdit(entryId, { startTime: start.startTime, endTime: end.endTime });
+    const times = timesFromSlotRange(idx, dur);
+    if (!times) return;
+    patchEdit(entryId, { startTime: times.startTime, endTime: times.endTime });
   }
 
   /** Actions column only when there are unsaved added rows (avoid an empty column). */
@@ -326,7 +330,7 @@ export function GecSectionPlottingTable({
                 const isVacantSlot = vacantSourceIds.has(e.id);
                 const editable = canEditVacant && isVacantSlot;
                 const cf = conflictForEntry(merged);
-                const dur = scheduleSlotDurationForSubject(programCode, subjectById.get(merged.subjectId));
+                const dur = inferDurationSlotsFromTimes(merged.startTime, merged.endTime);
                 const startIdx = startSlotIndexFromEntry(merged);
                 const maxStart = Math.max(0, BSIT_EVALUATOR_TIME_SLOTS.length - dur);
                 const effStart = startIdx >= 0 ? Math.min(startIdx, maxStart) : 0;

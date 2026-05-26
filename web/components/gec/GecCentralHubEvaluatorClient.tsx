@@ -44,7 +44,8 @@ import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSumma
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
 import type { GecPlotEditPatch } from "@/components/gec/GecSectionPlottingTable";
 import { BSIT_EVALUATOR_TIME_SLOTS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
+import { plotEntryDurationSlots, timesFromSlotRange } from "@/lib/evaluator/plot-duration";
+import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import {
   GEC_VACANT_INSTRUCTOR_USER_ID,
   isGecCurriculumSubjectCode,
@@ -965,12 +966,11 @@ export function GecCentralHubEvaluatorClient() {
       );
       return;
     }
-    const dur = scheduleSlotDurationForSubject(programCode, firstSub);
+    const dur = plotEntryDurationSlots(programCode, firstSub, 1);
     const maxIdx = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
     const effIdx = Math.min(Math.max(0, startIdx), maxIdx);
-    const startSlot = BSIT_EVALUATOR_TIME_SLOTS[effIdx];
-    const endSlot = BSIT_EVALUATOR_TIME_SLOTS[effIdx + dur - 1];
-    if (!startSlot || !endSlot) return;
+    const times = timesFromSlotRange(effIdx, dur);
+    if (!times) return;
     const roomPick = roomsForPlotting[0]?.id ?? "";
     if (!roomPick) {
       setSaveMsg("No room available for this college — add rooms in the database first.");
@@ -978,7 +978,6 @@ export function GecCentralHubEvaluatorClient() {
     }
     const id =
       typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `gec-${Date.now()}-${Math.random()}`;
-    const padTime = (t: string) => (t.length <= 5 ? `${t}:00` : t);
     const row: ScheduleEntry = {
       id,
       academicPeriodId,
@@ -987,8 +986,8 @@ export function GecCentralHubEvaluatorClient() {
       sectionId: sectionIdFilter,
       roomId: roomPick,
       day,
-      startTime: padTime(startSlot.startTime),
-      endTime: padTime(endSlot.endTime),
+      startTime: times.startTime,
+      endTime: times.endTime,
       status: "draft",
     };
     setExtraEntries((prev) => [...prev, row]);
@@ -1058,6 +1057,19 @@ export function GecCentralHubEvaluatorClient() {
     return set;
   }, [mergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
 
+  /** GEC subject ids on this section (enables “add another time slot” in the plot modal). */
+  const gecPlottedSubjectIdsForSection = useMemo(() => {
+    if (!sectionIdFilter || !academicPeriodId) return new Set<string>();
+    const set = new Set<string>();
+    for (const e of mergedEntries) {
+      if (e.sectionId !== sectionIdFilter || e.academicPeriodId !== academicPeriodId) continue;
+      const sub = subjectById.get(e.subjectId);
+      if (!sub || !isGecCurriculumSubjectCode(sub.code)) continue;
+      set.add(e.subjectId);
+    }
+    return set;
+  }, [mergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
+
   const gecSubjectsForPlot = useMemo(() => {
     if (!selectedSection || !allowedSubjectIds || allowedSubjectIds.size === 0) return [];
     return subjects
@@ -1096,6 +1108,26 @@ export function GecCentralHubEvaluatorClient() {
       };
     },
     [sparseCampusWideUniverse],
+  );
+
+  const conflictDetailForEntry = useCallback(
+    (e: ScheduleEntry) => {
+      const candidate = scheduleEntryToSparseBlock(e);
+      if (!candidate) return [];
+      const hits = detectConflictsSparse(candidate, sparseCampusWideUniverse, candidate.id);
+      const sub = subjectById.get(e.subjectId);
+      const room = roomById.get(e.roomId);
+      const inst = userById.get(e.instructorId);
+      const sec = sectionById.get(e.sectionId);
+      return formatSparseConflictLines(hits, sparseCampusWideUniverse, {
+        instructorName: inst?.name,
+        sectionName: sec?.name,
+        roomCode: room?.code,
+        subjectCode: sub?.code,
+        when: `${e.day} ${candidate.startTime.slice(0, 5)}–${candidate.endTime.slice(0, 5)}`,
+      });
+    },
+    [sparseCampusWideUniverse, subjectById, roomById, userById, sectionById],
   );
 
   if (loadError) {
@@ -1368,6 +1400,8 @@ export function GecCentralHubEvaluatorClient() {
                     setRoomBuildingByEntryId={setRoomBuildingByEntryId}
                     canEditVacant={canEditVacant}
                     conflictForEntry={conflictForEntry}
+                    conflictDetailForEntry={conflictDetailForEntry}
+                    plottedGecSubjectIds={gecPlottedSubjectIdsForSection}
                     highlightConflictEntryIds={conflictIds}
                     pickedSummaryCode={pickedSummaryCode}
                     pickedSubjectId={pickedSubjectId}

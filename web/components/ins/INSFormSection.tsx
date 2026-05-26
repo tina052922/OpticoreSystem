@@ -164,7 +164,7 @@ export function INSFormSection({
       users: catalog.users,
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
-      mode: "sectionCampusOnly",
+      mode: "full",
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
     });
     return mergeInsSignerDisplay(
