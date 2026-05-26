@@ -9,7 +9,12 @@ import {
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { normalizeSlotHHMM } from "@/lib/chairman/evaluator-schedule-hydration";
-import { scheduleSlotDurationForSubject } from "@/lib/chairman/prospectus-registry";
+import {
+  inferDurationSlotsFromTimes,
+  maxPlotDurationSlotsForSubject,
+  plotEntryDurationSlots,
+  timesFromSlotRange,
+} from "@/lib/evaluator/plot-duration";
 import { campusNavigationBuildingOptionLabel } from "@/lib/campus/campus-navigation-catalog";
 import { GEC_VACANT_INSTRUCTOR_USER_ID } from "@/lib/gec/gec-vacant";
 import {
@@ -62,6 +67,12 @@ export type GecPlotScheduleModalProps = {
   rooms: Room[];
   buildingLabels: string[];
   conflictFlags: RowConflictFlags;
+  conflictDetailLines?: string[];
+  /** Consecutive 1-hour slots for this meeting (default 1 — split across rows). */
+  durationSlots: number;
+  onDurationSlotsChange: (slots: number) => void;
+  /** GEC subject ids already plotted in this section (allows “add another slot”). */
+  plottedGecSubjectIds: Set<string>;
   readOnly: boolean;
   isNewPlot: boolean;
   anchorLabel: string;
@@ -86,6 +97,10 @@ export function GecPlotScheduleModal({
   rooms,
   buildingLabels,
   conflictFlags,
+  conflictDetailLines = [],
+  durationSlots,
+  onDurationSlotsChange,
+  plottedGecSubjectIds,
   readOnly,
   isNewPlot,
   anchorLabel,
@@ -120,30 +135,36 @@ export function GecPlotScheduleModal({
   }, [open, onClose]);
 
   const sub = gecSubjects.find((s) => s.id === draft.subjectId);
-  const dur = scheduleSlotDurationForSubject(programCode, sub);
+  const dur = plotEntryDurationSlots(programCode, sub, durationSlots);
+  const maxDur = sub ? maxPlotDurationSlotsForSubject(programCode, sub) : 1;
   const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
   const startIdx = startSlotIndexFromEntry(draft);
   const effectiveStart = Math.min(Math.max(0, startIdx), maxStart);
   const timeLine = sub ? formatTimeRangeFromSlots(effectiveStart, dur) : "Select GEC subject for duration";
   const roomsInB = buildingValue ? roomsInBuildingSorted(rooms, buildingValue) : [];
 
+  const { availableSubjects, addAnotherSlotSubjects } = useMemo(() => {
+    const isCurrent = (id: string) => id === draft.subjectId;
+    const available = gecSubjects.filter((s) => !plottedGecSubjectIds.has(s.id) || isCurrent(s.id));
+    const addAnother = gecSubjects.filter((s) => plottedGecSubjectIds.has(s.id) && !isCurrent(s.id));
+    return { availableSubjects: available, addAnotherSlotSubjects: addAnother };
+  }, [gecSubjects, plottedGecSubjectIds, draft.subjectId]);
+
   const hasConflict =
     conflictFlags.faculty === "Yes" || conflictFlags.room === "Yes" || conflictFlags.section === "Yes";
 
-  const applySlotFromIndex = (idx: number, subjectId: string) => {
+  const applySlotFromIndex = (idx: number, subjectId: string, slotDur = durationSlots) => {
     const subject = gecSubjects.find((s) => s.id === subjectId);
-    const d = scheduleSlotDurationForSubject(programCode, subject);
+    const d = plotEntryDurationSlots(programCode, subject, slotDur);
     const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
     const eff = Math.min(Math.max(0, idx), maxS);
-    const startSlot = BSIT_EVALUATOR_TIME_SLOTS[eff];
-    const endSlot = BSIT_EVALUATOR_TIME_SLOTS[eff + d - 1];
-    if (!startSlot || !endSlot) return;
-    const pad = (t: string) => (t.length <= 5 ? `${t}:00` : t);
+    const times = timesFromSlotRange(eff, d);
+    if (!times) return;
     onDraftChange({
       ...draft,
       subjectId,
-      startTime: pad(startSlot.startTime),
-      endTime: pad(endSlot.endTime),
+      startTime: times.startTime,
+      endTime: times.endTime,
     });
   };
 
@@ -206,9 +227,15 @@ export function GecPlotScheduleModal({
               <div className="space-y-1">
                 <p className="font-semibold">Scheduling conflict detected</p>
                 <ul className="list-disc pl-4 space-y-0.5">
-                  {conflictFlags.faculty === "Yes" ? <li>Faculty conflict</li> : null}
-                  {conflictFlags.room === "Yes" ? <li>Room conflict</li> : null}
-                  {conflictFlags.section === "Yes" ? <li>Section conflict</li> : null}
+                  {conflictDetailLines.length > 0
+                    ? conflictDetailLines.map((line) => <li key={line}>{line}</li>)
+                    : (
+                        <>
+                          {conflictFlags.faculty === "Yes" ? <li>Faculty — instructor double-booked at this time</li> : null}
+                          {conflictFlags.room === "Yes" ? <li>Room — already occupied at this time</li> : null}
+                          {conflictFlags.section === "Yes" ? <li>Section — another class overlaps this time</li> : null}
+                        </>
+                      )}
                 </ul>
               </div>
             </div>
@@ -223,14 +250,35 @@ export function GecPlotScheduleModal({
               className={`${fieldClass} mt-1`}
               value={draft.subjectId}
               disabled={readOnly || gecSubjects.length === 0}
-              onChange={(e) => applySlotFromIndex(effectiveStart, e.target.value)}
+              onChange={(e) => {
+                const subjectId = e.target.value;
+                if (!subjectId) {
+                  onDraftChange({ ...draft, subjectId: "" });
+                  return;
+                }
+                onDurationSlotsChange(1);
+                applySlotFromIndex(effectiveStart, subjectId, 1);
+              }}
             >
               <option value="">Select GEC subject…</option>
-              {gecSubjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.code} — {s.title}
-                </option>
-              ))}
+              {availableSubjects.length > 0 ? (
+                <optgroup label="Available">
+                  {availableSubjects.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} — {s.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {addAnotherSlotSubjects.length > 0 ? (
+                <optgroup label="Add another time slot (same subject)">
+                  {addAnotherSlotSubjects.map((s) => (
+                    <option key={`split-${s.id}`} value={s.id}>
+                      + {s.code} — {s.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
             </select>
             {pickedSummaryCode && pickedSubjectId && onApplyPickedSummary && !readOnly ? (
               <Button
@@ -338,19 +386,53 @@ export function GecPlotScheduleModal({
                 className={`${fieldClass} mt-1`}
                 value={effectiveStart}
                 disabled={readOnly || !draft.subjectId}
-                onChange={(e) => applySlotFromIndex(parseInt(e.target.value, 10), draft.subjectId)}
+                onChange={(e) => applySlotFromIndex(parseInt(e.target.value, 10), draft.subjectId, durationSlots)}
               >
                 {BSIT_EVALUATOR_TIME_SLOTS.slice(0, maxStart + 1).map((t, idx) => (
                   <option key={`${idx}-${t.label}`} value={idx}>
-                    {t.label} ({dur}h)
+                    {t.label}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
+          {sub && maxDur > 1 ? (
+            <div>
+              <label className={labelClass} htmlFor="gec-plot-duration">
+                Duration (consecutive hours this meeting)
+              </label>
+              <select
+                id="gec-plot-duration"
+                className={`${fieldClass} mt-1`}
+                value={dur}
+                disabled={readOnly}
+                onChange={(e) => {
+                  const nextDur = parseInt(e.target.value, 10) || 1;
+                  onDurationSlotsChange(nextDur);
+                  applySlotFromIndex(effectiveStart, draft.subjectId, nextDur);
+                }}
+              >
+                {Array.from({ length: maxDur }, (_, i) => i + 1).map((h) => (
+                  <option key={h} value={h}>
+                    {h} hour{h === 1 ? "" : "s"} (max {maxDur} for this subject)
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-black/50 mt-1">
+                To split contact across different days or times, use 1 hour and plot the same GEC subject again.
+              </p>
+            </div>
+          ) : null}
+
           <p className="text-[12px] font-medium text-black/60 rounded-lg bg-emerald-500/8 border border-emerald-400/25 px-3 py-2">
-            Duration: <span className="text-black/85">{timeLine}</span>
+            Preview: <span className="text-black/85">{timeLine}</span>
+            {sub ? (
+              <span className="text-black/50">
+                {" "}
+                · {dur} consecutive hour{dur === 1 ? "" : "s"}
+              </span>
+            ) : null}
           </p>
         </div>
 

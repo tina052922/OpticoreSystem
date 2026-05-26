@@ -8,6 +8,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
 import type { FacultyProfile, Program, Section, User } from "@/types/db";
 import { computeRatePerHour, DESIGNATION_POLICIES, getDesignationPolicyByLabel } from "@/lib/faculty/designation-system";
+import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
+import { resolveHourlyRates } from "@/lib/system-configuration/scheduling-policy";
 import {
   FACULTY_EMPLOYMENT_ORGANIC,
   FACULTY_EMPLOYMENT_PART_TIME,
@@ -54,6 +56,11 @@ export function FacultyProfileWorkspace({
 }: FacultyProfileWorkspaceProps) {
   const collegeId = chairmanCollegeId ?? viewerCollegeId ?? scopeCollegeId ?? null;
   const programLabel = chairmanProgramCode ?? "—";
+  const systemConfig = useSystemConfigurationOptional();
+  const hourlyRateOverrides = useMemo(() => {
+    const r = resolveHourlyRates(systemConfig?.schedulingPolicy ?? null);
+    return { doctorate: r.DOCTORATE, masters: r.MASTERS, baccalaureate: r.BACCALAUREATE };
+  }, [systemConfig?.schedulingPolicy]);
 
   const [tab, setTab] = useState<"profile" | "designation" | "advisory">("profile");
 
@@ -258,7 +265,7 @@ export function FacultyProfileWorkspace({
     const designationVal = draft.designation.trim() || null;
     const advisorySectionIdVal = draft.advisorySectionId.trim() || null;
     const ratePerHourVal = row.profile
-      ? computeRatePerHour(row.profile)
+      ? computeRatePerHour(row.profile, hourlyRateOverrides)
       : null;
 
     if (row.profile) {
@@ -383,11 +390,14 @@ export function FacultyProfileWorkspace({
       return;
     }
 
-    const computedRate = computeRatePerHour({
-      bsDegree: bsDegree.trim() || null,
-      msDegree: msDegree.trim() || null,
-      doctoralDegree: doctoralDegree.trim() || null,
-    } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree">);
+    const computedRate = computeRatePerHour(
+      {
+        bsDegree: bsDegree.trim() || null,
+        msDegree: msDegree.trim() || null,
+        doctoralDegree: doctoralDegree.trim() || null,
+      } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree">,
+      hourlyRateOverrides,
+    );
 
     const { error: pIns } = await supabase.from("FacultyProfile").insert({
       userId: id,
@@ -627,11 +637,14 @@ export function FacultyProfileWorkspace({
               </select>
               {(() => {
                 const pol = getDesignationPolicyByLabel(designation) ?? DESIGNATION_POLICIES.find((d) => d.key === "Regular Faculty")!;
-                const rate = computeRatePerHour({
-                  bsDegree: bsDegree.trim() || null,
-                  msDegree: msDegree.trim() || null,
-                  doctoralDegree: doctoralDegree.trim() || null,
-                } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree">);
+                const rate = computeRatePerHour(
+                  {
+                    bsDegree: bsDegree.trim() || null,
+                    msDegree: msDegree.trim() || null,
+                    doctoralDegree: doctoralDegree.trim() || null,
+                  } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree">,
+                  hourlyRateOverrides,
+                );
                 return (
                   <div className="text-[11px] text-black/55 leading-relaxed">
                     Teaching load: <strong>{pol.hoursPerWeekMin}–{pol.hoursPerWeekMax} hrs/week</strong>

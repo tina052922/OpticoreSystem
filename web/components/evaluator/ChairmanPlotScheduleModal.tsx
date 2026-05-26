@@ -8,7 +8,8 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { scheduleDurationSlots, type BsitSemester } from "@/lib/chairman/bsit-prospectus";
+import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
+import { maxPlotDurationSlots, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
@@ -69,6 +70,8 @@ export type ChairmanPlotScheduleModalProps = {
   termProspectusSemester: BsitSemester | null;
   plottedCodesBySectionId: Map<string, Set<string>>;
   conflictFlags: RowConflictFlags;
+  /** Detailed overlap lines (instructor, room, section, time). */
+  conflictDetailLines?: string[];
   readOnly: boolean;
   isNewPlot: boolean;
   anchorLabel: string;
@@ -93,6 +96,7 @@ export function ChairmanPlotScheduleModal({
   termProspectusSemester,
   plottedCodesBySectionId,
   conflictFlags,
+  conflictDetailLines = [],
   readOnly,
   isNewPlot,
   anchorLabel,
@@ -124,7 +128,8 @@ export function ChairmanPlotScheduleModal({
   }, [open, onClose]);
 
   const pr = draft.subjectCode ? prospectusRowForProgram(programCodeForSummary, draft.subjectCode) : undefined;
-  const dur = pr ? scheduleDurationSlots(pr) : 1;
+  const dur = pr ? plotRowDurationSlots(pr, draft) : 1;
+  const maxDur = pr ? maxPlotDurationSlots(pr) : 1;
   const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
   const effectiveStart = Math.min(draft.startSlotIndex, maxStart);
   const timeLine = pr ? formatTimeRangeFromSlots(effectiveStart, dur) : "Select subject for duration";
@@ -144,25 +149,26 @@ export function ChairmanPlotScheduleModal({
     [programCodeForSummary, yearLevel, termProspectusSemester],
   );
 
-  const { availableSubjects, alreadyScheduledSubjects } = useMemo(() => {
-    const plotted = draft.sectionId ? plottedCodesBySectionId.get(draft.sectionId) : undefined;
-    const available = rawSubjectOptions.filter(
-      (s) => !plotted || !plotted.has(normalizeProspectusCode(s.code)) || s.code === draft.subjectCode,
-    );
-    const already = rawSubjectOptions.filter(
-      (s) => plotted && plotted.has(normalizeProspectusCode(s.code)) && s.code !== draft.subjectCode,
-    );
-    return { availableSubjects: available, alreadyScheduledSubjects: already };
-  }, [rawSubjectOptions, draft.sectionId, draft.subjectCode, plottedCodesBySectionId]);
-
-  const lecLabModes = draft.subjectCode ? lecLabModesAvailable(programCodeForSummary, draft.subjectCode) : [];
-  const lecLabSelectable = lecLabModes.length > 1;
-
   const subjectSelectValue = useMemo(() => {
     if (!draft.subjectCode) return "";
     const pair = getLecLabPair(programCodeForSummary, draft.subjectCode);
     return pair.lecCode ?? draft.subjectCode;
   }, [draft.subjectCode, programCodeForSummary]);
+
+  const { availableSubjects, addAnotherSlotSubjects } = useMemo(() => {
+    const plotted = draft.sectionId ? plottedCodesBySectionId.get(draft.sectionId) : undefined;
+    const isCurrent = (code: string) =>
+      normalizeProspectusCode(code) === normalizeProspectusCode(draft.subjectCode) ||
+      normalizeProspectusCode(code) === normalizeProspectusCode(subjectSelectValue);
+    const available = rawSubjectOptions.filter((s) => !plotted || !plotted.has(normalizeProspectusCode(s.code)) || isCurrent(s.code));
+    const addAnother = rawSubjectOptions.filter(
+      (s) => plotted && plotted.has(normalizeProspectusCode(s.code)) && !isCurrent(s.code),
+    );
+    return { availableSubjects: available, addAnotherSlotSubjects: addAnother };
+  }, [rawSubjectOptions, draft.sectionId, draft.subjectCode, plottedCodesBySectionId, subjectSelectValue]);
+
+  const lecLabModes = draft.subjectCode ? lecLabModesAvailable(programCodeForSummary, draft.subjectCode) : [];
+  const lecLabSelectable = lecLabModes.length > 1;
 
   const roomsInB = buildingValue ? roomsInBuildingSorted(roomsForEvaluatorGrid, buildingValue) : [];
 
@@ -223,9 +229,15 @@ export function ChairmanPlotScheduleModal({
               <div className="space-y-1">
                 <p className="font-semibold">Scheduling conflict detected</p>
                 <ul className="list-disc pl-4 space-y-0.5">
-                  {conflictFlags.faculty === "Yes" ? <li>Faculty conflict</li> : null}
-                  {conflictFlags.room === "Yes" ? <li>Room conflict</li> : null}
-                  {conflictFlags.section === "Yes" ? <li>Section conflict</li> : null}
+                  {conflictDetailLines.length > 0
+                    ? conflictDetailLines.map((line) => <li key={line}>{line}</li>)
+                    : (
+                        <>
+                          {conflictFlags.faculty === "Yes" ? <li>Faculty — instructor double-booked at this time</li> : null}
+                          {conflictFlags.room === "Yes" ? <li>Room — already occupied at this time</li> : null}
+                          {conflictFlags.section === "Yes" ? <li>Section — another class overlaps this time</li> : null}
+                        </>
+                      )}
                 </ul>
               </div>
             </div>
@@ -272,11 +284,11 @@ export function ChairmanPlotScheduleModal({
                   const p = prospectusRowForProgram(programCodeForSummary, subjectCode);
                   let startSlotIndex = draft.startSlotIndex;
                   if (p) {
-                    const d = scheduleDurationSlots(p);
+                    const d = plotRowDurationSlots(p, draft);
                     const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
                     if (startSlotIndex > maxS) startSlotIndex = maxS;
                   }
-                  onDraftChange({ ...draft, lecLabMode: mode, subjectCode, startSlotIndex });
+                  onDraftChange({ ...draft, lecLabMode: mode, subjectCode, startSlotIndex, durationSlots: 1 });
                 }}
               >
                 {!draft.subjectCode ? (
@@ -351,11 +363,11 @@ export function ChairmanPlotScheduleModal({
                 const p = prospectusRowForProgram(programCodeForSummary, subjectCode);
                 let startSlotIndex = draft.startSlotIndex;
                 if (p) {
-                  const d = scheduleDurationSlots(p);
+                  const d = plotRowDurationSlots(p, { durationSlots: 1 });
                   const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
                   if (startSlotIndex > maxS) startSlotIndex = maxS;
                 }
-                onDraftChange({ ...draft, subjectCode, lecLabMode: mode, startSlotIndex });
+                onDraftChange({ ...draft, subjectCode, lecLabMode: mode, startSlotIndex, durationSlots: 1 });
               }}
             >
               <option value="">
@@ -374,11 +386,11 @@ export function ChairmanPlotScheduleModal({
                   ))}
                 </optgroup>
               ) : null}
-              {alreadyScheduledSubjects.length > 0 ? (
-                <optgroup label="Already scheduled">
-                  {alreadyScheduledSubjects.map((s) => (
-                    <option key={s.code} value={s.code} disabled>
-                      ✓ {s.code} — {s.title}
+              {addAnotherSlotSubjects.length > 0 ? (
+                <optgroup label="Add another time slot (same subject)">
+                  {addAnotherSlotSubjects.map((s) => (
+                    <option key={`split-${s.code}`} value={s.code}>
+                      + {s.code} — {s.title}
                     </option>
                   ))}
                 </optgroup>
@@ -498,12 +510,41 @@ export function ChairmanPlotScheduleModal({
             </div>
           </div>
 
+          {pr && maxDur > 1 ? (
+            <div>
+              <label className={labelClass} htmlFor="plot-duration">
+                Duration (consecutive hours this meeting)
+              </label>
+              <select
+                id="plot-duration"
+                className={`${fieldClass} mt-1`}
+                value={dur}
+                disabled={readOnly}
+                onChange={(e) => {
+                  const durationSlots = parseInt(e.target.value, 10) || 1;
+                  const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - durationSlots;
+                  const startSlotIndex = Math.min(draft.startSlotIndex, maxS);
+                  onDraftChange({ ...draft, durationSlots, startSlotIndex });
+                }}
+              >
+                {Array.from({ length: maxDur }, (_, i) => i + 1).map((h) => (
+                  <option key={h} value={h}>
+                    {h} hour{h === 1 ? "" : "s"} (max {maxDur} for this subject)
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-black/50 mt-1">
+                To split contact across different days or times, set 1 hour here and plot the same subject again.
+              </p>
+            </div>
+          ) : null}
+
           <p className="text-[12px] font-medium text-black/60 rounded-lg bg-[#ff990a]/8 border border-[#ff990a]/25 px-3 py-2">
-            Duration: <span className="text-black/85">{timeLine}</span>
+            Preview: <span className="text-black/85">{timeLine}</span>
             {pr ? (
               <span className="text-black/50">
                 {" "}
-                · {dur} hour{dur === 1 ? "" : "s"} from prospectus
+                · {dur} consecutive hour{dur === 1 ? "" : "s"}
               </span>
             ) : null}
           </p>

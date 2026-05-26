@@ -27,7 +27,6 @@ import {
 import {
   BSIT_PROGRAM_CODE,
   normalizeProspectusCode,
-  scheduleDurationSlots,
 } from "@/lib/chairman/bsit-prospectus";
 import { BSENVS_PROGRAM_CODE, BSENVS_PROGRAM_ID } from "@/lib/chairman/bs-envsci-prospectus";
 import {
@@ -84,6 +83,8 @@ const daySelectClass =
   "w-full min-h-10 min-w-0 rounded-md border border-black/25 bg-white px-2 text-[11px] font-medium text-neutral-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
 import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
+import { plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
+import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
 
@@ -123,7 +124,7 @@ function subjectFromProspectus(code: string, programId: string, programCodeForSu
 function rowTimeBounds(row: PlotRow, programCodeForSummary: string): { startIdx: number; start: (typeof BSIT_EVALUATOR_TIME_SLOTS)[0]; endSlot: (typeof BSIT_EVALUATOR_TIME_SLOTS)[0] } | null {
   const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   if (!p) return null;
-  const dur = scheduleDurationSlots(p);
+  const dur = plotRowDurationSlots(p, row);
   const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
   const startIdx = Math.min(row.startSlotIndex, maxS);
   const start = BSIT_EVALUATOR_TIME_SLOTS[startIdx];
@@ -732,6 +733,30 @@ export function BsitChairmanEvaluatorWorksheet({
     [academicPeriodId, sparseCampusUniverse, programCodeForSummary],
   );
 
+  const conflictDetailForRow = useCallback(
+    (row: PlotRow): string[] => {
+      if (!academicPeriodId) return [];
+      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
+      if (!candidate) return [];
+      const hits = detectConflictsSparse(candidate, sparseCampusUniverse, candidate.id);
+      return formatSparseConflictLines(hits, sparseCampusUniverse, {
+        instructorName: row.instructorId ? instructorDisplayById.get(row.instructorId) : undefined,
+        sectionName: row.sectionId ? sectionNameById.get(row.sectionId) : undefined,
+        roomCode: row.roomId ? roomCodeById.get(row.roomId) : undefined,
+        subjectCode: row.subjectCode,
+        when: `${row.day} ${candidate.startTime.slice(0, 5)}–${candidate.endTime.slice(0, 5)}`,
+      });
+    },
+    [
+      academicPeriodId,
+      sparseCampusUniverse,
+      programCodeForSummary,
+      instructorDisplayById,
+      sectionNameById,
+      roomCodeById,
+    ],
+  );
+
   const notifyRealtimeConflicts = useCallback(
     (row: PlotRow) => {
       const cf = conflictForRow(row);
@@ -1184,7 +1209,7 @@ export function BsitChairmanEvaluatorWorksheet({
     const next = { ...row, ...patch };
     const p = next.subjectCode ? prospectusRowForProgram(programCodeForSummary, next.subjectCode) : undefined;
     if (p) {
-      const d = scheduleDurationSlots(p);
+      const d = plotRowDurationSlots(p, next);
       const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
       if (next.startSlotIndex > maxS) return { ...next, startSlotIndex: maxS };
     }
@@ -1914,6 +1939,7 @@ export function BsitChairmanEvaluatorWorksheet({
         termProspectusSemester={termProspectusSemester}
         plottedCodesBySectionId={plottedCodesBySectionId}
         conflictForRow={conflictForRow}
+        conflictDetailForRow={conflictDetailForRow}
         campusScanConflictIds={campusScanConflictIds}
         overloadedInstructorIds={overloadedInstructorIds}
         onApplyPlot={applyPlotFromModal}

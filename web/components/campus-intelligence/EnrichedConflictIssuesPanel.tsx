@@ -143,6 +143,11 @@ export function EnrichedConflictIssuesPanel({
 
               {renderIssueFooter ? <div className="mb-2 flex flex-wrap gap-2">{renderIssueFooter(iss)}</div> : null}
 
+              {allowApply && onApplySuggestion && sug.length > 0 ? (
+                <p className="text-[10px] font-semibold text-amber-950/90 mb-1.5">
+                  Suggested fixes — applies to <strong>Row A</strong> (day, time, and room):
+                </p>
+              ) : null}
               <div className="flex flex-wrap gap-1.5">
                 {allowApply && onApplySuggestion && sug.length > 0
                   ? sug.slice(0, 5).map((s, i) => {

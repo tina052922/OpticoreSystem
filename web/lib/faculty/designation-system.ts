@@ -77,10 +77,19 @@ export function highestDegree(profile: Pick<
   return null;
 }
 
-export function ratePerHourFromHighestDegree(d: HighestDegree): number | null {
-  if (d === "Doctorate") return 250;
-  if (d === "Master’s") return 225;
-  if (d === "Baccalaureate") return 200;
+export type HourlyRateOverrides = {
+  doctorate?: number;
+  masters?: number;
+  baccalaureate?: number;
+};
+
+export function ratePerHourFromHighestDegree(
+  d: HighestDegree,
+  overrides?: HourlyRateOverrides,
+): number | null {
+  if (d === "Doctorate") return overrides?.doctorate ?? 250;
+  if (d === "Master’s") return overrides?.masters ?? 225;
+  if (d === "Baccalaureate") return overrides?.baccalaureate ?? 200;
   return null;
 }
 
@@ -88,10 +97,10 @@ export function ratePerHourFromHighestDegree(d: HighestDegree): number | null {
  * Canonical hourly rate (undergraduate) derived from the highest degree fields in `FacultyProfile`.
  * Stored in DB in `FacultyProfile.ratePerHour` for consistent evaluator rendering.
  */
-export function computeRatePerHour(profile: Pick<
-  FacultyProfile,
-  "doctoralDegree" | "msDegree" | "bsDegree"
-> | null): number | null {
-  return ratePerHourFromHighestDegree(highestDegree(profile));
+export function computeRatePerHour(
+  profile: Pick<FacultyProfile, "doctoralDegree" | "msDegree" | "bsDegree"> | null,
+  overrides?: HourlyRateOverrides,
+): number | null {
+  return ratePerHourFromHighestDegree(highestDegree(profile), overrides);
 }
 

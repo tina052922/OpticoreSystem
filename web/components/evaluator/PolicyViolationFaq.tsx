@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { POLICY_VIOLATION_FAQ } from "@/lib/evaluator/policy-violation-faq";
+import { FACULTY_DESIGNATION_REFERENCE, POLICY_VIOLATION_FAQ } from "@/lib/evaluator/policy-violation-faq";
 
 export function PolicyViolationFaq({ className = "" }: { className?: string }) {
   const [openIdx, setOpenIdx] = useState<number | null>(0);
@@ -28,6 +28,30 @@ export function PolicyViolationFaq({ className = "" }: { className?: string }) {
           );
         })}
       </ul>
+
+      <div className="pt-2 border-t border-amber-200/70">
+        <p className="text-[12px] font-bold text-amber-950 mb-2">Faculty ranks & designation teaching caps</p>
+        <div className="overflow-x-auto rounded-lg border border-amber-200/60 bg-white">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="bg-amber-50/80 text-left">
+                <th className="px-2 py-1.5 font-semibold">Designation</th>
+                <th className="px-2 py-1.5 font-semibold">Teaching load</th>
+                <th className="px-2 py-1.5 font-semibold hidden sm:table-cell">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {FACULTY_DESIGNATION_REFERENCE.map((row) => (
+                <tr key={row.designation} className="border-t border-amber-100/80">
+                  <td className="px-2 py-1.5 font-medium text-black/85">{row.designation}</td>
+                  <td className="px-2 py-1.5 tabular-nums text-black/75">{row.hoursPerWeek}</td>
+                  <td className="px-2 py-1.5 text-black/60 hidden sm:table-cell">{row.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 /** Shared FAQ copy for policy / load violations (evaluator + policy review pages). */
 
+import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
+
 export const POLICY_VIOLATION_FAQ = [
   {
     q: "Why did I get a teaching load violation?",
@@ -17,7 +19,21 @@ export const POLICY_VIOLATION_FAQ = [
     q: "Why do conflicts and policy checks differ?",
     a: "Run conflict check scans the whole campus for room, faculty, and section overlaps. Policy checks focus on faculty load rules for plotted instructors.",
   },
+  {
+    q: "What are faculty designations and how do they affect load?",
+    a: "Designations (Dean, Chairperson, Campus Director, etc.) set a weekly teaching-hour cap from the CTU Faculty Merit System. Regular faculty without a designation use the campus standard load (organic / part-time rules). Violations appear when plotted hours exceed the designation cap or employment status limit.",
+  },
 ] as const;
+
+/** Reference table for admins reviewing policy violations. */
+export const FACULTY_DESIGNATION_REFERENCE = DESIGNATION_POLICIES.map((p) => ({
+  designation: p.label,
+  hoursPerWeek: `${p.hoursPerWeekMin}–${p.hoursPerWeekMax} hrs/week`,
+  note:
+    p.key === "Regular Faculty"
+      ? "Uses standard organic / part-time caps when no other designation applies."
+      : "Scheduling enforces the upper bound; overload requires justification.",
+}));
 
 export const PLOTTING_GUIDANCE_CARDS = [
   {
@@ -25,8 +41,8 @@ export const PLOTTING_GUIDANCE_CARDS = [
     body: "Pick section → subject from the prospectus → instructor (Employee ID) → room → day and time slot.",
   },
   {
-    title: "One row per meeting",
-    body: "Multi-hour subjects span consecutive slots in the preview grid; lab/lec units drive duration.",
+    title: "Split lecture or lab hours",
+    body: "Use Duration (hours per meeting) = 1 to plot the same subject on different days or times. Add another row for the same subject code until weekly contact hours are complete.",
   },
   {
     title: "Faculty first",
