@@ -1,4 +1,5 @@
-import type { College, User } from "@/types/db";
+import { mergeInsSignerDisplay } from "@/lib/ins/merge-ins-signer-display";
+import type { College, CollegeInsSignerDisplay, User } from "@/types/db";
 
 export type InsSignatureSlot = {
   key: string;
@@ -43,8 +44,6 @@ export function buildInsSignatureSlots(args: {
   /** Singleton from `CampusInsSettings` — same image for every college. */
   campusWideDirectorSignatureUrl?: string | null;
 }): InsSignatureSlot[] | null {
-  if (!args.scheduleApproved) return null;
-
   const { college, programId, users, userById, mode = "full", campusWideDirectorSignatureUrl } = args;
   const collegeId = college?.id ?? null;
 
@@ -114,4 +113,40 @@ export function buildInsSignatureSlots(args: {
     slot("contract", "Contract", "Authorized signatory", contractSigner),
     slot("prepared", "Prepared by", "College Admin", collegeAdmin),
   ];
+}
+
+/**
+ * Build INS signature strip with System Configuration overrides (names + titles).
+ * Signature images appear only after VPAA publication (`scheduleApproved`).
+ */
+export function resolveInsSignatureSlots(args: {
+  college: College | null;
+  programId: string | null;
+  users: User[];
+  userById: Map<string, User>;
+  scheduleApproved: boolean;
+  mode?: InsSignatureSlotMode;
+  campusWideDirectorSignatureUrl?: string | null;
+  campusInsSignerDisplay?: CollegeInsSignerDisplay | null;
+  collegeInsSignerDisplay?: CollegeInsSignerDisplay | null;
+}): InsSignatureSlot[] | null {
+  const built = buildInsSignatureSlots({
+    college: args.college,
+    programId: args.programId,
+    users: args.users,
+    userById: args.userById,
+    scheduleApproved: true,
+    mode: args.mode,
+    campusWideDirectorSignatureUrl: args.campusWideDirectorSignatureUrl,
+  });
+  const merged = mergeInsSignerDisplay(
+    built,
+    args.campusInsSignerDisplay ?? null,
+    args.collegeInsSignerDisplay ?? null,
+  );
+  if (!merged?.length) return merged;
+  if (!args.scheduleApproved) {
+    return merged.map((s) => ({ ...s, imageUrl: null }));
+  }
+  return merged;
 }

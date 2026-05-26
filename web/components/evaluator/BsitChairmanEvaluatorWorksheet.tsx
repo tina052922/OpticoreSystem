@@ -5,10 +5,10 @@ import { flushSync } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Q } from "@/lib/supabase/catalog-columns";
+import { runCampusConflictScan } from "@/lib/scheduling/campus-conflict-scan-client";
 import {
   detectConflictsSparse,
   scanAllSparseScheduleConflicts,
-  scheduleBlockToSparseBlock,
   scheduleEntryToSparseBlock,
 } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
@@ -691,12 +691,25 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [allTermScheduleEntries, academicPeriodId, rows, programId, programCodeForSummary]);
 
   /**
-   * Campus-wide sparse blocks (every program’s saved rows + this worksheet’s drafts) for real-time cells and
-   * “Run conflict check”. Plotting UI stays program-scoped; overlap detection must not ignore other programs.
+   * Campus-wide sparse blocks: every term `ScheduleEntry` (partial rows included) + worksheet overlay.
+   * Using only “complete” plot blocks dropped valid faculty/room overlaps when room/instructor was missing on save.
    */
   const sparseCampusUniverse = useMemo((): SparseScheduleBlock[] => {
-    return mergedBlocksForCampusScan.map(scheduleBlockToSparseBlock);
-  }, [mergedBlocksForCampusScan]);
+    if (!academicPeriodId) return [];
+    const worksheetIds = new Set(rows.map((r) => r.id));
+    const byId = new Map<string, SparseScheduleBlock>();
+    for (const e of allTermScheduleEntries) {
+      if (e.academicPeriodId !== academicPeriodId) continue;
+      if (worksheetIds.has(e.id)) continue;
+      const b = scheduleEntryToSparseBlock(e);
+      if (b) byId.set(e.id, b);
+    }
+    for (const row of rows) {
+      const b = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
+      if (b) byId.set(row.id, b);
+    }
+    return [...byId.values()];
+  }, [allTermScheduleEntries, academicPeriodId, rows, programCodeForSummary]);
 
   const conflictForRow = useCallback(
     (row: PlotRow): { faculty: string; room: string; section: string } => {
@@ -765,47 +778,14 @@ export function BsitChairmanEvaluatorWorksheet({
     setChairmanGaByIssueKey({});
     setConflictDetailLoading(true);
     try {
-      const localScan = scanAllSparseScheduleConflicts(sparseCampusUniverse);
-
-      function issueEdgeKey(i: { entryId: string; type: string; relatedEntryId?: string }) {
-        if (!i.relatedEntryId) return `${i.type}:${i.entryId}`;
-        const [a, b] = [i.entryId, i.relatedEntryId].sort();
-        return `${i.type}:${a}:${b}`;
-      }
-
-      const res = await fetch("/api/scheduling/scope-conflict-scan", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          academicPeriodId,
-          mode: "doi_campus",
-          collegeId: null,
-          programId: null,
-        }),
+      const scan = await runCampusConflictScan({
+        academicPeriodId,
+        localEntries: allTermScheduleEntries,
+        localSparseBlocks: sparseCampusUniverse,
+        apiMode: "doi_campus",
       });
-      const api = (await res.json().catch(() => null)) as
-        | {
-            conflictingEntryIds?: string[];
-            issues?: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
-            issueSummaries?: string[];
-            error?: string;
-          }
-        | null;
-
-      const issueMap = new Map<string, (typeof localScan.issues)[0]>();
-      if (res.ok) {
-        for (const i of api?.issues ?? []) issueMap.set(issueEdgeKey(i), i);
-      }
-      for (const i of localScan.issues) {
-        const k = issueEdgeKey(i);
-        if (!issueMap.has(k)) issueMap.set(k, i);
-      }
-      const mergedIssueList = [...issueMap.values()];
-
-      const ids = new Set<string>();
-      if (res.ok) for (const id of api?.conflictingEntryIds ?? []) ids.add(id);
-      for (const id of localScan.conflictingEntryIds) ids.add(id);
+      const mergedIssueList = scan.issues;
+      const ids = scan.conflictingEntryIds;
       setCampusScanConflictIds(ids);
 
       const entryById = new Map(allTermScheduleEntries.map((e) => [e.id, e] as const));
@@ -916,12 +896,12 @@ export function BsitChairmanEvaluatorWorksheet({
       setChairmanGaByIssueKey(gaMap);
 
       if (ids.size === 0) {
-        setSaveScheduleMsg(res.ok ? "No conflicts detected." : api?.error ?? "Conflict scan failed.");
-      } else if (!res.ok) {
+        setSaveScheduleMsg(scan.apiOk ? "No conflicts detected." : scan.apiError ?? "Conflict scan failed.");
+      } else if (!scan.apiOk) {
         setSaveScheduleMsg(
-          res.status === 503
+          scan.apiError?.includes("SERVICE_ROLE")
             ? `Conflicts found: ${ids.size} row(s) — on-screen scan (campus-wide API unavailable).`
-            : `Conflicts found: ${ids.size} row(s). Server scan failed: ${api?.error ?? "error"}`,
+            : `Conflicts found: ${ids.size} row(s). Server scan failed: ${scan.apiError ?? "error"}`,
         );
       } else {
         setSaveScheduleMsg(`Conflicts found: ${ids.size} row(s).`);

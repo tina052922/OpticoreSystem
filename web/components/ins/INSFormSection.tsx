@@ -15,8 +15,7 @@ import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
-import { buildInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
-import { mergeInsSignerDisplay } from "@/lib/ins/merge-ins-signer-display";
+import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
 import { buildInsSectionView, emptyInsSectionSchedule } from "@/lib/ins/build-ins-section-view";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
@@ -158,7 +157,7 @@ export function INSFormSection({
     const sec = catalog.sectionById.get(selectedSectionId);
     const pr = sec ? catalog.programById.get(sec.programId) : null;
     const collegeRow = pr ? catalog.colleges.find((c) => c.id === pr.collegeId) ?? null : null;
-    const built = buildInsSignatureSlots({
+    return resolveInsSignatureSlots({
       college: collegeRow,
       programId: sec?.programId ?? null,
       users: catalog.users,
@@ -166,12 +165,9 @@ export function INSFormSection({
       scheduleApproved: catalog.termPublishLocked,
       mode: "full",
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
+      collegeInsSignerDisplay: collegeRow?.insSignerDisplay ?? null,
     });
-    return mergeInsSignerDisplay(
-      built,
-      catalog.campusInsSettings?.insSignerDisplay ?? null,
-      collegeRow?.insSignerDisplay ?? null,
-    );
   }, [
     useLiveData,
     selectedSectionId,
@@ -237,16 +233,16 @@ export function INSFormSection({
     window.print();
   }
 
-  function runInsConflict() {
+  async function runInsConflict() {
     if (!useLiveData) {
       alert("Connect to Supabase with a college scope to run conflict checks on live data.");
       return;
     }
-    const detail = catalog.getInsConflictAlertText();
-    if (!detail) {
-      alert("No instructor, room, or section time conflicts detected for this term (full campus scan).");
+    const result = await catalog.runInsConflictCheck();
+    if (result.conflictingCount === 0) {
+      alert(result.message);
     } else {
-      alert(`Conflict check\n\n${detail}`);
+      alert(`Conflict check\n\n${result.message}`);
     }
   }
 

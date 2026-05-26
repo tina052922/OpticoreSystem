@@ -7,8 +7,7 @@ import {
   type InsFacultyFormSummary,
   type InsFacultySchedule,
 } from "@/lib/ins/build-ins-faculty-view";
-import { buildInsSignatureSlots, type InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
-import { mergeInsSignerDisplay } from "@/lib/ins/merge-ins-signer-display";
+import { resolveInsSignatureSlots, type InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { Q } from "@/lib/supabase/catalog-columns";
@@ -98,19 +97,16 @@ export function useInsLiveSchedule(args: {
   ]);
 
   const insSignatureSlots: InsSignatureSlot[] | null = useMemo(() => {
-    const built = buildInsSignatureSlots({
+    return resolveInsSignatureSlots({
       college: resolvedCollegeAndProgram.collegeRow,
       programId: resolvedCollegeAndProgram.programId,
       users: catalog.users,
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
+      collegeInsSignerDisplay: resolvedCollegeAndProgram.collegeRow?.insSignerDisplay ?? null,
     });
-    return mergeInsSignerDisplay(
-      built,
-      catalog.campusInsSettings?.insSignerDisplay ?? null,
-      resolvedCollegeAndProgram.collegeRow?.insSignerDisplay ?? null,
-    );
   }, [
     resolvedCollegeAndProgram.collegeRow,
     resolvedCollegeAndProgram.programId,
@@ -230,6 +226,7 @@ export function useInsLiveSchedule(args: {
     subjectIdByCode: catalog.subjectIdByCode,
     getInsConflictSummaries: catalog.getInsConflictSummaries,
     getInsConflictAlertText: catalog.getInsConflictAlertText,
+    runInsConflictCheck: catalog.runInsConflictCheck,
     insConflictLinesForFaculty,
     insConflictingEntryIds: catalog.insConflictingEntryIds,
     getFirstConflictingEntryIdForInstructor: catalog.getFirstConflictingEntryIdForInstructor,

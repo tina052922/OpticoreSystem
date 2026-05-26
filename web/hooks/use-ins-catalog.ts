@@ -18,6 +18,7 @@ import {
   conflictHeadlineShort,
   conflictSummaryLine,
 } from "@/lib/scheduling/conflict-enrichment";
+import { runCampusConflictScan } from "@/lib/scheduling/campus-conflict-scan-client";
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
@@ -101,6 +102,12 @@ export function useInsCatalog(args: {
   /** `userId` + name fields for INS labels (AKA vs full name; never Employee ID). */
   const [facultyInsNames, setFacultyInsNames] = useState<Pick<FacultyProfile, "userId" | "fullName" | "aka">[]>([]);
   const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
+  /** Latest explicit “Run conflict check” (API + local); null = use computed scan from entries. */
+  const [insConflictScanOverride, setInsConflictScanOverride] = useState<{
+    conflictingEntryIds: Set<string>;
+    issues: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
+    issueSummaries: string[];
+  } | null>(null);
   const skipPeriodEntryFetchRef = useRef(true);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Coalesce chairman/GEC save broadcasts into one full catalog pull so new entry ids refresh Section/Subject merges (INS hours). */
@@ -422,6 +429,7 @@ export function useInsCatalog(args: {
         { event: "*", schema: "public", table: "CampusInsSettings" },
         () => scheduleDebouncedReload(),
       )
+      .on("postgres_changes", { event: "*", schema: "public", table: "College" }, () => scheduleDebouncedReload())
       .subscribe();
     return () => {
       if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
@@ -665,14 +673,13 @@ export function useInsCatalog(args: {
   }, [entries, academicPeriodId]);
 
   /** Full alert body: enriched causes + one GA-style suggestion per unique issue (when pools are available). */
-  const getInsConflictAlertText = useCallback((): string => {
-    if (!academicPeriodId) return "";
+  const buildInsConflictAlertText = useCallback(
+    (scan: {
+      issues: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
+      issueSummaries: string[];
+    }): string => {
+    if (!academicPeriodId || scan.issueSummaries.length === 0) return "";
     const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
-    const blocks = termRows
-      .map((e) => scheduleEntryToSparseBlock(e))
-      .filter((b): b is NonNullable<typeof b> => b != null);
-    const scan = scanAllSparseScheduleConflicts(blocks);
-    if (scan.issueSummaries.length === 0) return "";
 
     const entryById = new Map(entries.map((e) => [e.id, e]));
     const enriched = enrichCampusConflictIssues(
@@ -741,19 +748,94 @@ export function useInsCatalog(args: {
     }
 
     return lines.join("\n").trim();
+    },
+    [
+      academicPeriodId,
+      entries,
+      subjectById,
+      sectionById,
+      roomById,
+      userById,
+      programById,
+      collegeNameById,
+      rooms,
+      users,
+      facultyProfileByUserId,
+    ],
+  );
+
+  /**
+   * Full-term sparse conflict scan (same semantics as Evaluator). Used to tint INS grid cells and to offer
+   * one-click “apply alternative” for College Admin / DOI without opening the chairman worksheet.
+   */
+  const insConflictScanComputed = useMemo(() => {
+    if (!academicPeriodId) {
+      return {
+        conflictingEntryIds: new Set<string>(),
+        issues: [] as { entryId: string; type: string; message: string; relatedEntryId?: string }[],
+        issueSummaries: [] as string[],
+      };
+    }
+    const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+    const blocks = termRows
+      .map((e) => scheduleEntryToSparseBlock(e))
+      .filter((b): b is NonNullable<typeof b> => b != null);
+    const scan = scanAllSparseScheduleConflicts(blocks);
+    return { ...scan, issueSummaries: scan.issueSummaries };
+  }, [entries, academicPeriodId]);
+
+  useEffect(() => {
+    setInsConflictScanOverride(null);
+  }, [entries, academicPeriodId]);
+
+  const insConflictScan = insConflictScanOverride ?? insConflictScanComputed;
+
+  const insConflictingEntryIds = insConflictScan.conflictingEntryIds;
+
+  const runInsConflictCheck = useCallback(async () => {
+    if (!academicPeriodId) {
+      return { ok: false, message: "Select an academic term first.", conflictingCount: 0 };
+    }
+    const scan = await runCampusConflictScan({
+      academicPeriodId,
+      localEntries: entries,
+      apiMode: args.campusWide ? "doi_campus" : "college",
+      collegeId: args.campusWide ? null : args.collegeId,
+      programId: args.ignoreProgramScope ? null : args.programId,
+    });
+    setInsConflictScanOverride({
+      conflictingEntryIds: scan.conflictingEntryIds,
+      issues: scan.issues,
+      issueSummaries: scan.issueSummaries,
+    });
+    if (scan.conflictingEntryIds.size === 0) {
+      return {
+        ok: true,
+        message: scan.apiOk
+          ? "No instructor, room, or section time conflicts detected for this term (full campus scan)."
+          : `No conflicts on-screen. Server scan unavailable: ${scan.apiError ?? "error"}`,
+        conflictingCount: 0,
+      };
+    }
+    const detail = buildInsConflictAlertText({
+      issues: scan.issues,
+      issueSummaries: scan.issueSummaries,
+    });
+    return { ok: true, message: detail, conflictingCount: scan.conflictingEntryIds.size };
   }, [
     academicPeriodId,
     entries,
-    subjectById,
-    sectionById,
-    roomById,
-    userById,
-    programById,
-    collegeNameById,
-    rooms,
-    users,
-    facultyProfileByUserId,
+    args.campusWide,
+    args.collegeId,
+    args.programId,
+    args.ignoreProgramScope,
+    buildInsConflictAlertText,
   ]);
+
+  const getInsConflictAlertText = useCallback(
+    () => buildInsConflictAlertText(insConflictScan),
+    [buildInsConflictAlertText, insConflictScan],
+  );
 
   /**
    * INS Form 5A: conflict lines + GA-style suggestions for issues touching the selected instructor (Evaluator parity).
@@ -761,16 +843,12 @@ export function useInsCatalog(args: {
   const getInsConflictLinesForInstructor = useCallback(
     (instructorId: string): string[] => {
       if (!academicPeriodId || !instructorId.trim()) return [];
-      const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
-      const blocks = termRows
-        .map((e) => scheduleEntryToSparseBlock(e))
-        .filter((b): b is NonNullable<typeof b> => b != null);
-      const scan = scanAllSparseScheduleConflicts(blocks);
-      if (scan.issueSummaries.length === 0) return [];
+      if (insConflictScan.issueSummaries.length === 0) return [];
 
+      const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
       const entryById = new Map(entries.map((e) => [e.id, e]));
       const enriched = enrichCampusConflictIssues(
-        scan.issues,
+        insConflictScan.issues,
         entryById,
         subjectById,
         sectionById,
@@ -832,6 +910,7 @@ export function useInsCatalog(args: {
     [
       academicPeriodId,
       entries,
+      insConflictScan,
       subjectById,
       sectionById,
       roomById,
@@ -843,26 +922,6 @@ export function useInsCatalog(args: {
       facultyProfileByUserId,
     ],
   );
-
-  /**
-   * Full-term sparse conflict scan (same semantics as Evaluator). Used to tint INS grid cells and to offer
-   * one-click “apply alternative” for College Admin / DOI without opening the chairman worksheet.
-   */
-  const insConflictScan = useMemo(() => {
-    if (!academicPeriodId) {
-      return {
-        conflictingEntryIds: new Set<string>(),
-        issues: [] as { entryId: string; type: string; message: string; relatedEntryId?: string }[],
-      };
-    }
-    const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
-    const blocks = termRows
-      .map((e) => scheduleEntryToSparseBlock(e))
-      .filter((b): b is NonNullable<typeof b> => b != null);
-    return scanAllSparseScheduleConflicts(blocks);
-  }, [entries, academicPeriodId]);
-
-  const insConflictingEntryIds = insConflictScan.conflictingEntryIds;
 
   const getFirstConflictingEntryIdForInstructor = useCallback(
     (instructorId: string): string | null => {
@@ -1011,6 +1070,7 @@ export function useInsCatalog(args: {
     roomOptions,
     getInsConflictSummaries,
     getInsConflictAlertText,
+    runInsConflictCheck,
     getInsConflictLinesForInstructor,
     insConflictScan,
     insConflictingEntryIds,

@@ -154,16 +154,16 @@ export function INSFormFaculty({
     window.print();
   }
 
-  function runInsConflict() {
+  async function runInsConflict() {
     if (!useLiveData) {
       alert("Set a college scope to run conflict checks on live data.");
       return;
     }
-    const detail = live.getInsConflictAlertText();
-    if (!detail) {
-      alert("No instructor, room, or section time conflicts detected for this term (full campus scan).");
+    const result = await live.runInsConflictCheck();
+    if (result.conflictingCount === 0) {
+      alert(result.message);
     } else {
-      alert(`Conflict check\n\n${detail}`);
+      alert(`Conflict check\n\n${result.message}`);
     }
   }
 
