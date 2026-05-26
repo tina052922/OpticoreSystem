@@ -5,26 +5,24 @@ import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { CollegeInsSignerDisplay } from "@/types/db";
 
-const SLOT_META: { key: string; label: string }[] = [
-  { key: "approved", label: "Approved by (VPAA / DOI)" },
+export const INS_SIGNATORY_SLOT_DEFS: { key: string; label: string }[] = [
+  { key: "approved", label: "VPAA / DOI (approved by)" },
   { key: "campus", label: "Campus Director" },
-  { key: "review", label: "Program / GEC Chairman" },
-  { key: "contract", label: "Contract" },
+  { key: "dean", label: "Dean" },
+  { key: "review", label: "Program Chairman" },
+  { key: "contract", label: "Contract signatory" },
   { key: "prepared", label: "College Admin (prepared by)" },
 ];
 
 type Props = {
   mode: "college" | "doi";
-  /** Required for college mode — which `College` row to update. */
   collegeId?: string | null;
   onUpdated?: () => void;
+  /** System Configuration: flat grid, no collapsible chrome. */
+  layout?: "default" | "config";
 };
 
-/**
- * College Admin: edit printed INS signer labels for their college.
- * DOI Admin: edit campus-wide VPAA line (`CampusInsSettings.insSignerDisplay`).
- */
-export function InsSignerLabelsEditor({ mode, collegeId, onUpdated }: Props) {
+export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "default" }: Props) {
   const [display, setDisplay] = useState<CollegeInsSignerDisplay>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,7 +33,7 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated }: Props) {
     setMsg(null);
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-        setMsg("Connection is not configured.");
+      setMsg("Connection is not configured.");
       setLoading(false);
       return;
     }
@@ -74,7 +72,7 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated }: Props) {
     setMsg(null);
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-        setMsg("Connection is not configured.");
+      setMsg("Connection is not configured.");
       setSaving(false);
       return;
     }
@@ -96,62 +94,74 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated }: Props) {
     }
   }
 
-  const keys = mode === "doi" ? SLOT_META.filter((s) => s.key === "approved") : SLOT_META.filter((s) => s.key !== "approved");
+  const keys =
+    mode === "doi"
+      ? INS_SIGNATORY_SLOT_DEFS.filter((s) => s.key === "approved" || s.key === "campus")
+      : INS_SIGNATORY_SLOT_DEFS.filter((s) => s.key !== "approved");
 
   if (mode === "college" && !collegeId) {
     return (
       <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50/80 px-3 py-2 text-xs text-gray-600 no-print">
-        Select a faculty member to resolve the college before editing INS print signer labels.
+        College scope required.
       </div>
     );
+  }
+
+  const fields = (
+    <>
+      {loading ? (
+        <p className="text-xs text-gray-500">Loading…</p>
+      ) : (
+        <div className="space-y-4">
+          {keys.map(({ key, label }) => (
+            <div key={key} className="rounded-lg border border-black/10 bg-black/[0.02] p-3 space-y-2">
+              <p className="text-sm font-semibold text-[#780301]">{label}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-xs text-black/75">
+                  Name
+                  <input
+                    className="mt-1 w-full h-9 rounded-lg border border-black/20 px-2 text-sm"
+                    value={display[key]?.signerName ?? ""}
+                    onChange={(e) => patchKey(key, "signerName", e.target.value)}
+                    placeholder="Printed name"
+                  />
+                </label>
+                <label className="text-xs text-black/75">
+                  Title
+                  <input
+                    className="mt-1 w-full h-9 rounded-lg border border-black/20 px-2 text-sm"
+                    value={display[key]?.lineSubtitle ?? ""}
+                    onChange={(e) => patchKey(key, "lineSubtitle", e.target.value)}
+                    placeholder="Official title / role line"
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              className="bg-[#780301] hover:bg-[#5a0201] text-white"
+              disabled={saving}
+              onClick={() => void save()}
+            >
+              {saving ? "Saving…" : "Save signatories"}
+            </Button>
+            {msg ? <span className="text-sm text-emerald-800">{msg}</span> : null}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  if (layout === "config") {
+    return <div className="no-print">{fields}</div>;
   }
 
   return (
     <details className="no-print rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm">
       <summary className="cursor-pointer font-semibold text-gray-800">INS print — signer names & titles</summary>
-      <p className="mt-2 text-xs text-gray-600">
-        {mode === "doi"
-          ? "Campus-wide line for VPAA / DOI approval on printed INS forms."
-          : "Overrides apply to this college’s printed INS forms. Leave blank to use roster defaults after VPAA publishes."}
-      </p>
-      {loading ? (
-        <p className="mt-2 text-xs text-gray-500">Loading…</p>
-      ) : (
-        <div className="mt-3 space-y-3">
-          {keys.map(({ key, label }) => (
-            <div key={key} className="grid gap-1 sm:grid-cols-2">
-              <div className="text-xs font-medium text-gray-700 sm:col-span-2">{label}</div>
-              <label className="text-[11px] text-gray-600">
-                Title / role line
-                <input
-                  className="mt-0.5 w-full rounded border border-gray-200 px-2 py-1 text-xs"
-                  value={display[key]?.lineSubtitle ?? ""}
-                  onChange={(e) => patchKey(key, "lineSubtitle", e.target.value)}
-                  placeholder="(optional)"
-                />
-              </label>
-              <label className="text-[11px] text-gray-600">
-                Signer name (printed)
-                <input
-                  className="mt-0.5 w-full rounded border border-gray-200 px-2 py-1 text-xs"
-                  value={display[key]?.signerName ?? ""}
-                  onChange={(e) => patchKey(key, "signerName", e.target.value)}
-                  placeholder="(optional)"
-                />
-              </label>
-            </div>
-          ))}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Button type="button" size="sm" className="bg-[#780301] hover:bg-[#5a0201] text-white" disabled={saving} onClick={() => void save()}>
-              {saving ? "Saving…" : "Save labels"}
-            </Button>
-            <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void load()}>
-              Reload
-            </Button>
-            {msg ? <span className="text-xs text-gray-600">{msg}</span> : null}
-          </div>
-        </div>
-      )}
+      <div className="mt-3">{fields}</div>
     </details>
   );
 }

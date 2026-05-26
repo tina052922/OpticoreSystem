@@ -7,7 +7,7 @@ export default function CasInsFacultyPage() {
     <div>
       <ChairmanPageHeader
         title={LOAD_GENERATOR_NAV_LABEL}
-        subtitle="Schedule view — campus-wide scope; narrow by college and department using the search bar above."
+        subtitle="Schedule view"
       />
       <INSFormFaculty insBasePath="/admin/cas/ins" />
     </div>

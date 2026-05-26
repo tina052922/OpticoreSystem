@@ -26,9 +26,10 @@ function campusDirectorSignatureUrl(
  * INS vertical signature strip — order (full mode):
  * 1 Approved by (DOI)
  * 2 Campus Director
- * 3 Reviewed & Certified (Program / GEC Chairman)
- * 4 Contract
- * 5 Prepared by (College Admin)
+ * 3 Dean
+ * 4 Reviewed & Certified (Program / GEC Chairman)
+ * 5 Contract
+ * 6 Prepared by (College Admin)
  *
  * `sectionCampusOnly`: single column — Campus Director approval (Form 5B).
  */
@@ -108,7 +109,8 @@ export function buildInsSignatureSlots(args: {
   return [
     slot("approved", "Approved by", "Director of Instruction / VPAA", doi),
     slot("campus", "Campus Director", "Campus", campusDirectorUser, campusImg),
-    slot("review", "Reviewed & Certified by", "Program / GEC Chairman", chairman),
+    slot("dean", "Dean", "College Dean", null),
+    slot("review", "Reviewed & Certified by", "Program Chairman", chairman),
     slot("contract", "Contract", "Authorized signatory", contractSigner),
     slot("prepared", "Prepared by", "College Admin", collegeAdmin),
   ];

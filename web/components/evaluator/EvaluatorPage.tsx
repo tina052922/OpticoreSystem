@@ -72,11 +72,6 @@ export function EvaluatorPage({
         </div>
 
         <div className={tab !== "timetabling" ? "hidden" : ""}>
-          <p className="text-[13px] text-black/60 mb-4 rounded-lg border border-black/10 bg-white px-4 py-2">
-            <strong className="text-black/80">Program scope:</strong>{" "}
-            {chairmanProgramName ?? chairmanProgramCode ?? "Your assigned program"} — plotting and schedule preview are
-            limited to this program. Conflict check remains campus-wide.
-          </p>
           <BsitChairmanEvaluatorWorksheet
             chairmanCollegeId={chairmanCollegeId}
             chairmanProgramId={chairmanProgramId}

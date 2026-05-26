@@ -29,10 +29,6 @@ export const POLICY_VIOLATION_FAQ = [
 export const FACULTY_DESIGNATION_REFERENCE = DESIGNATION_POLICIES.map((p) => ({
   designation: p.label,
   hoursPerWeek: `${p.hoursPerWeekMin}–${p.hoursPerWeekMax} hrs/week`,
-  note:
-    p.key === "Regular Faculty"
-      ? "Uses standard organic / part-time caps when no other designation applies."
-      : "Scheduling enforces the upper bound; overload requires justification.",
 }));
 
 export const PLOTTING_GUIDANCE_CARDS = [

@@ -13,7 +13,7 @@ export default async function DoiSystemConfigurationPage() {
     <div>
       <ChairmanPageHeader
         title="System Configuration"
-        subtitle="Campus-wide INS signatories, teaching load policy, and academic terms"
+        subtitle="Signatories, teaching load, and academic terms"
       />
       <SystemConfigurationClient mode="doi" />
     </div>

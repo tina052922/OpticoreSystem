@@ -42,6 +42,7 @@ import {
   sortedNavigationBuildingKeysFromRooms,
 } from "@/lib/campus/campus-navigation-catalog";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
+import { filterRoomsForProgramPlot } from "@/lib/scheduling/program-plot-rooms";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
@@ -503,35 +504,17 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [subjects]);
 
-  /** Term rooms from DB (other colleges) so shared faculty can keep cross-college plots addressable in the grid. */
-  const termEntryRoomIds = useMemo(() => {
-    if (!academicPeriodId) return new Set<string>();
-    return new Set(
-      allTermScheduleEntries.filter((e) => e.academicPeriodId === academicPeriodId).map((e) => e.roomId),
-    );
-  }, [allTermScheduleEntries, academicPeriodId]);
-
-  /**
-   * All chairman programs (including BSIT): home college + shared (`collegeId` null) rooms, plus any room already
-   * used this term on a visible row (cross-college assignments).
-   * Legacy IT LAB 1–4 rows are omitted when COTE `room-cote-302`…`305` are loaded so Building/Room matches campus navigation.
-   */
+  /** Program-scoped plot rooms (BSIT → official IT labs only). Legacy IT LAB rows deduped when COTE labs load. */
   const roomsForEvaluatorGrid = useMemo((): Room[] => {
     const catalog = dedupeLegacyItLabsForCampusNavigation(rooms);
-    const scoped = catalog.filter(
-      (r) =>
-        !r.collegeId ||
-        !chairmanCollegeId ||
-        r.collegeId === chairmanCollegeId ||
-        termEntryRoomIds.has(r.id),
-    );
+    const scoped = filterRoomsForProgramPlot(catalog, programCodeForSummary, chairmanCollegeId);
     const sorted = [...scoped].sort((a, b) => {
       const ba = (a.building ?? "").localeCompare(b.building ?? "");
       if (ba !== 0) return ba;
       return a.code.localeCompare(b.code);
     });
     return sorted.length > 0 ? sorted : rooms;
-  }, [rooms, chairmanCollegeId, termEntryRoomIds]);
+  }, [rooms, chairmanCollegeId, programCodeForSummary]);
 
   const rowInstructorIds = useMemo(() => rows.map((r) => r.instructorId).filter(Boolean) as string[], [rows]);
 

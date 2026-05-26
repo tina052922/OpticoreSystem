@@ -9,7 +9,7 @@ export default async function CollegeSubjectCodesPage() {
     <div>
       <ChairmanPageHeader
         title="Subject Codes"
-        subtitle="Campus-wide subject repository — filter by college and department (program)."
+        subtitle="Filter by college and department"
       />
       <SubjectCodesWithScope initialCollegeId={profile.collegeId} />
     </div>

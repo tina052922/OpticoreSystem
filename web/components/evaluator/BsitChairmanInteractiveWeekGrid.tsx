@@ -329,9 +329,6 @@ export function BsitChairmanInteractiveWeekGrid({
       <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold text-black">Schedule preview (INS weekly grid)</div>
-          <p className="text-[12px] text-black/55 mt-1">
-            Monday–Friday · 7:00 AM–5:00 PM · Click a cell to plot or edit · Split hours using 1-hour meetings + “Add another time slot”
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {plottingActions ? (

@@ -59,7 +59,7 @@ export default async function DoiReviewsPage() {
     <div>
       <ChairmanPageHeader
         title="Policy reviews"
-        subtitle="Review teaching-load justifications from all colleges. Accept or reject each submission — the chair and college admin are notified immediately; lists update in real time."
+        subtitle="Accept or reject teaching-load justifications"
       />
       <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-5xl mx-auto">
         <DoiPolicyReviewsClient rows={vms} />

@@ -102,10 +102,7 @@ export function CollegePolicyReviewsClient({
     return (
       <div className="space-y-4">
         <PolicyViolationFaq />
-        <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">
-          No submissions yet. When a chairman saves a schedule that exceeds faculty load policy, the justification appears
-          here. You are notified when VPAA accepts or rejects a submission.
-        </div>
+        <div className="rounded-xl border border-black/10 bg-white p-8 text-sm text-black/60">No submissions yet.</div>
       </div>
     );
   }

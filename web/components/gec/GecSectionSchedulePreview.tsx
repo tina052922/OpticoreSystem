@@ -87,10 +87,9 @@ export function GecSectionSchedulePreview({
 
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
-      <div className="text-[15px] font-semibold text-black mb-1">Schedule preview (INS weekly grid)</div>
-      <p className="text-[12px] text-black/55 mb-2">
-        Section <strong>{sectionName}</strong> · Monday–Friday · 7:00 AM–5:00 PM · updates from the plotting grid above
-      </p>
+      <div className="text-[15px] font-semibold text-black mb-3">
+        Schedule preview — Section <strong>{sectionName}</strong>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse border border-black text-[10px]">
           <thead>
