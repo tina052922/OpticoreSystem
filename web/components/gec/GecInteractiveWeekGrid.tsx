@@ -312,11 +312,9 @@ export function GecInteractiveWeekGrid({
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden border border-black/10 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-semibold text-black">Schedule preview (INS weekly grid)</div>
-          <p className="text-[12px] text-black/55 mt-1">
-            Section <strong>{sectionName}</strong> · Monday–Friday · 7:00 AM–5:00 PM · Click a cell to plot or edit ·
-            Split hours with 1-hour meetings + “Add another time slot” · Light green = vacant GEC · Gray = locked major
-          </p>
+          <div className="text-[15px] font-semibold text-black">
+            Schedule preview — Section <strong>{sectionName}</strong>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {plottingActions ? (

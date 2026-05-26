@@ -256,13 +256,7 @@ export function INSFormRoom({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       <div className="no-print">
-        {campusWide ? (
-          <div className="mb-4 max-w-[1200px] mx-auto space-y-2">
-            <span className="inline-block text-xs font-semibold uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-2 py-1">
-              Campus-wide · all colleges
-            </span>
-          </div>
-        ) : (
+        {!campusWide ? (
           <div className="mb-6 max-w-[1200px] mx-auto">
             <CampusScopeFilters
               variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
@@ -272,7 +266,7 @@ export function INSFormRoom({
               chairmanProgramName={chairmanProgramName}
             />
           </div>
-        )}
+        ) : null}
 
         <div className="max-w-[1200px] mx-auto space-y-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>

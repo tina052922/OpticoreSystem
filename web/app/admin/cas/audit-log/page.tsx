@@ -6,7 +6,7 @@ export default function CasAuditLogPage() {
     <div>
       <ChairmanPageHeader
         title="Audit log"
-        subtitle="Campus-wide audit trail (RLS): access requests, inbox workflow, and related actions."
+        subtitle="Audit trail"
       />
       <div className="px-8 pb-10 max-w-6xl">
         <AuditLogViewer />

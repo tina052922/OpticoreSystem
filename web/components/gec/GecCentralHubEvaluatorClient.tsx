@@ -1157,11 +1157,7 @@ export function GecCentralHubEvaluatorClient() {
         />
         <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
           <GecHubEvaluatorTabs collegeParam="" panel="timetabling" />
-          <p className="text-[14px] text-black/70 mb-8 text-center">
-            Campus-wide scope — open the full timetable or select one college, then pick a section to plot GEC subjects
-            into highlighted vacant slots.
-          </p>
-          <div className="mb-4 flex justify-center">
+          <div className="mb-4 flex justify-center mt-4">
             <Link
               href={`/admin/gec/evaluator?college=${CAMPUS_WIDE_COLLEGE_SLUG}`}
               className="inline-flex items-center justify-center min-h-[56px] rounded-[20px] bg-[#780301] text-white font-bold text-[14px] px-8 py-3 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-110 transition-[filter]"
@@ -1184,7 +1180,6 @@ export function GecCentralHubEvaluatorClient() {
               ))}
             </div>
           )}
-          <p className="text-[12px] text-black/45 mt-8 text-center">Major subjects stay locked; vacant GEC rows follow per-college approval.</p>
         </div>
       </div>
     );
@@ -1196,7 +1191,7 @@ export function GecCentralHubEvaluatorClient() {
       <div>
         <ChairmanPageHeader
           title="Central Hub Evaluator"
-          subtitle="Campus-wide data — narrow by college and department (program)."
+          subtitle="Teaching load by college"
         />
         <div className="px-4 md:px-8 pb-8 max-w-[1400px] mx-auto">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

@@ -1064,7 +1064,7 @@ export function CentralHubEvaluatorView({
   if (isCampusWide && hubAccessMode === "collegeAdmin") {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Campus-wide scope" />
+        <ChairmanPageHeader title="Central Hub Evaluator" />
         <div className="px-4 md:px-8 pb-8 max-w-2xl">
           <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← Back to college hub

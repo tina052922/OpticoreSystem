@@ -76,12 +76,7 @@ export function DoiCampusDirectorSignatureCard() {
 
   return (
     <div className="mt-6 max-w-[900px] rounded-xl border border-gray-200 bg-white p-4 md:p-5">
-      <h3 className="text-sm font-bold text-gray-900">Campus Director signature (campus-wide)</h3>
-      <p className="mt-1 text-xs text-gray-600">
-        One official Campus Director image for the whole campus. It appears on <strong>INS Form 5B</strong> and the
-        Campus Director column on other INS forms after the term is published. Separate from your personal DOI
-        signature above. Only DOI admins can change this.
-      </p>
+      <h3 className="text-sm font-bold text-gray-900">Campus Director signature image</h3>
       {err ? <p className="mt-2 text-xs text-red-700">{err}</p> : null}
 
       <div className="mt-4">

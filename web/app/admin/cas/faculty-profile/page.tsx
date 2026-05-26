@@ -6,7 +6,7 @@ export default function CasFacultyProfilePage() {
     <div>
       <ChairmanPageHeader
         title="Faculty Profile"
-        subtitle="Campus-wide directory — filter by college and department (program)."
+        subtitle="Filter by college and department"
       />
       <FacultyProfileWithScope />
     </div>

@@ -9,7 +9,7 @@ export default async function CollegeFacultyProfilePage() {
     <div>
       <ChairmanPageHeader
         title="Faculty Profile"
-        subtitle="Campus-wide directory — filter by college and department (program)."
+        subtitle="Filter by college and department"
       />
       <FacultyProfileWithScope initialCollegeId={profile.collegeId} />
     </div>

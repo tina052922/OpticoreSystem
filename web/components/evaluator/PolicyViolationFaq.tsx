@@ -37,7 +37,6 @@ export function PolicyViolationFaq({ className = "" }: { className?: string }) {
               <tr className="bg-amber-50/80 text-left">
                 <th className="px-2 py-1.5 font-semibold">Designation</th>
                 <th className="px-2 py-1.5 font-semibold">Teaching load</th>
-                <th className="px-2 py-1.5 font-semibold hidden sm:table-cell">Notes</th>
               </tr>
             </thead>
             <tbody>
@@ -45,7 +44,6 @@ export function PolicyViolationFaq({ className = "" }: { className?: string }) {
                 <tr key={row.designation} className="border-t border-amber-100/80">
                   <td className="px-2 py-1.5 font-medium text-black/85">{row.designation}</td>
                   <td className="px-2 py-1.5 tabular-nums text-black/75">{row.hoursPerWeek}</td>
-                  <td className="px-2 py-1.5 text-black/60 hidden sm:table-cell">{row.note}</td>
                 </tr>
               ))}
             </tbody>

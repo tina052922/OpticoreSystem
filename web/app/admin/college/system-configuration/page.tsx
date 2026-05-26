@@ -18,7 +18,7 @@ export default async function CollegeSystemConfigurationPage() {
     <div>
       <ChairmanPageHeader
         title="System Configuration"
-        subtitle="College INS signatories, campus teaching load rules, and academic terms"
+        subtitle="Signatories, teaching load, and academic terms"
       />
       <SystemConfigurationClient mode="college" collegeId={profile.collegeId} collegeName={collegeName} />
     </div>
