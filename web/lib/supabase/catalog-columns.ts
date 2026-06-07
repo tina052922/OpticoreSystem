@@ -25,7 +25,7 @@ export const Q = {
   facultyProfileIns:
     "id,userId,fullName,aka,advisorySectionId,bsDegree,msDegree,doctoralDegree,major1,major2,major3,minor1,minor2,minor3,specialTraining,designation,production,extension,research",
   /** Lightweight: INS catalog dropdowns / cell labels (AKA vs full name) */
-  facultyProfileInsNames: "userId,fullName,aka",
+  facultyProfileInsNames: "userId,fullName,aka,advisorySectionId",
   notification: "id,userId,message,isRead,createdAt",
   studentProfile: "id,userId,programId,sectionId,yearLevel,createdAt,updatedAt",
   accessRequest:

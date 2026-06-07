@@ -17,6 +17,7 @@ import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocume
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
 import { buildInsSectionView, emptyInsSectionSchedule } from "@/lib/ins/build-ins-section-view";
+import { buildInsSectionHeaderFields } from "@/lib/ins/ins-section-header";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
 import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
@@ -115,9 +116,6 @@ export function INSFormSection({
     return () => window.clearTimeout(t);
   }, [printOnLoad, selectedSectionId, catalog.loading]);
 
-  const selectedSectionName =
-    catalog.sectionOptions.find((x) => x.id === selectedSectionId)?.name ?? "Section";
-
   const { schedule, courses } = useMemo(() => {
     if (!useLiveData) {
       return { schedule: DEMO_SCHEDULE, courses: DEMO_COURSES };
@@ -150,7 +148,26 @@ export function INSFormSection({
 
   const displaySchedule = schedule;
   const displayCourses = courses;
-  const displayAssignment = useLiveData ? selectedSectionName : "BSIT 2A (demo)";
+
+  const sectionHeader = useMemo(() => {
+    if (!useLiveData || !selectedSectionId) {
+      return { degreeAndYear: "BSIT — 2nd Year (demo)", adviser: "—", assignment: "BSIT 2A (demo)" };
+    }
+    return buildInsSectionHeaderFields({
+      sectionId: selectedSectionId,
+      sectionById: catalog.sectionById,
+      programById: catalog.programById,
+      facultyProfiles: catalog.facultyInsProfiles,
+      userById: catalog.userById,
+    });
+  }, [
+    useLiveData,
+    selectedSectionId,
+    catalog.sectionById,
+    catalog.programById,
+    catalog.facultyInsProfiles,
+    catalog.userById,
+  ]);
 
   const insSignatureSlots = useMemo(() => {
     if (!useLiveData || !selectedSectionId) return null;
@@ -163,7 +180,7 @@ export function INSFormSection({
       users: catalog.users,
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
-      mode: "full",
+      mode: "sectionCampusOnly",
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
       campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
       collegeInsSignerDisplay: collegeRow?.insSignerDisplay ?? null,
@@ -452,9 +469,9 @@ export function INSFormSection({
 
         <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 shadow-sm print-paper print:shadow-none">
           <OpticoreInsForm5B
-            degreeAndYear={displayAssignment}
-            adviser=""
-            assignment=""
+            degreeAndYear={sectionHeader.degreeAndYear}
+            adviser={sectionHeader.adviser}
+            assignment={sectionHeader.assignment}
             schedule={displaySchedule}
             courses={displayCourses}
             readOnly={Boolean((useLiveData && catalog.termPublishLocked) || instructorFacultyPortal)}
@@ -469,9 +486,9 @@ export function INSFormSection({
       {/* `ins-print-form-5b`: print CSS in globals.css — single bond page for section grid + summary + signatures */}
       <div className="print-only hidden print:block print-paper ins-print-one-page ins-print-form-5b ins-print-avoid-break">
         <OpticoreInsForm5B
-          degreeAndYear={displayAssignment}
-          adviser=""
-          assignment=""
+          degreeAndYear={sectionHeader.degreeAndYear}
+          adviser={sectionHeader.adviser}
+          assignment={sectionHeader.assignment}
           schedule={displaySchedule}
           courses={displayCourses}
           readOnly

@@ -187,7 +187,9 @@ function InsSignatureStrip({
   compactPrint?: boolean;
 }) {
   const fallback = variant === "campusOnly" ? FALLBACK_CAMPUS_ONLY : FALLBACK_SLOTS;
-  const slots = signatureSlots ?? fallback;
+  const resolved = signatureSlots ?? fallback;
+  const slots =
+    variant === "campusOnly" ? resolved.filter((s) => s.key === "campus") : resolved;
   // Keep the signature strip narrow (paper form style) — no big boxed placeholders.
   const colWidth =
     variant === "campusOnly" ? (compactPrint ? "w-[4rem]" : "w-[4.5rem]") : compactPrint ? "w-[4.25rem]" : "w-[4.75rem]";

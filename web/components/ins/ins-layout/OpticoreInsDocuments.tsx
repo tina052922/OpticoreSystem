@@ -468,6 +468,35 @@ function pickSlot(slots: InsSignatureSlot[] | null | undefined, key: string) {
   return slots?.find((s) => s.key === key);
 }
 
+/** Compact print footer for Form 5C — names, titles, and signature images when published. */
+function RoomForm5CPrintFooter({
+  title,
+  roleLabel,
+  slot,
+  scheduleApproved,
+}: {
+  title: string;
+  roleLabel: string;
+  slot: InsSignatureSlot | undefined;
+  scheduleApproved: boolean;
+}) {
+  return (
+    <div className="text-center">
+      <div className="mb-1 font-semibold leading-tight">{title}</div>
+      <div className="mx-auto flex min-h-[2.5rem] max-w-[9rem] items-end justify-center border-b border-neutral-900 pb-0.5">
+        {scheduleApproved && slot?.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
+          <img src={slot.imageUrl} alt="" className="max-h-10 max-w-full object-contain" />
+        ) : null}
+      </div>
+      <div className="mt-0.5 text-[9pt] text-neutral-800">{roleLabel}</div>
+      {slot?.signerName && slot.signerName !== "—" ? (
+        <div className="mt-0.5 text-[8pt] font-medium text-neutral-900">{slot.signerName}</div>
+      ) : null}
+    </div>
+  );
+}
+
 /** Paper-style footer for Form 5C: two columns; digital signatures when published. */
 function RoomForm5CFooterBlock({
   title,
@@ -717,27 +746,30 @@ export function OpticoreInsForm5B({
         </div>
       </div>
 
-      <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
-        <div className="text-sm font-semibold text-neutral-900">Approved</div>
-        <div className="mx-auto mt-3 flex min-h-[4rem] max-w-xs items-end justify-center border-b-2 border-neutral-900 pb-2">
-          {scheduleApproved && insSignatureSlots?.[0]?.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Supabase public URL
-            <img
-              src={insSignatureSlots[0].imageUrl}
-              alt=""
-              className="max-h-16 max-w-full object-contain"
-            />
-          ) : null}
-        </div>
-        <div className="mt-2 text-sm text-neutral-800">Campus Director</div>
-        {insSignatureSlots?.[0]?.signerName && insSignatureSlots[0].signerName !== "—" ? (
-          <div className="mt-1 text-xs font-medium text-neutral-900">{insSignatureSlots[0].signerName}</div>
-        ) : !scheduleApproved ? (
-          <div className="mt-1 text-[11px] text-neutral-500">Pending publication</div>
-        ) : (
-          <div className="mt-1 text-[11px] text-amber-900">No signature on file — DOI admin uploads under DOI Profile</div>
-        )}
-      </div>
+      {(() => {
+        const campusSlot = pickSlot(insSignatureSlots, "campus");
+        return (
+          <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
+            <div className="text-sm font-semibold text-neutral-900">Approved</div>
+            <div className="mx-auto mt-3 flex min-h-[4rem] max-w-xs items-end justify-center border-b-2 border-neutral-900 pb-2">
+              {scheduleApproved && campusSlot?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- Supabase public URL
+                <img src={campusSlot.imageUrl} alt="" className="max-h-16 max-w-full object-contain" />
+              ) : null}
+            </div>
+            <div className="mt-2 text-sm text-neutral-800">{campusSlot?.lineSubtitle ?? "Campus Director"}</div>
+            {campusSlot?.signerName && campusSlot.signerName !== "—" ? (
+              <div className="mt-1 text-xs font-medium text-neutral-900">{campusSlot.signerName}</div>
+            ) : !scheduleApproved ? (
+              <div className="mt-1 text-[11px] text-neutral-500">Pending publication</div>
+            ) : (
+              <div className="mt-1 text-[11px] text-amber-900">
+                No signature on file — DOI admin uploads under DOI Profile
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -763,8 +795,9 @@ export function OpticoreInsForm5C({
   semesterLabel,
   conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5CProps) {
-  const prepared = pickSlot(insSignatureSlots, "prepared");
-  const review = pickSlot(insSignatureSlots, "review");
+  /** Form 5C paper layout: chairman (prepared), dean (reviewed/certified), campus director (approved). */
+  const preparedChair = pickSlot(insSignatureSlots, "review");
+  const dean = pickSlot(insSignatureSlots, "dean");
   const campus = pickSlot(insSignatureSlots, "campus");
 
   return (
@@ -866,44 +899,47 @@ export function OpticoreInsForm5C({
         <div className="space-y-12">
           <RoomForm5CFooterBlock
             title="Prepared by:"
-            roleLabel="Program Coordinator/Chair"
-            slot={prepared}
+            roleLabel={preparedChair?.lineSubtitle ?? "Program Coordinator/Chair"}
+            slot={preparedChair}
             scheduleApproved={scheduleApproved}
           />
           <RoomForm5CFooterBlock
             title="Reviewed, Certified True and Correct:"
-            roleLabel="Director/Dean"
-            slot={review}
+            roleLabel={dean?.lineSubtitle ?? "Director/Dean"}
+            slot={dean}
             scheduleApproved={scheduleApproved}
           />
         </div>
         <div>
           <RoomForm5CFooterBlock
             title="Approved:"
-            roleLabel="Campus Director"
+            roleLabel={campus?.lineSubtitle ?? "Campus Director"}
             slot={campus}
             scheduleApproved={scheduleApproved}
           />
         </div>
       </div>
 
-      {/* Print-only footer: compact signature lines (one page). */}
-      <div className="hidden print:grid grid-cols-3 gap-6 border-t border-neutral-900 pt-4 text-[11px]">
-        <div className="text-center">
-          <div className="mb-6 border-b border-neutral-900" />
-          <div className="font-semibold">Prepared by:</div>
-          <div className="text-[10px] text-neutral-700">Program Coordinator/Chair</div>
-        </div>
-        <div className="text-center">
-          <div className="mb-6 border-b border-neutral-900" />
-          <div className="font-semibold">Reviewed, Certified True and Correct:</div>
-          <div className="text-[10px] text-neutral-700">Director/Dean</div>
-        </div>
-        <div className="text-center">
-          <div className="mb-6 border-b border-neutral-900" />
-          <div className="font-semibold">Approved:</div>
-          <div className="text-[10px] text-neutral-700">Campus Director</div>
-        </div>
+      {/* Print-only footer: compact signature lines with resolved signers (one page). */}
+      <div className="hidden print:grid grid-cols-3 gap-4 border-t border-neutral-900 pt-3 text-[10px]">
+        <RoomForm5CPrintFooter
+          title="Prepared by:"
+          roleLabel={preparedChair?.lineSubtitle ?? "Program Coordinator/Chair"}
+          slot={preparedChair}
+          scheduleApproved={scheduleApproved}
+        />
+        <RoomForm5CPrintFooter
+          title="Reviewed, Certified True and Correct:"
+          roleLabel={dean?.lineSubtitle ?? "Director/Dean"}
+          slot={dean}
+          scheduleApproved={scheduleApproved}
+        />
+        <RoomForm5CPrintFooter
+          title="Approved:"
+          roleLabel={campus?.lineSubtitle ?? "Campus Director"}
+          slot={campus}
+          scheduleApproved={scheduleApproved}
+        />
       </div>
     </div>
   );

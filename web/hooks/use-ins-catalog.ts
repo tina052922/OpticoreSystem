@@ -100,7 +100,9 @@ export function useInsCatalog(args: {
   const [colleges, setColleges] = useState<College[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   /** `userId` + name fields for INS labels (AKA vs full name; never Employee ID). */
-  const [facultyInsNames, setFacultyInsNames] = useState<Pick<FacultyProfile, "userId" | "fullName" | "aka">[]>([]);
+  const [facultyInsNames, setFacultyInsNames] = useState<
+    Pick<FacultyProfile, "userId" | "fullName" | "aka" | "advisorySectionId">[]
+  >([]);
   const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
   /** Latest explicit “Run conflict check” (API + local); null = use computed scan from entries. */
   const [insConflictScanOverride, setInsConflictScanOverride] = useState<{
@@ -262,7 +264,9 @@ export function useInsCatalog(args: {
       setPrograms((prog ?? []) as Program[]);
       setColleges((col ?? []) as College[]);
       setUsers((fac ?? []) as User[]);
-      setFacultyInsNames((fpIns ?? []) as Pick<FacultyProfile, "userId" | "fullName" | "aka">[]);
+      setFacultyInsNames(
+        (fpIns ?? []) as Pick<FacultyProfile, "userId" | "fullName" | "aka" | "advisorySectionId">[],
+      );
       setCampusInsSettings((ins as CampusInsSettings | null) ?? null);
       if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
       setLoading(false);
@@ -380,7 +384,9 @@ export function useInsCatalog(args: {
     setPrograms(programsFinal);
     setColleges((col ?? []) as College[]);
     setUsers(usersMerged);
-    setFacultyInsNames((fpIns ?? []) as Pick<FacultyProfile, "userId" | "fullName" | "aka">[]);
+    setFacultyInsNames(
+      (fpIns ?? []) as Pick<FacultyProfile, "userId" | "fullName" | "aka" | "advisorySectionId">[],
+    );
     setCampusInsSettings((ins as CampusInsSettings | null) ?? null);
     if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
     setLoading(false);
@@ -1065,6 +1071,7 @@ export function useInsCatalog(args: {
     users,
     userById,
     facultyProfileByUserId,
+    facultyInsProfiles: facultyInsNames,
     instructorOptions,
     sectionOptions,
     roomOptions,

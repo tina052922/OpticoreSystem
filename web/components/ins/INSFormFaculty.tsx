@@ -117,6 +117,9 @@ export function INSFormFaculty({
   const displaySchedule = useLiveData ? live.schedule : DEMO_SCHEDULE;
   const displayCourses = useLiveData ? live.courses : DEMO_COURSES;
   const displayFacultyName = useLiveData ? live.selectedFacultyDisplayName : "Dr. Maria Santos (demo)";
+  const formReadOnly = Boolean(lockedInstructorId && facultyPortalIns) || Boolean(useLiveData && live.termPublishLocked);
+  const showFacultyCredentials =
+    Boolean(useLiveData && live.facultyCredentials) && (formReadOnly || live.termPublishLocked);
 
   async function onShare() {
     try {
@@ -450,14 +453,11 @@ export function INSFormFaculty({
               facultyName={displayFacultyName}
               schedule={displaySchedule}
               courses={displayCourses}
-              readOnly={
-                Boolean(lockedInstructorId && facultyPortalIns) ||
-                Boolean(useLiveData && live.termPublishLocked)
-              }
+              readOnly={formReadOnly}
               semesterLabel={useLiveData ? live.periodLabel : undefined}
               scheduleApproved={Boolean(useLiveData && live.termPublishLocked)}
               insSignatureSlots={useLiveData ? live.insSignatureSlots : null}
-              facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
+              facultyCredentials={showFacultyCredentials ? live.facultyCredentials : null}
               facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
               conflictingScheduleEntryIds={useLiveData ? live.insConflictingEntryIds : null}
               clickableScheduleEntryCells={
