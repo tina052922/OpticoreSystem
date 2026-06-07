@@ -55,10 +55,12 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
   const cellMode = props.cellMode ?? "legacy";
 
   return (
-    <div className="overflow-x-auto sm:overflow-visible print:overflow-visible">
-      <div className={`flex min-w-0 ${signatureStrip === "none" ? "" : "gap-1"}`}>
+    <div className="ins-form-preview-shell overflow-x-auto sm:overflow-visible print:overflow-visible">
+      <div
+        className={`ins-schedule-layout ${signatureStrip === "none" ? "min-w-0" : ""}`}
+      >
         <table
-          className={`ins-schedule-grid flex-1 min-w-0 w-full table-fixed border-collapse ${insTableBorder}`}
+          className={`ins-schedule-grid w-full table-fixed border-collapse ${insTableBorder}`}
         >
           <colgroup>
             <col className="w-[8%]" />
@@ -129,8 +131,10 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                         className={`${insTableBorder} p-0 align-stretch`}
                       >
                         <div
-                          className="flex h-full min-h-0 flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-0 print:px-0.5 print:text-[6.5pt] text-center text-xs leading-snug text-neutral-900"
-                          style={{ minHeight: `calc(var(--ins-row-h) * ${rowSpan})` }}
+                          className="ins-schedule-slot flex h-full min-h-0 flex-col items-center justify-center gap-0.5 px-1.5 py-2 sm:px-2 sm:py-3 print:py-0 print:px-0.5 print:text-[6.5pt] text-center text-xs leading-snug text-neutral-900"
+                          style={{
+                            minHeight: `max(calc(var(--ins-row-h) * ${rowSpan}), ${Math.min(items.length, 3) * 2.1}rem)`,
+                          }}
                         >
                           {props.renderSpanned({
                             day,
@@ -216,7 +220,7 @@ function InsSignatureStrip({
             className={`flex-1 flex flex-col items-center justify-between px-1 ${compactPrint ? "py-1 print:py-0.5 print:px-0.5" : "py-2"}`}
           >
             <div
-              className={`font-semibold leading-tight text-neutral-900 ${compactPrint ? "text-[8px] print:text-[6.5pt]" : "text-[9px]"}`}
+              className={`ins-sig-label font-semibold leading-tight text-neutral-900 ${compactPrint ? "text-[8px] print:text-[6.5pt]" : "text-[9px]"}`}
               style={vLabel}
             >
               {s.lineTitle}
@@ -241,7 +245,7 @@ function InsSignatureStrip({
                 {s.lineSubtitle}
               </div>
               <div
-                className={`mt-0.5 min-h-[0.9rem] text-center font-medium leading-tight text-neutral-900 line-clamp-2 ${compactPrint ? "text-[7px] print:text-[6pt]" : "text-[8px]"}`}
+                className={`ins-sig-name mt-0.5 min-h-[0.9rem] text-center font-medium leading-tight text-neutral-900 break-words ${compactPrint ? "text-[7px] print:text-[6pt]" : "text-[8px]"}`}
               >
                 {s.signerName && s.signerName !== "—" ? (
                   s.signerName

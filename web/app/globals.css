@@ -26,7 +26,31 @@ body {
  * Screen uses larger row height for readability; print tightens spacing.
  */
 :root {
-  --ins-row-h: 5rem;
+  --ins-row-h: 3.25rem;
+}
+
+/** Load Generator / INS on-screen preview — readable cells without per-character wraps. */
+.ins-schedule-cell {
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+.ins-schedule-layout {
+  display: flex;
+  width: 100%;
+  min-width: 42rem;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+.ins-schedule-layout .ins-schedule-grid {
+  flex: 1 1 0%;
+  width: 1%;
+  min-width: 0;
+}
+.ins-form-preview-shell {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 /* Wider tables: horizontal pan on touch without accidental vertical scroll hijack */
@@ -137,19 +161,53 @@ body {
     min-width: 3.1rem !important;
     max-width: 3.1rem !important;
   }
+  .ins-print-one-page .ins-schedule-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    gap: 0 !important;
+  }
+  .ins-print-one-page .ins-schedule-layout .ins-schedule-grid {
+    width: 100% !important;
+  }
+  .ins-print-one-page .ins-signature-strip-col .ins-sig-name {
+    font-size: 5.5pt !important;
+    line-height: 1.1 !important;
+    word-break: break-word !important;
+    overflow: hidden !important;
+    max-height: 2.4rem !important;
+  }
+  .ins-print-one-page .ins-signature-strip-col .ins-sig-label {
+    font-size: 5.5pt !important;
+    max-height: 9rem !important;
+    overflow: hidden !important;
+  }
 
   /**
    * INS Form 5A (Program by Teacher): six signature columns + 12-hour grid on one page.
    */
   .ins-print-form-5a {
-    --ins-row-h: 1rem;
+    --ins-row-h: 1.08rem;
+  }
+  .ins-print-form-5a .ins-signature-strip-col {
+    width: 2.35rem !important;
+    min-width: 2.35rem !important;
+    max-width: 2.35rem !important;
   }
 
   /**
    * INS Form 5B (Program by Section): single Campus Director column + summary on one page.
    */
   .ins-print-form-5b {
-    --ins-row-h: 0.95rem;
+    --ins-row-h: 1rem;
+  }
+
+  /**
+   * INS Form 5C (Room): grid only — signatures in footer.
+   */
+  .ins-print-form-5c {
+    --ins-row-h: 1.05rem;
   }
   .ins-print-form-5b.ins-print-one-page {
     font-size: 7pt !important;

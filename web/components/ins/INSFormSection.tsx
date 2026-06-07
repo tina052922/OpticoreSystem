@@ -467,7 +467,7 @@ export function INSFormSection({
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 shadow-sm print-paper print:shadow-none">
+        <div className="ins-form-preview-shell bg-white rounded-lg border border-gray-200 p-4 sm:p-6 md:p-8 shadow-sm print-paper print:shadow-none">
           <OpticoreInsForm5B
             degreeAndYear={sectionHeader.degreeAndYear}
             adviser={sectionHeader.adviser}
