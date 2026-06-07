@@ -31,7 +31,9 @@ Login calls `signInWithPassword` against that URL. If the hostname does not reso
 
 In Supabase **Authentication → URL Configuration**, set Site URL `http://localhost:3000` and redirect `http://localhost:3000/auth/callback`.
 
-Demo users (after `supabase/seed_auth.sql`): password `OptiCore2026!`, e.g. `chairman.admin@opticore.local`. See `SETUP_STEP_BY_STEP.md`.
+Demo password (when auth user exists): `OptiCore2026!`. On the linked Supabase project, `doi.admin@opticore.local` works for DOI portal smoke tests. Seed accounts like `chairman.admin@opticore.local` only work after `supabase/seed_auth.sql` is applied. See `SETUP_STEP_BY_STEP.md`.
+
+Secrets can be injected as Cursor secrets (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`); write them to `web/.env.local` and restart `npm run dev`.
 
 ### Common console noise
 
