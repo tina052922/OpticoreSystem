@@ -25,6 +25,7 @@ const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
   },
 ];
 import type { InsDay } from "./opticore-ins-constants";
+import { InsScheduleCellLines } from "./InsScheduleCellLines";
 import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
 
 const formDate = () =>
@@ -237,17 +238,12 @@ export function OpticoreInsForm5A({
             );
           }
           return (
-            <div className="w-full space-y-1 pr-1 print:space-y-0 print:flex print:flex-row print:flex-wrap print:gap-x-2 print:gap-y-0.5 print:items-start print:justify-start">
+            <div className="w-full space-y-1 pr-1 print:space-y-0.5">
               {(items as InsFacultyCell[]).slice(0, 3).map((classAtTime, idx) => {
                 const inner = (
-                  <div className="w-full space-y-0.5 text-xs leading-snug break-words print:inline-flex print:max-w-full print:flex-wrap print:items-baseline print:gap-x-1 print:gap-y-0 print:text-[6.5pt] print:leading-tight">
-                    <span className="font-semibold break-words">{classAtTime.course}</span>
-                    <span className="text-[10px] text-neutral-600 print:text-[6pt] print:text-neutral-800">
-                      {classAtTime.time}
-                    </span>
-                    <span className="break-words">{classAtTime.yearSec}</span>
-                    <span className="break-words">{classAtTime.room}</span>
-                  </div>
+                  <InsScheduleCellLines
+                    lines={[classAtTime.course, classAtTime.yearSec, classAtTime.room]}
+                  />
                 );
                 const entryId = classAtTime.scheduleEntryId;
                 const canRequest =
@@ -286,6 +282,7 @@ export function OpticoreInsForm5A({
         }}
         signatureSlots={insSignatureSlots ?? FORM_5A_DRAFT_SIGNATURE_SLOTS}
         scheduleApproved={scheduleApproved}
+        compactSignaturePrint
       />
 
       {/**
@@ -658,15 +655,10 @@ export function OpticoreInsForm5B({
             );
           }
           return (
-            <div className="w-full space-y-1 pr-1 print:space-y-0 print:pr-0.5">
+            <div className="w-full space-y-1 pr-1 print:space-y-0.5 print:pr-0.5">
               {(items as SectionScheduleCell[]).slice(0, 3).map((row, idx) => {
                 const inner = (
-                  <div className="w-full space-y-0.5 print:space-y-0 text-xs print:text-[6.5pt] leading-snug break-words">
-                    <div className="font-semibold break-words">{row.course}</div>
-                    <div className="text-[10px] text-neutral-600 print:text-[6pt]">{row.time}</div>
-                    <div className="break-words">{row.instructor}</div>
-                    <div className="break-words">{row.room}</div>
-                  </div>
+                  <InsScheduleCellLines lines={[row.course, row.instructor, row.room]} />
                 );
                 return (
                   <div key={row.scheduleEntryId ?? `${row.time}-${idx}`}>
@@ -859,16 +851,12 @@ export function OpticoreInsForm5C({
             );
           }
           return (
-            <div className="w-full space-y-1 pr-1">
+            <div className="w-full space-y-1 pr-1 print:space-y-0.5">
               {(items as InsRoomCell[]).slice(0, 3).map((classAtTime, idx) => {
                 const inner = (
-                  <div className="w-full space-y-0.5 text-xs leading-snug break-words">
-                    <div className="font-semibold break-words">{classAtTime.course}</div>
-                    <div className="text-[10px] text-neutral-600">{classAtTime.time}</div>
-                    <div className="break-words">{classAtTime.instructor}</div>
-                    <div className="break-words">{classAtTime.yearSec}</div>
-                    <div className="break-words">{classAtTime.room}</div>
-                  </div>
+                  <InsScheduleCellLines
+                    lines={[classAtTime.course, classAtTime.instructor, classAtTime.yearSec]}
+                  />
                 );
                 return (
                   <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`}>

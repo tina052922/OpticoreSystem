@@ -10,12 +10,27 @@ export function insHmToMinutes(raw: string): number {
   return h * 60 + m;
 }
 
-/** One row on the INS weekly table (e.g. "7:00-8:00"). */
+/**
+ * One row on the INS weekly table (e.g. "7:00-8:00").
+ * Labels use 12-hour clock without AM/PM: morning 7–11, lunch 12–1, afternoon 1–7 (PM).
+ */
 export function insSlotBoundsMinutes(slotLabel: string): { startMin: number; endMin: number } {
   const [a, b] = slotLabel.split("-").map((x) => x.trim());
-  const startMin = insHmToMinutes(a ?? "0:00");
+  let startMin = insHmToMinutes(a ?? "0:00");
   let endMin = insHmToMinutes(b ?? "0:00");
-  if (endMin <= startMin) endMin += 24 * 60;
+
+  if (slotLabel === "12:00-1:00") {
+    return { startMin: 12 * 60, endMin: 13 * 60 };
+  }
+
+  // 1:00-2:00 … 6:00-7:00 on the paper form are afternoon (add 12 h to parsed clock).
+  if (startMin >= 60 && startMin < 7 * 60) {
+    startMin += 12 * 60;
+    endMin += 12 * 60;
+  } else if (endMin <= startMin) {
+    endMin += 24 * 60;
+  }
+
   return { startMin, endMin };
 }
 

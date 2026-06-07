@@ -57,20 +57,29 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
   return (
     <div className="overflow-x-auto sm:overflow-visible print:overflow-visible">
       <div className={`flex min-w-0 ${signatureStrip === "none" ? "" : "gap-1"}`}>
-        <table className={`flex-1 min-w-0 w-full table-fixed border-collapse ${insTableBorder}`}>
+        <table
+          className={`ins-schedule-grid flex-1 min-w-0 w-full table-fixed border-collapse ${insTableBorder}`}
+        >
+          <colgroup>
+            <col className="w-[8%]" />
+            {INS_DAYS.map((day) => (
+              <col key={day} className="w-[9%]" />
+            ))}
+          </colgroup>
           <thead>
             <tr className="bg-neutral-50">
               <th
-                className={`${insTableBorder} w-[6.75rem] px-2 py-3 print:py-0 print:px-1 print:text-[7pt] text-left text-xs font-bold uppercase tracking-wide text-neutral-900`}
+                className={`${insTableBorder} px-2 py-3 print:py-0 print:px-0.5 print:text-[6.5pt] text-left text-xs font-bold uppercase tracking-wide text-neutral-900 whitespace-nowrap`}
               >
                 TIME
               </th>
               {INS_DAYS.map((day) => (
                 <th
                   key={day}
-                  className={`${insTableBorder} px-2 py-3 print:py-0 print:px-0.5 print:text-[7pt] text-center text-xs font-bold text-neutral-900`}
+                  className={`${insTableBorder} px-1 py-3 print:py-0 print:px-0.5 print:text-[6.5pt] text-center text-xs font-bold text-neutral-900`}
                 >
-                  {day}
+                  <span className="print:hidden">{day}</span>
+                  <span className="hidden print:inline">{day.slice(0, 3)}</span>
                 </th>
               ))}
             </tr>
@@ -193,13 +202,15 @@ function InsSignatureStrip({
   // Keep the signature strip narrow (paper form style) — no big boxed placeholders.
   const colWidth =
     variant === "campusOnly" ? (compactPrint ? "w-[4rem]" : "w-[4.5rem]") : compactPrint ? "w-[4.25rem]" : "w-[4.75rem]";
+  const stripColClass =
+    variant === "campusOnly" ? "ins-signature-strip-col--campus" : "ins-signature-strip-col";
 
   return (
     <div className="hidden shrink-0 gap-0 md:flex print:flex">
       {slots.map((s) => (
         <div
           key={s.key}
-          className={`flex ${colWidth} flex-col items-stretch border border-neutral-900 border-l-0 bg-white first:border-l`}
+          className={`ins-signature-strip-col flex ${colWidth} ${stripColClass} flex-col items-stretch border border-neutral-900 border-l-0 bg-white first:border-l`}
         >
           <div
             className={`flex-1 flex flex-col items-center justify-between px-1 ${compactPrint ? "py-1 print:py-0.5 print:px-0.5" : "py-2"}`}
