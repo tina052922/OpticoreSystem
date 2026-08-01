@@ -11,12 +11,18 @@ import { ImageCarousel } from './ImageCarousel';
 
 interface InfoPanelProps {
   selected: LocationRecord | null;
+  /** When rendered inside the bottom sheet */
+  embedded?: boolean;
 }
 
-export function InfoPanel({ selected }: InfoPanelProps) {
+export function InfoPanel({ selected, embedded = false }: InfoPanelProps) {
   if (!selected) {
     return (
-      <div className="h-full min-h-0 flex flex-col items-center justify-center text-center px-4 sm:px-6 py-8 sm:py-12 text-muted-foreground overflow-y-auto">
+      <div
+        className={`flex flex-col items-center justify-center text-center px-4 sm:px-6 py-8 sm:py-10 text-muted-foreground ${
+          embedded ? 'min-h-[8rem]' : 'h-full min-h-0 overflow-y-auto py-8 sm:py-12'
+        }`}
+      >
         <Navigation className="w-12 h-12 mb-3 opacity-40 text-opticore-orange" />
         <p className="text-sm font-medium text-foreground">Select a destination</p>
         <p className="text-xs mt-2 max-w-[240px]">
@@ -53,7 +59,7 @@ export function InfoPanel({ selected }: InfoPanelProps) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="h-full min-h-0 flex flex-col"
+      className={embedded ? 'flex flex-col' : 'h-full min-h-0 flex flex-col'}
     >
       <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3 border-b border-border bg-card shrink-0">
         <div className="flex items-start gap-3 min-w-0">
@@ -77,7 +83,11 @@ export function InfoPanel({ selected }: InfoPanelProps) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 space-y-4 touch-pan-y">
+      <div
+        className={`space-y-4 touch-pan-y ${
+          embedded ? 'px-4 sm:px-5 py-4' : 'flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4'
+        }`}
+      >
         <ImageCarousel locationKey={selected.id} images={selected.images} alt={selected.name} />
 
         <div className="space-y-2 text-sm text-muted-foreground">

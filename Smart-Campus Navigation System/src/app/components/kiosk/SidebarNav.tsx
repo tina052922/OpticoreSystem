@@ -3,7 +3,7 @@ import { SearchBar } from '../SearchBar';
 import { getOpticoreLandingHref } from '../../utils/opticoreHome';
 import type { LocationRecord } from '../../types/locationRecord';
 
-const CATS: { id: 'all' | LocationRecord['type']; label: string }[] = [
+export const DIRECTORY_CATEGORIES: { id: 'all' | LocationRecord['type']; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'building', label: 'Buildings' },
   { id: 'room', label: 'Rooms' },
@@ -13,11 +13,64 @@ const CATS: { id: 'all' | LocationRecord['type']; label: string }[] = [
   { id: 'landmark', label: 'Landmarks' },
 ];
 
+interface FloatingSearchOverlayProps {
+  category: 'all' | LocationRecord['type'];
+  onCategoryChange: (c: 'all' | LocationRecord['type']) => void;
+  onLocationSelect: (loc: LocationRecord | null) => void;
+  selectedLocation: LocationRecord | null;
+  startSetSignal?: number;
+}
+
+export function FloatingSearchOverlay({
+  category,
+  onCategoryChange,
+  onLocationSelect,
+  selectedLocation,
+  startSetSignal,
+}: FloatingSearchOverlayProps) {
+  return (
+    <div className="pointer-events-none w-full max-w-2xl lg:max-w-3xl mx-auto px-3 sm:px-4 pt-[max(0.75rem,env(safe-area-inset-top))] space-y-2">
+      <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex-1 min-w-0">
+          <SearchBar
+            variant="floating"
+            category={category}
+            onLocationSelect={onLocationSelect}
+            selectedLocation={selectedLocation}
+            startSetSignal={startSetSignal}
+          />
+        </div>
+      </div>
+
+      <div className="pointer-events-auto overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex gap-1.5 pb-1 w-max max-w-full pr-1">
+          {DIRECTORY_CATEGORIES.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onCategoryChange(c.id)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors shrink-0 shadow-sm backdrop-blur-md ${
+                category === c.id
+                  ? 'bg-primary text-primary-foreground ring-1 ring-black/10'
+                  : 'bg-card/95 text-muted-foreground hover:bg-card border border-border/80'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Legacy sidebar layout — kept for reference; category constants shared with floating overlay. */
 interface SidebarNavProps {
   category: 'all' | LocationRecord['type'];
   onCategoryChange: (c: 'all' | LocationRecord['type']) => void;
   onLocationSelect: (loc: LocationRecord | null) => void;
   selectedLocation: LocationRecord | null;
+  startSetSignal?: number;
 }
 
 export function SidebarNav({
@@ -25,13 +78,14 @@ export function SidebarNav({
   onCategoryChange,
   onLocationSelect,
   selectedLocation,
+  startSetSignal,
 }: SidebarNavProps) {
   return (
     <aside className="flex flex-col h-full min-h-0 min-w-0 bg-sidebar border-r border-sidebar-border shadow-sm overflow-hidden">
       <div className="p-3 sm:p-4 border-b border-border shrink-0">
         <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Directory</h2>
         <div className="flex flex-wrap gap-1.5">
-          {CATS.map((c) => (
+          {DIRECTORY_CATEGORIES.map((c) => (
             <button
               key={c.id}
               type="button"
@@ -52,6 +106,7 @@ export function SidebarNav({
           category={category}
           onLocationSelect={onLocationSelect}
           selectedLocation={selectedLocation}
+          startSetSignal={startSetSignal}
         />
       </div>
       <div className="shrink-0 border-t border-border bg-sidebar p-3 sm:p-4">
