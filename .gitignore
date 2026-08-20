@@ -1,40 +1,21 @@
-# Dependencies & builds
-**/node_modules/
-**/.next/
-**/out/
-**/dist/
-**/.turbo/
+# dependencies
+node_modules/
 
-# Env & secrets (never commit)
+# next.js
+.next/
+out/
+
+# env (never commit secrets)
 .env
 .env.local
 .env.*.local
-**/.env
-**/.env.local
 
-# Logs & OS
-*.log
+# debug / os
 npm-debug.log*
 .DS_Store
-Thumbs.db
 
-# IDE / local
-.idea/
-.vscode/
-.vs/
-# Preserved inner-repo metadata after folding Smart Campus into monorepo (optional; do not commit)
-**/.git.nested-backup/
-*.swp
-.cursor/
+# TypeScript incremental (local; avoid noisy diffs after every build)
+tsconfig.tsbuildinfo
 
-# Supabase local (if used)
-.supabase/
-
-# Supabase local temp artifacts
-supabase/.temp/
-
-# Local one-off scripts (never commit)
-web/scripts/set-auth-user-password.mjs
-
-# Figma export workspace (source-only, not part of runtime build)
-Landingpage/
+sample_forms/
+*.md

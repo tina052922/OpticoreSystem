@@ -1,0 +1,481 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { Download, Eye, MoreHorizontal, Share2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
+import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
+import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
+import { OpticoreInsForm5C } from "@/components/ins/ins-layout/OpticoreInsDocuments";
+import { useInsCatalog } from "@/hooks/use-ins-catalog";
+import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
+import { buildInsRoomView, emptyInsRoomSchedule } from "@/lib/ins/build-ins-room-view";
+import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
+import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
+import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
+import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
+import type { College } from "@/types/db";
+import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
+import { INS5CDocument } from "@/components/pdf/forms/INS5CDocument";
+import { roomScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
+import type { INS5CProps } from "@/components/pdf/types/insTypes";
+
+type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+
+export type INSFormRoomProps = {
+  insBasePath?: string;
+  chairmanCollegeId?: string | null;
+  chairmanProgramId?: string | null;
+  chairmanProgramCode?: string | null;
+  chairmanProgramName?: string | null;
+  viewerCollegeId?: string | null;
+  campusWide?: boolean;
+  instructorPortalUserId?: string | null;
+  hideInnerInsTabs?: boolean;
+};
+
+const DEMO_SCHEDULE: Record<
+  DayKey,
+  Array<{ time: string; course: string; instructor: string; yearSec: string; room: string }>
+> = {
+  Monday: [{ time: "7:00-9:00", course: "IT 203", instructor: "Dr. Maria Santos", yearSec: "BSIT 2A", room: "Lab 301" }],
+  Tuesday: [{ time: "9:00-11:00", course: "IT 101", instructor: "Juan", yearSec: "BSIT 2B", room: "Room 201" }],
+  Wednesday: [],
+  Thursday: [],
+  Friday: [],
+  Saturday: [],
+  Sunday: [],
+};
+
+export function INSFormRoom({
+  insBasePath = "/chairman/ins",
+  chairmanCollegeId,
+  chairmanProgramId = null,
+  chairmanProgramCode = null,
+  chairmanProgramName = null,
+  viewerCollegeId = null,
+  campusWide = false,
+  instructorPortalUserId = null,
+  hideInnerInsTabs = false,
+}: INSFormRoomProps) {
+  const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
+  const useLiveData = Boolean(effectiveCollegeId || campusWide);
+  const instructorFacultyPortal = insBasePath.startsWith("/faculty/ins");
+
+  const catalog = useInsCatalog({
+    collegeId: effectiveCollegeId,
+    programId: chairmanProgramId,
+    campusWide,
+    instructorPortalUserId,
+  });
+
+  const enableInsAltApply =
+    (campusWide || insBasePath.includes("/college")) && useLiveData && !catalog.termPublishLocked;
+  const [insAltBusy, setInsAltBusy] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const facultyInnerActive = useInsInnerTabIsActive(insBasePath, "faculty");
+  const sectionInnerActive = useInsInnerTabIsActive(insBasePath, "section");
+  const roomInnerActive = useInsInnerTabIsActive(insBasePath, "room");
+
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+
+  const firstRoomId = catalog.roomOptions[0]?.id ?? "";
+
+  useEffect(() => {
+    if (selectedRoomId) return;
+    if (firstRoomId) setSelectedRoomId(firstRoomId);
+  }, [selectedRoomId, firstRoomId]);
+
+  const { schedule, roomLabel } = useMemo(() => {
+    if (!useLiveData) {
+      return { schedule: DEMO_SCHEDULE, roomLabel: "Room 201 (demo)" };
+    }
+    if (!catalog.academicPeriodId || !selectedRoomId || catalog.loading) {
+      return { schedule: emptyInsRoomSchedule(), roomLabel: "—" };
+    }
+    return buildInsRoomView({
+      entries: catalog.insResourceEntries,
+      academicPeriodId: catalog.academicPeriodId,
+      roomId: selectedRoomId,
+      sectionById: catalog.sectionById,
+      subjectById: catalog.subjectById,
+      roomById: catalog.roomById,
+      userById: catalog.userById,
+      facultyProfileByUserId: catalog.facultyProfileByUserId,
+    });
+  }, [
+    useLiveData,
+    catalog.insResourceEntries,
+    catalog.academicPeriodId,
+    selectedRoomId,
+    catalog.loading,
+    catalog.sectionById,
+    catalog.subjectById,
+    catalog.roomById,
+    catalog.userById,
+    catalog.facultyProfileByUserId,
+  ]);
+
+  const displaySchedule = schedule;
+  const displayRoom = !useLiveData ? "Room 201 (Building A)" : selectedRoomId ? roomLabel : "—";
+
+  const insSignatureSlots = useMemo(() => {
+    if (!useLiveData || !selectedRoomId || !catalog.academicPeriodId) return null;
+    const termRows = catalog.insResourceEntries.filter(
+      (e) => e.academicPeriodId === catalog.academicPeriodId && e.roomId === selectedRoomId,
+    );
+    let collegeRow: College | null = null;
+    let programId: string | null = chairmanProgramId;
+    if (termRows.length > 0) {
+      const sec = catalog.sectionById.get(termRows[0]!.sectionId);
+      const pr = sec ? catalog.programById.get(sec.programId) : null;
+      collegeRow = pr ? catalog.colleges.find((c) => c.id === pr.collegeId) ?? null : null;
+      programId = sec?.programId ?? chairmanProgramId;
+    } else {
+      const r = catalog.roomById.get(selectedRoomId);
+      const cid = r?.collegeId ?? null;
+      collegeRow = cid ? catalog.colleges.find((c) => c.id === cid) ?? null : null;
+    }
+    return resolveInsSignatureSlots({
+      college: collegeRow,
+      programId,
+      users: catalog.users,
+      userById: catalog.userById,
+      scheduleApproved: catalog.termPublishLocked,
+      campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
+      collegeInsSignerDisplay: collegeRow?.insSignerDisplay ?? null,
+    });
+  }, [
+    useLiveData,
+    selectedRoomId,
+    catalog.academicPeriodId,
+    catalog.insResourceEntries,
+    catalog.sectionById,
+    catalog.programById,
+    catalog.colleges,
+    catalog.roomById,
+    catalog.users,
+    catalog.userById,
+    catalog.termPublishLocked,
+    catalog.campusWideDirectorSignatureUrl,
+    catalog.campusInsSettings?.insSignerDisplay,
+    chairmanProgramId,
+  ]);
+
+  const pdfData = useMemo((): INS5CProps => ({
+    roomAssignment: displayRoom,
+    semesterLabel: (useLiveData ? catalog.periodLabel : undefined) ?? "____ Semester, AY ____",
+    schedule: roomScheduleToPdfGrid(displaySchedule),
+    signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
+  }), [displayRoom, displaySchedule, useLiveData, catalog.periodLabel, insSignatureSlots]);
+
+  const roomConflictCount = useMemo(() => {
+    if (!useLiveData || !catalog.academicPeriodId || !selectedRoomId) return 0;
+    return catalog.insResourceEntries.filter(
+      (e) =>
+        e.academicPeriodId === catalog.academicPeriodId &&
+        e.roomId === selectedRoomId &&
+        catalog.insConflictingEntryIds.has(e.id),
+    ).length;
+  }, [
+    useLiveData,
+    catalog.insResourceEntries,
+    catalog.academicPeriodId,
+    selectedRoomId,
+    catalog.insConflictingEntryIds,
+  ]);
+
+  async function onShare() {
+    try {
+      if (campusWide || !effectiveCollegeId || !catalog.academicPeriodId) {
+        await shareInsView("room");
+        alert(
+          campusWide
+            ? "Shared notice (campus-wide: no single-college bundle attached)."
+            : "Shared notice. Set a college scope to attach the full INS + Evaluator schedule bundle.",
+        );
+        return;
+      }
+      const termScoped = catalog.insResourceEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
+      const bundle = buildWorkflowScheduleBundle({
+        academicPeriodId: catalog.academicPeriodId,
+        collegeId: effectiveCollegeId,
+        programId: chairmanProgramId,
+        programCode: chairmanProgramCode,
+        insShareView: "room",
+        termScopedEntries: termScoped,
+        insContext: { selectedRoomId: selectedRoomId || undefined },
+        subjectIdByCode: catalog.subjectIdByCode,
+      });
+      await shareInsWorkflowBundle(bundle);
+      alert(
+        `Shared to College Admin with ${bundle.scheduleEntries.length} linked schedule row(s) (INS + Evaluator drafts).`,
+      );
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Share failed");
+    }
+  }
+
+  function handleDownload() {
+    setPdfPreviewOpen(true);
+  }
+
+  async function runInsConflict() {
+    if (!useLiveData) {
+      alert("Connect to Supabase with a college scope to run conflict checks on live data.");
+      return;
+    }
+    const result = await catalog.runInsConflictCheck();
+    if (result.conflictingCount === 0) {
+      alert(result.message);
+    } else {
+      alert(`Conflict check\n\n${result.message}`);
+    }
+  }
+
+  async function applyFirstInsAlternative() {
+    if (!selectedRoomId) {
+      alert("Select a room first.");
+      return;
+    }
+    const id = catalog.getFirstConflictingEntryIdForRoom(selectedRoomId);
+    if (!id) {
+      alert("No conflicting schedule row found for this room.");
+      return;
+    }
+    setInsAltBusy(true);
+    try {
+      const r = await catalog.applyInsConflictAlternative(id);
+      alert(r.message);
+    } finally {
+      setInsAltBusy(false);
+    }
+  }
+
+  return (
+    <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
+      <div className="no-print">
+        {!campusWide ? (
+          <div className="mb-6 max-w-[1200px] mx-auto">
+            <CampusScopeFilters
+              variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
+              chairmanCollegeId={chairmanCollegeId ?? null}
+              chairmanProgramId={chairmanProgramId}
+              chairmanProgramCode={chairmanProgramCode}
+              chairmanProgramName={chairmanProgramName}
+            />
+          </div>
+        ) : null}
+
+        <div className="max-w-[1200px] mx-auto space-y-4">
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
+          <p className="text-gray-600 text-sm">Room utilization (5C).</p>
+        </div>
+
+        {!hideInnerInsTabs ? (
+          <div className="flex gap-2 border-b border-gray-200 flex-wrap no-print">
+            {(
+              [
+                { label: "Faculty view", href: insTabHref(insBasePath, "faculty"), active: facultyInnerActive },
+                { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
+                { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
+              ] as const
+            ).map((t) => (
+              <Link
+                key={t.label}
+                href={t.href}
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
+                  t.active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+
+        {useLiveData && insBasePath ? (
+          <div className="no-print">
+            <InsEntityGroupingStrip
+              insBasePath={insBasePath}
+              facultyCount={catalog.instructorOptions.length}
+              sectionCount={catalog.sectionOptions.length}
+              roomCount={catalog.roomOptions.length}
+            />
+          </div>
+        ) : null}
+
+        {useLiveData && catalog.error ? (
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">{catalog.error}</p>
+        ) : null}
+        {useLiveData && catalog.periodLabel ? (
+          <p className="text-xs text-gray-600 no-print">
+            Term: <strong>{catalog.periodLabel}</strong>
+            {catalog.loading ? " · Loading…" : null}
+          </p>
+        ) : null}
+
+        {useLiveData && catalog.termPublishLocked && catalog.periodLabel ? (
+          <div className="no-print">
+            <InsPublishedBanner periodLabel={catalog.periodLabel} />
+          </div>
+        ) : null}
+
+        {useLiveData && roomConflictCount > 0 && !instructorFacultyPortal ? (
+          <div
+            className="rounded-lg border border-red-300/80 bg-red-50/90 px-3 py-2 text-sm text-red-950 space-y-1.5 no-print"
+            role="status"
+          >
+            <p className="font-semibold">This room has {roomConflictCount} conflicting slot(s) this term</p>
+            <p className="text-xs text-red-950/85">Fix overlaps in Evaluator or use automated fix below.</p>
+            {enableInsAltApply ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-red-400/80 bg-white text-red-950 hover:bg-red-100"
+                disabled={insAltBusy || !selectedRoomId}
+                onClick={() => void applyFirstInsAlternative()}
+              >
+                {insAltBusy ? "Applying…" : "Apply alternative solution (first conflict)"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
+          {useLiveData ? (
+            <InsScheduleEntitySearch
+              label="Room (search)"
+              placeholder="Type room code (e.g. IT LAB 1)"
+              options={catalog.roomOptions}
+              selectedId={selectedRoomId}
+              onSelectedIdChange={setSelectedRoomId}
+              disabled={catalog.loading || catalog.roomOptions.length === 0}
+              listId="ins-room-list"
+            />
+          ) : (
+            <p className="text-sm text-gray-500">
+              Demo mode: set a college scope or open the DOI campus-wide INS for live room data.
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 justify-end">
+            {instructorFacultyPortal ? (
+              <>
+                <Button variant="outline" className="bg-white" asChild>
+                  <Link href="/faculty/schedule">My schedule</Link>
+                </Button>
+                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Preview PDF
+                </Button>
+              </>
+            ) : (
+              <>
+                {enableInsAltApply && roomConflictCount > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
+                    disabled={insAltBusy || !selectedRoomId}
+                    onClick={() => void applyFirstInsAlternative()}
+                  >
+                    {insAltBusy ? "Applying…" : "Apply alternative"}
+                  </Button>
+                ) : null}
+                <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
+                  Run Conflict Check
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="bg-white" aria-label="More actions">
+                      <MoreHorizontal className="w-5 h-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={handleDownload}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download / Save as PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void onShare()}>
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share INS Form
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPdfPreviewOpen(true)}>
+                      <Eye className="w-4 h-4 mr-2" />
+                      Preview PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={
+                          insBasePath.includes("/college")
+                            ? "/admin/college/evaluator"
+                            : insBasePath.includes("/cas")
+                              ? "/admin/cas/evaluator"
+                              : insBasePath.includes("/gec")
+                                ? "/admin/gec/evaluator"
+                                : insBasePath.includes("/doi")
+                                  ? "/doi/evaluator"
+                                  : "/chairman/evaluator"
+                        }
+                        className="cursor-pointer"
+                      >
+                        Open Evaluator
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Preview PDF
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 shadow-sm print-paper print:shadow-none">
+          <OpticoreInsForm5C
+            roomAssignment={displayRoom}
+            schedule={displaySchedule}
+            scheduleApproved={useLiveData && catalog.termPublishLocked}
+            insSignatureSlots={useLiveData ? insSignatureSlots : null}
+            readOnly={Boolean((useLiveData && catalog.termPublishLocked) || instructorFacultyPortal)}
+            semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
+            conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
+          />
+        </div>
+      </div>
+
+      <div className="print-only hidden print:block print-paper ins-print-one-page ins-print-avoid-break">
+        <OpticoreInsForm5C
+          roomAssignment={displayRoom}
+          schedule={displaySchedule}
+          scheduleApproved={useLiveData && catalog.termPublishLocked}
+          insSignatureSlots={useLiveData ? insSignatureSlots : null}
+          readOnly
+          semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
+          conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
+        />
+      </div>
+
+      <PDFPreviewModal
+        filename={`INS-5C-${displayRoom.replace(/[^a-zA-Z0-9]/g, "-")}.pdf`}
+        open={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        document={<INS5CDocument data={pdfData} />}
+      />
+    </div>
+  );
+}
