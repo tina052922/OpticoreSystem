@@ -1,0 +1,509 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Eye, MoreHorizontal, Share2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
+import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
+import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
+import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
+import { useInsCatalog } from "@/hooks/use-ins-catalog";
+import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
+import { buildInsSectionView, emptyInsSectionSchedule } from "@/lib/ins/build-ins-section-view";
+import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
+import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
+import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
+import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
+import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
+import { INS5BDocument } from "@/components/pdf/forms/INS5BDocument";
+import { sectionScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
+import type { INS5BProps } from "@/components/pdf/types/insTypes";
+
+type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+
+export type INSFormSectionProps = {
+  insBasePath?: string;
+  chairmanCollegeId?: string | null;
+  chairmanProgramId?: string | null;
+  chairmanProgramCode?: string | null;
+  chairmanProgramName?: string | null;
+  viewerCollegeId?: string | null;
+  /** DOI / VPAA: load all colleges’ schedule rows (same as INS Form faculty campus-wide). */
+  campusWide?: boolean;
+  /** Faculty portal: narrow catalog to sections this instructor teaches. */
+  instructorPortalUserId?: string | null;
+  hideInnerInsTabs?: boolean;
+  /** Deep link from evaluator schedule preview — pre-select section. */
+  initialSectionId?: string | null;
+  /** Open browser print dialog once the section view is ready. */
+  printOnLoad?: boolean;
+};
+
+const DEMO_SCHEDULE: Record<
+  DayKey,
+  Array<{ time: string; course: string; instructor: string; room: string }>
+> = {
+  Monday: [{ time: "7:00-9:00", course: "IT 203", instructor: "Dr. Maria Santos", room: "Lab 301" }],
+  Tuesday: [{ time: "9:00-11:00", course: "IT 101", instructor: "Juan Dela Cruz", room: "Room 201" }],
+  Wednesday: [],
+  Thursday: [],
+  Friday: [],
+  Saturday: [],
+  Sunday: [],
+};
+
+const DEMO_COURSES = [
+  { students: 40, code: "IT 203", title: "Data Structures", degreeYrSec: "BSIT 2A" },
+  { students: 42, code: "IT 101", title: "Introduction to Computing", degreeYrSec: "BSIT 2B" },
+];
+
+export function INSFormSection({
+  insBasePath = "/chairman/ins",
+  chairmanCollegeId,
+  chairmanProgramId = null,
+  chairmanProgramCode = null,
+  chairmanProgramName = null,
+  viewerCollegeId = null,
+  campusWide = false,
+  instructorPortalUserId = null,
+  hideInnerInsTabs = false,
+  initialSectionId = null,
+  printOnLoad = false,
+}: INSFormSectionProps) {
+  const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
+  const useLiveData = Boolean(effectiveCollegeId || campusWide);
+  /** Faculty portal: read-only INS; no conflict run or automated fixes. */
+  const instructorFacultyPortal = insBasePath.startsWith("/faculty/ins");
+
+  const catalog = useInsCatalog({
+    collegeId: effectiveCollegeId,
+    programId: chairmanProgramId,
+    campusWide,
+    instructorPortalUserId,
+  });
+
+  const enableInsAltApply =
+    (campusWide || insBasePath.includes("/college")) && useLiveData && !catalog.termPublishLocked;
+  const [insAltBusy, setInsAltBusy] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const facultyInnerActive = useInsInnerTabIsActive(insBasePath, "faculty");
+  const sectionInnerActive = useInsInnerTabIsActive(insBasePath, "section");
+  const roomInnerActive = useInsInnerTabIsActive(insBasePath, "room");
+
+  const [selectedSectionId, setSelectedSectionId] = useState("");
+
+  /** Stable primitive — `sectionOptions` is a new array each render and must not be a hook dependency. */
+  const firstSectionId = catalog.sectionOptions[0]?.id ?? "";
+
+  useEffect(() => {
+    const initial = initialSectionId?.trim();
+    if (initial && catalog.sectionOptions.some((s) => s.id === initial)) {
+      setSelectedSectionId(initial);
+      return;
+    }
+    if (selectedSectionId) return;
+    if (firstSectionId) setSelectedSectionId(firstSectionId);
+  }, [selectedSectionId, firstSectionId, initialSectionId, catalog.sectionOptions]);
+
+  const printOnLoadDoneRef = useRef(false);
+  useEffect(() => {
+    if (!printOnLoad || printOnLoadDoneRef.current || !selectedSectionId || catalog.loading) return;
+    printOnLoadDoneRef.current = true;
+    const t = window.setTimeout(() => window.print(), 600);
+    return () => window.clearTimeout(t);
+  }, [printOnLoad, selectedSectionId, catalog.loading]);
+
+  const selectedSectionName =
+    catalog.sectionOptions.find((x) => x.id === selectedSectionId)?.name ?? "Section";
+
+  const { schedule, courses } = useMemo(() => {
+    if (!useLiveData) {
+      return { schedule: DEMO_SCHEDULE, courses: DEMO_COURSES };
+    }
+    if (!catalog.academicPeriodId || !selectedSectionId || catalog.loading) {
+      return { schedule: emptyInsSectionSchedule(), courses: [] };
+    }
+    return buildInsSectionView({
+      entries: catalog.insResourceEntries,
+      academicPeriodId: catalog.academicPeriodId,
+      sectionId: selectedSectionId,
+      sectionById: catalog.sectionById,
+      subjectById: catalog.subjectById,
+      roomById: catalog.roomById,
+      userById: catalog.userById,
+      facultyProfileByUserId: catalog.facultyProfileByUserId,
+    });
+  }, [
+    useLiveData,
+    catalog.insResourceEntries,
+    catalog.academicPeriodId,
+    selectedSectionId,
+    catalog.loading,
+    catalog.sectionById,
+    catalog.subjectById,
+    catalog.roomById,
+    catalog.userById,
+    catalog.facultyProfileByUserId,
+  ]);
+
+  const displaySchedule = schedule;
+  const displayCourses = courses;
+  const displayAssignment = useLiveData ? selectedSectionName : "BSIT 2A (demo)";
+
+  const insSignatureSlots = useMemo(() => {
+    if (!useLiveData || !selectedSectionId) return null;
+    const sec = catalog.sectionById.get(selectedSectionId);
+    const pr = sec ? catalog.programById.get(sec.programId) : null;
+    const collegeRow = pr ? catalog.colleges.find((c) => c.id === pr.collegeId) ?? null : null;
+    return resolveInsSignatureSlots({
+      college: collegeRow,
+      programId: sec?.programId ?? null,
+      users: catalog.users,
+      userById: catalog.userById,
+      scheduleApproved: catalog.termPublishLocked,
+      mode: "full",
+      campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
+      collegeInsSignerDisplay: collegeRow?.insSignerDisplay ?? null,
+    });
+  }, [
+    useLiveData,
+    selectedSectionId,
+    catalog.sectionById,
+    catalog.programById,
+    catalog.colleges,
+    catalog.users,
+    catalog.userById,
+    catalog.termPublishLocked,
+    catalog.campusWideDirectorSignatureUrl,
+    catalog.campusInsSettings?.insSignerDisplay,
+  ]);
+
+  const pdfData = useMemo((): INS5BProps => ({
+    degreeAndYear: displayAssignment,
+    adviser: "",
+    assignment: "",
+    semesterLabel: catalog.periodLabel ?? "____ Semester, AY ____",
+    schedule: sectionScheduleToPdfGrid(displaySchedule),
+    courses: displayCourses,
+    signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
+  }), [displayAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots]);
+
+  const sectionConflictCount = useMemo(() => {
+    if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;
+    return catalog.insResourceEntries.filter(
+      (e) =>
+        e.academicPeriodId === catalog.academicPeriodId &&
+        e.sectionId === selectedSectionId &&
+        catalog.insConflictingEntryIds.has(e.id),
+    ).length;
+  }, [
+    useLiveData,
+    catalog.insResourceEntries,
+    catalog.academicPeriodId,
+    selectedSectionId,
+    catalog.insConflictingEntryIds,
+  ]);
+
+  async function onShare() {
+    try {
+      if (campusWide || !effectiveCollegeId || !catalog.academicPeriodId) {
+        await shareInsView("section");
+        alert(
+          campusWide
+            ? "Shared notice (campus-wide: no single-college bundle attached)."
+            : "Shared notice. Set a college scope to attach the full INS + Evaluator schedule bundle.",
+        );
+        return;
+      }
+      const termScoped = catalog.insResourceEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
+      const bundle = buildWorkflowScheduleBundle({
+        academicPeriodId: catalog.academicPeriodId,
+        collegeId: effectiveCollegeId,
+        programId: chairmanProgramId,
+        programCode: chairmanProgramCode,
+        insShareView: "section",
+        termScopedEntries: termScoped,
+        insContext: { selectedSectionId: selectedSectionId || undefined },
+        subjectIdByCode: catalog.subjectIdByCode,
+      });
+      await shareInsWorkflowBundle(bundle);
+      alert(
+        `Shared to College Admin with ${bundle.scheduleEntries.length} linked schedule row(s) (INS + Evaluator drafts).`,
+      );
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Share failed");
+    }
+  }
+
+  function handleDownload() {
+    setPdfPreviewOpen(true);
+  }
+
+  async function runInsConflict() {
+    if (!useLiveData) {
+      alert("Connect to Supabase with a college scope to run conflict checks on live data.");
+      return;
+    }
+    const result = await catalog.runInsConflictCheck();
+    if (result.conflictingCount === 0) {
+      alert(result.message);
+    } else {
+      alert(`Conflict check\n\n${result.message}`);
+    }
+  }
+
+  async function applyFirstInsAlternative() {
+    if (!selectedSectionId) {
+      alert("Select a section first.");
+      return;
+    }
+    const id = catalog.getFirstConflictingEntryIdForSection(selectedSectionId);
+    if (!id) {
+      alert("No conflicting schedule row found for this section.");
+      return;
+    }
+    setInsAltBusy(true);
+    try {
+      const r = await catalog.applyInsConflictAlternative(id);
+      alert(r.message);
+    } finally {
+      setInsAltBusy(false);
+    }
+  }
+
+  return (
+    <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
+      <div className="no-print">
+        {!campusWide ? (
+          <div className="mb-6 max-w-[1200px] mx-auto">
+            <CampusScopeFilters
+              variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
+              chairmanCollegeId={chairmanCollegeId ?? null}
+              chairmanProgramId={chairmanProgramId}
+              chairmanProgramCode={chairmanProgramCode}
+              chairmanProgramName={chairmanProgramName}
+            />
+          </div>
+        ) : null}
+
+        <div className="max-w-[1200px] mx-auto space-y-4">
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
+          <p className="text-gray-600 text-sm">Program by Section (5B).</p>
+        </div>
+
+        {!hideInnerInsTabs ? (
+          <div className="flex gap-2 border-b border-gray-200 flex-wrap no-print">
+            {(
+              [
+                { label: "Faculty view", href: insTabHref(insBasePath, "faculty"), active: facultyInnerActive },
+                { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
+                { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
+              ] as const
+            ).map((t) => (
+              <Link
+                key={t.label}
+                href={t.href}
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium transition-colors rounded-t-lg ${
+                  t.active ? "bg-[#FF990A] text-white" : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+
+        {useLiveData && insBasePath ? (
+          <div className="no-print">
+            <InsEntityGroupingStrip
+              insBasePath={insBasePath}
+              facultyCount={catalog.instructorOptions.length}
+              sectionCount={catalog.sectionOptions.length}
+              roomCount={catalog.roomOptions.length}
+            />
+          </div>
+        ) : null}
+
+        {useLiveData && catalog.error ? (
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">{catalog.error}</p>
+        ) : null}
+        {useLiveData && catalog.periodLabel ? (
+          <p className="text-xs text-gray-600 no-print">
+            Term: <strong>{catalog.periodLabel}</strong>
+            {catalog.loading ? " · Loading…" : null}
+          </p>
+        ) : null}
+
+        {useLiveData && catalog.termPublishLocked && catalog.periodLabel ? (
+          <div className="no-print">
+            <InsPublishedBanner periodLabel={catalog.periodLabel} />
+          </div>
+        ) : null}
+
+        {useLiveData && sectionConflictCount > 0 && !instructorFacultyPortal ? (
+          <div
+            className="rounded-lg border border-red-300/80 bg-red-50/90 px-3 py-2 text-sm text-red-950 space-y-1.5 no-print"
+            role="status"
+          >
+            <p className="font-semibold">This section has {sectionConflictCount} conflicting slot(s) this term</p>
+            <p className="text-xs text-red-950/85">
+              Fix overlaps in Evaluator or use automated fix below.
+            </p>
+            {enableInsAltApply ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-red-400/80 bg-white text-red-950 hover:bg-red-100"
+                disabled={insAltBusy || !selectedSectionId}
+                onClick={() => void applyFirstInsAlternative()}
+              >
+                {insAltBusy ? "Applying…" : "Apply alternative solution (first conflict)"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
+          {useLiveData ? (
+            <InsScheduleEntitySearch
+              label="Section (search)"
+              placeholder="Type section name (e.g. BSIT-1A)"
+              options={catalog.sectionOptions}
+              selectedId={selectedSectionId}
+              onSelectedIdChange={setSelectedSectionId}
+              disabled={catalog.loading || catalog.sectionOptions.length === 0}
+              listId="ins-section-list"
+            />
+          ) : (
+            <p className="text-sm text-gray-500">
+              Demo mode: set a college scope or open the DOI campus-wide INS for live section data.
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 justify-end">
+            {instructorFacultyPortal ? (
+              <>
+                <Button variant="outline" className="bg-white" asChild>
+                  <Link href="/faculty/schedule">My schedule</Link>
+                </Button>
+                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Preview PDF
+                </Button>
+              </>
+            ) : (
+              <>
+                {enableInsAltApply && sectionConflictCount > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-400/80 bg-red-50/90 text-red-950 hover:bg-red-100"
+                    disabled={insAltBusy || !selectedSectionId}
+                    onClick={() => void applyFirstInsAlternative()}
+                  >
+                    {insAltBusy ? "Applying…" : "Apply alternative"}
+                  </Button>
+                ) : null}
+                <Button className="bg-[#FF990A] hover:bg-[#e88909] text-white" type="button" onClick={runInsConflict}>
+                  Run Conflict Check
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="bg-white" aria-label="More actions">
+                      <MoreHorizontal className="w-5 h-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={handleDownload}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download / Save as PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void onShare()}>
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share INS Form
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPdfPreviewOpen(true)}>
+                      <Eye className="w-4 h-4 mr-2" />
+                      Preview PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={
+                          insBasePath.includes("/college")
+                            ? "/admin/college/evaluator"
+                            : insBasePath.includes("/cas")
+                              ? "/admin/cas/evaluator"
+                              : insBasePath.includes("/gec")
+                                ? "/admin/gec/evaluator"
+                                : insBasePath.includes("/doi")
+                                  ? "/doi/evaluator"
+                                  : "/chairman/evaluator"
+                        }
+                        className="cursor-pointer"
+                      >
+                        Open Evaluator
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Preview PDF
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 shadow-sm print-paper print:shadow-none">
+          <OpticoreInsForm5B
+            degreeAndYear={displayAssignment}
+            adviser=""
+            assignment=""
+            schedule={displaySchedule}
+            courses={displayCourses}
+            readOnly={Boolean((useLiveData && catalog.termPublishLocked) || instructorFacultyPortal)}
+            semesterLabel={catalog.periodLabel}
+            scheduleApproved={useLiveData && catalog.termPublishLocked}
+            insSignatureSlots={useLiveData ? insSignatureSlots : null}
+            conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
+          />
+        </div>
+      </div>
+
+      {/* `ins-print-form-5b`: print CSS in globals.css — single bond page for section grid + summary + signatures */}
+      <div className="print-only hidden print:block print-paper ins-print-one-page ins-print-form-5b ins-print-avoid-break">
+        <OpticoreInsForm5B
+          degreeAndYear={displayAssignment}
+          adviser=""
+          assignment=""
+          schedule={displaySchedule}
+          courses={displayCourses}
+          readOnly
+          semesterLabel={catalog.periodLabel}
+          scheduleApproved={useLiveData && catalog.termPublishLocked}
+          insSignatureSlots={useLiveData ? insSignatureSlots : null}
+          conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
+        />
+      </div>
+
+      <PDFPreviewModal
+        filename={`INS-5B-${displayAssignment.replace(/[^a-zA-Z0-9]/g, "-")}.pdf`}
+        open={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        document={<INS5BDocument data={pdfData} />}
+      />
+    </div>
+  );
+}
