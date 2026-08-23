@@ -11,6 +11,8 @@ import type {
 } from "@/lib/ins/build-ins-room-view";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
+import { resolveInsPrintedSigners } from "@/lib/ins/ins-pdf-adapters";
+import { insTotalStudents } from "@/components/pdf/types/insTypes";
 
 /** INS Form 5A (draft / unpublished): official vertical signature columns — matches CTU paper layout; fills when VPAA publishes. */
 const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
@@ -53,6 +55,77 @@ function CredLine({ label, value }: { label: string; value?: string | null }) {
       <span className="min-h-[1.5rem] flex-1 break-words border-b border-neutral-900 text-neutral-900">
         {value?.trim() ? value : "—"}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Summary of Courses — mirrors the PDF `INSSummaryTable` exactly:
+ * a title row carrying the student total, then two columns
+ * (Course code | Descriptive Title) at the same 0.8 / 1.6 width ratio.
+ *
+ * Kept in one place so Forms 5A and 5B cannot drift apart on screen.
+ */
+function InsSummaryOfCourses({
+  courses,
+  emptyMessage = "No courses scheduled",
+  footer,
+}: {
+  courses: Array<{ students: number; code: string; title: string }>;
+  emptyMessage?: string;
+  /** Form 5A metrics block, printed inside the same bordered box. */
+  footer?: ReactNode;
+}) {
+  const gridCols = "grid grid-cols-[0.8fr_1.6fr] gap-2 print:gap-0.5";
+
+  return (
+    <div className="min-h-0 max-h-[11rem] sm:max-h-[12rem] overflow-y-auto overscroll-contain print:max-h-none print:overflow-visible border border-neutral-900 p-2 md:p-3 print:p-1 ins-print-avoid-break">
+      <div className="mb-2 print:mb-0.5 flex items-baseline justify-between gap-4 text-xs font-bold uppercase tracking-wide print:text-[6.5pt]">
+        <span>No. of Students : {insTotalStudents(courses)}</span>
+        <span>Summary of Courses</span>
+      </div>
+
+      <div className="mb-1.5 print:mb-0 border-b border-neutral-900 pb-1.5 print:pb-0 text-[11px] font-semibold print:text-[6pt]">
+        <div className={gridCols}>
+          <span>Course code</span>
+          <span>Descriptive Title</span>
+        </div>
+      </div>
+
+      <div className="space-y-1 print:space-y-0 print:leading-none">
+        {courses.length === 0 ? (
+          <div
+            className={`${gridCols} text-xs text-neutral-800 print:text-[6.5pt]`}
+          >
+            <span className="min-h-[1.4rem] px-1 py-1 print:min-h-0 print:py-0">
+              —
+            </span>
+            <span className="min-h-[1.4rem] px-1 py-1 leading-snug print:min-h-0 print:py-0">
+              {emptyMessage}
+            </span>
+          </div>
+        ) : (
+          courses.map((c, idx) => (
+            <div
+              key={`${c.code}-${idx}`}
+              className={`${gridCols} text-xs border-b border-black/10 last:border-b-0 print:text-[6pt] print:leading-none`}
+            >
+              <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1 print:min-h-0 print:py-0">
+                {c.code}
+              </span>
+              <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1 leading-snug print:min-h-0 print:py-0 print:leading-none">
+                {c.title}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {footer ? (
+        <div className="mt-3 print:mt-0.5 border-t border-neutral-900 pt-2 print:pt-0.5">
+          {footer}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -341,112 +414,10 @@ export function OpticoreInsForm5A({
         scheduleApproved={scheduleApproved}
       />
 
-      {/**
-       * Compact “Summary of Courses” on screen so the weekly grid above stays the visual focus; full table still prints.
-       */}
-      <div className="min-h-0 max-h-[11rem] sm:max-h-[12rem] overflow-y-auto overscroll-contain print:max-h-none print:overflow-visible border border-neutral-900 p-2 md:p-3 print:p-1 ins-print-avoid-break">
-        <div className="mb-2 print:mb-0.5 text-center text-xs font-bold uppercase tracking-wide print:text-[6.5pt]">
-          Summary of Courses
-        </div>
-        <div className="mb-1.5 print:mb-0 border-b border-neutral-900 pb-1.5 print:pb-0 text-[11px] font-semibold print:text-[6pt]">
-          <div className="grid grid-cols-4 gap-2 print:gap-0.5">
-            <span>No. of Students</span>
-            <span>Course code</span>
-            <span>Descriptive Title</span>
-            <span>Degree/Yr/Sec</span>
-          </div>
-        </div>
-        <div className="space-y-1 print:space-y-0 print:leading-none">
-          {courses.length === 0 && readOnly ? (
-            <div className="grid grid-cols-4 gap-2 text-xs text-neutral-800 print:text-[6.5pt]">
-              <span className="min-h-[1.4rem] px-1 py-1 print:min-h-0 print:py-0">
-                —
-              </span>
-              <span className="min-h-[1.4rem] px-1 py-1 print:min-h-0 print:py-0">
-                —
-              </span>
-              <span className="min-h-[1.4rem] px-1 py-1 col-span-2 text-left leading-snug print:min-h-0 print:py-0">
-                No courses plotted for this faculty in the selected term. Use
-                Evaluator to add schedule rows.
-              </span>
-            </div>
-          ) : (
-            courses.map((c, idx) => (
-              <div
-                key={idx}
-                className="grid grid-cols-4 gap-2 print:gap-0.5 text-xs border-b border-black/10 last:border-b-0 print:text-[6pt] print:leading-none"
-              >
-                {readOnly ? (
-                  <>
-                    <span className="flex min-h-[1.4rem] print:min-h-0 items-center bg-white px-1 py-1 print:py-0">
-                      {c.students}
-                    </span>
-                    <span className="flex min-h-[1.4rem] print:min-h-0 items-center bg-white px-1 py-1 print:py-0">
-                      {c.code}
-                    </span>
-                    <span className="flex min-h-[1.4rem] print:min-h-0 items-center bg-white px-1 py-1 print:py-0 leading-snug print:leading-none">
-                      {c.title}
-                    </span>
-                    <span className="flex min-h-[1.4rem] print:min-h-0 items-center bg-white px-1 py-1 print:py-0">
-                      {c.degreeYrSec}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <input
-                      type="text"
-                      defaultValue={String(c.students)}
-                      className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                    />
-                    <input
-                      type="text"
-                      defaultValue={c.code}
-                      className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                    />
-                    <input
-                      type="text"
-                      defaultValue={c.title}
-                      className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                    />
-                    <input
-                      type="text"
-                      defaultValue={c.degreeYrSec}
-                      className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                    />
-                  </>
-                )}
-              </div>
-            ))
-          )}
-          {!readOnly &&
-            Array.from({ length: Math.max(0, 4 - courses.length) }).map(
-              (_, i) => (
-                <div
-                  key={`e-${i}`}
-                  className="grid grid-cols-4 gap-2 text-xs border-b border-black/10 last:border-b-0"
-                >
-                  <input
-                    type="text"
-                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                  />
-                  <input
-                    type="text"
-                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                  />
-                  <input
-                    type="text"
-                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                  />
-                  <input
-                    type="text"
-                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                  />
-                </div>
-              ),
-            )}
-        </div>
-
-        <div className="mt-3 print:mt-0.5 border-t border-neutral-900 pt-2 print:pt-0.5">
+      <InsSummaryOfCourses
+        courses={courses}
+        emptyMessage="No courses plotted for this faculty in the selected term. Use Evaluator to add schedule rows."
+        footer={
           <div className="grid grid-cols-1 gap-x-10 gap-y-2 print:gap-y-0 text-sm md:grid-cols-2 print:text-[6.5pt]">
             <div className="space-y-2 print:space-y-0">
               {readOnly ? (
@@ -549,8 +520,8 @@ export function OpticoreInsForm5A({
               )}
             </div>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {!readOnly ? (
         <div className="grid grid-cols-1 gap-8 border-t border-neutral-200 pt-8 text-xs sm:grid-cols-3 md:hidden">
@@ -593,10 +564,6 @@ function SigBlock({ title, subtitle }: { title: string; subtitle: string }) {
       <div className="text-[10px] text-neutral-800">{subtitle}</div>
     </div>
   );
-}
-
-function pickSlot(slots: InsSignatureSlot[] | null | undefined, key: string) {
-  return slots?.find((s) => s.key === key);
 }
 
 /** Paper-style footer for Form 5C: two columns; digital signatures when published. */
@@ -685,10 +652,6 @@ export function OpticoreInsForm5B({
   insSignatureSlots = null,
   conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5BProps) {
-  /** Print layout is compact (see `ins-print-one-page`); list every row — do not truncate the summary table. */
-  const shownCourses = courses;
-  const hiddenCourseCount = 0;
-
   return (
     <div className="space-y-5 print:space-y-1 text-neutral-900 print:text-[7.5pt] print:leading-tight">
       <div className="flex flex-col gap-4 print:gap-0.5 border-b border-neutral-300 pb-6 print:pb-1 sm:flex-row sm:items-start sm:justify-between">
@@ -821,72 +784,7 @@ export function OpticoreInsForm5B({
         signatureStrip="campusOnly"
       />
 
-      <div className="min-h-0 max-h-[11rem] sm:max-h-[12rem] overflow-y-auto overscroll-contain print:max-h-none print:overflow-visible border border-neutral-900 p-2 md:p-3 print:p-1 print:mb-0">
-        <div className="mb-2 print:mb-0.5 text-center text-xs font-bold uppercase tracking-wide print:text-[7pt]">
-          Summary of Courses
-        </div>
-        <div className="mb-1.5 print:mb-0.5 border-b border-neutral-900 pb-1.5 print:pb-0.5 text-[11px] font-semibold print:text-[7pt]">
-          <div className="grid grid-cols-4 gap-2">
-            <span>No. of Students</span>
-            <span>Course code</span>
-            <span>Descriptive Title</span>
-            <span>Degree/Yr/Sec</span>
-          </div>
-        </div>
-        <div className="space-y-1 print:space-y-0">
-          {shownCourses.map((c, idx) => (
-            <div
-              key={idx}
-              className="grid grid-cols-4 gap-2 print:gap-1 text-xs border-b border-black/10 last:border-b-0 print:text-[6.5pt]"
-            >
-              {readOnly ? (
-                <>
-                  <span className="flex min-h-[1.4rem] print:min-h-0 print:py-0.5 items-center bg-white px-1 py-1">
-                    {c.students}
-                  </span>
-                  <span className="flex min-h-[1.4rem] print:min-h-0 print:py-0.5 items-center bg-white px-1 py-1">
-                    {c.code}
-                  </span>
-                  <span className="flex min-h-[1.4rem] print:min-h-0 print:py-0.5 items-center bg-white px-1 py-1">
-                    {c.title}
-                  </span>
-                  <span className="flex min-h-[1.4rem] print:min-h-0 print:py-0.5 items-center bg-white px-1 py-1">
-                    {c.degreeYrSec}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    defaultValue={String(c.students)}
-                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                  />
-                  <input
-                    type="text"
-                    defaultValue={c.code}
-                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                  />
-                  <input
-                    type="text"
-                    defaultValue={c.title}
-                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                  />
-                  <input
-                    type="text"
-                    defaultValue={c.degreeYrSec}
-                    className="min-h-[1.6rem] border-0 border-b border-neutral-900 bg-transparent px-1 py-1 outline-none"
-                  />
-                </>
-              )}
-            </div>
-          ))}
-          {readOnly && hiddenCourseCount > 0 ? (
-            <div className="text-[10px] text-neutral-600 pt-1">
-              +{hiddenCourseCount} more course(s)…
-            </div>
-          ) : null}
-        </div>
-      </div>
+      <InsSummaryOfCourses courses={courses} />
 
       <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
         <div className="text-sm font-semibold text-neutral-900">Approved</div>
@@ -941,9 +839,13 @@ export function OpticoreInsForm5C({
   semesterLabel,
   conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5CProps) {
-  const prepared = pickSlot(insSignatureSlots, "prepared");
-  const review = pickSlot(insSignatureSlots, "review");
-  const campus = pickSlot(insSignatureSlots, "campus");
+  // Same resolution the PDF uses, so screen and print never name different
+  // people on the Director/Dean and Campus Director lines.
+  const {
+    prepared,
+    review,
+    approved: campus,
+  } = resolveInsPrintedSigners(insSignatureSlots ?? []);
 
   return (
     <div className="space-y-5 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">

@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
+import { apiFetch, catalogApi, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -227,9 +227,8 @@ export function GecCentralHubEvaluatorClient() {
   const reloadScheduleEntriesSoft = useCallback(async () => {
     if (!academicPeriodId) return;
     try {
-      const data = await apiFetch<{ entries: ScheduleEntry[] }>(
-        `/api/catalog/schedule-entries?academicPeriodId=${academicPeriodId}`,
-        { method: "GET" },
+      const data = await catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(
+        academicPeriodId,
       );
       setEntries(data.entries ?? []);
     } catch {}
@@ -247,9 +246,8 @@ export function GecCentralHubEvaluatorClient() {
     let cancelled = false;
     (async () => {
       try {
-        const data = await apiFetch<{ entries: ScheduleEntry[] }>(
-          `/api/catalog/schedule-entries?academicPeriodId=${academicPeriodId}`,
-          { method: "GET" },
+        const data = await catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(
+          academicPeriodId,
         );
         if (!cancelled) setEntries(data.entries ?? []);
       } catch (e: any) {

@@ -22,6 +22,7 @@ import {
   SYSTEM_CONFIG_RELOAD_EVENT,
 } from "@/lib/system-configuration/system-config-reload";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 
 export type SystemConfigurationContextValue = {
   schedulingPolicy: SchedulingPolicyConfig | null;
@@ -30,7 +31,7 @@ export type SystemConfigurationContextValue = {
   defaultMaxFacultyHoursPerWeek: number;
   loading: boolean;
   error: string | null;
-  reload: () => Promise<void>;
+  reload: (opts?: { forceRefresh?: boolean }) => Promise<void>;
 };
 
 const SystemConfigurationContext = createContext<SystemConfigurationContextValue | null>(null);
@@ -46,9 +47,15 @@ export function SystemConfigurationProvider({ children }: { children: ReactNode 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  /**
+   * `forceRefresh` is used by the save/broadcast listeners below: those fire
+   * precisely because the config just changed, so serving a TTL-cached copy
+   * would show stale policy. The mount call stays cached to collapse the
+   * duplicate requests from multiple providers/portals mounting at once.
+   */
+  const reload = useCallback(async (opts: { forceRefresh?: boolean } = {}) => {
     try {
-      const { config } = await systemConfigApi.get();
+      const { config } = await systemConfigApi.get({ forceRefresh: opts.forceRefresh });
       setSchedulingPolicy((config.schedulingPolicy as SchedulingPolicyConfig | null) ?? null);
       setError(null);
     } catch (e) {
@@ -68,13 +75,22 @@ export function SystemConfigurationProvider({ children }: { children: ReactNode 
     void reload();
   }, [reload]);
 
+  /**
+   * Cross-user push: an admin saving policy on another machine now reaches
+   * every open client. The window/BroadcastChannel listeners below remain for
+   * same-tab and same-browser propagation, which fire without a round trip.
+   */
+  useRealtimeEvent("config.changed", () => {
+    void reload({ forceRefresh: true });
+  });
+
   useEffect(() => {
     const onWindow = () => {
-      void reload();
+      void reload({ forceRefresh: true });
     };
     window.addEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onWindow);
     const unsubBc = subscribeSystemConfigBroadcast(() => {
-      void reload();
+      void reload({ forceRefresh: true });
     });
     return () => {
       window.removeEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onWindow);

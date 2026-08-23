@@ -118,7 +118,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
           ]}
         />
 
-        <INSSummaryTable courses={courses} showDegreeYrSec />
+        <INSSummaryTable courses={courses} />
 
         <View style={ins.metricsContainer}>
           <View style={ins.metricsGrid}>

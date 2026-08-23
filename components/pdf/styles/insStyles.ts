@@ -17,10 +17,17 @@ export const ins = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
 
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+  /**
+   * Containing block for the header. The form-meta box is positioned absolutely
+   * against this, so it must stay the nearest positioned ancestor.
+   *
+   * `minHeight` reserves room for the 3-line meta box. Absolute children
+   * contribute no height, so without it a header rendered with no banner would
+   * collapse and let the meta text overlap the rule and title below.
+   */
+  headerBlock: {
+    position: "relative",
+    minHeight: 30,
     marginBottom: 2,
     paddingBottom: 4,
   },
@@ -30,8 +37,21 @@ export const ins = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.6,
     color: BLACK,
+    textAlign: "center",
   },
+  /**
+   * Form code / date / revision — pinned to the top-right corner.
+   *
+   * Absolute (rather than a flex sibling) on purpose: in a shared row the box
+   * would consume width on the right and push the banner's centre point left,
+   * so the banner would be centred in the leftover space instead of on the
+   * page. Taking it out of flow lets the banner centre against the full
+   * content width.
+   */
   headerRight: {
+    position: "absolute",
+    top: 0,
+    right: 0,
     textAlign: "right",
     fontSize: 7,
   },
@@ -44,9 +64,42 @@ export const ins = StyleSheet.create({
     marginBottom: 6,
   },
 
+  /**
+   * Full-width row, so the banner centres on the page rather than in the space
+   * beside the meta box.
+   *
+   * Overlap constraint: the meta box is ~70pt wide at the right edge, and A4
+   * content width is ~535pt (595.28 − 2×30 padding). A centred banner spans
+   * (535 ± W)/2, so it stays clear of the meta box while W < ~395pt. The
+   * current 260pt has comfortable margin.
+   */
+  headerBannerRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  /**
+   * Source asset is 992x241 (~4.116:1). Width and height are both set and kept
+   * at that exact ratio: react-pdf does not infer intrinsic dimensions, so
+   * omitting one — or letting the pair drift from the source ratio — stretches
+   * the wordmark. If you swap the asset, recompute height = width / ratio.
+   */
+  headerBanner: {
+    width: 230,
+    height: 35,
+    objectFit: "contain",
+  },
+
+  /** Title block, centered now that the flanking logos are gone. */
+  formTitleRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
   formTitleCenter: {
     textAlign: "center",
-    marginBottom: 4,
+    marginBottom: 0,
+    flex: 1
   },
   formTitle: {
     fontSize: 12,
@@ -237,36 +290,53 @@ export const ins = StyleSheet.create({
   },
 
   signatureContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: "column",
+    width: "100%",
     marginTop: 16,
-    paddingTop: 6,
-    borderTopWidth: 0.5,
-    borderTopColor: GRID_BORDER,
   },
-  signatureBlock: {
+  /**
+   * Tier 1: same two-column row as tier 2, but only the first column is
+   * occupied, so "Prepared by" aligns with the "Reviewed" column beneath it.
+   */
+  signatureTierFirstRow: {
+    // flexDirection: "row",
+    // width: "100%",
+    // justifyContent: "flex-start",
+    marginBottom: 30,
+  },
+  /** Tier 2: two slots side by side (Reviewed / Approved). */
+  signatureTierRow: {
+    flexDirection: "row",
+    width: "100%",
+    gap: 100,
+    // justifyContent: "space-between",
+  },
+  signatureBlockHalf: {
     width: "30%",
-    alignItems: "center",
+    // alignItems: "center",
   },
+
   signatureTitle: {
     fontSize: 6.5,
     fontFamily: "Helvetica-Bold",
     marginBottom: 20,
-    textAlign: "center",
+    textAlign: "left", 
   },
   signatureLine: {
-    width: "100%",
-    borderBottomWidth: 0.8,
+    width: "80%",
+    borderBottomWidth: 0.5,
     borderBottomColor: BLACK,
     marginBottom: 2,
   },
   signatureRole: {
     fontSize: 6,
     color: GRAY_600,
+    width: "80%",
     textAlign: "center",
   },
   signatureName: {
     fontSize: 6.5,
+    width: "80%",
     textAlign: "center",
     marginTop: 1,
     fontFamily: "Helvetica-Bold",

@@ -219,6 +219,16 @@ export function LoginClient() {
           </Button>
 
           <p className="text-center text-sm">
+            <span className="text-[#595959]">New student? </span>
+            <Link
+              href="/register"
+              className="text-[#5483b3] font-medium hover:underline"
+            >
+              Sign up
+            </Link>
+          </p>
+
+          <p className="text-center text-sm">
             <Link
               href="/"
               className="text-[#5483b3] font-medium hover:underline"

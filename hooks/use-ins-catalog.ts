@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, catalogApi } from "@/lib/api/client";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
@@ -10,6 +10,8 @@ import {
   type InsCatalogReloadDetail,
   subscribeScheduleEntryBroadcast,
 } from "@/lib/ins/ins-catalog-reload";
+import { subscribeScheduleEntryRealtimePool } from "@/lib/ins/schedule-entry-realtime-pool";
+import { preserveListIdentity } from "@/lib/collections/preserve-identity";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import {
@@ -114,6 +116,14 @@ export function useInsCatalog(args: {
   } | null>(null);
   const skipPeriodEntryFetchRef = useRef(true);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * `load()` reads `fallbackPeriodId` but also writes it. Keeping it in a ref
+   * (rather than the `useCallback` dep array) breaks the
+   * render → load → setFallbackPeriodId → new load identity → effect → load
+   * cycle that fired `/api/catalog/ins-bundle` two-to-three times per mount.
+   */
+  const fallbackPeriodIdRef = useRef(fallbackPeriodId);
+  fallbackPeriodIdRef.current = fallbackPeriodId;
   /** Coalesce chairman/GEC save broadcasts into one full catalog pull so new entry ids refresh Section/Subject merges (INS hours). */
   const insFullReloadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Second soft `ScheduleEntry` pull after reload — helps same-tab read-your-writes when PostgREST briefly returns old rows. */
@@ -141,11 +151,14 @@ export function useInsCatalog(args: {
       if (!periodId) return;
       if (!soft) setLoading(true);
       try {
-        const data = await apiFetch<{ entries: ScheduleEntry[] }>(
-          `/api/catalog/schedule-entries?academicPeriodId=${periodId}`,
-          { method: "GET" },
-        );
-        setEntries(data.entries ?? []);
+        const data = await catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(periodId);
+        /**
+         * Keep the previous array when the poll returned identical rows. A new
+         * array identity here would cascade through `insResourceEntries` →
+         * `schedule` → `pdfData` and make `@react-pdf` regenerate an open
+         * preview on every 30s tick even though nothing changed.
+         */
+        setEntries((prev) => preserveListIdentity(prev, data.entries ?? []) as ScheduleEntry[]);
       } catch (e: any) {
         setError(e?.message ?? "Failed to load schedule entries");
       }
@@ -182,8 +195,7 @@ export function useInsCatalog(args: {
     } | null = null;
 
     try {
-      const { apiFetch } = await import("@/lib/api/client");
-      bundle = await apiFetch<any>("/api/catalog/ins-bundle", { method: "GET" });
+      bundle = await catalogApi.insBundle<any>();
     } catch {
       setLoading(false);
       return;
@@ -196,7 +208,7 @@ export function useInsCatalog(args: {
     if (semesterFilter?.ready && semesterFilter.selectedPeriodId) {
       periodId = semesterFilter.selectedPeriodId;
     } else if (!semesterFilter) {
-      periodId = fallbackPeriodId || defaultAcademicPeriodId(periodList);
+      periodId = fallbackPeriodIdRef.current || defaultAcademicPeriodId(periodList);
     } else {
       periodId = defaultAcademicPeriodId(periodList);
     }
@@ -218,7 +230,7 @@ export function useInsCatalog(args: {
 
     if (!scopedCollegeId) {
       setPeriods(periodList);
-      setEntries(sch);
+      setEntries((prev) => preserveListIdentity(prev, sch) as ScheduleEntry[]);
       setSections(bundle.sections);
       setSubjects(bundle.subjects);
       setRooms(bundle.rooms);
@@ -258,7 +270,7 @@ export function useInsCatalog(args: {
       : prList;
 
     setPeriods(periodList);
-    setEntries(sch);
+    setEntries((prev) => preserveListIdentity(prev, sch) as ScheduleEntry[]);
     setSections(sectionsMerged);
     setSubjects(subjectsMerged);
     setRooms(roomsMerged);
@@ -269,7 +281,8 @@ export function useInsCatalog(args: {
     setCampusInsSettings(bundle.settings);
     if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
     setLoading(false);
-  }, [args.collegeId, args.campusWide, semesterFilter?.ready, semesterFilter?.selectedPeriodId, fallbackPeriodId]);
+    // `fallbackPeriodId` is intentionally read through a ref — see the ref declaration.
+  }, [args.collegeId, args.campusWide, semesterFilter?.ready, semesterFilter?.selectedPeriodId]);
 
   useEffect(() => {
     void load();
@@ -282,17 +295,22 @@ export function useInsCatalog(args: {
   }, [loadScheduleEntriesForPeriod]);
 
   /**
-   * Polling every 30s as a replacement for Supabase Realtime.
+   * Term sync (replacement for Supabase Realtime).
+   *
+   * We subscribe to the shared per-term pool rather than running our own
+   * `setInterval`. Previously both this hook AND the pool polled the same
+   * `/api/catalog/schedule-entries` URL every 30s, so a page mounting an INS
+   * form plus an Evaluator view issued several identical requests per tick.
+   *
+   * The pool fetches once with `forceRefresh` and warms the cache before
+   * notifying us, so `loadScheduleEntriesForPeriod` below reads that warm entry
+   * instead of hitting the network again.
    */
   useEffect(() => {
     if (!args.collegeId && !args.campusWide) return;
-    const interval = setInterval(() => {
-      scheduleDebouncedReload();
-    }, 30_000);
-    return () => {
-      clearInterval(interval);
-    };
-  }, [scheduleDebouncedReload, args.collegeId, args.campusWide]);
+    if (!academicPeriodId) return;
+    return subscribeScheduleEntryRealtimePool(academicPeriodId, scheduleDebouncedReload);
+  }, [scheduleDebouncedReload, args.collegeId, args.campusWide, academicPeriodId]);
 
   /**
    * Same-tab + cross-tab: chairman/GEC saves broadcast a reload.

@@ -20,6 +20,7 @@ function defaultAcademicPeriodId(list: { id: string; isCurrent?: boolean | null 
 }
 import { SEMESTER_FILTER_STORAGE_KEY, SEMESTER_FILTER_URL_PARAM } from "@/lib/semester-filter-storage";
 import { SYSTEM_CONFIG_RELOAD_EVENT, subscribeSystemConfigBroadcast } from "@/lib/system-configuration/system-config-reload";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import type { AcademicPeriod } from "@/types/db";
 
 export type SemesterFilterContextValue = {
@@ -90,9 +91,9 @@ export function SemesterFilterProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  const reloadPeriods = useCallback(async () => {
+  const reloadPeriods = useCallback(async (opts: { forceRefresh?: boolean } = {}) => {
     try {
-      const { semesters } = await semestersApi.list();
+      const { semesters } = await semestersApi.list({ forceRefresh: opts.forceRefresh });
       const list = semesters.map(toLocalAcademicPeriod);
       setPeriods(list);
       setSelectedPeriodIdState((prev) => {
@@ -131,13 +132,19 @@ export function SemesterFilterProvider({ children }: { children: ReactNode }) {
     };
   }, [reloadPeriods]);
 
+  /** Cross-user push when an admin creates a term or switches the current one. */
+  useRealtimeEvent("period.changed", () => {
+    void reloadPeriods({ forceRefresh: true });
+  });
+
   useEffect(() => {
+    // These fire because a term was just edited — bypass the TTL.
     const onConfig = () => {
-      void reloadPeriods();
+      void reloadPeriods({ forceRefresh: true });
     };
     window.addEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onConfig);
     const unsubBc = subscribeSystemConfigBroadcast((d) => {
-      if (d?.source === "academicPeriod") void reloadPeriods();
+      if (d?.source === "academicPeriod") void reloadPeriods({ forceRefresh: true });
     });
     return () => {
       window.removeEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onConfig);

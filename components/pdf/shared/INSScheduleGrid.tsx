@@ -11,7 +11,7 @@ type INSScheduleGridProps = {
   rightSignatureSlots?: PDFSignatureSlot[];
 };
 
-const RAIL_W = 50;
+const RAIL_W = 100;
 const GRID_H = 350;
 
 const gs = StyleSheet.create({
@@ -27,13 +27,13 @@ const gs = StyleSheet.create({
   rail: {
     width: RAIL_W,
     height: GRID_H,
+    marginLeft: 30,
     position: "relative",
-    overflow: "hidden",
   },
   rotatedStrip: {
     position: "absolute",
     top: GRID_H / 2 - RAIL_W / 2,
-    left: -(GRID_H / 2 - RAIL_W / 2),
+    left: -(GRID_H / 2 - 50 / 2),
     width: GRID_H,
     height: RAIL_W,
     transform: "rotate(-90deg)",
@@ -45,12 +45,14 @@ const gs = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 6,
+    paddingTop: 10
   },
   sigBlockLast: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 6,
+    paddingTop: 10
   },
   sigTitle: {
     fontSize: 5.5,
@@ -59,10 +61,11 @@ const gs = StyleSheet.create({
     marginBottom: 10,
   },
   space: {
-    marginTop: 15,
+    marginTop: 70,
   },
   sigLineView: {
     marginBottom: 1.5,
+    marginTop: 3,
     height: .6,
     width: 80,
     backgroundColor: "black",

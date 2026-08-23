@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import { insPickSlotRender } from "@/lib/ins/ins-weekly-grid-span";
+import { insPrintedSignatureLines } from "@/lib/ins/ins-pdf-adapters";
 import { INS_DAYS, INS_TIME_SLOTS } from "./opticore-ins-constants";
 
 const vLabel = {
@@ -187,43 +188,11 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
   );
 }
 
-const FALLBACK_SLOTS: InsSignatureSlot[] = [
-  {
-    key: "approved",
-    lineTitle: "Approved by",
-    lineSubtitle: "DOI / VPAA",
-    signerName: "—",
-    imageUrl: null,
-  },
-  {
-    key: "campus",
-    lineTitle: "Campus Director",
-    lineSubtitle: "Campus",
-    signerName: "—",
-    imageUrl: null,
-  },
-  {
-    key: "review",
-    lineTitle: "Reviewed & Certified by",
-    lineSubtitle: "Chairman",
-    signerName: "—",
-    imageUrl: null,
-  },
-  {
-    key: "contract",
-    lineTitle: "Contract",
-    lineSubtitle: "Signatory",
-    signerName: "—",
-    imageUrl: null,
-  },
-  {
-    key: "prepared",
-    lineTitle: "Prepared by",
-    lineSubtitle: "College Admin",
-    signerName: "—",
-    imageUrl: null,
-  },
-];
+/**
+ * The three lines the paper form carries, in the PDF's order
+ * (see `insPrintedSignatureLines`). Used when no resolved slots are supplied.
+ */
+const FALLBACK_SLOTS: InsSignatureSlot[] = insPrintedSignatureLines(null);
 
 const FALLBACK_CAMPUS_ONLY: InsSignatureSlot[] = [
   {
@@ -246,9 +215,15 @@ function InsSignatureStrip({
   variant?: "full" | "campusOnly";
   compactPrint?: boolean;
 }) {
-  const fallback =
-    variant === "campusOnly" ? FALLBACK_CAMPUS_ONLY : FALLBACK_SLOTS;
-  const slots = signatureSlots ?? fallback;
+  // Form 5B prints a single Campus Director column; every other form prints the
+  // same three lines as the PDF. `signatureSlots` arrives as the internal
+  // six-slot strip, so it must be collapsed rather than rendered raw.
+  const slots =
+    variant === "campusOnly"
+      ? (signatureSlots ?? FALLBACK_CAMPUS_ONLY)
+      : signatureSlots
+        ? insPrintedSignatureLines(signatureSlots)
+        : FALLBACK_SLOTS;
   // Keep the signature strip narrow (paper form style) — no big boxed placeholders.
   const colWidth =
     variant === "campusOnly"

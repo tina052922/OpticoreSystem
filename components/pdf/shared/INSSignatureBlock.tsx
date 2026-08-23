@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { View, Text, Image } from "@react-pdf/renderer";
 import { ins } from "../styles/insStyles";
 import type { PDFSignatureSlot } from "../types/insTypes";
@@ -33,22 +34,60 @@ const DEFAULT_SLOTS: PDFSignatureSlot[] = [
   },
 ];
 
+type SlotStyle = ComponentProps<typeof View>["style"];
+
+function SignatureSlot({
+  slot,
+  style,
+}: {
+  slot: PDFSignatureSlot;
+  style: SlotStyle;
+}) {
+  return (
+    <View style={style}>
+      <Text style={ins.signatureTitle}>{slot.lineTitle}</Text>
+      {slot.imageUrl ? (
+        <Image src={slot.imageUrl} style={ins.signatureImage} />
+      ) : null}
+      {slot.signerName && slot.signerName !== "—" ? (
+        <Text style={ins.signatureName}>{slot.signerName}</Text>
+      ) : null}
+      <View style={ins.signatureLine} />
+      <Text style={ins.signatureRole}>{slot.lineSubtitle}</Text>
+    </View>
+  );
+}
+
+/**
+ * Two-tier layout, both tiers on the same column grid:
+ *   Tier 1 — Prepared by, in column 1 (column 2 left empty)
+ *   Tier 2 — Reviewed (column 1) / Approved (column 2)
+ *
+ * Falls back gracefully if the caller supplies a different number of slots:
+ * the first always takes tier 1, the remainder share the second row.
+ */
 function HorizontalSignatures({ slots }: { slots: PDFSignatureSlot[] }) {
+  const [first, ...rest] = slots;
   return (
     <View style={ins.signatureContainer}>
-      {slots.map((slot) => (
-        <View key={slot.key} style={ins.signatureBlock}>
-          <Text style={ins.signatureTitle}>{slot.lineTitle}</Text>
-          {slot.imageUrl ? (
-            <Image src={slot.imageUrl} style={ins.signatureImage} />
-          ) : null}
-          <View style={ins.signatureLine} />
-          {slot.signerName && slot.signerName !== "—" ? (
-            <Text style={ins.signatureName}>{slot.signerName}</Text>
-          ) : null}
-          <Text style={ins.signatureRole}>{slot.lineSubtitle}</Text>
+      {first ? (
+        // Same two-column row as tier 2, but only the first column is filled,
+        // so this slot lines up exactly with the "Reviewed" column below it.
+        <View style={ins.signatureTierFirstRow}>
+          <SignatureSlot slot={first} style={ins.signatureBlockHalf} />
         </View>
-      ))}
+      ) : null}
+      {rest.length > 0 ? (
+        <View style={ins.signatureTierRow}>
+          {rest.map((slot) => (
+            <SignatureSlot
+              key={slot.key}
+              slot={slot}
+              style={ins.signatureBlockHalf}
+            />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

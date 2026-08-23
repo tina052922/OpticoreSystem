@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { auditLogApi } from "@/lib/api/client";
+import { usePolledCallback } from "@/hooks/use-polled-callback";
 
 const STORAGE_PREFIX = "opticore:audit-log-last-seen:";
 
@@ -27,37 +28,43 @@ export function useAuditLogUnreadCount(args: { enabled?: boolean; storageScope: 
   const [count, setCount] = useState(0);
   const enabled = args.enabled ?? true;
 
-  const load = useCallback(async () => {
-    if (!enabled) {
-      setCount(0);
-      return;
-    }
-    let since = new Date(0).toISOString();
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem(auditLogUnreadStorageKey(args.storageScope));
-        if (raw && !Number.isNaN(Date.parse(raw))) since = raw;
-      } catch {
-        /* ignore */
+  /** Poll ticks bypass the short mount-burst TTL so the badge stays live. */
+  const load = useCallback(
+    async (opts: { forceRefresh?: boolean } = {}) => {
+      if (!enabled) {
+        setCount(0);
+        return;
       }
-    }
-    try {
-      const data = await auditLogApi.unreadCount({ since });
-      setCount(data.unread);
-    } catch {
-      /* keep last count */
-    }
-  }, [enabled, args.storageScope]);
+      let since = new Date(0).toISOString();
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem(auditLogUnreadStorageKey(args.storageScope));
+          if (raw && !Number.isNaN(Date.parse(raw))) since = raw;
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        const data = await auditLogApi.unreadCount(
+          { since },
+          { forceRefresh: opts.forceRefresh },
+        );
+        setCount(data.unread);
+      } catch {
+        /* keep last count */
+      }
+    },
+    [enabled, args.storageScope],
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (!enabled) return;
-    const id = window.setInterval(() => void load(), 120_000);
-    return () => window.clearInterval(id);
-  }, [enabled, load]);
+  usePolledCallback(() => load({ forceRefresh: true }), {
+    intervalMs: 120_000,
+    enabled,
+  });
 
   return count;
 }
