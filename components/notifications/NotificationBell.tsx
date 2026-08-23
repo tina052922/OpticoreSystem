@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell } from "lucide-react";
 import { ApiClientError, authApi, notificationsApi, type Notification, type Role } from "@/lib/api/client";
+import { usePolledCallback } from "@/hooks/use-polled-callback";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +13,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { isScheduleRelatedNotificationMessage } from "@/lib/notifications/notification-relevance";
 
-const POLL_INTERVAL_MS = 30_000;
+/**
+ * Realtime (SSE) is the primary delivery path; this poll is only a fallback for
+ * a dropped connection or notifications written outside the API. It is
+ * deliberately slow — tightening it would undo the load reduction realtime buys.
+ */
+const POLL_INTERVAL_MS = 180_000;
 
 /**
  * Notification bell — pulls notifications from the Express backend.
@@ -25,26 +32,31 @@ const POLL_INTERVAL_MS = 30_000;
  * visibility.
  */
 export function NotificationBell() {
-  const [items, setItems] = useState<Notification[]>([]);
+  const [raw, setRaw] = useState<Notification[]>([]);
   const [role, setRole] = useState<Role | null>(null);
 
-  const load = useCallback(async () => {
+  /**
+   * Stable across role changes on purpose: role only affects *filtering*, which
+   * we do at render time. Keeping it out of the dep array stops the poll
+   * interval from being torn down and re-firing an extra request once
+   * `authApi.me()` resolves.
+   */
+  const load = useCallback(async (opts: { forceRefresh?: boolean } = {}) => {
     try {
-      const { notifications } = await notificationsApi.list({ limit: 25 });
-      const filtered =
-        role === "student" || role === "instructor"
-          ? notifications.filter((r) => isScheduleRelatedNotificationMessage(r.message))
-          : notifications;
-      setItems(filtered);
+      const { notifications } = await notificationsApi.list(
+        { limit: 25 },
+        { forceRefresh: opts.forceRefresh },
+      );
+      setRaw(notifications);
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 401) {
         // Not logged in — fail silently; the layout will redirect.
-        setItems([]);
+        setRaw([]);
         return;
       }
       // Keep the previous list on transient errors.
     }
-  }, [role]);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -57,11 +69,38 @@ export function NotificationBell() {
     })();
   }, []);
 
+  /**
+   * Initial load goes through the cache so several shells mounting at once
+   * (portal shell + campus-intelligence shell) collapse into one request.
+   */
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
   }, [load]);
+
+  /** Instant push: the server tells us the moment a notification lands. */
+  useRealtimeEvent("notification.changed", () => {
+    void load({ forceRefresh: true });
+  });
+
+  /**
+   * Safety net behind realtime, not the primary path — hence the much longer
+   * interval. It covers a dropped SSE connection that hasn't reconnected yet
+   * and any notification written outside the API (DB trigger, manual insert),
+   * which produces no event.
+   *
+   * Polls bypass the cache; ticks are skipped in hidden tabs and jittered.
+   */
+  usePolledCallback(() => load({ forceRefresh: true }), {
+    intervalMs: POLL_INTERVAL_MS,
+  });
+
+  const items = useMemo(
+    () =>
+      role === "student" || role === "instructor"
+        ? raw.filter((r) => isScheduleRelatedNotificationMessage(r.message))
+        : raw,
+    [raw, role],
+  );
 
   const unread = items.filter((i) => !i.isRead).length;
 
@@ -71,7 +110,7 @@ export function NotificationBell() {
     } catch {
       /* ignore — the next poll will reconcile */
     }
-    void load();
+    void load({ forceRefresh: true });
   }
 
   return (
@@ -82,7 +121,7 @@ export function NotificationBell() {
           suppressHydrationWarning
           className="relative p-1 rounded-md hover:bg-white/10"
           aria-label="Notifications"
-          onClick={() => void load()}
+          onClick={() => void load({ forceRefresh: true })}
         >
           <Bell className="w-6 h-6 text-white" />
           {unread > 0 ? (

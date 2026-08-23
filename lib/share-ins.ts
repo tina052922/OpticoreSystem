@@ -1,5 +1,5 @@
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
-import { inboxApi, semestersApi, apiFetch } from "@/lib/api/client";
+import { inboxApi, semestersApi, apiFetch, catalogApi, API_CACHE_TTL } from "@/lib/api/client";
 import {
   buildWorkflowScheduleBundle,
   type InsShareView,
@@ -60,9 +60,12 @@ export async function buildChairmanInboxForwardBundle(args: {
 
   try {
     const [secRes, schRes, subRes] = await Promise.all([
-      apiFetch<{ sections: { id: string; programId: string }[] }>("/api/catalog/sections", { method: "GET" }),
-      apiFetch<{ entries: ScheduleEntry[] }>(`/api/catalog/schedule-entries?academicPeriodId=${curId}`, { method: "GET" }),
-      apiFetch<{ subjects: Subject[] }>("/api/catalog/subjects", { method: "GET" }),
+      catalogApi.sections(),
+      catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(curId),
+      apiFetch<{ subjects: Subject[] }>("/api/catalog/subjects", {
+        method: "GET",
+        cacheTtlMs: API_CACHE_TTL.CATALOG_STATIC,
+      }),
     ]);
 
     const sectionIds = new Set(

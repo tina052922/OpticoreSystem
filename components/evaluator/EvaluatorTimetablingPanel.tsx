@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, authApi, recordScheduleWrite, schedulingApi, ApiClientError, type CampusConflictScanResult } from "@/lib/api/client";
+import { apiFetch, authApi, catalogApi, recordScheduleWrite, schedulingApi, ApiClientError, type CampusConflictScanResult } from "@/lib/api/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FACULTY_POLICY_CONSTANTS, PROGRAM_MAJORS, WEEKDAYS } from "@/lib/scheduling/constants";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
@@ -184,10 +184,10 @@ export function EvaluatorTimetablingPanel({
   const reloadScheduleEntriesSoft = useCallback(async () => {
     if (!academicPeriodId) return;
     try {
-      const data = await apiFetch<{ entries: ScheduleEntry[]; justifications: ScheduleLoadJustification[] }>(
-        `/api/catalog/schedule-entries?academicPeriodId=${academicPeriodId}`,
-        { method: "GET" },
-      );
+      const data = await catalogApi.scheduleEntries<{
+        entries: ScheduleEntry[];
+        justifications: ScheduleLoadJustification[];
+      }>(academicPeriodId);
       setDbEntries(data.entries ?? []);
       setLoadJustifications(data.justifications ?? []);
     } catch {}
@@ -204,10 +204,10 @@ export function EvaluatorTimetablingPanel({
     let cancelled = false;
     (async () => {
       try {
-        const data = await apiFetch<{ entries: ScheduleEntry[]; justifications: ScheduleLoadJustification[] }>(
-          `/api/catalog/schedule-entries?academicPeriodId=${academicPeriodId}`,
-          { method: "GET" },
-        );
+        const data = await catalogApi.scheduleEntries<{
+          entries: ScheduleEntry[];
+          justifications: ScheduleLoadJustification[];
+        }>(academicPeriodId);
         if (!cancelled) {
           setDbEntries(data.entries ?? []);
           setLoadJustifications(data.justifications ?? []);

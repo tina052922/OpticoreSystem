@@ -16,6 +16,24 @@
  *     backend.
  */
 
+import {
+  API_CACHE_TTL,
+  buildCacheKey,
+  clearApiCache,
+  defaultInvalidationPrefix,
+  invalidateApiCache,
+  readApiCache,
+  readInFlight,
+  trackInFlight,
+  writeApiCache,
+} from "./request-cache";
+
+export {
+  API_CACHE_TTL,
+  clearApiCache,
+  invalidateApiCache,
+} from "./request-cache";
+
 // ----- Configuration --------------------------------------------------------
 
 /** On the server, reach Express directly. On the client, go through the Next.js rewrite (relative URL). */
@@ -251,6 +269,20 @@ type ApiFetchOptions = Omit<RequestInit, "body"> & {
   retryOn401?: boolean;
   cookieHeader?: string;
   signal?: AbortSignal;
+  /**
+   * Cache successful GET responses in-memory for this many ms and de-duplicate
+   * concurrent calls for the same URL. Omit (or `0`) to always hit the network.
+   * Ignored on the server and whenever `cookieHeader` is set — see
+   * `lib/api/request-cache.ts` for why.
+   */
+  cacheTtlMs?: number;
+  /** Bypass a cached value but still populate the cache with the fresh result. */
+  forceRefresh?: boolean;
+  /**
+   * For mutating requests: cache path prefix to drop after success.
+   * Defaults to the first two path segments; pass `null` to skip invalidation.
+   */
+  invalidates?: string | string[] | null;
 };
 
 function buildUrl(path: string): string {
@@ -308,13 +340,97 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const {
     body,
+    method = body !== undefined ? "POST" : "GET",
+    cookieHeader,
+    signal,
+    cacheTtlMs = 0,
+    forceRefresh = false,
+    invalidates,
+  } = options;
+
+  const upperMethod = method.toUpperCase();
+  const isRead = upperMethod === "GET" || upperMethod === "HEAD";
+
+  // Never cache on the server (module state is shared across users) and never
+  // cache a request that carries an explicit cookie header (same reason).
+  const cacheable =
+    isRead && cacheTtlMs > 0 && !IS_SERVER && !cookieHeader && !signal;
+  const cacheKey = cacheable ? buildCacheKey(upperMethod, buildUrl(path)) : "";
+
+  if (cacheable) {
+    if (!forceRefresh) {
+      const cached = readApiCache<T>(cacheKey);
+      if (cached.hit) return cached.value as T;
+
+      const pending = readInFlight<T>(cacheKey);
+      if (pending) return pending;
+    }
+
+    return trackInFlight(
+      cacheKey,
+      (async () => {
+        const result = await apiFetchUncached<T>(path, options);
+        writeApiCache(cacheKey, result, cacheTtlMs);
+        return result;
+      })(),
+    );
+  }
+
+  const result = await apiFetchUncached<T>(path, options);
+
+  // A successful write makes cached reads for that resource family stale.
+  if (!isRead && !IS_SERVER && invalidates !== null) {
+    const prefixes =
+      invalidates === undefined
+        ? [defaultInvalidationPrefix(path)]
+        : Array.isArray(invalidates)
+          ? invalidates
+          : [invalidates];
+    for (const prefix of prefixes) {
+      if (prefix) invalidateApiCache(prefix);
+    }
+  }
+
+  return result;
+}
+
+async function apiFetchUncached<T>(
+  path: string,
+  options: ApiFetchOptions = {},
+): Promise<T> {
+  const {
+    body,
     headers,
     method = body !== undefined ? "POST" : "GET",
     retryOn401 = true,
     cookieHeader,
     signal,
+    cacheTtlMs: _cacheTtlMs,
+    forceRefresh: _forceRefresh,
+    invalidates: _invalidates,
     ...rest
   } = options;
+
+  /**
+   * Tag mutations with this tab's realtime connection id so the server can
+   * skip echoing the resulting event back to us — we already applied the
+   * change locally. Reads don't produce events, so don't bother.
+   *
+   * Imported lazily to keep the realtime module out of the server bundle and
+   * to avoid an import cycle (`realtime-client` imports `API_BASE_URL`).
+   */
+  let originHeader: Record<string, string> = {};
+  if (!IS_SERVER && method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") {
+    try {
+      const { getRealtimeConnectionId } = await import(
+        "@/lib/realtime/realtime-client"
+      );
+      const id = getRealtimeConnectionId();
+      if (id) originHeader = { "x-opticore-connection-id": id };
+    } catch {
+      /* realtime unavailable — the event simply isn't suppressed */
+    }
+  }
 
   const init: RequestInit = {
     ...rest,
@@ -325,6 +441,7 @@ export async function apiFetch<T>(
       accept: "application/json",
       ...(isPlainObject(body) || Array.isArray(body) ? { "content-type": "application/json" } : {}),
       ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      ...originHeader,
       ...(headers as Record<string, string> | undefined),
     },
     body:
@@ -351,7 +468,8 @@ export async function apiFetch<T>(
   if (res.status === 401 && retryOn401 && path !== "/api/auth/refresh") {
     const refreshed = await attemptRefresh(cookieHeader);
     if (refreshed) {
-      return apiFetch<T>(path, { ...options, retryOn401: false });
+      // Retry on the uncached path — the caller already owns the cache entry.
+      return apiFetchUncached<T>(path, { ...options, retryOn401: false });
     }
   }
 
@@ -421,7 +539,7 @@ function qs(params: Record<string, unknown>): string {
 export const notificationsApi = {
   list(
     params: { unreadOnly?: boolean; limit?: number; offset?: number } = {},
-    opts: { cookieHeader?: string } = {},
+    opts: { cookieHeader?: string; forceRefresh?: boolean } = {},
   ) {
     const flat = {
       ...params,
@@ -434,6 +552,8 @@ export const notificationsApi = {
     }>(`/api/notifications${qs(flat)}`, {
       method: "GET",
       cookieHeader: opts.cookieHeader,
+      cacheTtlMs: API_CACHE_TTL.NOTIFICATIONS,
+      forceRefresh: opts.forceRefresh,
     });
   },
   count(opts: { cookieHeader?: string } = {}) {
@@ -455,30 +575,36 @@ export const notificationsApi = {
 };
 
 export const semestersApi = {
-  list(opts: { cookieHeader?: string } = {}) {
+  list(opts: { cookieHeader?: string; forceRefresh?: boolean } = {}) {
     return apiFetch<{ semesters: AcademicPeriod[] }>("/api/semesters", {
       method: "GET",
       cookieHeader: opts.cookieHeader,
+      cacheTtlMs: API_CACHE_TTL.SEMESTERS,
+      forceRefresh: opts.forceRefresh,
     });
   },
-  current(opts: { cookieHeader?: string } = {}) {
+  current(opts: { cookieHeader?: string; forceRefresh?: boolean } = {}) {
     return apiFetch<{ semester: AcademicPeriod | null }>(
       "/api/semesters/current",
       {
         method: "GET",
         cookieHeader: opts.cookieHeader,
+        cacheTtlMs: API_CACHE_TTL.SEMESTERS,
+        forceRefresh: opts.forceRefresh,
       },
     );
   },
 };
 
 export const systemConfigApi = {
-  get(opts: { cookieHeader?: string } = {}) {
+  get(opts: { cookieHeader?: string; forceRefresh?: boolean } = {}) {
     return apiFetch<{ config: SystemConfiguration }>(
       "/api/admin/system-configuration",
       {
         method: "GET",
         cookieHeader: opts.cookieHeader,
+        cacheTtlMs: API_CACHE_TTL.SYSTEM_CONFIG,
+        forceRefresh: opts.forceRefresh,
       },
     );
   },
@@ -508,13 +634,15 @@ export const auditLogApi = {
   },
   unreadCount(
     params: { since?: string } = {},
-    opts: { cookieHeader?: string } = {},
+    opts: { cookieHeader?: string; forceRefresh?: boolean } = {},
   ) {
     return apiFetch<{ unread: number }>(
       `/api/audit/unread-count${qs(params)}`,
       {
         method: "GET",
         cookieHeader: opts.cookieHeader,
+        cacheTtlMs: API_CACHE_TTL.BADGE_COUNT,
+        forceRefresh: opts.forceRefresh,
       },
     );
   },
@@ -536,13 +664,15 @@ export const policyReviewsApi = {
   },
   pendingCount(
     params: { collegeId?: string } = {},
-    opts: { cookieHeader?: string } = {},
+    opts: { cookieHeader?: string; forceRefresh?: boolean } = {},
   ) {
     return apiFetch<{ pending: number }>(
       `/api/policies/reviews/pending-count${qs(params)}`,
       {
         method: "GET",
         cookieHeader: opts.cookieHeader,
+        cacheTtlMs: API_CACHE_TTL.BADGE_COUNT,
+        forceRefresh: opts.forceRefresh,
       },
     );
   },
@@ -561,30 +691,56 @@ export const policyReviewsApi = {
   },
 };
 export const authApi = {
-  login(input: { email: string; password: string; rememberMe?: boolean }) {
-    return apiFetch<{
-      user: SafeUser;
-      session?: {
-        access_token: string;
-        refresh_token: string;
-        expires_at: number;
-      };
-    }>("/api/auth/login", {
-      method: "POST",
-      body: input,
-      retryOn401: false,
-    });
+  async login(input: { email: string; password: string; rememberMe?: boolean }) {
+    // Drop any cached responses belonging to a previously signed-in user
+    // BEFORE the new session exists, so nothing can be read cross-account.
+    clearApiCache();
+    try {
+      return await apiFetch<{
+        user: SafeUser;
+        session?: {
+          access_token: string;
+          refresh_token: string;
+          expires_at: number;
+        };
+      }>("/api/auth/login", {
+        method: "POST",
+        body: input,
+        retryOn401: false,
+      });
+    } finally {
+      clearApiCache();
+      // Reconnect under the new identity so topics are re-derived server-side.
+      if (typeof window !== "undefined") {
+        void import("@/lib/realtime/realtime-client")
+          .then((m) => m.resetRealtime())
+          .catch(() => undefined);
+      }
+    }
   },
-  logout() {
-    return apiFetch<{ loggedOut: true }>("/api/auth/logout", {
-      method: "POST",
-      retryOn401: false,
-    });
+  async logout() {
+    try {
+      return await apiFetch<{ loggedOut: true }>("/api/auth/logout", {
+        method: "POST",
+        retryOn401: false,
+      });
+    } finally {
+      clearApiCache();
+      // Drop the SSE stream: it was authorized for the previous session's
+      // topics and must never carry over to the next user on this tab.
+      if (typeof window !== "undefined") {
+        void import("@/lib/realtime/realtime-client")
+          .then((m) => m.resetRealtime())
+          .catch(() => undefined);
+      }
+    }
   },
-  me(opts: { cookieHeader?: string } = {}) {
+  me(opts: { cookieHeader?: string; forceRefresh?: boolean } = {}) {
     return apiFetch<{ user: SafeUser }>("/api/auth/me", {
       method: "GET",
       cookieHeader: opts.cookieHeader,
+      cacheTtlMs: API_CACHE_TTL.AUTH_ME,
+      forceRefresh: opts.forceRefresh,
     });
   },
   refresh() {
@@ -679,11 +835,16 @@ export const accessRequestsApi = {
   },
   pendingCount(
     params: { collegeId?: string } = {},
-    opts: { cookieHeader?: string } = {},
+    opts: { cookieHeader?: string; forceRefresh?: boolean } = {},
   ) {
     return apiFetch<{ pending: number }>(
       `/api/access-requests/pending-count${qs(params)}`,
-      { method: "GET", cookieHeader: opts.cookieHeader },
+      {
+        method: "GET",
+        cookieHeader: opts.cookieHeader,
+        cacheTtlMs: API_CACHE_TTL.BADGE_COUNT,
+        forceRefresh: opts.forceRefresh,
+      },
     );
   },
 };
@@ -745,11 +906,16 @@ export const scheduleChangeApi = {
   },
   pendingCount(
     params: { collegeId?: string } = {},
-    opts: { cookieHeader?: string } = {},
+    opts: { cookieHeader?: string; forceRefresh?: boolean } = {},
   ) {
     return apiFetch<{ pending: number }>(
       `/api/schedule-change/pending-count${qs(params)}`,
-      { method: "GET", cookieHeader: opts.cookieHeader },
+      {
+        method: "GET",
+        cookieHeader: opts.cookieHeader,
+        cacheTtlMs: API_CACHE_TTL.BADGE_COUNT,
+        forceRefresh: opts.forceRefresh,
+      },
     );
   },
 };
@@ -839,6 +1005,8 @@ export const adminApi = {
       {
         method: "POST",
         body,
+        // Period writes also change what `/api/semesters` returns.
+        invalidates: ["/api/admin", "/api/semesters"],
       },
     );
   },
@@ -848,6 +1016,7 @@ export const adminApi = {
       {
         method: "PATCH",
         body,
+        invalidates: ["/api/admin", "/api/semesters"],
       },
     );
   },
@@ -857,6 +1026,8 @@ export const adminApi = {
       {
         method: "PATCH",
         body: { setCurrentId },
+        // Changing the current term reshapes nearly every catalog read.
+        invalidates: ["/api/admin", "/api/semesters", "/api/catalog"],
       },
     );
   },
@@ -894,22 +1065,56 @@ export function recordScheduleWrite(input: {
 }
 
 export const catalogApi = {
-  colleges() {
+  colleges(opts: { forceRefresh?: boolean } = {}) {
     return apiFetch<{ colleges: { id: string; code: string; name: string }[] }>(
       "/api/catalog/colleges?extended=true",
-      { method: "GET" },
+      {
+        method: "GET",
+        cacheTtlMs: API_CACHE_TTL.CATALOG_STATIC,
+        forceRefresh: opts.forceRefresh,
+      },
     );
   },
-  programs() {
+  programs(opts: { forceRefresh?: boolean } = {}) {
     return apiFetch<{ programs: { id: string; code: string; name: string; collegeId: string }[] }>(
       "/api/catalog/programs",
-      { method: "GET" },
+      {
+        method: "GET",
+        cacheTtlMs: API_CACHE_TTL.CATALOG_STATIC,
+        forceRefresh: opts.forceRefresh,
+      },
     );
   },
-  sections() {
+  sections(opts: { forceRefresh?: boolean } = {}) {
     return apiFetch<{ sections: { id: string; name: string; programId: string; yearLevel: number }[] }>(
       "/api/catalog/sections",
-      { method: "GET" },
+      {
+        method: "GET",
+        cacheTtlMs: API_CACHE_TTL.CATALOG_STATIC,
+        forceRefresh: opts.forceRefresh,
+      },
+    );
+  },
+  /** Bulk INS catalog payload (periods + entries + reference data). */
+  insBundle<T>(opts: { forceRefresh?: boolean } = {}) {
+    return apiFetch<T>("/api/catalog/ins-bundle", {
+      method: "GET",
+      cacheTtlMs: API_CACHE_TTL.INS_BUNDLE,
+      forceRefresh: opts.forceRefresh,
+    });
+  },
+  /** Schedule entries for a term. Short TTL — pollers pass `forceRefresh`. */
+  scheduleEntries<T>(
+    academicPeriodId: string,
+    opts: { forceRefresh?: boolean } = {},
+  ) {
+    return apiFetch<T>(
+      `/api/catalog/schedule-entries?academicPeriodId=${encodeURIComponent(academicPeriodId)}`,
+      {
+        method: "GET",
+        cacheTtlMs: API_CACHE_TTL.SCHEDULE_ENTRIES,
+        forceRefresh: opts.forceRefresh,
+      },
     );
   },
 };

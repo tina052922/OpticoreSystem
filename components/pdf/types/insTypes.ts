@@ -47,6 +47,17 @@ export type PDFCourseRow = {
   degreeYrSec: string;
 };
 
+/**
+ * Total students across the Summary of Courses rows.
+ * Shared by the PDF and the on-screen Load Generator table so the two can never
+ * print a different number.
+ */
+export function insTotalStudents(
+  courses: ReadonlyArray<{ students?: number | null }>,
+): number {
+  return courses.reduce((acc, c) => acc + (c.students ?? 0), 0);
+}
+
 export type PDFScheduleCell = {
   line1: string;
   line2?: string;

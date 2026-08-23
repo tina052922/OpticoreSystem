@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import dynamic from "next/dynamic";
 import { PDFActionBar } from "./PDFActionBar";
 
@@ -37,7 +37,27 @@ export function PDFPreviewModal({
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  if (!open || !mounted) return null;
+  /**
+   * Freeze the document at the moment the preview opens.
+   *
+   * `PDFViewer` and `BlobProvider` both re-render on `document` *identity*
+   * (`useEffect(..., [children])`). Background pollers rebuild the parent's
+   * `pdfData` memo, so without this the open preview would regenerate — and
+   * visibly flash — every time a poll landed, even for unchanged data.
+   *
+   * Re-opening the modal always picks up the latest content, so this trades a
+   * live-updating preview (which nobody asked for and which loses scroll
+   * position) for a stable one.
+   */
+  const frozenDocumentRef = useRef<ReactElement | null>(null);
+  if (!open) {
+    frozenDocumentRef.current = null;
+  } else if (frozenDocumentRef.current === null) {
+    frozenDocumentRef.current = document;
+  }
+  const stableDocument = frozenDocumentRef.current;
+
+  if (!open || !mounted || !stableDocument) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/60 backdrop-blur-sm">
@@ -46,7 +66,7 @@ export function PDFPreviewModal({
           {filename}
         </h2>
         <div className="flex items-center gap-4">
-          <PDFActionBar document={document} filename={filename} />
+          <PDFActionBar document={stableDocument} filename={filename} />
           <button
             type="button"
             onClick={onClose}
@@ -77,7 +97,7 @@ export function PDFPreviewModal({
           showToolbar={false}
           style={{ border: "none", borderRadius: 8 }}
         >
-          {document}
+          {stableDocument}
         </PDFViewer>
       </div>
     </div>
