@@ -1,11 +1,14 @@
+import "server-only";
+
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseServiceRoleKey, getSupabaseUrl } from "@/lib/server/supabase-env";
 
 /**
  * Service-role client for server-only operations (admin auth, inserts that bypass RLS).
  * Never import in Client Components or expose the key.
  *
- * Requires in **`web/.env.local`** (restart `npm run dev` after editing):
- * - `NEXT_PUBLIC_SUPABASE_URL`
+ * Requires on the **server** (Vercel env / `.env.local`, not the browser):
+ * - `SUPABASE_URL` (or legacy `NEXT_PUBLIC_SUPABASE_URL`)
  * - `SUPABASE_SERVICE_ROLE_KEY` (service_role JWT, not anon)
  */
 export function createSupabaseAdminClient(): SupabaseClient | null {
@@ -24,16 +27,16 @@ type AdminOk = { client: SupabaseClient };
 type AdminErr = { error: string };
 
 function getSupabaseAdminConfig(): AdminOk | AdminErr {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const url = getSupabaseUrl();
+  const key = getSupabaseServiceRoleKey();
   const missing: string[] = [];
-  if (!url) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+  if (!url) missing.push("SUPABASE_URL");
   if (!key) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length) {
     const runningOnVercel = Boolean(process.env.VERCEL);
     const locationHint = runningOnVercel
-      ? "in Vercel Project Settings -> Environment Variables"
-      : "in web/.env.local";
+      ? "in Vercel Project Settings -> Environment Variables (server, not NEXT_PUBLIC_)"
+      : "in .env.local (server process only)";
     const actionHint = runningOnVercel
       ? "Redeploy after saving."
       : "Restart the dev server after saving.";

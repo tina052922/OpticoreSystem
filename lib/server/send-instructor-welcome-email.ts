@@ -1,6 +1,9 @@
+import "server-only";
+
 /**
  * Sends instructor credentials via Resend HTTP API (no extra npm package).
  * Set RESEND_API_KEY and RESEND_FROM_EMAIL (verified sender) in production.
+ * These must never be NEXT_PUBLIC_ — they would be compiled into the browser.
  */
 
 function escapeHtml(s: string): string {

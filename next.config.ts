@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Do not map secrets into the browser via `env: { ... }`.
+  // Client calls use relative `/api/*` (HTTP-only cookies). Server uses API_PROXY_URL.
   // 🌟 Disable all caching for development
   headers: async () => [
     {

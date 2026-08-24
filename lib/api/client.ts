@@ -452,6 +452,16 @@ async function apiFetchUncached<T>(
           : (body as BodyInit),
   };
 
+  if (!IS_SERVER) {
+    const hdrs = new Headers(init.headers);
+    hdrs.delete("authorization");
+    hdrs.delete("Authorization");
+    hdrs.delete("apikey");
+    hdrs.delete("x-api-key");
+    hdrs.delete("X-Api-Key");
+    init.headers = hdrs;
+  }
+
   let res: Response;
   try {
     res = await fetch(buildUrl(path), init);

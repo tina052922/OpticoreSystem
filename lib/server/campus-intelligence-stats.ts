@@ -1,6 +1,9 @@
+import "server-only";
+
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { apiFetch } from "@/lib/api/client";
+import { getSupabaseServiceRoleKey, getSupabaseUrl } from "@/lib/server/supabase-env";
 
 export type CampusIntelligenceStats = {
   roomCount: number;
@@ -22,8 +25,8 @@ export type CampusIntelligenceData = CampusIntelligenceStats & {
  * Uses server-side env vars — NEVER exposed to the browser.
  */
 function getSupabaseAdmin() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = getSupabaseUrl();
+  const key = getSupabaseServiceRoleKey();
   if (!url || !key) return null;
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },

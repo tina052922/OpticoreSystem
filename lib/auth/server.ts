@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Server-side helpers for reading the current user inside Next.js server
  * components, route handlers, and layouts.
