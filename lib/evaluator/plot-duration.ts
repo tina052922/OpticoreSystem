@@ -1,4 +1,5 @@
 import { BSIT_EVALUATOR_TIME_SLOTS } from "@/lib/chairman/bsit-evaluator-constants";
+import { NIGHT_PROGRAM_SLOTS, type ProgramHourSlot } from "@/lib/scheduling/program-session";
 import type { ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import type { Subject } from "@/types/db";
@@ -34,14 +35,15 @@ export function inferDurationSlotsFromTimes(startTime: string, endTime: string):
   };
   const startH = hhmm(startTime);
   const endH = hhmm(endTime);
-  const startIdx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((s) => s.startTime === startH);
+  const slotTable = NIGHT_PROGRAM_SLOTS;
+  const startIdx = slotTable.findIndex((s) => s.startTime === startH);
   if (startIdx < 0) return 1;
-  let endIdx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((s) => {
+  let endIdx = slotTable.findIndex((s) => {
     const endLabel = s.label.split(" - ").pop()?.trim() ?? "";
     return endLabel === endH || s.endTime === endH;
   });
   if (endIdx < 0) {
-    endIdx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((s) => s.startTime === endH);
+    endIdx = slotTable.findIndex((s) => s.startTime === endH);
     if (endIdx > 0) endIdx -= 1;
   }
   if (endIdx < startIdx) return 1;
@@ -80,9 +82,10 @@ export function padScheduleTime(t: string): string {
 export function timesFromSlotRange(
   effectiveStart: number,
   dur: number,
+  slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS,
 ): { startTime: string; endTime: string } | null {
-  const startSlot = BSIT_EVALUATOR_TIME_SLOTS[effectiveStart];
-  const endSlot = BSIT_EVALUATOR_TIME_SLOTS[effectiveStart + dur - 1];
+  const startSlot = slots[effectiveStart];
+  const endSlot = slots[effectiveStart + dur - 1];
   if (!startSlot || !endSlot) return null;
   return {
     startTime: padScheduleTime(startSlot.startTime),

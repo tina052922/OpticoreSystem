@@ -43,8 +43,10 @@ import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/Evaluator
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
 import type { GecPlotEditPatch } from "@/components/gec/GecSectionPlottingTable";
-import { BSIT_EVALUATOR_TIME_SLOTS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
+import { type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { plotEntryDurationSlots, timesFromSlotRange } from "@/lib/evaluator/plot-duration";
+import { slotsForSession } from "@/lib/scheduling/program-session";
+import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import {
   GEC_VACANT_INSTRUCTOR_USER_ID,
@@ -94,6 +96,8 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  */
 export function GecCentralHubEvaluatorClient() {
   const toast = useOpticoreToast();
+  const programSession = useProgramSessionOptional()?.programSession ?? "day";
+  const sessionSlots = slotsForSession(programSession);
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -842,9 +846,9 @@ export function GecCentralHubEvaluatorClient() {
       return;
     }
     const dur = plotEntryDurationSlots(programCode, firstSub, 1);
-    const maxIdx = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+    const maxIdx = sessionSlots.length - dur;
     const effIdx = Math.min(Math.max(0, startIdx), maxIdx);
-    const times = timesFromSlotRange(effIdx, dur);
+    const times = timesFromSlotRange(effIdx, dur, sessionSlots);
     if (!times) return;
     const roomPick = roomsForPlotting[0]?.id ?? "";
     if (!roomPick) {
@@ -864,6 +868,7 @@ export function GecCentralHubEvaluatorClient() {
       startTime: times.startTime,
       endTime: times.endTime,
       status: "draft",
+      programSession,
     };
     setExtraEntries((prev) => [...prev, row]);
     setFocusPlotEntryId(id);
