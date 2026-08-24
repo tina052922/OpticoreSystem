@@ -123,19 +123,22 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
   const programId = args.programId ?? undefined;
 
   // Resolve current academic period (fall back to latest)
-  let { data: period } = await supabase
+  let { data: currentPeriods, error: currentPeriodErr } = await supabase
     .from("AcademicPeriod")
     .select("id")
     .eq("isCurrent", true)
-    .maybeSingle();
+    .limit(1);
+  if (currentPeriodErr) {
+    currentPeriods = null;
+  }
+  let period = Array.isArray(currentPeriods) ? currentPeriods[0] : currentPeriods;
   if (!period) {
     const { data: latest } = await supabase
       .from("AcademicPeriod")
       .select("id")
       .order("startDate", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    period = latest;
+      .limit(1);
+    period = Array.isArray(latest) ? latest[0] : latest;
   }
 
   let roomCount = 0;

@@ -355,12 +355,12 @@ export function OpticoreInsForm5A({
             );
           }
           return (
-            <div className="w-full space-y-1 print:space-y-0 print:flex print:flex-row print:flex-wrap print:gap-x-2 print:gap-y-0.5 print:items-start print:justify-start">
+            <div className="w-full space-y-0.5 print:space-y-0 overflow-hidden">
               {(items as InsFacultyCell[])
                 .slice(0, 3)
                 .map((classAtTime, idx) => {
                   const inner = (
-                    <div className="w-full grid grid-cols-1 gap-0 text-[10px] leading-tight print:text-[6.5pt] print:grid print:grid-cols-1 print:leading-tight print:gap-x-1 print:items-baseline">
+                    <div className="w-full grid grid-cols-1 gap-0 text-[10px] leading-tight print:text-[6pt] print:leading-tight">
                       <span className="font-bold text-black truncate">
                         {classAtTime.course}
                       </span>

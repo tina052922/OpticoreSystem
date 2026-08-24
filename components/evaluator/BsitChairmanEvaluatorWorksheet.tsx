@@ -56,6 +56,7 @@ import {
   slotsForSession,
   type ProgramHourSlot,
 } from "@/lib/scheduling/program-session";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
 import { readEvaluatorBackupSnapshot, writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
@@ -155,6 +156,7 @@ function rowToSparseBlock(
   academicPeriodId: string,
   programCodeForSummary: string,
   slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
+  programSession: "day" | "night" = "day",
 ): SparseScheduleBlock | null {
   if (!academicPeriodId || !row.day) return null;
   const t = rowTimeBounds(row, programCodeForSummary, slots);
@@ -168,6 +170,7 @@ function rowToSparseBlock(
     instructorId: row.instructorId || null,
     sectionId: row.sectionId || null,
     roomId: row.roomId || null,
+    programSession,
   };
 }
 
@@ -851,16 +854,16 @@ export function BsitChairmanEvaluatorWorksheet({
       if (b) byId.set(e.id, b);
     }
     for (const row of rows) {
-      const b = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
+      const b = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, sessionSlots, programSession);
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows, programCodeForSummary]);
+  }, [allTermScheduleEntries, academicPeriodId, rows, programCodeForSummary, sessionSlots, programSession]);
 
   const conflictForRow = useCallback(
     (row: PlotRow): { faculty: string; room: string; section: string } => {
       if (!academicPeriodId) return { faculty: "—", room: "—", section: "—" };
-      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
+      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, sessionSlots, programSession);
       if (!candidate) return { faculty: "—", room: "—", section: "—" };
       const hits = detectConflictsSparse(candidate, sparseCampusUniverse, candidate.id);
       const fac = hits.some((h) => h.type === "faculty");
@@ -872,13 +875,13 @@ export function BsitChairmanEvaluatorWorksheet({
         section: !candidate.sectionId ? "—" : sec ? "Yes" : "No",
       };
     },
-    [academicPeriodId, sparseCampusUniverse, programCodeForSummary],
+    [academicPeriodId, sparseCampusUniverse, programCodeForSummary, sessionSlots, programSession],
   );
 
   const conflictDetailForRow = useCallback(
     (row: PlotRow): string[] => {
       if (!academicPeriodId) return [];
-      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary);
+      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, sessionSlots, programSession);
       if (!candidate) return [];
       const hits = detectConflictsSparse(candidate, sparseCampusUniverse, candidate.id);
       return formatSparseConflictLines(hits, sparseCampusUniverse, {
@@ -886,7 +889,7 @@ export function BsitChairmanEvaluatorWorksheet({
         sectionName: row.sectionId ? sectionNameById.get(row.sectionId) : undefined,
         roomCode: row.roomId ? roomCodeById.get(row.roomId) : undefined,
         subjectCode: row.subjectCode,
-        when: `${row.day} ${candidate.startTime.slice(0, 5)}–${candidate.endTime.slice(0, 5)}`,
+        when: `${row.day} ${formatTimeRange12h(candidate.startTime, candidate.endTime)}`,
       });
     },
     [
@@ -896,6 +899,8 @@ export function BsitChairmanEvaluatorWorksheet({
       instructorDisplayById,
       sectionNameById,
       roomCodeById,
+      sessionSlots,
+      programSession,
     ],
   );
 

@@ -21,10 +21,12 @@ describe("program session", () => {
     expect(isNightCellClosed("night", "Saturday", "08:00")).toBe(false);
   });
 
-  it("infers night from weekend or 4pm+ starts", () => {
+  it("infers night from weekend or after 5:00 PM, not from Day 4:00 PM", () => {
     expect(inferProgramSession({ day: "Monday", startTime: "08:00" })).toBe("day");
-    expect(inferProgramSession({ day: "Monday", startTime: "16:00" })).toBe("night");
+    expect(inferProgramSession({ day: "Monday", startTime: "16:00" })).toBe("day");
+    expect(inferProgramSession({ day: "Monday", startTime: "17:00" })).toBe("night");
     expect(inferProgramSession({ day: "Sunday", startTime: "08:00" })).toBe("night");
     expect(entryMatchesSession({ programSession: "night", startTime: "08:00", day: "Monday" }, "night")).toBe(true);
+    expect(entryMatchesSession({ programSession: "day", startTime: "16:00", day: "Monday" }, "day")).toBe(true);
   });
 });

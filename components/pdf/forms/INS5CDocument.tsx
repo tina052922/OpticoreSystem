@@ -6,7 +6,7 @@ import { INSScheduleGrid } from "../shared/INSScheduleGrid";
 import { INSSignatureBlock } from "../shared/INSSignatureBlock";
 
 export function INS5CDocument({ data }: { data: INS5CProps }) {
-  const { roomAssignment, semesterLabel, schedule, signatureSlots } = data;
+  const { roomAssignment, semesterLabel, schedule, signatureSlots, programSession = "day" } = data;
 
   return (
     <Document>
@@ -22,7 +22,7 @@ export function INS5CDocument({ data }: { data: INS5CProps }) {
           <Text style={ins.fieldValue}>{roomAssignment}</Text>
         </View>
 
-        <INSScheduleGrid schedule={schedule} />
+        <INSScheduleGrid schedule={schedule} programSession={programSession} />
 
         <INSSignatureBlock slots={signatureSlots} layout="horizontal" />
       </Page>

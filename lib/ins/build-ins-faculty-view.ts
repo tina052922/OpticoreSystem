@@ -4,6 +4,7 @@ import {
 } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import { slotDurationHours } from "@/lib/scheduling/facultyPolicies";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
 import type { Room, ScheduleEntry, Section, Subject } from "@/types/db";
 
 /** `vacantGec` is set when the live row is a CHED GEC/GEE slot still on the TBD placeholder instructor. */
@@ -39,14 +40,9 @@ export type InsFacultyFormSummary = InsFacultyTeachingMetrics & {
   research: string | null;
 };
 
-function fmtHm(t: string) {
-  const [h, m] = t.split(":");
-  return `${parseInt(h!, 10)}:${(m ?? "00").padStart(2, "0")}`;
-}
-
-/** Aligns with INS grid labels (e.g. 7:00-9:00). */
+/** Aligns with INS grid labels (e.g. 7:00 AM – 9:00 AM). */
 export function scheduleEntryTimeLabel(startTime: string, endTime: string) {
-  return `${fmtHm(startTime)}-${fmtHm(endTime)}`;
+  return formatTimeRange12h(startTime, endTime);
 }
 
 function emptySchedule(): InsFacultySchedule {

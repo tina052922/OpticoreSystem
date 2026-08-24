@@ -20,6 +20,7 @@ import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
 import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
 import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
 import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
+import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import { FacultyScheduleChangeModal } from "@/components/faculty/FacultyScheduleChangeModal";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
@@ -83,6 +84,7 @@ export function INSFormFaculty({
   doiFormalApprovalPanel = false,
   hideInnerInsTabs = false,
 }: INSFormFacultyProps) {
+  const programSession = useProgramSessionOptional()?.programSession ?? "day";
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Instructor shell only (`/faculty/ins`); avoids treating `/chairman/ins` or other paths as faculty portal. */
@@ -136,11 +138,12 @@ export function INSFormFaculty({
       minor: live.facultyCredentials.minor,
       specialTraining: live.facultyCredentials.specialTraining,
     } : null,
-    schedule: facultyScheduleToPdfGrid(displaySchedule),
+    schedule: facultyScheduleToPdfGrid(displaySchedule, programSession),
     courses: displayCourses,
     summary: useLiveData ? live.facultyFormSummary : null,
     signatureSlots: signatureSlotsToPdf(useLiveData ? live.insSignatureSlots : null),
-  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots]);
+    programSession,
+  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots, programSession]);
 
   async function onShare() {
     try {

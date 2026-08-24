@@ -5,9 +5,13 @@ import type {
   PDFScheduleGrid,
   PDFScheduleCell,
   PDFSignatureSlot,
-  InsDay as PDFInsDay,
 } from "@/components/pdf/types/insTypes";
-import { INS_TIME_SLOTS } from "@/components/pdf/types/insTypes";
+import {
+  slotsForSession,
+  weekdaysForSession,
+  type ProgramHourSlot,
+  type ProgramSession,
+} from "@/lib/scheduling/program-session";
 
 type InsSectionCell = {
   time: string;
@@ -33,131 +37,89 @@ function parseTimeMinutes(raw: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function slotStartMinutes(slotLabel: string): number {
-  const start = slotLabel.split("-")[0]!.trim();
-  const [h, m] = start.split(":").map(Number);
-  let hour = h ?? 0;
-  if (hour < 7) hour += 12;
-  return hour * 60 + (m ?? 0);
-}
-
-function entryStartMinutes(entry: { startTime?: string; time?: string }): number {
-  if (entry.startTime) return parseTimeMinutes(entry.startTime);
-  const start = (entry.time ?? "").split("-")[0]!.trim();
-  if (!start) return 0;
-  const [h, m] = start.split(":").map(Number);
-  let hour = h ?? 0;
-  if (hour < 7) hour += 12;
-  return hour * 60 + (m ?? 0);
-}
-
-function findCellsForSlot<T extends { startTime?: string; endTime?: string; time?: string }>(
+function findCellsForHourSlot<T extends { startTime?: string; endTime?: string; time?: string }>(
   entries: T[],
-  slotIdx: number,
+  slot: ProgramHourSlot,
 ): T[] {
-  const slotStart = slotStartMinutes(INS_TIME_SLOTS[slotIdx]);
-  const slotEnd = slotStart + 60;
+  const slotStart = parseTimeMinutes(slot.startTime);
+  const slotEnd = parseTimeMinutes(slot.endTime) || slotStart + 60;
   return entries.filter((e) => {
-    const eStart = entryStartMinutes(e);
+    const eStart = e.startTime ? parseTimeMinutes(e.startTime) : parseTimeMinutes((e.time ?? "").split(/[–-]/)[0] ?? "0");
     let eEnd: number;
     if (e.endTime) {
       eEnd = parseTimeMinutes(e.endTime);
     } else {
-      const parts = (e.time ?? "").split("-");
+      const parts = (e.time ?? "").split(/[–-]/);
       const endPart = parts[1]?.trim() ?? "";
       if (!endPart) return false;
-      const [h2, m2] = endPart.split(":").map(Number);
-      let hour2 = h2 ?? 0;
-      if (hour2 < 7) hour2 += 12;
-      eEnd = hour2 * 60 + (m2 ?? 0);
+      eEnd = parseTimeMinutes(endPart);
     }
+    if (eEnd <= eStart) eEnd = eStart + 60;
     return eStart < slotEnd && eEnd > slotStart;
   });
 }
 
-export function facultyScheduleToPdfGrid(
-  schedule: Record<InsDay, InsFacultyCell[]>,
+function pdfGridFromDayMap<T extends { startTime?: string; endTime?: string; time?: string }>(
+  schedule: Record<InsDay, T[]>,
+  session: ProgramSession,
+  toCell: (matched: T[]) => PDFScheduleCell | null,
 ): PDFScheduleGrid {
-  const days: PDFInsDay[] = [
-    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-  ];
+  const hourSlots = slotsForSession(session);
+  const days = weekdaysForSession(session);
   const grid = {} as PDFScheduleGrid;
   for (const day of days) {
     const entries = schedule[day] ?? [];
     const cells: (PDFScheduleCell | null)[] = [];
-    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
-      const matched = findCellsForSlot(entries, i);
-      if (matched.length === 0) {
-        cells.push(null);
-      } else {
-        const first = matched[0]!;
-        cells.push({
-          line1: first.course,
-          line2: first.yearSec,
-          line3: first.room,
-        });
-      }
+    for (const slot of hourSlots) {
+      const matched = findCellsForHourSlot(entries, slot);
+      cells.push(matched.length === 0 ? null : toCell(matched));
     }
     grid[day] = cells;
   }
   return grid;
+}
+
+export function facultyScheduleToPdfGrid(
+  schedule: Record<InsDay, InsFacultyCell[]>,
+  session: ProgramSession = "day",
+): PDFScheduleGrid {
+  return pdfGridFromDayMap(schedule, session, (matched) => {
+    const first = matched[0] as InsFacultyCell;
+    return {
+      line1: first.course,
+      line2: first.yearSec,
+      line3: first.room,
+    };
+  });
 }
 
 export function sectionScheduleToPdfGrid(
   schedule: Record<InsDay, InsSectionCell[]>,
+  session: ProgramSession = "day",
 ): PDFScheduleGrid {
-  const days: PDFInsDay[] = [
-    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-  ];
-  const grid = {} as PDFScheduleGrid;
-  for (const day of days) {
-    const entries = schedule[day] ?? [];
-    const cells: (PDFScheduleCell | null)[] = [];
-    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
-      const matched = findCellsForSlot(entries, i);
-      if (matched.length === 0) {
-        cells.push(null);
-      } else {
-        const first = matched[0]!;
-        cells.push({
-          line1: first.course,
-          line2: first.instructor,
-          line3: first.room,
-        });
-      }
-    }
-    grid[day] = cells;
-  }
-  return grid;
+  return pdfGridFromDayMap(schedule, session, (matched) => {
+    const first = matched[0] as InsSectionCell;
+    return {
+      line1: first.course,
+      line2: first.instructor,
+      line3: first.room,
+    };
+  });
 }
 
 export function roomScheduleToPdfGrid(
   schedule: Record<InsDay, InsRoomCell[]>,
+  session: ProgramSession = "day",
 ): PDFScheduleGrid {
-  const days: PDFInsDay[] = [
-    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-  ];
-  const grid = {} as PDFScheduleGrid;
-  for (const day of days) {
-    const entries = schedule[day] ?? [];
-    const cells: (PDFScheduleCell | null)[] = [];
-    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
-      const matched = findCellsForSlot(entries, i);
-      if (matched.length === 0) {
-        cells.push(null);
-      } else {
-        const first = matched[0]!;
-        cells.push({
-          line1: first.course,
-          line2: first.instructor,
-          line3: first.yearSec,
-          line4: first.room,
-        });
-      }
-    }
-    grid[day] = cells;
-  }
-  return grid;
+  return pdfGridFromDayMap(schedule, session, (matched) => {
+    const first = matched[0] as InsRoomCell;
+    return {
+      line1: first.course,
+      line2: first.instructor,
+      line3: first.yearSec,
+      line4: first.room,
+    };
+  });
 }
 
 /**

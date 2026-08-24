@@ -14,6 +14,7 @@ import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
 import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
+import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
@@ -78,6 +79,7 @@ export function INSFormSection({
   initialSectionId = null,
   printOnLoad = false,
 }: INSFormSectionProps) {
+  const programSession = useProgramSessionOptional()?.programSession ?? "day";
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Faculty portal: read-only INS; no conflict run or automated fixes. */
@@ -192,10 +194,11 @@ export function INSFormSection({
     adviser: "",
     assignment: "",
     semesterLabel: catalog.periodLabel ?? "____ Semester, AY ____",
-    schedule: sectionScheduleToPdfGrid(displaySchedule),
+    schedule: sectionScheduleToPdfGrid(displaySchedule, programSession),
     courses: displayCourses,
     signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
-  }), [displayAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots]);
+    programSession,
+  }), [displayAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots, programSession]);
 
   const sectionConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;

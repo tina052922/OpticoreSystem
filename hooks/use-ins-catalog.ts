@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, catalogApi } from "@/lib/api/client";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
+import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
+import { filterEntriesForSession } from "@/lib/scheduling/program-session";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
   dispatchInsCatalogReload,
@@ -92,6 +94,7 @@ export function useInsCatalog(args: {
   ignoreProgramScope?: boolean;
 }) {
   const semesterFilter = useSemesterFilterOptional();
+  const programSession = useProgramSessionOptional()?.programSession ?? "day";
   /** Fallback when `SemesterFilterProvider` is not mounted (e.g. isolated tests). */
   const [fallbackPeriodId, setFallbackPeriodId] = useState("");
 
@@ -432,12 +435,15 @@ export function useInsCatalog(args: {
       });
     }
     const uid = args.instructorPortalUserId?.trim();
-    if (!uid) return base;
+    if (!uid) return filterEntriesForSession(base, programSession);
     const teachingSectionIds = new Set(
       base.filter((e) => e.instructorId === uid).map((e) => e.sectionId),
     );
     if (teachingSectionIds.size === 0) return [];
-    return base.filter((e) => teachingSectionIds.has(e.sectionId));
+    return filterEntriesForSession(
+      base.filter((e) => teachingSectionIds.has(e.sectionId)),
+      programSession,
+    );
   }, [
     entries,
     args.collegeId,
@@ -445,6 +451,7 @@ export function useInsCatalog(args: {
     args.campusWide,
     args.ignoreProgramScope,
     args.instructorPortalUserId,
+    programSession,
     sectionById,
     programById,
   ]);
@@ -455,19 +462,24 @@ export function useInsCatalog(args: {
    * Faculty portal: when set, limits 5B/5C to sections where this user teaches (omit for full college browse on `/faculty/ins`).
    */
   const insResourceEntries = useMemo(() => {
+    let list: ScheduleEntry[];
     if (args.campusWide) {
-      return entries.filter((e) => sectionById.has(e.sectionId));
+      list = entries.filter((e) => sectionById.has(e.sectionId));
+    } else if (!args.collegeId) {
+      list = entries;
+    } else {
+      const uid = args.instructorPortalUserId?.trim();
+      if (uid) {
+        const termAll = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+        const teachingSectionIds = new Set(termAll.filter((e) => e.instructorId === uid).map((e) => e.sectionId));
+        if (teachingSectionIds.size === 0) return [];
+        list = entries.filter((e) => teachingSectionIds.has(e.sectionId));
+      } else {
+        list = entries;
+      }
     }
-    if (!args.collegeId) return entries;
-    const uid = args.instructorPortalUserId?.trim();
-    if (uid) {
-      const termAll = entries.filter((e) => e.academicPeriodId === academicPeriodId);
-      const teachingSectionIds = new Set(termAll.filter((e) => e.instructorId === uid).map((e) => e.sectionId));
-      if (teachingSectionIds.size === 0) return [];
-      return entries.filter((e) => teachingSectionIds.has(e.sectionId));
-    }
-    return entries;
-  }, [entries, args.campusWide, args.collegeId, args.instructorPortalUserId, academicPeriodId, sectionById]);
+    return filterEntriesForSession(list, programSession);
+  }, [entries, args.campusWide, args.collegeId, args.instructorPortalUserId, academicPeriodId, sectionById, programSession]);
 
   const termResourceEntries = useMemo(
     () => insResourceEntries.filter((e) => e.academicPeriodId === academicPeriodId),

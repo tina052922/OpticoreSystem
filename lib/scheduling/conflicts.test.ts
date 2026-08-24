@@ -145,4 +145,31 @@ describe("scheduleEntryToSparseBlock + scanAllSparseScheduleConflicts", () => {
     const hits = detectConflictsSparse(a, [a, b]);
     expect(hits.some((h) => h.type === "faculty")).toBe(true);
   });
+
+  it("does not treat Day 4:00–5:00 PM as a Night double-booking", () => {
+    const dayBlock = {
+      id: "day",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "16:00",
+      endTime: "17:00",
+      instructorId: "fac-1",
+      sectionId: "sec-a",
+      roomId: "r1",
+      programSession: "day" as const,
+    };
+    const nightBlock = {
+      id: "night",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "16:00",
+      endTime: "17:00",
+      instructorId: "fac-1",
+      sectionId: "sec-b",
+      roomId: "r2",
+      programSession: "night" as const,
+    };
+    expect(detectConflictsSparse(dayBlock, [dayBlock, nightBlock])).toHaveLength(0);
+    expect(detectConflictsSparse(nightBlock, [dayBlock, nightBlock])).toHaveLength(0);
+  });
 });

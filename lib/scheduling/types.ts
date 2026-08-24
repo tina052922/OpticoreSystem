@@ -10,6 +10,7 @@ export type ScheduleBlock = {
   day: string;
   startTime: string;
   endTime: string;
+  programSession?: "day" | "night" | null;
 };
 
 export type ConflictType = "faculty" | "section" | "room";

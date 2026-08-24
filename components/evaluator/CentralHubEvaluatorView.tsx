@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
+import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
+import { filterEntriesForSession } from "@/lib/scheduling/program-session";
 import { Button } from "@/components/ui/button";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import {
@@ -96,6 +98,7 @@ export function CentralHubEvaluatorView({
 }: CentralHubEvaluatorViewProps) {
   const toast = useOpticoreToast();
   const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
+  const programSession = useProgramSessionOptional()?.programSession ?? "day";
   const router = useRouter();
   const searchParams = useSearchParams();
   const collegeSlug = searchParams.get("college");
@@ -646,7 +649,7 @@ export function CentralHubEvaluatorView({
   const tableRows = useMemo(() => {
     if (!academicPeriodId) return [];
     return buildScheduleEvaluatorTableRows({
-      entries,
+      entries: filterEntriesForSession(entries, programSession),
       academicPeriodId,
       scopeCollegeId,
       programId,
@@ -672,6 +675,7 @@ export function CentralHubEvaluatorView({
     facultyProfileByUserId,
     programById,
     collegeNameById,
+    programSession,
   ]);
 
   /** Dashboard deep link: ?conflicts=1&focusEntry=<id> — same scan as the explicit Run conflict check button. */

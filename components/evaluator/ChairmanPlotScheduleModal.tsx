@@ -61,6 +61,7 @@ function buildCandidateBlock(
   academicPeriodId: string,
   programCodeForSummary: string,
   slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
+  programSession: "day" | "night" = "day",
 ): SparseScheduleBlock | null {
   const merged = { ...draft, ...overrides };
   if (!merged.subjectCode || !merged.day) return null;
@@ -82,6 +83,7 @@ function buildCandidateBlock(
     instructorId: merged.instructorId || null,
     sectionId: merged.sectionId || null,
     roomId: merged.roomId || null,
+    programSession,
   };
 }
 
@@ -293,6 +295,7 @@ export function ChairmanPlotScheduleModal({
         academicPeriodId,
         programCodeForSummary,
         slotTable,
+        programSession,
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
@@ -307,6 +310,8 @@ export function ChairmanPlotScheduleModal({
     academicPeriodId,
     programCodeForSummary,
     instructorPlotOptions,
+    slotTable,
+    programSession,
   ]);
 
   const busyDays = useMemo(() => {
@@ -324,6 +329,7 @@ export function ChairmanPlotScheduleModal({
         academicPeriodId,
         programCodeForSummary,
         slotTable,
+        programSession,
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
@@ -332,7 +338,7 @@ export function ChairmanPlotScheduleModal({
       }
     }
     return busy;
-  }, [draft, existingBlocks, academicPeriodId, programCodeForSummary]);
+  }, [draft, existingBlocks, academicPeriodId, programCodeForSummary, slotTable, programSession, weekdayOptions]);
 
   const busyTimeSlotIndices = useMemo(() => {
     if (
@@ -350,6 +356,7 @@ export function ChairmanPlotScheduleModal({
         academicPeriodId,
         programCodeForSummary,
         slotTable,
+        programSession,
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
@@ -369,6 +376,9 @@ export function ChairmanPlotScheduleModal({
     academicPeriodId,
     programCodeForSummary,
     maxStart,
+    slotTable,
+    programSession,
+    weekdayOptions,
   ]);
 
   const busyRoomIds = useMemo(() => {
@@ -387,6 +397,7 @@ export function ChairmanPlotScheduleModal({
         academicPeriodId,
         programCodeForSummary,
         slotTable,
+        programSession,
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
@@ -402,6 +413,8 @@ export function ChairmanPlotScheduleModal({
     programCodeForSummary,
     roomsInB,
     buildingValue,
+    slotTable,
+    programSession,
   ]);
 
   if (!visible && !open) return null;

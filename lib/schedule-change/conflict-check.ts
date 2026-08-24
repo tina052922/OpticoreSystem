@@ -22,6 +22,7 @@ export function entryToBlock(e: ScheduleEntry): ScheduleBlock {
     day: e.day,
     startTime: e.startTime,
     endTime: e.endTime,
+    programSession: e.programSession ?? undefined,
   };
 }
 
@@ -54,6 +55,7 @@ export function checkConflictForProposedMove(
     instructorId: original.instructorId?.trim() ? original.instructorId : null,
     sectionId: original.sectionId?.trim() ? original.sectionId : null,
     roomId: effectiveRoom?.trim() ? effectiveRoom : null,
+    programSession: original.programSession ?? undefined,
   };
 
   const others: SparseScheduleBlock[] = [];

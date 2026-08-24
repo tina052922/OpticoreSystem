@@ -87,19 +87,15 @@ export function isNightCellClosed(session: ProgramSession, day: string, startTim
   return startHourFromHHMM(startTime) < 16;
 }
 
+/** Print/preview axis: `7:00 AM–8:00 AM` (no mixed 24h labels). */
+export function insTimeSlotLabel(slot: ProgramHourSlot): string {
+  const start = slot.label.split(" - ")[0]?.trim() ?? slot.startTime;
+  const end = slot.label.split(" - ").pop()?.trim() ?? slot.endTime;
+  return `${start}–${end}`;
+}
+
 export function insTimeSlotLabels(session: ProgramSession): string[] {
-  return slotsForSession(session).map((s) => {
-    const [a, b] = s.label.split(" - ");
-    const compact = (t: string) => t.replace(" AM", "").replace(" PM", "").replace(":00", ":00");
-    void compact;
-    const startH = startHourFromHHMM(s.startTime);
-    const endH = startHourFromHHMM(s.endTime);
-    const fmt = (h: number) => {
-      const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
-      return `${hr}:00`;
-    };
-    return `${fmt(startH)}-${fmt(endH)}`;
-  });
+  return slotsForSession(session).map(insTimeSlotLabel);
 }
 
 export type SessionTagged = {
@@ -112,12 +108,31 @@ export function inferProgramSession(entry: SessionTagged): ProgramSession {
   const tagged = String(entry.programSession ?? "").trim().toLowerCase();
   if (tagged === "night" || tagged === "day") return tagged;
   if (isWeekendDay(entry.day ?? "")) return "night";
-  if (startHourFromHHMM(entry.startTime ?? "07:00") >= 16) return "night";
+  // Day Program includes 4:00–5:00 PM. Only after 5:00 PM is weekday Night-only.
+  if (startHourFromHHMM(entry.startTime ?? "07:00") >= 17) return "night";
   return "day";
 }
 
 export function entryMatchesSession(entry: SessionTagged, session: ProgramSession): boolean {
   return inferProgramSession(entry) === session;
+}
+
+export function sameProgramSession(a: SessionTagged, b: SessionTagged): boolean {
+  return inferProgramSession(a) === inferProgramSession(b);
+}
+
+/** Overlay + explicit `programSession`, then Day/Night inference for untagged rows. */
+export function resolveEntryProgramSession<T extends SessionTagged & { id?: string }>(entry: T): ProgramSession {
+  return inferProgramSession(applyProgramSessionOverlay(entry));
+}
+
+export function filterEntriesForSession<T extends SessionTagged & { id?: string }>(
+  entries: T[],
+  session: ProgramSession,
+): T[] {
+  return entries
+    .map((e) => applyProgramSessionOverlay(e))
+    .filter((e) => entryMatchesSession(e, session));
 }
 
 export function readStoredProgramSession(): ProgramSession {

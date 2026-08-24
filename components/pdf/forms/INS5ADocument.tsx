@@ -24,6 +24,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
     courses,
     summary,
     signatureSlots,
+    programSession = "day",
   } = data;
 
   return (
@@ -111,6 +112,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
 
         <INSScheduleGrid
           schedule={schedule}
+          programSession={programSession}
           rightSignatureSlots={signatureSlots ?? [
             { key: "prepared", lineTitle: "Prepared by:", lineSubtitle: "Program Coordinator/Chair", signerName: "", imageUrl: null },
             { key: "reviewed", lineTitle: "Reviewed, Certified True and Correct:", lineSubtitle: "Director/Dean", signerName: "", imageUrl: null },

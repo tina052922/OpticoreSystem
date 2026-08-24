@@ -2,13 +2,14 @@ import { View, Text, Image } from "@react-pdf/renderer";
 import { StyleSheet } from "@react-pdf/renderer";
 import { ins } from "../styles/insStyles";
 import type { PDFScheduleGrid, PDFScheduleCell, PDFSignatureSlot } from "../types/insTypes";
-import { INS_DAYS, INS_TIME_SLOTS } from "../types/insTypes";
+import { insTimeSlotLabels, weekdaysForSession } from "@/lib/scheduling/program-session";
 
 /* eslint-disable jsx-a11y/alt-text */
 
 type INSScheduleGridProps = {
   schedule: PDFScheduleGrid;
   rightSignatureSlots?: PDFSignatureSlot[];
+  programSession?: "day" | "night";
 };
 
 const RAIL_W = 100;
@@ -99,26 +100,34 @@ function CellContent({ cell }: { cell: PDFScheduleCell | null }) {
   );
 }
 
-function GridTable({ schedule }: { schedule: PDFScheduleGrid }) {
+function GridTable({
+  schedule,
+  programSession = "day",
+}: {
+  schedule: PDFScheduleGrid;
+  programSession?: "day" | "night";
+}) {
+  const days = weekdaysForSession(programSession);
+  const timeSlots = insTimeSlotLabels(programSession);
   return (
     <View style={ins.gridContainer}>
-      <View style={ins.gridHeaderRow} fixed>
+      <View style={ins.gridHeaderRow} wrap={false}>
         <View style={ins.gridTimeHeader}>
           <Text>TIME</Text>
         </View>
-        {INS_DAYS.map((day) => (
+        {days.map((day) => (
           <View key={day} style={ins.gridDayHeader}>
-            <Text>{day}</Text>
+            <Text>{day.slice(0, 3)}</Text>
           </View>
         ))}
       </View>
 
-      {INS_TIME_SLOTS.map((slot, slotIdx) => (
+      {timeSlots.map((slot, slotIdx) => (
         <View key={slot} style={ins.gridRow} wrap={false}>
           <View style={ins.gridTimeCell}>
             <Text>{slot}</Text>
           </View>
-          {INS_DAYS.map((day, dayIdx) => {
+          {days.map((day, dayIdx) => {
             const cells = schedule[day] ?? [];
             const cell = cells[slotIdx] ?? null;
             const isAlt = dayIdx % 2 === 1;
@@ -160,15 +169,15 @@ function SignatureRail({ slots }: { slots: PDFSignatureSlot[] }) {
   );
 }
 
-export function INSScheduleGrid({ schedule, rightSignatureSlots }: INSScheduleGridProps) {
+export function INSScheduleGrid({ schedule, rightSignatureSlots, programSession = "day" }: INSScheduleGridProps) {
   if (!rightSignatureSlots || rightSignatureSlots.length === 0) {
-    return <GridTable schedule={schedule} />;
+    return <GridTable schedule={schedule} programSession={programSession} />;
   }
 
   return (
     <View style={gs.outerWrapper}>
       <View style={gs.gridPart}>
-        <GridTable schedule={schedule} />
+        <GridTable schedule={schedule} programSession={programSession} />
       </View>
       <SignatureRail slots={rightSignatureSlots} />
     </View>
