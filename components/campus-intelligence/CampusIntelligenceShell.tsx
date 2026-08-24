@@ -38,6 +38,7 @@ import { isNavItemActive } from "@/lib/nav-active";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { SystemConfigurationProvider } from "@/contexts/SystemConfigurationContext";
+import { ProgramSessionProvider } from "@/contexts/ProgramSessionContext";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
@@ -174,6 +175,7 @@ export function CampusIntelligenceShell({
   return (
     <SystemConfigurationProvider>
     <SemesterFilterProvider>
+    <ProgramSessionProvider>
       <div className="flex h-screen flex-col bg-[var(--color-opticore-bg)] overflow-hidden">
       <header
         className="w-full h-[99px] flex-none flex items-center justify-between px-4 md:px-8 no-print shrink-0 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
@@ -364,6 +366,7 @@ export function CampusIntelligenceShell({
         <main className="flex-1 overflow-auto min-w-0 bg-[#F8F8F8]">{children}</main>
       </div>
       </div>
+    </ProgramSessionProvider>
     </SemesterFilterProvider>
     </SystemConfigurationProvider>
   );

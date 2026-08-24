@@ -17,6 +17,7 @@ import { CTU_LOGO_PNG } from "@/lib/branding";
 import { authApi } from "@/lib/api/client";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
+import { ProgramSessionProvider } from "@/contexts/ProgramSessionContext";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 
 export type PortalNavItem = { label: string; href: string };
@@ -75,6 +76,7 @@ export function PortalShell({
 
   return (
     <SemesterFilterProvider>
+    <ProgramSessionProvider>
     <div className="flex h-screen flex-col bg-[#F8F8F8] overflow-hidden">
       <header
         className="h-[99px] w-full flex-none flex items-center justify-between px-4 md:px-8 no-print shrink-0 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
@@ -220,6 +222,7 @@ export function PortalShell({
         <main className="flex-1 overflow-auto min-w-0 bg-[#F8F8F8]">{children}</main>
       </div>
     </div>
+    </ProgramSessionProvider>
     </SemesterFilterProvider>
   );
 }

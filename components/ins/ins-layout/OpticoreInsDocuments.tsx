@@ -13,6 +13,7 @@ import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import { resolveInsPrintedSigners } from "@/lib/ins/ins-pdf-adapters";
 import { insTotalStudents } from "@/components/pdf/types/insTypes";
+import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 
 /** INS Form 5A (draft / unpublished): official vertical signature columns — matches CTU paper layout; fills when VPAA publishes. */
 const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
@@ -149,7 +150,10 @@ function InsConflictCellShell({
   );
 }
 
-type FacultySchedule = Record<InsDay, InsFacultyCell[]>;
+function InsProgramSubtitle({ className }: { className: string }) {
+  const session = useProgramSessionOptional()?.programSession ?? "day";
+  return <div className={className}>{session === "night" ? "Night Program" : "Day Program"}</div>;
+}
 
 export type OpticoreInsForm5AProps = {
   facultyName: string;
@@ -217,7 +221,7 @@ export function OpticoreInsForm5A({
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[8pt] print:leading-none">
           Program by Teacher
         </h4>
-        <div className="text-sm print:text-[6.5pt]">Day Program</div>
+        <InsProgramSubtitle className="text-sm print:text-[6.5pt]" />
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">
@@ -669,7 +673,7 @@ export function OpticoreInsForm5B({
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
           Program by Section
         </h4>
-        <div className="text-sm print:text-[7.5pt]">Day Program</div>
+        <InsProgramSubtitle className="text-sm print:text-[7.5pt]" />
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">
@@ -864,7 +868,7 @@ export function OpticoreInsForm5C({
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
           Room Utilization
         </h4>
-        <div className="text-sm print:text-[7.5pt]">Day Program</div>
+        <InsProgramSubtitle className="text-sm print:text-[7.5pt]" />
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">

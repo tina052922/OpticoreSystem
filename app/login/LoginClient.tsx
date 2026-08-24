@@ -230,6 +230,14 @@ export function LoginClient() {
 
           <p className="text-center text-sm">
             <Link
+              href="/register/instructor"
+              className="text-[#5483b3] font-medium hover:underline"
+            >
+              Sign Up as Instructor
+            </Link>
+          </p>
+          <p className="text-center text-sm">
+            <Link
               href="/"
               className="text-[#5483b3] font-medium hover:underline"
             >

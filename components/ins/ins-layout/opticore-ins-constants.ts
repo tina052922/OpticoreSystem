@@ -11,6 +11,9 @@ export const INS_TIME_SLOTS = [
   "4:00-5:00",
   "5:00-6:00",
   "6:00-7:00",
+  "19:00-20:00",
+  "20:00-21:00",
+  "21:00-22:00",
 ] as const;
 
 export const INS_DAYS = [

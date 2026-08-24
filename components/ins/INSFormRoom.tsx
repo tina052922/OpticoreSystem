@@ -13,6 +13,7 @@ import {
 import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
 import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
+import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
 import { OpticoreInsForm5C } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
@@ -276,7 +277,8 @@ export function INSFormRoom({
         ) : null}
 
         <div className="max-w-[1200px] mx-auto space-y-4">
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
+            <ProgramSessionSwitch className="mt-2" />
           <p className="text-gray-600 text-sm">Room utilization (5C).</p>
         </div>
 

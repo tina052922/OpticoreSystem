@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
+import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
 import {
   detectConflictsSparse,
@@ -1092,6 +1093,9 @@ export function GecCentralHubEvaluatorClient() {
         title="Central Hub Evaluator"
         subtitle="Select college and section. Conflict check uses the full campus timetable for the selected term; you may edit vacant GEC slots only."
       />
+      <div className="px-4 md:px-8 pt-2">
+        <ProgramSessionSwitch />
+      </div>
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">

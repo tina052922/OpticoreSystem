@@ -149,6 +149,8 @@ export interface ScheduleEntry {
   startTime: string;
   endTime: string;
   status: ScheduleStatus;
+  /** `day` or `night` program; optional until migration is applied. */
+  programSession?: "day" | "night" | null;
   /** Set when VPAA publishes the term; plotted rows cannot be edited by chairman/college (RLS). */
   lockedByDoiAt?: string | null;
 }

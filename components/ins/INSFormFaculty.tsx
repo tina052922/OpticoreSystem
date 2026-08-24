@@ -19,6 +19,7 @@ import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
 import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
 import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
+import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
 import { FacultyScheduleChangeModal } from "@/components/faculty/FacultyScheduleChangeModal";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
@@ -225,6 +226,7 @@ export function INSFormFaculty({
         <div className="max-w-[1200px] mx-auto space-y-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
+            <ProgramSessionSwitch className="mt-2" />
           </div>
 
           {instructorReadOnlyPortal && live.academicPeriodId ? (

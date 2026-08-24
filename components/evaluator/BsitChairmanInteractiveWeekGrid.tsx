@@ -14,9 +14,14 @@ import { Button } from "@/components/ui/button";
 import { ChairmanPlotScheduleModal } from "@/components/evaluator/ChairmanPlotScheduleModal";
 import {
   BSIT_EVALUATOR_TIME_SLOTS,
-  BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
+import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
+import {
+  isNightCellClosed,
+  slotsForSession,
+  weekdaysForSession,
+} from "@/lib/scheduling/program-session";
 import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
 import { plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
@@ -32,8 +37,11 @@ import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 
 export type { RowConflictFlags };
 
-function formatTimeRangeFromSlots(effectiveStart: number, dur: number): string {
-  const slots = BSIT_EVALUATOR_TIME_SLOTS;
+function formatTimeRangeFromSlots(
+  effectiveStart: number,
+  dur: number,
+  slots: { label: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
+): string {
   const first = slots[effectiveStart];
   const last = slots[effectiveStart + dur - 1];
   if (!first || !last) return "—";
@@ -45,13 +53,14 @@ function formatTimeRangeFromSlots(effectiveStart: number, dur: number): string {
 function rowTimeBounds(
   row: PlotRow,
   programCodeForSummary: string,
+  slots: { length: number } = BSIT_EVALUATOR_TIME_SLOTS,
 ): { startIdx: number; dur: number } | null {
   const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   if (!p) return null;
   const dur = plotRowDurationSlots(p, row);
-  const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+  const maxS = slots.length - dur;
   const startIdx = Math.min(row.startSlotIndex, maxS);
-  if (startIdx < 0 || startIdx + dur > BSIT_EVALUATOR_TIME_SLOTS.length) return null;
+  if (startIdx < 0 || startIdx + dur > slots.length) return null;
   return { startIdx, dur };
 }
 
@@ -154,7 +163,9 @@ function PlotCellSummary({
 }) {
   const pr = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   const dur = pr ? plotRowDurationSlots(pr, row) : 1;
-  const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+  const sessionCtx = useProgramSessionOptional();
+  const slotCount = slotsForSession(sessionCtx?.programSession ?? "day").length;
+  const maxS = slotCount - dur;
   const eff = pr ? Math.min(row.startSlotIndex, maxS) : 0;
   const sec = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "";
   const room = row.roomId ? (roomCodeById.get(row.roomId) ?? "") : "";
@@ -184,7 +195,7 @@ function PlotCellSummary({
       {room ? <span className="text-[8px] text-black/55 block truncate">{room}</span> : null}
       {inst ? <span className="text-[8px] text-black/55 block truncate">{inst}</span> : null}
       {pr ? (
-        <span className="text-[8px] text-black/45 tabular-nums">{formatTimeRangeFromSlots(eff, dur)}</span>
+        <span className="text-[8px] text-black/45 tabular-nums">{formatTimeRangeFromSlots(eff, dur, slotsForSession(sessionCtx?.programSession ?? "day"))}</span>
       ) : null}
       {hasConflict ? (
         <span className="text-[7px] font-bold text-red-800 mt-0.5 block">Conflict</span>
@@ -226,7 +237,10 @@ export function BsitChairmanInteractiveWeekGrid({
   plottingActions,
   gridFooter,
 }: BsitChairmanInteractiveWeekGridProps) {
-  const slots = BSIT_EVALUATOR_TIME_SLOTS;
+  const sessionCtx = useProgramSessionOptional();
+  const programSession = sessionCtx?.programSession ?? "day";
+  const slots = slotsForSession(programSession);
+  const weekdays = weekdaysForSession(programSession);
   const buildingLabelsForGrid = useMemo(
     () => sortedNavigationBuildingKeysFromRooms(roomsForEvaluatorGrid),
     [roomsForEvaluatorGrid],
@@ -249,22 +263,22 @@ export function BsitChairmanInteractiveWeekGrid({
   const skipSlot = useMemo(() => {
     const m = new Set<string>();
     for (const row of filteredRows) {
-      const bounds = rowTimeBounds(row, programCodeForSummary);
+      const bounds = rowTimeBounds(row, programCodeForSummary, slots);
       if (!bounds || !row.sectionId || !row.subjectCode) continue;
       for (let k = 1; k < bounds.dur; k++) {
         m.add(`${row.day}-${bounds.startIdx + k}`);
       }
     }
     return m;
-  }, [filteredRows, programCodeForSummary]);
+  }, [filteredRows, programCodeForSummary, slots]);
 
   const unplacedRows = useMemo(
     () =>
       filteredRows.filter((r) => {
         if (!r.sectionId && !r.subjectCode) return true;
-        return rowTimeBounds(r, programCodeForSummary) == null;
+        return rowTimeBounds(r, programCodeForSummary, slots) == null;
       }),
-    [filteredRows, programCodeForSummary],
+    [filteredRows, programCodeForSummary, slots],
   );
 
   const insSectionId =
@@ -332,7 +346,7 @@ export function BsitChairmanInteractiveWeekGrid({
   );
 
   const anchorLabel = modal
-    ? `${modal.draft.day || "New slot"} · ${modal.draft.startSlotIndex >= 0 ? (BSIT_EVALUATOR_TIME_SLOTS[modal.draft.startSlotIndex]?.label ?? "Time slot") : "Select time"}`
+    ? `${modal.draft.day || "New slot"} · ${modal.draft.startSlotIndex >= 0 ? (slots[modal.draft.startSlotIndex]?.label ?? "Time slot") : "Select time"}`
     : "";
 
   const isCellSelected = (day: BsitEvaluatorWeekday, slotIdx: number) =>
@@ -433,7 +447,7 @@ export function BsitChairmanInteractiveWeekGrid({
           <thead className="sticky top-0 z-10 bg-white">
             <tr>
               <th className="border border-black bg-[#ff990a] text-white px-1 py-1 w-[72px] font-bold">TIME</th>
-              {BSIT_EVALUATOR_WEEKDAYS.map((day) => (
+              {weekdays.map((day) => (
                 <th key={day} className="border border-black bg-[#ff990a] text-white px-1 py-1 min-w-[100px] font-bold">
                   {day}
                 </th>
@@ -446,10 +460,11 @@ export function BsitChairmanInteractiveWeekGrid({
                 <td className="border border-black px-1 py-1.5 text-center whitespace-nowrap text-black bg-white/95">
                   {slot.label}
                 </td>
-                {BSIT_EVALUATOR_WEEKDAYS.map((day) => {
+                {weekdays.map((day) => {
                   if (skipSlot.has(`${day}-${slotIdx}`)) return null;
+                  const closed = isNightCellClosed(programSession, day, slot.startTime);
                   const atHere = filteredRows.filter((r) => {
-                    const bounds = rowTimeBounds(r, programCodeForSummary);
+                    const bounds = rowTimeBounds(r, programCodeForSummary, slots);
                     if (!bounds) return r.day === day && r.startSlotIndex === slotIdx;
                     if (!r.sectionId || !r.subjectCode) return false;
                     return r.day === day && bounds.startIdx === slotIdx;
@@ -457,6 +472,16 @@ export function BsitChairmanInteractiveWeekGrid({
                   const selected = isCellSelected(day, slotIdx);
 
                   if (atHere.length === 0) {
+                    if (closed) {
+                      return (
+                        <td
+                          key={day}
+                          className="border border-black bg-neutral-200/80 px-0.5 py-0.5 align-middle text-center text-[9px] font-semibold uppercase tracking-wide text-neutral-500"
+                        >
+                          Closed
+                        </td>
+                      );
+                    }
                     return (
                       <td
                         key={day}
@@ -482,7 +507,7 @@ export function BsitChairmanInteractiveWeekGrid({
 
                   const rowspan = Math.max(
                     ...atHere.map((r) => {
-                      const bounds = rowTimeBounds(r, programCodeForSummary);
+                      const bounds = rowTimeBounds(r, programCodeForSummary, slots);
                       return bounds?.dur ?? 1;
                     }),
                   );
@@ -505,7 +530,7 @@ export function BsitChairmanInteractiveWeekGrid({
                     >
                       <ul className="space-y-1">
                         {atHere.map((r) => {
-                          const bounds = rowTimeBounds(r, programCodeForSummary);
+                          const bounds = rowTimeBounds(r, programCodeForSummary, slots);
                           const anchor: CellAnchor = {
                             day: (r.day as BsitEvaluatorWeekday) || "Monday",
                             slotIdx: bounds?.startIdx ?? (r.startSlotIndex >= 0 ? r.startSlotIndex : 0),

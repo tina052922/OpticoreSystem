@@ -48,6 +48,16 @@ export function PublicLandingPage() {
             <Button
               asChild
               size="sm"
+              variant="outline"
+              className="shrink-0 border-[#a30000] text-[#a30000] hover:bg-[#a30000]/10 font-semibold rounded-full px-3 sm:px-5 h-9 sm:h-10 sm:text-sm"
+            >
+              <Link href="/register/instructor" className="inline-flex items-center justify-center whitespace-nowrap">
+                Sign Up
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="sm"
               className="shrink-0 bg-[#a30000] hover:bg-[#8b0000] text-white font-semibold rounded-full px-3 sm:px-5 h-9 sm:h-10 sm:text-sm"
             >
               <Link href="/login" className="inline-flex items-center justify-center whitespace-nowrap">

@@ -241,8 +241,9 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     "7:00 AM – 9:00 AM",   "9:00 AM – 11:00 AM",
     "11:00 AM – 1:00 PM",  "1:00 PM – 3:00 PM",
     "3:00 PM – 5:00 PM",   "5:00 PM – 7:00 PM",
+    "7:00 PM – 9:00 PM",   "9:00 PM – 10:00 PM",
   ];
-  const BLOCK_COUNT = 6;
+  const BLOCK_COUNT = 8;
   function timeBlockIdx(st: string): number {
     const h = parseInt(st.split(":")[0], 10);
     const i = Math.floor((h - 7) / 2);

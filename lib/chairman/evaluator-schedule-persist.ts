@@ -1,4 +1,5 @@
 import { BSIT_EVALUATOR_TIME_SLOTS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
+import { slotsForSession } from "@/lib/scheduling/program-session";
 import {
   normalizeProspectusCode,
   prospectusByCode,
@@ -16,7 +17,7 @@ export type ChairmanPersistablePlotRow = {
   roomId: string;
   startSlotIndex: number;
   durationSlots?: number;
-  day: BsitEvaluatorWeekday;
+  day: string;
 };
 
 /** Normalize DB time strings like `07:00:00` to `07:00` for slot matching. */
@@ -36,14 +37,16 @@ export function plotRowsToScheduleEntries(args: {
   academicPeriodId: string;
   programId: string;
   subjectsForProgram: Subject[];
+  programSession?: "day" | "night";
 }): { entries: ScheduleEntry[] } | { error: string } {
-  const { rows, academicPeriodId, programId, subjectsForProgram } = args;
+  const { rows, academicPeriodId, programId, subjectsForProgram, programSession = "day" } = args;
   const codeToSubjectId = new Map<string, string>();
   for (const s of subjectsForProgram) {
     if (s.programId !== programId) continue;
     codeToSubjectId.set(normalizeProspectusCode(s.code), s.id);
   }
 
+  const slotTable = programSession === "night" ? slotsForSession("night") : BSIT_EVALUATOR_TIME_SLOTS;
   const entries: ScheduleEntry[] = [];
 
   for (const row of rows) {
@@ -51,10 +54,10 @@ export function plotRowsToScheduleEntries(args: {
     const p = prospectusByCode(row.subjectCode);
     if (!p) continue;
     const dur = plotRowDurationSlots(p, row);
-    const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+    const maxS = slotTable.length - dur;
     const startIdx = Math.min(row.startSlotIndex, maxS);
-    const startSlot = BSIT_EVALUATOR_TIME_SLOTS[startIdx];
-    const endSlot = BSIT_EVALUATOR_TIME_SLOTS[startIdx + dur - 1];
+    const startSlot = slotTable[startIdx];
+    const endSlot = slotTable[startIdx + dur - 1];
     if (!startSlot || !endSlot) continue;
 
     const norm = normalizeProspectusCode(row.subjectCode);
@@ -76,6 +79,7 @@ export function plotRowsToScheduleEntries(args: {
       startTime: startSlot.startTime,
       endTime: endSlot.endTime,
       status: "draft",
+      programSession,
     });
   }
 

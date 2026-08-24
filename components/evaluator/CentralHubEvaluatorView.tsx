@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
+import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
 import { Button } from "@/components/ui/button";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import {
@@ -1091,6 +1092,7 @@ export function CentralHubEvaluatorView({
           <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← College hub
           </Link>
+          <ProgramSessionSwitch />
           <span className="text-[13px] text-black/55">
             Scope:{" "}
             <strong className="text-black/80">

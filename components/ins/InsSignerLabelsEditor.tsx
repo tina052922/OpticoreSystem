@@ -105,12 +105,18 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="text-xs text-black/75">
                   Name
-                  <input
-                    className="mt-1 w-full h-9 rounded-lg border border-black/20 px-2 text-sm"
-                    value={display[key]?.signerName ?? ""}
-                    onChange={(e) => patchKey(key, "signerName", e.target.value)}
-                    placeholder="Printed name"
-                  />
+                  {key === "approved" ? (
+                    <p className="mt-1 rounded-lg border border-black/10 bg-white px-2 py-2 text-sm text-black/70">
+                      Signed-in VPAA / DOI account (not typed here)
+                    </p>
+                  ) : (
+                    <input
+                      className="mt-1 w-full h-9 rounded-lg border border-black/20 px-2 text-sm"
+                      value={display[key]?.signerName ?? ""}
+                      onChange={(e) => patchKey(key, "signerName", e.target.value)}
+                      placeholder="Printed name"
+                    />
+                  )}
                 </label>
                 <label className="text-xs text-black/75">
                   Title
