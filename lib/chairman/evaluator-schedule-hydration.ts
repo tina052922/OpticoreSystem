@@ -1,5 +1,5 @@
-import { BSIT_EVALUATOR_TIME_SLOTS } from "@/lib/chairman/bsit-evaluator-constants";
 import {
+  DAY_PROGRAM_SLOTS,
   NIGHT_PROGRAM_WEEKDAYS,
   slotsForSession,
   type ProgramHourSlot,
@@ -47,7 +47,7 @@ export function normalizeScheduleEntryDayForEvaluator(day: string | null | undef
  */
 export function startSlotIndexFromScheduleEntryStartTime(
   startTime: string | null | undefined,
-  slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
 ): number {
   const key = normalizeSlotHHMM(startTime);
   const idx = slots.findIndex((t) => t.startTime === key);

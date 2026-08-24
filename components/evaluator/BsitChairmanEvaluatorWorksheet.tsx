@@ -50,6 +50,7 @@ import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
 import {
   applyProgramSessionOverlay,
+  DAY_PROGRAM_SLOTS,
   entryMatchesSession,
   rememberEntryProgramSession,
   slotsForSession,
@@ -133,7 +134,7 @@ function subjectFromProspectus(code: string, programId: string, programCodeForSu
 function rowTimeBounds(
   row: PlotRow,
   programCodeForSummary: string,
-  slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
 ): { startIdx: number; start: ProgramHourSlot; endSlot: ProgramHourSlot } | null {
   if (row.startSlotIndex < 0) return null;
   const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
@@ -153,7 +154,7 @@ function rowToSparseBlock(
   row: PlotRow,
   academicPeriodId: string,
   programCodeForSummary: string,
-  slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
 ): SparseScheduleBlock | null {
   if (!academicPeriodId || !row.day) return null;
   const t = rowTimeBounds(row, programCodeForSummary, slots);
@@ -175,7 +176,7 @@ function rowToBlock(
   academicPeriodId: string,
   subjectIdForRow: string,
   programCodeForSummary: string,
-  slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
 ): ScheduleBlock | null {
   if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) return null;
   const p = prospectusRowForProgram(programCodeForSummary, row.subjectCode);
@@ -204,7 +205,7 @@ function buildWorksheetPolicyScheduleEntries(args: {
   programCodeForSummary: string;
   slots?: ProgramHourSlot[];
 }): ScheduleEntry[] {
-  const { rows, allTermScheduleEntries, academicPeriodId, programId, programCodeForSummary, slots = BSIT_EVALUATOR_TIME_SLOTS } = args;
+  const { rows, allTermScheduleEntries, academicPeriodId, programId, programCodeForSummary, slots = DAY_PROGRAM_SLOTS } = args;
   const worksheetIds = new Set(rows.map((r) => r.id));
   const byId = new Map<string, ScheduleEntry>();
 
@@ -287,7 +288,7 @@ type BsitChairmanEvaluatorWorksheetProps = {
   onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
 };
 
-function rowFullyPlotted(row: PlotRow, programCodeForSummary: string, slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS): boolean {
+function rowFullyPlotted(row: PlotRow, programCodeForSummary: string, slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS): boolean {
   if (!row.sectionId || !row.subjectCode || !row.instructorId || !row.roomId) return false;
   return rowTimeBounds(row, programCodeForSummary, slots) != null;
 }
@@ -297,7 +298,7 @@ function rowFullyPlotted(row: PlotRow, programCodeForSummary: string, slots: Pro
  * start slot are set. Instructor/room are optional for rendering the cell — the summary “Plotted” badge must follow
  * this so it stays in sync with the preview (autosave to DB may still wait for full resource fields).
  */
-function rowVisibleInSchedulePreview(row: PlotRow, programCodeForSummary: string, slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS): boolean {
+function rowVisibleInSchedulePreview(row: PlotRow, programCodeForSummary: string, slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS): boolean {
   if (!row.sectionId || !row.subjectCode) return false;
   if (!prospectusRowForProgram(programCodeForSummary, row.subjectCode)) return false;
   return rowTimeBounds(row, programCodeForSummary, slots) != null;

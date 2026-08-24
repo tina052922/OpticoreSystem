@@ -1,4 +1,4 @@
-import { BSIT_EVALUATOR_TIME_SLOTS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
+import { type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { slotsForSession } from "@/lib/scheduling/program-session";
 import {
   normalizeProspectusCode,
@@ -46,7 +46,7 @@ export function plotRowsToScheduleEntries(args: {
     codeToSubjectId.set(normalizeProspectusCode(s.code), s.id);
   }
 
-  const slotTable = programSession === "night" ? slotsForSession("night") : BSIT_EVALUATOR_TIME_SLOTS;
+  const slotTable = slotsForSession(programSession);
   const entries: ScheduleEntry[] = [];
 
   for (const row of rows) {
@@ -94,16 +94,17 @@ export function scheduleEntriesToPlotRows(args: {
 }): ChairmanPersistablePlotRow[] {
   const out: ChairmanPersistablePlotRow[] = [];
   for (const e of args.entries) {
-    if (!BSIT_EVALUATOR_TIME_SLOTS.length) continue;
+    const slotTable = slotsForSession(e.programSession === "night" ? "night" : "day");
+    if (!slotTable.length) continue;
     const sub = args.subjectById.get(e.subjectId);
     if (!sub?.code) continue;
     const p = prospectusByCode(sub.code);
     if (!p) continue;
     const startH = hhmm(e.startTime);
-    const startIdx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((s) => s.startTime === startH);
+    const startIdx = slotTable.findIndex((s) => s.startTime === startH);
     if (startIdx < 0) continue;
     const dur = inferDurationSlotsFromTimes(e.startTime, e.endTime);
-    const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+    const maxS = slotTable.length - dur;
     const clampedStart = Math.min(startIdx, Math.max(0, maxS));
 
     out.push({

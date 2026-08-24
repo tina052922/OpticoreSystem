@@ -12,15 +12,14 @@ import {
 import { AlertTriangle, Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChairmanPlotScheduleModal } from "@/components/evaluator/ChairmanPlotScheduleModal";
-import {
-  BSIT_EVALUATOR_TIME_SLOTS,
-  type BsitEvaluatorWeekday,
-} from "@/lib/chairman/bsit-evaluator-constants";
+import { type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import {
+  DAY_PROGRAM_SLOTS,
   isNightCellClosed,
   slotsForSession,
   weekdaysForSession,
+  type ProgramHourSlot,
 } from "@/lib/scheduling/program-session";
 import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
 import { plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
@@ -40,7 +39,7 @@ export type { RowConflictFlags };
 function formatTimeRangeFromSlots(
   effectiveStart: number,
   dur: number,
-  slots: { label: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
 ): string {
   const first = slots[effectiveStart];
   const last = slots[effectiveStart + dur - 1];
@@ -53,7 +52,7 @@ function formatTimeRangeFromSlots(
 function rowTimeBounds(
   row: PlotRow,
   programCodeForSummary: string,
-  slots: { length: number } = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
 ): { startIdx: number; dur: number } | null {
   const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   if (!p) return null;
