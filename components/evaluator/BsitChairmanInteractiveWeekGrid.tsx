@@ -12,7 +12,6 @@ import {
 import { AlertTriangle, Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChairmanPlotScheduleModal } from "@/components/evaluator/ChairmanPlotScheduleModal";
-import { type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import {
   DAY_PROGRAM_SLOTS,
@@ -20,6 +19,7 @@ import {
   slotsForSession,
   weekdaysForSession,
   type ProgramHourSlot,
+  type ProgramSessionWeekday,
 } from "@/lib/scheduling/program-session";
 import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
 import { plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
@@ -89,7 +89,7 @@ function cellConflictClasses(
   return parts.join(" ");
 }
 
-type CellAnchor = { day: BsitEvaluatorWeekday; slotIdx: number };
+type CellAnchor = { day: ProgramSessionWeekday; slotIdx: number };
 
 type ModalSession = {
   draft: PlotRow;
@@ -251,7 +251,7 @@ export function BsitChairmanInteractiveWeekGrid({
   /** Keep cell highlight aligned while day/time change inside the modal. */
   useEffect(() => {
     if (!modal || !modal.draft.day || modal.draft.startSlotIndex < 0) return;
-    setHighlightedCell({ day: modal.draft.day as BsitEvaluatorWeekday, slotIdx: modal.draft.startSlotIndex });
+    setHighlightedCell({ day: modal.draft.day as ProgramSessionWeekday, slotIdx: modal.draft.startSlotIndex });
   }, [modal?.draft.day, modal?.draft.startSlotIndex, modal]);
 
   const filteredRows = useMemo(
@@ -303,7 +303,7 @@ export function BsitChairmanInteractiveWeekGrid({
   );
 
   const openModalForEmptyCell = useCallback(
-    (day: BsitEvaluatorWeekday, slotIdx: number) => {
+    (day: ProgramSessionWeekday, slotIdx: number) => {
       if (schedulePublished) return;
       const draft: PlotRow = normalizePlotRow(
         {
@@ -348,7 +348,7 @@ export function BsitChairmanInteractiveWeekGrid({
     ? `${modal.draft.day || "New slot"} · ${modal.draft.startSlotIndex >= 0 ? (slots[modal.draft.startSlotIndex]?.label ?? "Time slot") : "Select time"}`
     : "";
 
-  const isCellSelected = (day: BsitEvaluatorWeekday, slotIdx: number) =>
+  const isCellSelected = (day: ProgramSessionWeekday, slotIdx: number) =>
     highlightedCell?.day === day && highlightedCell?.slotIdx === slotIdx;
 
   return (
@@ -427,7 +427,7 @@ export function BsitChairmanInteractiveWeekGrid({
                   className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-[11px] font-medium text-amber-950 hover:bg-amber-50 disabled:opacity-50"
                   onClick={() => {
                       const anchor: CellAnchor = {
-                        day: (row.day as BsitEvaluatorWeekday) || "Monday",
+                        day: (row.day as ProgramSessionWeekday) || "Monday",
                         slotIdx: row.startSlotIndex >= 0 ? row.startSlotIndex : 0,
                       };
                       openModalForRow(row, anchor, !rows.some((r) => r.id === row.id));
@@ -531,7 +531,7 @@ export function BsitChairmanInteractiveWeekGrid({
                         {atHere.map((r) => {
                           const bounds = rowTimeBounds(r, programCodeForSummary, slots);
                           const anchor: CellAnchor = {
-                            day: (r.day as BsitEvaluatorWeekday) || "Monday",
+                            day: (r.day as ProgramSessionWeekday) || "Monday",
                             slotIdx: bounds?.startIdx ?? (r.startSlotIndex >= 0 ? r.startSlotIndex : 0),
                           };
                           return (
