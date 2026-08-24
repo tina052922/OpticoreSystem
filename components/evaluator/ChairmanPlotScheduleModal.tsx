@@ -3,12 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  BSIT_EVALUATOR_TIME_SLOTS,
-  type BsitEvaluatorWeekday,
-} from "@/lib/chairman/bsit-evaluator-constants";
+import { type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
-import { slotsForSession, weekdaysForSession, type ProgramHourSlot } from "@/lib/scheduling/program-session";
+import { DAY_PROGRAM_SLOTS, slotsForSession, weekdaysForSession, type ProgramHourSlot } from "@/lib/scheduling/program-session";
 import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
 import {
   maxPlotDurationSlots,
@@ -49,7 +46,7 @@ const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 const labelClass = "text-[12px] font-semibold text-black/75";
 
-function formatTimeRangeFromSlots(effectiveStart: number, dur: number, slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS): string {
+function formatTimeRangeFromSlots(effectiveStart: number, dur: number, slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS): string {
   const first = slots[effectiveStart];
   const last = slots[effectiveStart + dur - 1];
   if (!first || !last) return "—";
@@ -63,7 +60,7 @@ function buildCandidateBlock(
   overrides: Partial<PlotRow>,
   academicPeriodId: string,
   programCodeForSummary: string,
-  slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
 ): SparseScheduleBlock | null {
   const merged = { ...draft, ...overrides };
   if (!merged.subjectCode || !merged.day) return null;

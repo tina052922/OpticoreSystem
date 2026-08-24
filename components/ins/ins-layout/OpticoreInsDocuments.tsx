@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type {
   InsFacultyCell,
   InsFacultyFormSummary,
+  InsFacultySchedule,
 } from "@/lib/ins/build-ins-faculty-view";
 import type {
   InsRoomCell,
@@ -157,7 +158,7 @@ function InsProgramSubtitle({ className }: { className: string }) {
 
 export type OpticoreInsForm5AProps = {
   facultyName: string;
-  schedule: FacultySchedule;
+  schedule: InsFacultySchedule;
   courses: Array<{
     students: number;
     code: string;

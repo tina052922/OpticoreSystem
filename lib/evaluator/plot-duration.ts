@@ -1,5 +1,4 @@
-import { BSIT_EVALUATOR_TIME_SLOTS } from "@/lib/chairman/bsit-evaluator-constants";
-import { NIGHT_PROGRAM_SLOTS, type ProgramHourSlot } from "@/lib/scheduling/program-session";
+import { DAY_PROGRAM_SLOTS, NIGHT_PROGRAM_SLOTS, type ProgramHourSlot } from "@/lib/scheduling/program-session";
 import type { ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import type { Subject } from "@/types/db";
@@ -82,7 +81,7 @@ export function padScheduleTime(t: string): string {
 export function timesFromSlotRange(
   effectiveStart: number,
   dur: number,
-  slots: ProgramHourSlot[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
 ): { startTime: string; endTime: string } | null {
   const startSlot = slots[effectiveStart];
   const endSlot = slots[effectiveStart + dur - 1];

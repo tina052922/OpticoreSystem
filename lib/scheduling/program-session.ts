@@ -54,10 +54,10 @@ function hourSlots(startHour: number, endHourExclusive: number): ProgramHourSlot
 }
 
 /** Day evaluator: 7:00 AM–5:00 PM (10 slots). */
-export const DAY_PROGRAM_SLOTS = hourSlots(7, 17);
+export const DAY_PROGRAM_SLOTS: ProgramHourSlot[] = hourSlots(7, 17);
 
 /** Night evaluator/INS: 7:00 AM–10:00 PM so weekday Closed cells and weekend mornings share one grid. */
-export const NIGHT_PROGRAM_SLOTS = hourSlots(7, 22);
+export const NIGHT_PROGRAM_SLOTS: ProgramHourSlot[] = hourSlots(7, 22);
 
 export function weekdaysForSession(session: ProgramSession): readonly ProgramSessionWeekday[] {
   return session === "night" ? NIGHT_PROGRAM_WEEKDAYS : DAY_PROGRAM_WEEKDAYS;
