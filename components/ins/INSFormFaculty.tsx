@@ -19,8 +19,6 @@ import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
 import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
 import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
-import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
-import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import { FacultyScheduleChangeModal } from "@/components/faculty/FacultyScheduleChangeModal";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
@@ -28,6 +26,7 @@ import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5ADocument } from "@/components/pdf/forms/INS5ADocument";
 import { facultyScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
 import type { INS5AProps } from "@/components/pdf/types/insTypes";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -84,7 +83,7 @@ export function INSFormFaculty({
   doiFormalApprovalPanel = false,
   hideInnerInsTabs = false,
 }: INSFormFacultyProps) {
-  const programSession = useProgramSessionOptional()?.programSession ?? "day";
+  const { programMode } = useProgramMode();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Instructor shell only (`/faculty/ins`); avoids treating `/chairman/ins` or other paths as faculty portal. */
@@ -138,12 +137,12 @@ export function INSFormFaculty({
       minor: live.facultyCredentials.minor,
       specialTraining: live.facultyCredentials.specialTraining,
     } : null,
-    schedule: facultyScheduleToPdfGrid(displaySchedule, programSession),
+    schedule: facultyScheduleToPdfGrid(displaySchedule, programMode),
     courses: displayCourses,
     summary: useLiveData ? live.facultyFormSummary : null,
     signatureSlots: signatureSlotsToPdf(useLiveData ? live.insSignatureSlots : null),
-    programSession,
-  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots, programSession]);
+    programMode,
+  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots, programMode]);
 
   async function onShare() {
     try {
@@ -229,7 +228,6 @@ export function INSFormFaculty({
         <div className="max-w-[1200px] mx-auto space-y-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
-            <ProgramSessionSwitch className="mt-2" />
           </div>
 
           {instructorReadOnlyPortal && live.academicPeriodId ? (

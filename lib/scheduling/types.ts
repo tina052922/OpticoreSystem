@@ -10,7 +10,8 @@ export type ScheduleBlock = {
   day: string;
   startTime: string;
   endTime: string;
-  programSession?: "day" | "night" | null;
+  /** Day and Night universes are independent; omit = day. */
+  programMode?: "day" | "night" | null;
 };
 
 export type ConflictType = "faculty" | "section" | "room";

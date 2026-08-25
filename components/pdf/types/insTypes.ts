@@ -1,14 +1,36 @@
-import {
-  insTimeSlotLabels,
-  NIGHT_PROGRAM_WEEKDAYS,
-  type ProgramSessionWeekday,
-} from "@/lib/scheduling/program-session";
+export type InsDay =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday"
+  | "Saturday"
+  | "Sunday";
 
-export type InsDay = ProgramSessionWeekday;
+export const INS_DAYS: InsDay[] = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 
-export const INS_DAYS: InsDay[] = [...NIGHT_PROGRAM_WEEKDAYS];
-
-export const INS_TIME_SLOTS = insTimeSlotLabels("night");
+export const INS_TIME_SLOTS = [
+  "7:00-8:00",
+  "8:00-9:00",
+  "9:00-10:00",
+  "10:00-11:00",
+  "11:00-12:00",
+  "12:00-1:00",
+  "1:00-2:00",
+  "2:00-3:00",
+  "3:00-4:00",
+  "4:00-5:00",
+  "5:00-6:00",
+  "6:00-7:00",
+] as const;
 
 export type PDFSignatureSlot = {
   key: string;
@@ -69,7 +91,7 @@ export type INS5AProps = {
     research?: string | null;
   } | null;
   signatureSlots?: PDFSignatureSlot[];
-  programSession?: "day" | "night";
+  programMode?: "day" | "night";
 };
 
 export type INS5BProps = {
@@ -81,7 +103,7 @@ export type INS5BProps = {
   schedule: PDFScheduleGrid;
   courses: PDFCourseRow[];
   signatureSlots?: PDFSignatureSlot[];
-  programSession?: "day" | "night";
+  programMode?: "day" | "night";
 };
 
 export type INS5CProps = {
@@ -89,5 +111,5 @@ export type INS5CProps = {
   semesterLabel: string;
   schedule: PDFScheduleGrid;
   signatureSlots?: PDFSignatureSlot[];
-  programSession?: "day" | "night";
+  programMode?: "day" | "night";
 };

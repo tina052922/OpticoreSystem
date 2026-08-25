@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   BSIT_EVALUATOR_TIME_SLOTS,
   BSIT_EVALUATOR_WEEKDAYS,
-  evaluatorWeekdayIndex,
+  type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { normalizeSlotHHMM, startSlotIndexFromScheduleEntryStartTime } from "@/lib/chairman/evaluator-schedule-hydration";
 import {
@@ -173,8 +173,8 @@ export function GecSectionPlottingTable({
       .filter((e) => e.academicPeriodId === academicPeriodId && e.sectionId === sectionId)
       .slice()
       .sort((a, b) => {
-        const da = evaluatorWeekdayIndex(a.day);
-        const db = evaluatorWeekdayIndex(b.day);
+        const da = (BSIT_EVALUATOR_WEEKDAYS as readonly string[]).indexOf(a.day);
+        const db = (BSIT_EVALUATOR_WEEKDAYS as readonly string[]).indexOf(b.day);
         if (da !== db) return (da < 0 ? 99 : da) - (db < 0 ? 99 : db);
         return hhmm(a.startTime).localeCompare(hhmm(b.startTime));
       });

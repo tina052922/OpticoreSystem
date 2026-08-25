@@ -1,5 +1,6 @@
 import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import type { ScheduleEntry, Subject, Section, Room, User, Program } from "@/types/db";
+import { stripNightDayPrefix } from "@/lib/scheduling/program-mode";
 
 export type ConflictRowSnapshot = {
   entryId: string;
@@ -122,7 +123,7 @@ function snapshotEntry(
   return {
     entryId: e.id,
     what: `${sub?.code ?? "—"} · ${sec?.name ?? "—"}`,
-    when: `${e.day} ${formatTimeRange(e.startTime, e.endTime)}`,
+    when: `${stripNightDayPrefix(e.day)} ${formatTimeRange(e.startTime, e.endTime)}`,
     where: room?.code ?? "TBA",
     who: inst?.name ?? "—",
     collegeName,

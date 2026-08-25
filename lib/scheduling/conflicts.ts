@@ -1,11 +1,6 @@
 import type { ScheduleEntry } from "@/types/db";
 import type { ConflictHit, ScheduleBlock } from "./types";
-import {
-  applyProgramSessionOverlay,
-  inferProgramSession,
-  sameProgramSession,
-  type ProgramSession,
-} from "@/lib/scheduling/program-session";
+import { resolveProgramMode, stripNightDayPrefix, type ProgramMode } from "./program-mode";
 
 /** Parse HH:MM or HH:MM:SS with optional AM/PM into minutes from midnight. */
 export function toMinutes(t: string): number {
@@ -41,7 +36,7 @@ export function normalizeIntervalEnd(startTime: string, endTime: string): string
 
 /** Collapse common weekday spellings/casing so clashes are not missed (e.g. Mon vs Monday). */
 export function normalizeDayForConflict(day: string): string {
-  const raw = day.trim();
+  const raw = stripNightDayPrefix(day).trim();
   if (!raw) return raw;
   const key = raw.toLowerCase().replace(/\.$/, "");
   const map: Record<string, string> = {
@@ -90,10 +85,11 @@ export function detectConflictsForEntry(
   ignoreId?: string,
 ): ConflictHit[] {
   const hits: ConflictHit[] = [];
+  const candidateMode = resolveProgramMode(candidate);
   for (const o of others) {
     if (o.id === candidate.id || o.id === ignoreId) continue;
     if (o.academicPeriodId !== candidate.academicPeriodId) continue;
-    if (!sameProgramSession(candidate, o)) continue;
+    if (resolveProgramMode(o) !== candidateMode) continue;
     if (!intervalsOverlap(candidate.day, candidate.startTime, candidate.endTime, o.day, o.startTime, o.endTime))
       continue;
 
@@ -132,7 +128,7 @@ export type SparseScheduleBlock = {
   instructorId: string | null;
   sectionId: string | null;
   roomId: string | null;
-  programSession?: ProgramSession | string | null;
+  programMode?: ProgramMode | null;
 };
 
 /**
@@ -145,10 +141,11 @@ export function detectConflictsSparse(
   ignoreId?: string,
 ): ConflictHit[] {
   const hits: ConflictHit[] = [];
+  const candidateMode = resolveProgramMode(candidate);
   for (const o of others) {
     if (o.id === candidate.id || o.id === ignoreId) continue;
     if (o.academicPeriodId !== candidate.academicPeriodId) continue;
-    if (!sameProgramSession(candidate, o)) continue;
+    if (resolveProgramMode(o) !== candidateMode) continue;
     if (!intervalsOverlap(candidate.day, candidate.startTime, candidate.endTime, o.day, o.startTime, o.endTime))
       continue;
 
@@ -232,7 +229,6 @@ export function scheduleEntryToSparseBlock(e: ScheduleEntry): SparseScheduleBloc
   if (!day) return null;
   const startTime = hhmmForConflict(e.startTime);
   const endTime = normalizeIntervalEnd(e.startTime, e.endTime);
-  const tagged = applyProgramSessionOverlay(e);
   return {
     id: e.id,
     academicPeriodId: e.academicPeriodId,
@@ -242,7 +238,7 @@ export function scheduleEntryToSparseBlock(e: ScheduleEntry): SparseScheduleBloc
     instructorId: e.instructorId?.trim() ? e.instructorId : null,
     sectionId: e.sectionId?.trim() ? e.sectionId : null,
     roomId: e.roomId?.trim() ? e.roomId : null,
-    programSession: inferProgramSession(tagged),
+    programMode: resolveProgramMode(e),
   };
 }
 
@@ -257,7 +253,7 @@ export function scheduleBlockToSparseBlock(b: ScheduleBlock): SparseScheduleBloc
     instructorId: b.instructorId?.trim() ? b.instructorId : null,
     sectionId: b.sectionId?.trim() ? b.sectionId : null,
     roomId: b.roomId?.trim() ? b.roomId : null,
-    programSession: inferProgramSession(b),
+    programMode: resolveProgramMode(b),
   };
 }
 

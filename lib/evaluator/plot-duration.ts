@@ -1,4 +1,4 @@
-import { DAY_PROGRAM_SLOTS, NIGHT_PROGRAM_SLOTS, type ProgramHourSlot } from "@/lib/scheduling/program-session";
+import { BSIT_EVALUATOR_TIME_SLOTS } from "@/lib/chairman/bsit-evaluator-constants";
 import type { ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import type { Subject } from "@/types/db";
@@ -26,27 +26,18 @@ export function plotRowDurationSlots(p: ProspectusSubjectRow | undefined, row?: 
   return 1;
 }
 
-/** Infer duration from saved `ScheduleEntry` start/end (HH:mm). */
+/** Infer duration from saved `ScheduleEntry` start/end (HH:mm). Works for Day and Night windows. */
 export function inferDurationSlotsFromTimes(startTime: string, endTime: string): number {
-  const hhmm = (t: string) => {
+  const toMin = (t: string) => {
     const parts = t.trim().split(":");
-    return `${(parts[0] ?? "00").padStart(2, "0")}:${(parts[1] ?? "00").padStart(2, "0")}`;
+    const h = parseInt(parts[0] ?? "0", 10);
+    const m = parseInt(parts[1] ?? "0", 10);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+    return h * 60 + m;
   };
-  const startH = hhmm(startTime);
-  const endH = hhmm(endTime);
-  const slotTable = NIGHT_PROGRAM_SLOTS;
-  const startIdx = slotTable.findIndex((s) => s.startTime === startH);
-  if (startIdx < 0) return 1;
-  let endIdx = slotTable.findIndex((s) => {
-    const endLabel = s.label.split(" - ").pop()?.trim() ?? "";
-    return endLabel === endH || s.endTime === endH;
-  });
-  if (endIdx < 0) {
-    endIdx = slotTable.findIndex((s) => s.startTime === endH);
-    if (endIdx > 0) endIdx -= 1;
-  }
-  if (endIdx < startIdx) return 1;
-  return Math.min(10, Math.max(1, endIdx - startIdx + 1));
+  const span = toMin(endTime) - toMin(startTime);
+  if (span > 0) return Math.min(15, Math.max(1, Math.round(span / 60)));
+  return 1;
 }
 
 /** Max consecutive slots for a catalog subject (prospectus or DB lec hours). */
@@ -81,7 +72,7 @@ export function padScheduleTime(t: string): string {
 export function timesFromSlotRange(
   effectiveStart: number,
   dur: number,
-  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
+  slots: { startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
 ): { startTime: string; endTime: string } | null {
   const startSlot = slots[effectiveStart];
   const endSlot = slots[effectiveStart + dur - 1];

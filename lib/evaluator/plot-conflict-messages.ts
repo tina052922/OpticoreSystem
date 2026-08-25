@@ -1,16 +1,7 @@
 import type { ConflictHit } from "@/lib/scheduling/types";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { formatTimeRange12h } from "@/lib/time/format-12h";
-
-function overlapWhenLabel(
-  other: SparseScheduleBlock | undefined,
-  fallback: string | undefined,
-): string {
-  if (other) {
-    return `${other.day} ${formatTimeRange12h(other.startTime, other.endTime)}`;
-  }
-  return fallback ?? "this time";
-}
+import { stripNightDayPrefix } from "@/lib/scheduling/program-mode";
 
 export function formatSparseConflictLines(
   hits: ConflictHit[],
@@ -28,7 +19,9 @@ export function formatSparseConflictLines(
 
   for (const h of hits) {
     const other = h.withEntryId ? universe.find((b) => b.id === h.withEntryId) : undefined;
-    const overlapWhen = overlapWhenLabel(other, labels.when);
+    const overlapWhen = other
+      ? `${stripNightDayPrefix(other.day)} ${formatTimeRange12h(other.startTime, other.endTime)}`
+      : labels.when ?? "this time";
 
     let line = "";
     if (h.type === "faculty") {

@@ -1,10 +1,10 @@
-import { type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import { slotsForSession } from "@/lib/scheduling/program-session";
+import { evaluatorTimeSlots, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import {
   normalizeProspectusCode,
   prospectusByCode,
 } from "@/lib/chairman/bsit-prospectus";
 import { inferDurationSlotsFromTimes, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
+import { resolveProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
 import type { ScheduleEntry, Subject } from "@/types/db";
 
 /** Minimal row shape shared with `BsitChairmanEvaluatorWorksheet` for DB round-trip. */
@@ -17,7 +17,7 @@ export type ChairmanPersistablePlotRow = {
   roomId: string;
   startSlotIndex: number;
   durationSlots?: number;
-  day: string;
+  day: BsitEvaluatorWeekday;
 };
 
 /** Normalize DB time strings like `07:00:00` to `07:00` for slot matching. */
@@ -37,16 +37,16 @@ export function plotRowsToScheduleEntries(args: {
   academicPeriodId: string;
   programId: string;
   subjectsForProgram: Subject[];
-  programSession?: "day" | "night";
+  programMode?: ProgramMode;
 }): { entries: ScheduleEntry[] } | { error: string } {
-  const { rows, academicPeriodId, programId, subjectsForProgram, programSession = "day" } = args;
+  const { rows, academicPeriodId, programId, subjectsForProgram, programMode = "day" } = args;
+  const slots = evaluatorTimeSlots(programMode);
   const codeToSubjectId = new Map<string, string>();
   for (const s of subjectsForProgram) {
     if (s.programId !== programId) continue;
     codeToSubjectId.set(normalizeProspectusCode(s.code), s.id);
   }
 
-  const slotTable = slotsForSession(programSession);
   const entries: ScheduleEntry[] = [];
 
   for (const row of rows) {
@@ -54,10 +54,10 @@ export function plotRowsToScheduleEntries(args: {
     const p = prospectusByCode(row.subjectCode);
     if (!p) continue;
     const dur = plotRowDurationSlots(p, row);
-    const maxS = slotTable.length - dur;
+    const maxS = slots.length - dur;
     const startIdx = Math.min(row.startSlotIndex, maxS);
-    const startSlot = slotTable[startIdx];
-    const endSlot = slotTable[startIdx + dur - 1];
+    const startSlot = slots[startIdx];
+    const endSlot = slots[startIdx + dur - 1];
     if (!startSlot || !endSlot) continue;
 
     const norm = normalizeProspectusCode(row.subjectCode);
@@ -79,7 +79,7 @@ export function plotRowsToScheduleEntries(args: {
       startTime: startSlot.startTime,
       endTime: endSlot.endTime,
       status: "draft",
-      programSession,
+      programMode,
     });
   }
 
@@ -94,17 +94,17 @@ export function scheduleEntriesToPlotRows(args: {
 }): ChairmanPersistablePlotRow[] {
   const out: ChairmanPersistablePlotRow[] = [];
   for (const e of args.entries) {
-    const slotTable = slotsForSession(e.programSession === "night" ? "night" : "day");
-    if (!slotTable.length) continue;
+    const slots = evaluatorTimeSlots(resolveProgramMode(e));
+    if (!slots.length) continue;
     const sub = args.subjectById.get(e.subjectId);
     if (!sub?.code) continue;
     const p = prospectusByCode(sub.code);
     if (!p) continue;
     const startH = hhmm(e.startTime);
-    const startIdx = slotTable.findIndex((s) => s.startTime === startH);
+    const startIdx = slots.findIndex((s) => s.startTime === startH);
     if (startIdx < 0) continue;
     const dur = inferDurationSlotsFromTimes(e.startTime, e.endTime);
-    const maxS = slotTable.length - dur;
+    const maxS = slots.length - dur;
     const clampedStart = Math.min(startIdx, Math.max(0, maxS));
 
     out.push({

@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  BSIT_EVALUATOR_TIME_SLOTS,
-  BSIT_EVALUATOR_WEEKDAYS,
+  evaluatorTimeSlots,
+  evaluatorWeekdays,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
+import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { normalizeSlotHHMM } from "@/lib/chairman/evaluator-schedule-hydration";
 import {
   inferDurationSlotsFromTimes,
@@ -37,14 +38,17 @@ function hhmm(t: string): string {
   return normalizeSlotHHMM(t);
 }
 
-function startSlotIndexFromEntry(e: ScheduleEntry): number {
+function startSlotIndexFromEntry(e: ScheduleEntry, slots: { startTime: string }[]): number {
   const h = hhmm(e.startTime);
-  const idx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === h);
+  const idx = slots.findIndex((t) => t.startTime === h);
   return idx >= 0 ? idx : 0;
 }
 
-function formatTimeRangeFromSlots(effectiveStart: number, dur: number): string {
-  const slots = BSIT_EVALUATOR_TIME_SLOTS;
+function formatTimeRangeFromSlots(
+  effectiveStart: number,
+  dur: number,
+  slots: { label: string }[],
+): string {
   const first = slots[effectiveStart];
   const last = slots[effectiveStart + dur - 1];
   if (!first || !last) return "—";
@@ -61,6 +65,9 @@ export type GecPlotScheduleModalProps = {
   buildingValue: string;
   onBuildingChange: (building: string) => void;
   programCode: string;
+  programMode?: ProgramMode;
+  weekdays?: readonly BsitEvaluatorWeekday[];
+  timeSlots?: HourSlot[];
   sectionName: string;
   gecSubjects: Subject[];
   instructorPlotOptions: InstructorPlotOption[];
@@ -91,6 +98,9 @@ export function GecPlotScheduleModal({
   buildingValue,
   onBuildingChange,
   programCode,
+  programMode = "day",
+  weekdays,
+  timeSlots,
   sectionName,
   gecSubjects,
   instructorPlotOptions,
@@ -110,6 +120,8 @@ export function GecPlotScheduleModal({
   onApply,
   onRemove,
 }: GecPlotScheduleModalProps) {
+  const slots = timeSlots ?? evaluatorTimeSlots(programMode);
+  const days = weekdays ?? evaluatorWeekdays(programMode);
   const [visible, setVisible] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -137,10 +149,10 @@ export function GecPlotScheduleModal({
   const sub = gecSubjects.find((s) => s.id === draft.subjectId);
   const dur = plotEntryDurationSlots(programCode, sub, durationSlots);
   const maxDur = sub ? maxPlotDurationSlotsForSubject(programCode, sub) : 1;
-  const maxStart = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
-  const startIdx = startSlotIndexFromEntry(draft);
+  const maxStart = slots.length - dur;
+  const startIdx = startSlotIndexFromEntry(draft, slots);
   const effectiveStart = Math.min(Math.max(0, startIdx), maxStart);
-  const timeLine = sub ? formatTimeRangeFromSlots(effectiveStart, dur) : "Select GEC subject for duration";
+  const timeLine = sub ? formatTimeRangeFromSlots(effectiveStart, dur, slots) : "Select GEC subject for duration";
   const roomsInB = buildingValue ? roomsInBuildingSorted(rooms, buildingValue) : [];
 
   const { availableSubjects, addAnotherSlotSubjects } = useMemo(() => {
@@ -156,9 +168,9 @@ export function GecPlotScheduleModal({
   const applySlotFromIndex = (idx: number, subjectId: string, slotDur = durationSlots) => {
     const subject = gecSubjects.find((s) => s.id === subjectId);
     const d = plotEntryDurationSlots(programCode, subject, slotDur);
-    const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
+    const maxS = slots.length - d;
     const eff = Math.min(Math.max(0, idx), maxS);
-    const times = timesFromSlotRange(eff, d);
+    const times = timesFromSlotRange(eff, d, slots);
     if (!times) return;
     onDraftChange({
       ...draft,
@@ -370,7 +382,7 @@ export function GecPlotScheduleModal({
                 disabled={readOnly}
                 onChange={(e) => onDraftChange({ ...draft, day: e.target.value as BsitEvaluatorWeekday })}
               >
-                {BSIT_EVALUATOR_WEEKDAYS.map((d) => (
+                {days.map((d) => (
                   <option key={d} value={d}>
                     {d}
                   </option>
@@ -388,8 +400,10 @@ export function GecPlotScheduleModal({
                 disabled={readOnly || !draft.subjectId}
                 onChange={(e) => applySlotFromIndex(parseInt(e.target.value, 10), draft.subjectId, durationSlots)}
               >
-                {BSIT_EVALUATOR_TIME_SLOTS.slice(0, maxStart + 1).map((t, idx) => (
-                  <option key={`${idx}-${t.label}`} value={idx}>
+                {slots
+                  .filter((t) => isEvaluatorSlotPlottable(programMode, draft.day || days[0] || "Monday", t))
+                  .map((t) => (
+                  <option key={`${t.slotIndex}-${t.label}`} value={t.slotIndex}>
                     {t.label}
                   </option>
                 ))}

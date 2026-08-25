@@ -1,11 +1,9 @@
 import {
-  DAY_PROGRAM_SLOTS,
-  NIGHT_PROGRAM_WEEKDAYS,
-  slotsForSession,
-  type ProgramHourSlot,
-  type ProgramSession,
-  type ProgramSessionWeekday,
-} from "@/lib/scheduling/program-session";
+  BSIT_EVALUATOR_TIME_SLOTS,
+  NIGHT_EVALUATOR_WEEKDAYS,
+  type BsitEvaluatorWeekday,
+} from "@/lib/chairman/bsit-evaluator-constants";
+import { evaluatorTimeSlots, stripNightDayPrefix, type ProgramMode } from "@/lib/scheduling/program-mode";
 
 /**
  * Normalize Postgres / API time strings ("7:00", "07:00", "7:00:00") to "HH:MM" for slot map lookups.
@@ -20,15 +18,15 @@ export function normalizeSlotHHMM(raw: string | null | undefined): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Map DB `ScheduleEntry.day` to an evaluator weekday (Night includes Saturday/Sunday). */
-export function normalizeScheduleEntryDayForEvaluator(day: string | null | undefined): ProgramSessionWeekday {
-  const d = (day ?? "").trim();
+/** Map DB `ScheduleEntry.day` to evaluator weekday (tolerates casing / Night:: prefix). */
+export function normalizeScheduleEntryDayForEvaluator(day: string | null | undefined): BsitEvaluatorWeekday {
+  const d = stripNightDayPrefix(day ?? "").trim();
   if (!d) return "Monday";
   const lower = d.toLowerCase();
-  for (const w of NIGHT_PROGRAM_WEEKDAYS) {
+  for (const w of NIGHT_EVALUATOR_WEEKDAYS) {
     if (w.toLowerCase() === lower) return w;
   }
-  const short: Record<string, ProgramSessionWeekday> = {
+  const short: Record<string, BsitEvaluatorWeekday> = {
     mon: "Monday",
     tue: "Tuesday",
     wed: "Wednesday",
@@ -47,13 +45,12 @@ export function normalizeScheduleEntryDayForEvaluator(day: string | null | undef
  */
 export function startSlotIndexFromScheduleEntryStartTime(
   startTime: string | null | undefined,
-  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
+  mode: ProgramMode = "day",
 ): number {
   const key = normalizeSlotHHMM(startTime);
+  const slots = evaluatorTimeSlots(mode);
   const idx = slots.findIndex((t) => t.startTime === key);
-  return idx >= 0 ? idx : 0;
-}
-
-export function slotsForEvaluatorSession(session: ProgramSession): ProgramHourSlot[] {
-  return slotsForSession(session);
+  if (idx >= 0) return idx;
+  const dayIdx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === key);
+  return dayIdx >= 0 ? dayIdx : 0;
 }

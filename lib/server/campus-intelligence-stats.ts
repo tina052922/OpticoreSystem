@@ -270,6 +270,8 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     if (entries && entries.length > 0) {
       const blockRooms: Set<string>[] = Array.from({ length: BLOCK_COUNT }, () => new Set());
       const instructorHours = new Map<string, number>();
+      const modeOf = (day: string) =>
+        String(day ?? "").toLowerCase().startsWith("night::") ? "night" : "day";
 
       for (const e of entries) {
         const idx = timeBlockIdx(e.startTime);
@@ -278,7 +280,8 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
           const [sh] = e.startTime.split(":").map(Number);
           const [eh] = e.endTime.split(":").map(Number);
           const hrs = Math.abs(eh - sh);
-          instructorHours.set(e.instructorId, (instructorHours.get(e.instructorId) || 0) + hrs);
+          const key = `${e.instructorId}::${modeOf(e.day)}`;
+          instructorHours.set(key, (instructorHours.get(key) || 0) + hrs);
         }
       }
 
@@ -288,8 +291,13 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
         utilization: Math.round((rooms.size / totalRooms) * 100),
       }));
 
+      const maxByInstructor = new Map<string, number>();
+      for (const [key, hrs] of instructorHours) {
+        const id = key.split("::")[0] ?? key;
+        maxByInstructor.set(id, Math.max(maxByInstructor.get(id) || 0, hrs));
+      }
       let full = 0, partial = 0, overloaded = 0;
-      for (const hrs of instructorHours.values()) {
+      for (const hrs of maxByInstructor.values()) {
         if (hrs >= 24) overloaded++;
         else if (hrs >= 18) full++;
         else partial++;

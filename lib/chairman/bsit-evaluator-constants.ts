@@ -1,38 +1,33 @@
+/** Chairman / GEC evaluator slot tables. Day remains Mon–Fri 7:00 AM–5:00 PM. */
+
 import {
-  DAY_PROGRAM_SLOTS,
+  DAY_ONE_HOUR_SLOTS,
+  DAY_PROGRAM_WEEKDAYS,
+  NIGHT_FULL_DAY_SLOTS,
   NIGHT_PROGRAM_WEEKDAYS,
-  type ProgramHourSlot,
-  type ProgramSessionWeekday,
-} from "@/lib/scheduling/program-session";
+  type ProgramMode,
+  type ProgramWeekday,
+} from "@/lib/scheduling/program-mode";
 
-/** Day-mode column labels: Monday–Friday only. */
-export const BSIT_EVALUATOR_WEEKDAYS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-] as const;
+/** Day Program: Monday–Friday only. */
+export const BSIT_EVALUATOR_WEEKDAYS = DAY_PROGRAM_WEEKDAYS;
+export type BsitEvaluatorWeekday = ProgramWeekday;
 
-/**
- * Plot day including Night Program Saturday/Sunday.
- * Keep this wider than `BSIT_EVALUATOR_WEEKDAYS` so session grids type-check.
- */
-export type BsitEvaluatorWeekday = ProgramSessionWeekday;
+export const NIGHT_EVALUATOR_WEEKDAYS = NIGHT_PROGRAM_WEEKDAYS;
 
-/**
- * INS Form style: 1-hour increments, 7:00 AM–5:00 PM (10 slots).
- * Same objects as Day program slots (`slotIndex` required by `ProgramHourSlot`).
- */
-export const BSIT_ONE_HOUR_SLOTS: ProgramHourSlot[] = DAY_PROGRAM_SLOTS;
+export const BSIT_ONE_HOUR_SLOTS = DAY_ONE_HOUR_SLOTS;
 
 /** @deprecated use BSIT_ONE_HOUR_SLOTS */
-export const BSIT_EVALUATOR_TIME_SLOTS: ProgramHourSlot[] = DAY_PROGRAM_SLOTS;
+export const BSIT_EVALUATOR_TIME_SLOTS = BSIT_ONE_HOUR_SLOTS.map((s) => ({
+  label: s.label,
+  startTime: s.startTime,
+  endTime: s.endTime,
+}));
 
-export function evaluatorWeekdayIndex(day: string): number {
-  return (NIGHT_PROGRAM_WEEKDAYS as readonly string[]).indexOf(day);
+export function evaluatorWeekdays(mode: ProgramMode) {
+  return mode === "night" ? NIGHT_EVALUATOR_WEEKDAYS : BSIT_EVALUATOR_WEEKDAYS;
 }
 
-export function isEvaluatorGridWeekday(day: string): boolean {
-  return evaluatorWeekdayIndex(day) >= 0;
+export function evaluatorTimeSlots(mode: ProgramMode) {
+  return mode === "night" ? NIGHT_FULL_DAY_SLOTS : BSIT_ONE_HOUR_SLOTS;
 }

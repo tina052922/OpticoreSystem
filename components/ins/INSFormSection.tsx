@@ -13,8 +13,6 @@ import {
 import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
 import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
-import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
-import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
@@ -26,6 +24,7 @@ import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5BDocument } from "@/components/pdf/forms/INS5BDocument";
 import { sectionScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import type { INS5BProps } from "@/components/pdf/types/insTypes";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
@@ -79,7 +78,7 @@ export function INSFormSection({
   initialSectionId = null,
   printOnLoad = false,
 }: INSFormSectionProps) {
-  const programSession = useProgramSessionOptional()?.programSession ?? "day";
+  const { programMode } = useProgramMode();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Faculty portal: read-only INS; no conflict run or automated fixes. */
@@ -194,11 +193,11 @@ export function INSFormSection({
     adviser: "",
     assignment: "",
     semesterLabel: catalog.periodLabel ?? "____ Semester, AY ____",
-    schedule: sectionScheduleToPdfGrid(displaySchedule, programSession),
+    schedule: sectionScheduleToPdfGrid(displaySchedule, programMode),
     courses: displayCourses,
     signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
-    programSession,
-  }), [displayAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots, programSession]);
+    programMode,
+  }), [displayAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots, programMode]);
 
   const sectionConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;
@@ -299,8 +298,7 @@ export function INSFormSection({
         ) : null}
 
         <div className="max-w-[1200px] mx-auto space-y-4">
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
-            <ProgramSessionSwitch className="mt-2" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
           <p className="text-gray-600 text-sm">Program by Section (5B).</p>
         </div>
 

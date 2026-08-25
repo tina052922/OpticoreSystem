@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
-import { DAY_PROGRAM_SLOTS, slotsForSession, weekdaysForSession, type ProgramHourSlot } from "@/lib/scheduling/program-session";
+import {
+  BSIT_ONE_HOUR_SLOTS,
+  BSIT_EVALUATOR_WEEKDAYS,
+  type BsitEvaluatorWeekday,
+} from "@/lib/chairman/bsit-evaluator-constants";
+import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
 import {
   maxPlotDurationSlots,
@@ -46,7 +49,11 @@ const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 const labelClass = "text-[12px] font-semibold text-black/75";
 
-function formatTimeRangeFromSlots(effectiveStart: number, dur: number, slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS): string {
+function formatTimeRangeFromSlots(
+  effectiveStart: number,
+  dur: number,
+  slots: { label: string }[] = BSIT_ONE_HOUR_SLOTS,
+): string {
   const first = slots[effectiveStart];
   const last = slots[effectiveStart + dur - 1];
   if (!first || !last) return "—";
@@ -60,8 +67,8 @@ function buildCandidateBlock(
   overrides: Partial<PlotRow>,
   academicPeriodId: string,
   programCodeForSummary: string,
-  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
-  programSession: "day" | "night" = "day",
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_ONE_HOUR_SLOTS,
+  programMode: ProgramMode = "day",
 ): SparseScheduleBlock | null {
   const merged = { ...draft, ...overrides };
   if (!merged.subjectCode || !merged.day) return null;
@@ -83,7 +90,7 @@ function buildCandidateBlock(
     instructorId: merged.instructorId || null,
     sectionId: merged.sectionId || null,
     roomId: merged.roomId || null,
-    programSession,
+    programMode,
   };
 }
 
@@ -117,6 +124,9 @@ export type ChairmanPlotScheduleModalProps = {
   readOnly: boolean;
   isNewPlot: boolean;
   anchorLabel: string;
+  weekdays?: readonly BsitEvaluatorWeekday[];
+  timeSlots?: HourSlot[];
+  programMode?: ProgramMode;
   onApply: () => void;
   onRemove?: () => void;
 };
@@ -145,12 +155,14 @@ export function ChairmanPlotScheduleModal({
   readOnly,
   isNewPlot,
   anchorLabel,
+  weekdays = BSIT_EVALUATOR_WEEKDAYS,
+  timeSlots,
+  programMode = "day",
   onApply,
   onRemove,
 }: ChairmanPlotScheduleModalProps) {
-  const programSession = useProgramSessionOptional()?.programSession ?? "day";
-  const slotTable = slotsForSession(programSession);
-  const weekdayOptions = weekdaysForSession(programSession);
+  const slots = timeSlots ?? BSIT_ONE_HOUR_SLOTS;
+  const days = weekdays;
   const [visible, setVisible] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -180,14 +192,14 @@ export function ChairmanPlotScheduleModal({
     : undefined;
   const dur = pr ? plotRowDurationSlots(pr, draft) : 1;
   const maxDur = pr ? maxPlotDurationSlots(pr) : 1;
-  const maxStart = slotTable.length - dur;
+  const maxStart = slots.length - dur;
   const effectiveStart =
     draft.startSlotIndex < 0 ? 0 : Math.min(draft.startSlotIndex, maxStart);
   const timeLine =
     !draft.day || draft.startSlotIndex < 0
       ? "Select subject, day, and time"
       : pr
-        ? formatTimeRangeFromSlots(effectiveStart, dur, slotTable)
+        ? formatTimeRangeFromSlots(effectiveStart, dur)
         : "Select subject for duration";
   const sectionName = draft.sectionId
     ? (sectionNameById.get(draft.sectionId) ?? "")
@@ -294,8 +306,8 @@ export function ChairmanPlotScheduleModal({
         { instructorId: opt.id },
         academicPeriodId,
         programCodeForSummary,
-        slotTable,
-        programSession,
+        slots,
+        programMode,
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
@@ -310,8 +322,6 @@ export function ChairmanPlotScheduleModal({
     academicPeriodId,
     programCodeForSummary,
     instructorPlotOptions,
-    slotTable,
-    programSession,
   ]);
 
   const busyDays = useMemo(() => {
@@ -322,14 +332,14 @@ export function ChairmanPlotScheduleModal({
     )
       return null;
     const busy = new Set<BsitEvaluatorWeekday>();
-    for (const day of weekdayOptions) {
+    for (const day of days) {
       const candidate = buildCandidateBlock(
         draft,
         { day },
         academicPeriodId,
         programCodeForSummary,
-        slotTable,
-        programSession,
+        slots,
+        programMode,
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
@@ -338,7 +348,7 @@ export function ChairmanPlotScheduleModal({
       }
     }
     return busy;
-  }, [draft, existingBlocks, academicPeriodId, programCodeForSummary, slotTable, programSession, weekdayOptions]);
+  }, [draft, existingBlocks, academicPeriodId, programCodeForSummary]);
 
   const busyTimeSlotIndices = useMemo(() => {
     if (
@@ -355,8 +365,8 @@ export function ChairmanPlotScheduleModal({
         { startSlotIndex: idx },
         academicPeriodId,
         programCodeForSummary,
-        slotTable,
-        programSession,
+        slots,
+        programMode,
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
@@ -376,9 +386,6 @@ export function ChairmanPlotScheduleModal({
     academicPeriodId,
     programCodeForSummary,
     maxStart,
-    slotTable,
-    programSession,
-    weekdayOptions,
   ]);
 
   const busyRoomIds = useMemo(() => {
@@ -396,8 +403,8 @@ export function ChairmanPlotScheduleModal({
         { roomId: room.id },
         academicPeriodId,
         programCodeForSummary,
-        slotTable,
-        programSession,
+        slots,
+        programMode,
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
@@ -413,8 +420,6 @@ export function ChairmanPlotScheduleModal({
     programCodeForSummary,
     roomsInB,
     buildingValue,
-    slotTable,
-    programSession,
   ]);
 
   if (!visible && !open) return null;
@@ -542,7 +547,7 @@ export function ChairmanPlotScheduleModal({
                   let startSlotIndex = draft.startSlotIndex;
                   if (p) {
                     const d = plotRowDurationSlots(p, draft);
-                    const maxS = slotTable.length - d;
+                    const maxS = slots.length - d;
                     if (startSlotIndex > maxS) startSlotIndex = maxS;
                   }
                   onDraftChange({
@@ -649,7 +654,7 @@ export function ChairmanPlotScheduleModal({
                 let startSlotIndex = draft.startSlotIndex;
                 if (p) {
                   const d = plotRowDurationSlots(p, { durationSlots: 1 });
-                  const maxS = slotTable.length - d;
+                  const maxS = slots.length - d;
                   if (startSlotIndex > maxS) startSlotIndex = maxS;
                 }
                 onDraftChange({
@@ -833,7 +838,7 @@ export function ChairmanPlotScheduleModal({
                 }
               >
                 <option value="">Select day…</option>
-                {weekdayOptions.map((d) => {
+                {days.map((d) => {
                   const conflict = busyDays?.has(d) === true;
                   return (
                     <option
@@ -864,8 +869,9 @@ export function ChairmanPlotScheduleModal({
                 }}
               >
                 <option value="">Select time…</option>
-                {slotTable.slice(0, maxStart + 1).map(
-                  (t, idx) => {
+                {slots.filter((t) => isEvaluatorSlotPlottable(programMode, draft.day || days[0] || "Monday", t)).map(
+                  (t) => {
+                    const idx = t.slotIndex;
                     const conflict = busyTimeSlotIndices?.has(idx) === true;
                     return (
                       <option
@@ -895,7 +901,7 @@ export function ChairmanPlotScheduleModal({
                 disabled={readOnly}
                 onChange={(e) => {
                   const durationSlots = parseInt(e.target.value, 10) || 1;
-                  const maxS = slotTable.length - durationSlots;
+                  const maxS = slots.length - durationSlots;
                   const startSlotIndex = Math.min(draft.startSlotIndex, maxS);
                   onDraftChange({ ...draft, durationSlots, startSlotIndex });
                 }}

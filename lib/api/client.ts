@@ -1221,6 +1221,7 @@ export type CampusConflictScanInput = {
   mode: "doi_campus" | "gec_campus" | "chairman_program" | "college";
   collegeId: string | null;
   programId: string | null;
+  programMode?: "day" | "night" | null;
 };
 
 export type CampusConflictScanResult = {

@@ -46,17 +46,10 @@ import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
-import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
-import {
-  applyProgramSessionOverlay,
-  DAY_PROGRAM_SLOTS,
-  entryMatchesSession,
-  rememberEntryProgramSession,
-  slotsForSession,
-  type ProgramHourSlot,
-} from "@/lib/scheduling/program-session";
-import { formatTimeRange12h } from "@/lib/time/format-12h";
+import { evaluatorTimeSlots, evaluatorWeekdaysForMode, filterByProgramMode, isEvaluatorSlotPlottable, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import type { ProgramMode } from "@/lib/scheduling/program-mode";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import { readEvaluatorBackupSnapshot, writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
@@ -135,8 +128,8 @@ function subjectFromProspectus(code: string, programId: string, programCodeForSu
 function rowTimeBounds(
   row: PlotRow,
   programCodeForSummary: string,
-  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
-): { startIdx: number; start: ProgramHourSlot; endSlot: ProgramHourSlot } | null {
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
+): { startIdx: number; start: (typeof slots)[0]; endSlot: (typeof slots)[0] } | null {
   if (row.startSlotIndex < 0) return null;
   const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   if (!p) return null;
@@ -155,8 +148,8 @@ function rowToSparseBlock(
   row: PlotRow,
   academicPeriodId: string,
   programCodeForSummary: string,
-  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
-  programSession: "day" | "night" = "day",
+  programMode: ProgramMode = "day",
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
 ): SparseScheduleBlock | null {
   if (!academicPeriodId || !row.day) return null;
   const t = rowTimeBounds(row, programCodeForSummary, slots);
@@ -170,7 +163,7 @@ function rowToSparseBlock(
     instructorId: row.instructorId || null,
     sectionId: row.sectionId || null,
     roomId: row.roomId || null,
-    programSession,
+    programMode,
   };
 }
 
@@ -179,7 +172,8 @@ function rowToBlock(
   academicPeriodId: string,
   subjectIdForRow: string,
   programCodeForSummary: string,
-  slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS,
+  programMode: ProgramMode = "day",
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
 ): ScheduleBlock | null {
   if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) return null;
   const p = prospectusRowForProgram(programCodeForSummary, row.subjectCode);
@@ -196,6 +190,7 @@ function rowToBlock(
     day: row.day,
     startTime: t.start.startTime,
     endTime: t.endSlot.endTime,
+    programMode,
   };
 }
 
@@ -206,9 +201,10 @@ function buildWorksheetPolicyScheduleEntries(args: {
   academicPeriodId: string;
   programId: string;
   programCodeForSummary: string;
-  slots?: ProgramHourSlot[];
+  programMode: ProgramMode;
+  slots: { label: string; startTime: string; endTime: string }[];
 }): ScheduleEntry[] {
-  const { rows, allTermScheduleEntries, academicPeriodId, programId, programCodeForSummary, slots = DAY_PROGRAM_SLOTS } = args;
+  const { rows, allTermScheduleEntries, academicPeriodId, programId, programCodeForSummary, programMode, slots } = args;
   const worksheetIds = new Set(rows.map((r) => r.id));
   const byId = new Map<string, ScheduleEntry>();
 
@@ -222,7 +218,7 @@ function buildWorksheetPolicyScheduleEntries(args: {
     let entry: ScheduleEntry | null = null;
     const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
     if (subj) {
-      const b = rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary, slots);
+      const b = rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary, programMode, slots);
       if (b) {
         entry = {
           id: row.id,
@@ -235,6 +231,7 @@ function buildWorksheetPolicyScheduleEntries(args: {
           startTime: b.startTime,
           endTime: b.endTime,
           status: "draft",
+          programMode,
         };
       }
     }
@@ -266,6 +263,7 @@ function scheduleEntryToBlock(e: ScheduleEntry): ScheduleBlock | null {
     day: e.day,
     startTime: hhmmSchedule(e.startTime),
     endTime: hhmmSchedule(e.endTime),
+    programMode: resolveProgramMode(e),
   };
 }
 
@@ -291,9 +289,9 @@ type BsitChairmanEvaluatorWorksheetProps = {
   onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
 };
 
-function rowFullyPlotted(row: PlotRow, programCodeForSummary: string, slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS): boolean {
+function rowFullyPlotted(row: PlotRow, programCodeForSummary: string): boolean {
   if (!row.sectionId || !row.subjectCode || !row.instructorId || !row.roomId) return false;
-  return rowTimeBounds(row, programCodeForSummary, slots) != null;
+  return rowTimeBounds(row, programCodeForSummary) != null;
 }
 
 /**
@@ -301,10 +299,10 @@ function rowFullyPlotted(row: PlotRow, programCodeForSummary: string, slots: Pro
  * start slot are set. Instructor/room are optional for rendering the cell — the summary “Plotted” badge must follow
  * this so it stays in sync with the preview (autosave to DB may still wait for full resource fields).
  */
-function rowVisibleInSchedulePreview(row: PlotRow, programCodeForSummary: string, slots: ProgramHourSlot[] = DAY_PROGRAM_SLOTS): boolean {
+function rowVisibleInSchedulePreview(row: PlotRow, programCodeForSummary: string): boolean {
   if (!row.sectionId || !row.subjectCode) return false;
   if (!prospectusRowForProgram(programCodeForSummary, row.subjectCode)) return false;
-  return rowTimeBounds(row, programCodeForSummary, slots) != null;
+  return rowTimeBounds(row, programCodeForSummary) != null;
 }
 
 export function BsitChairmanEvaluatorWorksheet({
@@ -315,10 +313,10 @@ export function BsitChairmanEvaluatorWorksheet({
   onPolicySnapshot,
 }: BsitChairmanEvaluatorWorksheetProps) {
   const toast = useOpticoreToast();
-  const programSession = useProgramSessionOptional()?.programSession ?? "day";
-  const sessionSlots = slotsForSession(programSession);
   const searchParams = useSearchParams();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
+  const { programMode } = useProgramMode();
+  const slotsForMode = evaluatorTimeSlots(programMode);
   const systemConfig = useSystemConfigurationOptional();
   const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
   const maxFacultyHours = systemConfig?.defaultMaxFacultyHoursPerWeek;
@@ -350,7 +348,10 @@ export function BsitChairmanEvaluatorWorksheet({
   /** Dedupe real-time conflict toasts per row + conflict signature. */
   const lastConflictToastRef = useRef<Map<string, string>>(new Map());
 
-  const [rows, setRows] = useState<PlotRow[]>([]);
+  const [dayRows, setDayRows] = useState<PlotRow[]>([]);
+  const [nightRows, setNightRows] = useState<PlotRow[]>([]);
+  const rows = programMode === "night" ? nightRows : dayRows;
+  const setRows = programMode === "night" ? setNightRows : setDayRows;
   const [justificationText, setJustificationText] = useState("");
   const [justificationSaving, setJustificationSaving] = useState(false);
   const [justificationMsg, setJustificationMsg] = useState<string | null>(null);
@@ -379,7 +380,10 @@ export function BsitChairmanEvaluatorWorksheet({
    * Room list per building is filtered/sorted with {@link roomsInBuildingSorted} so it matches campus navigation towers.
    */
   const [roomBuildingByRowId, setRoomBuildingByRowId] = useState<Record<string, string>>({});
-  const lastSyncedRowIdsRef = useRef<Set<string>>(new Set());
+  const lastSyncedByModeRef = useRef<{ day: Set<string>; night: Set<string> }>({
+    day: new Set(),
+    night: new Set(),
+  });
   /** IDs loaded with `lockedByDoiAt` — never send DELETE for these if they disappear from state (e.g. scope change). */
   const lockedEntryIdsRef = useRef<Set<string>>(new Set());
   const didHydrateFromDbRef = useRef(false);
@@ -554,48 +558,48 @@ export function BsitChairmanEvaluatorWorksheet({
     const relevant =
       localSectionIdSet.size === 0
         ? []
-        : entries
-            .map((e) => applyProgramSessionOverlay(e))
-            .filter((e) => localSectionIdSet.has(e.sectionId))
-            .filter((e) => entryMatchesSession(e, programSession));
+        : entries.filter((e) => localSectionIdSet.has(e.sectionId));
 
     lockedEntryIdsRef.current = new Set(
       relevant.filter((e) => Boolean(e.lockedByDoiAt)).map((e) => e.id),
     );
 
-    const slotIndexByStartTime = new Map<string, number>();
-    for (let i = 0; i < sessionSlots.length; i++) {
-      const t = sessionSlots[i];
-      if (t) {
-        slotIndexByStartTime.set(t.startTime, i);
-        slotIndexByStartTime.set(normalizeSlotHHMM(t.startTime), i);
+    const mapToPlotRows = (list: ScheduleEntry[], mode: ProgramMode): PlotRow[] => {
+      const slots = evaluatorTimeSlots(mode);
+      const slotIndexByStartTime = new Map<string, number>();
+      for (let i = 0; i < slots.length; i++) {
+        const t = slots[i];
+        if (t) {
+          slotIndexByStartTime.set(t.startTime, i);
+          slotIndexByStartTime.set(normalizeSlotHHMM(t.startTime), i);
+        }
       }
-    }
+      return list.map((e) => {
+        const normStart = normalizeSlotHHMM(e.startTime);
+        const slotIdx =
+          slotIndexByStartTime.get(normStart) ??
+          slotIndexByStartTime.get(e.startTime) ??
+          startSlotIndexFromScheduleEntryStartTime(e.startTime, mode);
+        const subjectCode = localCodeById.get(e.subjectId) ?? "";
+        return normalizePlotRow(
+          {
+            id: e.id,
+            sectionId: e.sectionId,
+            students: "",
+            subjectCode,
+            lecLabMode: "lec",
+            instructorId: e.instructorId,
+            roomId: e.roomId,
+            startSlotIndex: slotIdx,
+            day: normalizeScheduleEntryDayForEvaluator(e.day),
+            lockedByDoiAt: e.lockedByDoiAt ?? null,
+          },
+          programCodeForSummary,
+        );
+      });
+    };
 
-    const nextRows: PlotRow[] = relevant.map((e) => {
-      const normStart = normalizeSlotHHMM(e.startTime);
-      const slotIdx = slotIndexByStartTime.get(normStart) ?? slotIndexByStartTime.get(e.startTime) ?? startSlotIndexFromScheduleEntryStartTime(e.startTime, sessionSlots);
-      const subjectCode = localCodeById.get(e.subjectId) ?? "";
-      return normalizePlotRow(
-        {
-          id: e.id,
-          sectionId: e.sectionId,
-          students: "",
-          subjectCode,
-          lecLabMode: "lec",
-          instructorId: e.instructorId,
-          roomId: e.roomId,
-          startSlotIndex: slotIdx,
-          day: normalizeScheduleEntryDayForEvaluator(e.day),
-          lockedByDoiAt: e.lockedByDoiAt ?? null,
-        },
-        programCodeForSummary,
-      );
-    });
-
-    didHydrateFromDbRef.current = true;
-    lastSyncedRowIdsRef.current = new Set(nextRows.map((r) => r.id));
-    setRows((prev) => {
+    const mergeHydrate = (prev: PlotRow[], nextRows: PlotRow[]): PlotRow[] => {
       const dbIds = new Set(nextRows.map((r) => r.id));
       const pending = prev.filter((r) => !dbIds.has(r.id) && !r.lockedByDoiAt);
       const guard = postPersistUiMergeRef.current;
@@ -646,8 +650,17 @@ export function BsitChairmanEvaluatorWorksheet({
         return nr;
       });
       return [...mergedDb, ...pending];
-    });
-  }, [chairmanCollegeId, academicPeriodId, programCodeForSummary, programSession, sessionSlots]);
+    };
+
+    const dayNext = mapToPlotRows(filterByProgramMode(relevant, "day"), "day");
+    const nightNext = mapToPlotRows(filterByProgramMode(relevant, "night"), "night");
+
+    didHydrateFromDbRef.current = true;
+    lastSyncedByModeRef.current.day = new Set(dayNext.map((r) => r.id));
+    lastSyncedByModeRef.current.night = new Set(nightNext.map((r) => r.id));
+    setDayRows((prev) => mergeHydrate(prev, dayNext));
+    setNightRows((prev) => mergeHydrate(prev, nightNext));
+  }, [chairmanCollegeId, academicPeriodId, programCodeForSummary]);
 
   useEffect(() => {
     void loadAllData();
@@ -801,6 +814,7 @@ export function BsitChairmanEvaluatorWorksheet({
 
     for (const e of allTermScheduleEntries) {
       if (academicPeriodId && e.academicPeriodId !== academicPeriodId) continue;
+      if (resolveProgramMode(e) !== programMode) continue;
       if (!programSectionIdSet.has(e.sectionId)) continue;
       const code = subjectCodeById.get(e.subjectId) ?? "";
       if (code) add(e.sectionId, code);
@@ -823,13 +837,16 @@ export function BsitChairmanEvaluatorWorksheet({
     const byId = new Map<string, ScheduleBlock>();
     for (const e of allTermScheduleEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
+      if (resolveProgramMode(e) !== programMode) continue;
       if (worksheetIds.has(e.id)) continue;
       const b = scheduleEntryToBlock(e);
       if (b) byId.set(e.id, b);
     }
     for (const row of rows) {
       const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
-      let b: ScheduleBlock | null = subj ? rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary) : null;
+      let b: ScheduleBlock | null = subj
+        ? rowToBlock(row, academicPeriodId, subj.id, programCodeForSummary, programMode, slotsForMode)
+        : null;
       if (!b) {
         const fromDb = allTermScheduleEntries.find((e) => e.id === row.id);
         if (fromDb && fromDb.academicPeriodId === academicPeriodId) b = scheduleEntryToBlock(fromDb);
@@ -837,7 +854,7 @@ export function BsitChairmanEvaluatorWorksheet({
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows, programId, programCodeForSummary]);
+  }, [allTermScheduleEntries, academicPeriodId, rows, programId, programCodeForSummary, programMode, slotsForMode]);
 
   /**
    * Campus-wide sparse blocks: every term `ScheduleEntry` (partial rows included) + worksheet overlay.
@@ -849,21 +866,22 @@ export function BsitChairmanEvaluatorWorksheet({
     const byId = new Map<string, SparseScheduleBlock>();
     for (const e of allTermScheduleEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
+      if (resolveProgramMode(e) !== programMode) continue;
       if (worksheetIds.has(e.id)) continue;
       const b = scheduleEntryToSparseBlock(e);
       if (b) byId.set(e.id, b);
     }
     for (const row of rows) {
-      const b = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, sessionSlots, programSession);
+      const b = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, programMode, slotsForMode);
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows, programCodeForSummary, sessionSlots, programSession]);
+  }, [allTermScheduleEntries, academicPeriodId, rows, programCodeForSummary, programMode, slotsForMode]);
 
   const conflictForRow = useCallback(
     (row: PlotRow): { faculty: string; room: string; section: string } => {
       if (!academicPeriodId) return { faculty: "—", room: "—", section: "—" };
-      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, sessionSlots, programSession);
+      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, programMode, slotsForMode);
       if (!candidate) return { faculty: "—", room: "—", section: "—" };
       const hits = detectConflictsSparse(candidate, sparseCampusUniverse, candidate.id);
       const fac = hits.some((h) => h.type === "faculty");
@@ -875,13 +893,13 @@ export function BsitChairmanEvaluatorWorksheet({
         section: !candidate.sectionId ? "—" : sec ? "Yes" : "No",
       };
     },
-    [academicPeriodId, sparseCampusUniverse, programCodeForSummary, sessionSlots, programSession],
+    [academicPeriodId, sparseCampusUniverse, programCodeForSummary, programMode, slotsForMode],
   );
 
   const conflictDetailForRow = useCallback(
     (row: PlotRow): string[] => {
       if (!academicPeriodId) return [];
-      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, sessionSlots, programSession);
+      const candidate = rowToSparseBlock(row, academicPeriodId, programCodeForSummary, programMode, slotsForMode);
       if (!candidate) return [];
       const hits = detectConflictsSparse(candidate, sparseCampusUniverse, candidate.id);
       return formatSparseConflictLines(hits, sparseCampusUniverse, {
@@ -889,7 +907,7 @@ export function BsitChairmanEvaluatorWorksheet({
         sectionName: row.sectionId ? sectionNameById.get(row.sectionId) : undefined,
         roomCode: row.roomId ? roomCodeById.get(row.roomId) : undefined,
         subjectCode: row.subjectCode,
-        when: `${row.day} ${formatTimeRange12h(candidate.startTime, candidate.endTime)}`,
+        when: `${row.day} ${candidate.startTime.slice(0, 5)}–${candidate.endTime.slice(0, 5)}`,
       });
     },
     [
@@ -899,8 +917,6 @@ export function BsitChairmanEvaluatorWorksheet({
       instructorDisplayById,
       sectionNameById,
       roomCodeById,
-      sessionSlots,
-      programSession,
     ],
   );
 
@@ -931,9 +947,10 @@ export function BsitChairmanEvaluatorWorksheet({
     try {
       const scan = await runCampusConflictScan({
         academicPeriodId,
-        localEntries: allTermScheduleEntries,
+        localEntries: filterByProgramMode(allTermScheduleEntries, programMode),
         localSparseBlocks: sparseCampusUniverse,
         apiMode: "doi_campus",
+        programMode,
       });
       const mergedIssueList = scan.issues;
       const ids = scan.conflictingEntryIds;
@@ -1135,6 +1152,8 @@ export function BsitChairmanEvaluatorWorksheet({
       academicPeriodId,
       programId,
       programCodeForSummary,
+      programMode,
+      slots: slotsForMode,
     });
   }, [academicPeriodId, allTermScheduleEntries, rows, programId, programCodeForSummary]);
 
@@ -1220,6 +1239,8 @@ export function BsitChairmanEvaluatorWorksheet({
       academicPeriodId,
       programId,
       programCodeForSummary,
+      programMode,
+      slots: slotsForMode,
     });
     const polJustif = evaluateFacultyLoadsForCollege(
       mergedForJustif,
@@ -1357,6 +1378,8 @@ export function BsitChairmanEvaluatorWorksheet({
         academicPeriodId,
         programId,
         programCodeForSummary,
+        programMode,
+        slots: slotsForMode,
       });
       const pol = evaluateFacultyLoadsForCollege(
         merged,
@@ -1418,9 +1441,10 @@ export function BsitChairmanEvaluatorWorksheet({
 
   useEffect(() => {
     didHydrateFromDbRef.current = false;
-    lastSyncedRowIdsRef.current = new Set();
+    lastSyncedByModeRef.current = { day: new Set(), night: new Set() };
     locallyEditedRowIdsRef.current.clear();
-    setRows([]);
+    setDayRows([]);
+    setNightRows([]);
   }, [academicPeriodId]);
 
   const reloadScheduleFromDb = useCallback(async () => {
@@ -1616,7 +1640,7 @@ export function BsitChairmanEvaluatorWorksheet({
             });
             continue;
           }
-          const tb = rowTimeBounds(row, programCodeForSummary, sessionSlots);
+          const tb = rowTimeBounds(row, programCodeForSummary, slotsForMode);
           if (!tb) {
             skipped.push({
               rowId: row.id,
@@ -1637,13 +1661,12 @@ export function BsitChairmanEvaluatorWorksheet({
             startTime: tb.start.startTime,
             endTime: tb.endSlot.endTime,
             status: "draft",
-            programSession,
+            programMode,
           });
-          rememberEntryProgramSession(row.id, programSession);
         }
 
         const currentIds = new Set(rows.map((r) => r.id));
-        const prevIds = lastSyncedRowIdsRef.current;
+        const prevIds = lastSyncedByModeRef.current[programMode];
         const removedIds = Array.from(prevIds).filter(
           (id) => !currentIds.has(id) && !lockedEntryIdsRef.current.has(id),
         );
@@ -1751,7 +1774,7 @@ export function BsitChairmanEvaluatorWorksheet({
           }
         }
 
-        lastSyncedRowIdsRef.current = new Set(rows.map((r) => r.id));
+        lastSyncedByModeRef.current[programMode] = new Set(rows.map((r) => r.id));
 
         if (source === "manual") {
           setSaveScheduleMsg(
@@ -1779,7 +1802,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode],
   );
 
   /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */
@@ -1824,7 +1847,6 @@ export function BsitChairmanEvaluatorWorksheet({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3 text-[13px] font-semibold text-black/75">
-        <ProgramSessionSwitch />
         <span>Section</span>
         <select
           className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
@@ -1839,6 +1861,7 @@ export function BsitChairmanEvaluatorWorksheet({
             </option>
           ))}
         </select>
+        <ProgramModeToggle size="sm" />
       </div>
 
       <ChairmanProgramProspectusSummaryTable
@@ -1855,6 +1878,9 @@ export function BsitChairmanEvaluatorWorksheet({
 
       <BsitChairmanInteractiveWeekGrid
         rows={rows}
+        programMode={programMode}
+        weekdays={[...evaluatorWeekdaysForMode(programMode)]}
+        timeSlots={slotsForMode}
         programCodeForSummary={programCodeForSummary}
         programSections={programSections}
         selectedSectionId={selectedSectionId}

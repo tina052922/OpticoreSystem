@@ -5,13 +5,10 @@ import type {
   PDFScheduleGrid,
   PDFScheduleCell,
   PDFSignatureSlot,
+  InsDay as PDFInsDay,
 } from "@/components/pdf/types/insTypes";
-import {
-  slotsForSession,
-  weekdaysForSession,
-  type ProgramHourSlot,
-  type ProgramSession,
-} from "@/lib/scheduling/program-session";
+import { INS_TIME_SLOTS } from "@/components/pdf/types/insTypes";
+import { NIGHT_FULL_DAY_SLOTS, NIGHT_WEEKDAY_SLOTS, type ProgramMode } from "@/lib/scheduling/program-mode";
 
 type InsSectionCell = {
   time: string;
@@ -37,89 +34,215 @@ function parseTimeMinutes(raw: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function findCellsForHourSlot<T extends { startTime?: string; endTime?: string; time?: string }>(
+function slotStartMinutes(slotLabel: string): number {
+  const start = slotLabel.split("-")[0]!.trim();
+  const [h, m] = start.split(":").map(Number);
+  let hour = h ?? 0;
+  if (hour < 7) hour += 12;
+  return hour * 60 + (m ?? 0);
+}
+
+function entryStartMinutes(entry: { startTime?: string; time?: string }): number {
+  if (entry.startTime) return parseTimeMinutes(entry.startTime);
+  const start = (entry.time ?? "").split("-")[0]!.trim();
+  if (!start) return 0;
+  const [h, m] = start.split(":").map(Number);
+  let hour = h ?? 0;
+  if (hour < 7) hour += 12;
+  return hour * 60 + (m ?? 0);
+}
+
+function findCellsForSlotAtHour<T extends { startTime?: string; endTime?: string; time?: string }>(
   entries: T[],
-  slot: ProgramHourSlot,
+  startHour: number,
 ): T[] {
-  const slotStart = parseTimeMinutes(slot.startTime);
-  const slotEnd = parseTimeMinutes(slot.endTime) || slotStart + 60;
+  const slotStart = startHour * 60;
+  const slotEnd = slotStart + 60;
   return entries.filter((e) => {
-    const eStart = e.startTime ? parseTimeMinutes(e.startTime) : parseTimeMinutes((e.time ?? "").split(/[–-]/)[0] ?? "0");
+    const eStart = entryStartMinutes(e);
     let eEnd: number;
     if (e.endTime) {
       eEnd = parseTimeMinutes(e.endTime);
     } else {
-      const parts = (e.time ?? "").split(/[–-]/);
+      const parts = (e.time ?? "").split("-");
       const endPart = parts[1]?.trim() ?? "";
       if (!endPart) return false;
-      eEnd = parseTimeMinutes(endPart);
+      const [h2, m2] = endPart.split(":").map(Number);
+      let hour2 = h2 ?? 0;
+      if (hour2 < 7) hour2 += 12;
+      eEnd = hour2 * 60 + (m2 ?? 0);
     }
-    if (eEnd <= eStart) eEnd = eStart + 60;
     return eStart < slotEnd && eEnd > slotStart;
   });
 }
 
-function pdfGridFromDayMap<T extends { startTime?: string; endTime?: string; time?: string }>(
-  schedule: Record<InsDay, T[]>,
-  session: ProgramSession,
-  toCell: (matched: T[]) => PDFScheduleCell | null,
-): PDFScheduleGrid {
-  const hourSlots = slotsForSession(session);
-  const days = weekdaysForSession(session);
+function findCellsForSlot<T extends { startTime?: string; endTime?: string; time?: string }>(
+  entries: T[],
+  slotIdx: number,
+): T[] {
+  const slotStart = slotStartMinutes(INS_TIME_SLOTS[slotIdx]);
+  return findCellsForSlotAtHour(entries, Math.floor(slotStart / 60));
+}
+
+function isStartOfHour<T extends { startTime?: string; time?: string }>(entry: T, startHour: number): boolean {
+  const startMin = entryStartMinutes(entry);
+  const slotStart = startHour * 60;
+  return startMin >= slotStart && startMin < slotStart + 60;
+}
+
+const PDF_DAYS: PDFInsDay[] = [
+  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+];
+
+function emptyNightPdfGrid(): PDFScheduleGrid {
   const grid = {} as PDFScheduleGrid;
-  for (const day of days) {
+  for (const day of PDF_DAYS) {
+    const n = day === "Saturday" || day === "Sunday" ? NIGHT_FULL_DAY_SLOTS.length : NIGHT_WEEKDAY_SLOTS.length;
+    grid[day] = Array.from({ length: n }, () => null);
+  }
+  return grid;
+}
+
+function facultyCellToPdf(first: InsFacultyCell): PDFScheduleCell {
+  return { line1: first.course, line2: first.yearSec, line3: first.room };
+}
+
+function sectionCellToPdf(first: InsSectionCell): PDFScheduleCell {
+  return { line1: first.course, line2: first.instructor, line3: first.room };
+}
+
+function roomCellToPdf(first: InsRoomCell): PDFScheduleCell {
+  return { line1: first.course, line2: first.instructor, line3: first.yearSec, line4: first.room };
+}
+
+function nightPdfGridFromDays<T extends { startTime?: string; time?: string }>(
+  schedule: Record<InsDay, T[]>,
+  toCell: (first: T) => PDFScheduleCell,
+): PDFScheduleGrid {
+  const grid = emptyNightPdfGrid();
+  for (const day of PDF_DAYS) {
     const entries = schedule[day] ?? [];
-    const cells: (PDFScheduleCell | null)[] = [];
-    for (const slot of hourSlots) {
-      const matched = findCellsForHourSlot(entries, slot);
-      cells.push(matched.length === 0 ? null : toCell(matched));
-    }
-    grid[day] = cells;
+    const hours =
+      day === "Saturday" || day === "Sunday"
+        ? NIGHT_FULL_DAY_SLOTS.map((s) => s.startHour)
+        : NIGHT_WEEKDAY_SLOTS.map((s) => s.startHour);
+    grid[day] = hours.map((hour) => {
+      const matched = findCellsForSlotAtHour(entries, hour);
+      const first = matched.find((e) => isStartOfHour(e, hour));
+      return first ? toCell(first) : null;
+    });
   }
   return grid;
 }
 
 export function facultyScheduleToPdfGrid(
   schedule: Record<InsDay, InsFacultyCell[]>,
-  session: ProgramSession = "day",
+  programMode: ProgramMode = "day",
 ): PDFScheduleGrid {
-  return pdfGridFromDayMap(schedule, session, (matched) => {
-    const first = matched[0] as InsFacultyCell;
-    return {
-      line1: first.course,
-      line2: first.yearSec,
-      line3: first.room,
-    };
-  });
+  if (programMode === "night") return nightPdfGridFromDays(schedule, facultyCellToPdf);
+  const days: PDFInsDay[] = [
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+  ];
+  const grid = {} as PDFScheduleGrid;
+  for (const day of days) {
+    const entries = schedule[day] ?? [];
+    const cells: (PDFScheduleCell | null)[] = [];
+    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
+      const matched = findCellsForSlot(entries, i);
+      if (matched.length === 0) {
+        cells.push(null);
+        continue;
+      }
+      const first = matched[0]!;
+      const startMin = entryStartMinutes(first);
+      const slotStart = slotStartMinutes(INS_TIME_SLOTS[i]);
+      const isStart = startMin >= slotStart && startMin < slotStart + 60;
+      if (!isStart) {
+        cells.push(null);
+        continue;
+      }
+      cells.push({
+        line1: first.course,
+        line2: first.yearSec,
+        line3: first.room,
+      });
+    }
+    grid[day] = cells;
+  }
+  return grid;
 }
 
 export function sectionScheduleToPdfGrid(
   schedule: Record<InsDay, InsSectionCell[]>,
-  session: ProgramSession = "day",
+  programMode: ProgramMode = "day",
 ): PDFScheduleGrid {
-  return pdfGridFromDayMap(schedule, session, (matched) => {
-    const first = matched[0] as InsSectionCell;
-    return {
-      line1: first.course,
-      line2: first.instructor,
-      line3: first.room,
-    };
-  });
+  if (programMode === "night") return nightPdfGridFromDays(schedule, sectionCellToPdf);
+  const days: PDFInsDay[] = [
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+  ];
+  const grid = {} as PDFScheduleGrid;
+  for (const day of days) {
+    const entries = schedule[day] ?? [];
+    const cells: (PDFScheduleCell | null)[] = [];
+    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
+      const matched = findCellsForSlot(entries, i);
+      if (matched.length === 0) {
+        cells.push(null);
+        continue;
+      }
+      const first = matched[0]!;
+      const startMin = entryStartMinutes(first);
+      const slotStart = slotStartMinutes(INS_TIME_SLOTS[i]);
+      if (!(startMin >= slotStart && startMin < slotStart + 60)) {
+        cells.push(null);
+        continue;
+      }
+      cells.push({
+        line1: first.course,
+        line2: first.instructor,
+        line3: first.room,
+      });
+    }
+    grid[day] = cells;
+  }
+  return grid;
 }
 
 export function roomScheduleToPdfGrid(
   schedule: Record<InsDay, InsRoomCell[]>,
-  session: ProgramSession = "day",
+  programMode: ProgramMode = "day",
 ): PDFScheduleGrid {
-  return pdfGridFromDayMap(schedule, session, (matched) => {
-    const first = matched[0] as InsRoomCell;
-    return {
-      line1: first.course,
-      line2: first.instructor,
-      line3: first.yearSec,
-      line4: first.room,
-    };
-  });
+  if (programMode === "night") return nightPdfGridFromDays(schedule, roomCellToPdf);
+  const days: PDFInsDay[] = [
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+  ];
+  const grid = {} as PDFScheduleGrid;
+  for (const day of days) {
+    const entries = schedule[day] ?? [];
+    const cells: (PDFScheduleCell | null)[] = [];
+    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
+      const matched = findCellsForSlot(entries, i);
+      if (matched.length === 0) {
+        cells.push(null);
+        continue;
+      }
+      const first = matched[0]!;
+      const startMin = entryStartMinutes(first);
+      const slotStart = slotStartMinutes(INS_TIME_SLOTS[i]);
+      if (!(startMin >= slotStart && startMin < slotStart + 60)) {
+        cells.push(null);
+        continue;
+      }
+      cells.push({
+        line1: first.course,
+        line2: first.instructor,
+        line3: first.yearSec,
+        line4: first.room,
+      });
+    }
+    grid[day] = cells;
+  }
+  return grid;
 }
 
 /**

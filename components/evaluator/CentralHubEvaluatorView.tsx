@@ -5,9 +5,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { ProgramSessionSwitch } from "@/components/scheduling/ProgramSessionSwitch";
-import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
-import { filterEntriesForSession } from "@/lib/scheduling/program-session";
 import { Button } from "@/components/ui/button";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import {
@@ -50,6 +47,8 @@ import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApproval
 import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEntryQuickEditDialog";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
@@ -76,6 +75,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
     day: e.day,
     startTime: e.startTime,
     endTime: e.endTime,
+    programMode: resolveProgramMode(e),
   };
 }
 
@@ -97,8 +97,8 @@ export function CentralHubEvaluatorView({
   hubAccessMode = "default",
 }: CentralHubEvaluatorViewProps) {
   const toast = useOpticoreToast();
+  const { programMode } = useProgramMode();
   const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
-  const programSession = useProgramSessionOptional()?.programSession ?? "day";
   const router = useRouter();
   const searchParams = useSearchParams();
   const collegeSlug = searchParams.get("college");
@@ -408,16 +408,21 @@ export function CentralHubEvaluatorView({
     return sec.yearLevel;
   }, [sectionFilterId, sectionById]);
 
+  const modeEntries = useMemo(
+    () => filterByProgramMode(entries, programMode),
+    [entries, programMode],
+  );
+
   const plottedSubjectCodesForHub = useMemo(() => {
     const set = new Set<string>();
     if (!sectionFilterId.trim() || !academicPeriodId) return set;
-    for (const e of entries) {
+    for (const e of modeEntries) {
       if (e.academicPeriodId !== academicPeriodId || e.sectionId !== sectionFilterId) continue;
       const sub = subjectById.get(e.subjectId);
       if (sub?.code) set.add(normalizeProspectusCode(sub.code));
     }
     return set;
-  }, [entries, academicPeriodId, sectionFilterId, subjectById]);
+  }, [modeEntries, academicPeriodId, sectionFilterId, subjectById]);
 
   useEffect(() => {
     if (!sectionFilterId) return;
@@ -425,7 +430,7 @@ export function CentralHubEvaluatorView({
     if (!ok) setSectionFilterId("");
   }, [programId, sectionFilterId, sectionsInDepartmentScope]);
 
-  const universe = useMemo(() => entries.map(toBlock), [entries]);
+  const universe = useMemo(() => modeEntries.map(toBlock), [modeEntries]);
 
   const suggestAlternativesForEntry = useCallback(
     (entryId: string) => {
@@ -509,7 +514,7 @@ export function CentralHubEvaluatorView({
     if (!academicPeriodId) return;
     setConflictScanBusy(true);
     void (async () => {
-      const termEntries = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+      const termEntries = modeEntries.filter((e) => e.academicPeriodId === academicPeriodId);
       const entryById = new Map(termEntries.map((e) => [e.id, e]));
       const localBlocks = termEntries
         .map((e) => scheduleEntryToSparseBlock(e))
@@ -584,6 +589,7 @@ export function CentralHubEvaluatorView({
             mode: "doi_campus",
             collegeId: null,
             programId: null,
+            programMode,
           }) as CampusConflictScanApiPayload;
         } catch (e) {
           const payload = mergePayload(null);
@@ -635,7 +641,8 @@ export function CentralHubEvaluatorView({
     })();
   }, [
     academicPeriodId,
-    entries,
+    modeEntries,
+    programMode,
     subjectById,
     sectionById,
     roomById,
@@ -649,7 +656,7 @@ export function CentralHubEvaluatorView({
   const tableRows = useMemo(() => {
     if (!academicPeriodId) return [];
     return buildScheduleEvaluatorTableRows({
-      entries: filterEntriesForSession(entries, programSession),
+      entries: modeEntries,
       academicPeriodId,
       scopeCollegeId,
       programId,
@@ -663,7 +670,7 @@ export function CentralHubEvaluatorView({
       collegeNameById,
     });
   }, [
-    entries,
+    modeEntries,
     scopeCollegeId,
     academicPeriodId,
     programId,
@@ -675,7 +682,6 @@ export function CentralHubEvaluatorView({
     facultyProfileByUserId,
     programById,
     collegeNameById,
-    programSession,
   ]);
 
   /** Dashboard deep link: ?conflicts=1&focusEntry=<id> — same scan as the explicit Run conflict check button. */
@@ -1096,7 +1102,6 @@ export function CentralHubEvaluatorView({
           <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← College hub
           </Link>
-          <ProgramSessionSwitch />
           <span className="text-[13px] text-black/55">
             Scope:{" "}
             <strong className="text-black/80">
