@@ -1,4 +1,4 @@
-import { INS_DAYS, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
+import { INS_DAYS, toInsDay, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import type { FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
@@ -21,11 +21,6 @@ export function emptyInsSectionSchedule(): InsSectionSchedule {
   const o = {} as InsSectionSchedule;
   for (const d of INS_DAYS) o[d] = [];
   return o;
-}
-
-function toInsDay(day: string): InsDay | null {
-  const d = INS_DAYS.find((x) => x === day);
-  return d ?? null;
 }
 
 /** INS Form 5B grid + course list for one section from live `ScheduleEntry` rows. */

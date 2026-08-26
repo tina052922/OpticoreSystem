@@ -9,8 +9,6 @@ import {
 import { resolveInsSignatureSlots, type InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
-import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
-import { filterEntriesForSession } from "@/lib/scheduling/program-session";
 import type { FacultyProfile } from "@/types/db";
 
 export type { InsInstructorOption } from "@/hooks/use-ins-catalog";
@@ -30,7 +28,6 @@ export function useInsLiveSchedule(args: {
 }) {
   /** Form 5A totals must match faculty portal + Evaluator (cross-program teaching in one college). */
   const catalog = useInsCatalog({ ...args, ignoreProgramScope: true });
-  const programSession = useProgramSessionOptional()?.programSession ?? "day";
   const [selectedInstructorId, setSelectedInstructorId] = useState(args.lockedInstructorId ?? "");
   const [facultyProfile, setFacultyProfile] = useState<FacultyProfile | null>(null);
 
@@ -131,13 +128,10 @@ export function useInsLiveSchedule(args: {
    */
   const entriesForInsFacultyView = useMemo(() => {
     if (!catalog.academicPeriodId || !selectedInstructorId) return [];
-    return filterEntriesForSession(
-      catalog.entries.filter(
-        (e) => e.academicPeriodId === catalog.academicPeriodId && e.instructorId === selectedInstructorId,
-      ),
-      programSession,
+    return catalog.entries.filter(
+      (e) => e.academicPeriodId === catalog.academicPeriodId && e.instructorId === selectedInstructorId,
     );
-  }, [catalog.entries, catalog.academicPeriodId, selectedInstructorId, programSession]);
+  }, [catalog.entries, catalog.academicPeriodId, selectedInstructorId]);
 
   const { schedule, courses, teachingMetrics } = useMemo(() => {
     if (!catalog.academicPeriodId || !selectedInstructorId) {

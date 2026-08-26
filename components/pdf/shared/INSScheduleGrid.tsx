@@ -2,13 +2,15 @@ import { View, Text, Image } from "@react-pdf/renderer";
 import { StyleSheet } from "@react-pdf/renderer";
 import { ins } from "../styles/insStyles";
 import type { PDFScheduleGrid, PDFScheduleCell, PDFSignatureSlot } from "../types/insTypes";
-import { insTimeSlotLabels, weekdaysForSession } from "@/lib/scheduling/program-session";
+import { insTimeSlotLabels } from "@/lib/scheduling/program-session";
+import { INS_DAYS } from "../types/insTypes";
 
 /* eslint-disable jsx-a11y/alt-text */
 
 type INSScheduleGridProps = {
   schedule: PDFScheduleGrid;
   rightSignatureSlots?: PDFSignatureSlot[];
+  /** Kept for callers; Day Program INS always prints Mon–Sun 7:00 AM–5:00 PM. */
   programSession?: "day" | "night";
 };
 
@@ -100,15 +102,9 @@ function CellContent({ cell }: { cell: PDFScheduleCell | null }) {
   );
 }
 
-function GridTable({
-  schedule,
-  programSession = "day",
-}: {
-  schedule: PDFScheduleGrid;
-  programSession?: "day" | "night";
-}) {
-  const days = weekdaysForSession(programSession);
-  const timeSlots = insTimeSlotLabels(programSession);
+function GridTable({ schedule }: { schedule: PDFScheduleGrid }) {
+  const days = INS_DAYS;
+  const timeSlots = insTimeSlotLabels("day");
   return (
     <View style={ins.gridContainer}>
       <View style={ins.gridHeaderRow} wrap={false}>
@@ -169,15 +165,15 @@ function SignatureRail({ slots }: { slots: PDFSignatureSlot[] }) {
   );
 }
 
-export function INSScheduleGrid({ schedule, rightSignatureSlots, programSession = "day" }: INSScheduleGridProps) {
+export function INSScheduleGrid({ schedule, rightSignatureSlots }: INSScheduleGridProps) {
   if (!rightSignatureSlots || rightSignatureSlots.length === 0) {
-    return <GridTable schedule={schedule} programSession={programSession} />;
+    return <GridTable schedule={schedule} />;
   }
 
   return (
     <View style={gs.outerWrapper}>
       <View style={gs.gridPart}>
-        <GridTable schedule={schedule} programSession={programSession} />
+        <GridTable schedule={schedule} />
       </View>
       <SignatureRail slots={rightSignatureSlots} />
     </View>
