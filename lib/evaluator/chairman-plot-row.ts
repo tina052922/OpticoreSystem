@@ -12,7 +12,7 @@ export type PlotRow = {
   lecLabMode: PlotLecLabMode;
   instructorId: string;
   roomId: string;
-  /** First 1-hour slot index (0 = 7:00–8:00 AM … 9 = 4:00–5:00 PM). */
+  /** First 1-hour slot index in the active program grid (Day: 0 = 7:00 AM; Night: 0 = 7:00 AM, 11 = 6:00 PM). */
   startSlotIndex: number;
   /** Consecutive 1-hour slots for this meeting (default 1 — split contact across multiple rows). */
   durationSlots?: number;

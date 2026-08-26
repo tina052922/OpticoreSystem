@@ -68,14 +68,30 @@ export function padScheduleTime(t: string): string {
   return t.length <= 5 ? `${t}:00` : t;
 }
 
+/**
+ * Keep the selected start cell. Never slide a Night 6:00 PM plot back onto the
+ * Day grid’s last slot (4:00 PM) just because duration no longer fits a 10-row day table.
+ */
+export function clampPlotStartSlotIndex(
+  startSlotIndex: number,
+  durationSlots: number,
+  slotCount: number,
+): number {
+  if (startSlotIndex < 0) return startSlotIndex;
+  const dur = Math.max(1, Math.round(durationSlots) || 1);
+  const maxS = Math.max(0, slotCount - dur);
+  return Math.min(startSlotIndex, maxS);
+}
+
 /** Map grid start index + duration to `ScheduleEntry` times. */
 export function timesFromSlotRange(
   effectiveStart: number,
   dur: number,
   slots: { startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
 ): { startTime: string; endTime: string } | null {
-  const startSlot = slots[effectiveStart];
-  const endSlot = slots[effectiveStart + dur - 1];
+  const startIdx = clampPlotStartSlotIndex(effectiveStart, dur, slots.length);
+  const startSlot = slots[startIdx];
+  const endSlot = slots[startIdx + dur - 1];
   if (!startSlot || !endSlot) return null;
   return {
     startTime: padScheduleTime(startSlot.startTime),

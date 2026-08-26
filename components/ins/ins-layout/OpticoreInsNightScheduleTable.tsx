@@ -101,7 +101,7 @@ export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary 
                   for (let k = 1; k < span; k++) weekendSkip.add(`${day}-${wIdx + k}`);
                   return (
                     <td key={day} rowSpan={span} className={`${border} p-0.5 align-middle text-center leading-tight overflow-hidden`}>
-                      <div className="flex h-full min-h-[var(--ins-row-h)] flex-col items-center justify-center overflow-hidden px-0.5">
+                      <div className="flex h-full max-h-full min-h-[var(--ins-row-h)] flex-col items-center justify-center overflow-hidden px-0.5">
                         {renderCell(starters, day)}
                       </div>
                     </td>
@@ -131,7 +131,7 @@ export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary 
                       for (let k = 1; k < span; k++) weekdaySkip.add(`${day}-${wIdx + k}`);
                       return (
                         <td key={day} rowSpan={span} className={`${border} p-0.5 align-middle text-center leading-tight overflow-hidden`}>
-                          <div className="flex h-full min-h-[var(--ins-row-h)] flex-col items-center justify-center overflow-hidden px-0.5">
+                          <div className="flex h-full max-h-full min-h-[var(--ins-row-h)] flex-col items-center justify-center overflow-hidden px-0.5">
                             {renderCell(starters, day)}
                           </div>
                         </td>

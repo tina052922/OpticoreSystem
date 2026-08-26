@@ -1,9 +1,12 @@
-import { BSIT_EVALUATOR_TIME_SLOTS } from "@/lib/chairman/bsit-evaluator-constants";
+import { clampPlotStartSlotIndex, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import {
   normalizeProspectusCode,
   prospectusByCode,
-  scheduleDurationSlots,
 } from "@/lib/chairman/bsit-prospectus";
+import {
+  DAY_ONE_HOUR_SLOTS,
+  NIGHT_FULL_DAY_SLOTS,
+} from "@/lib/scheduling/program-mode";
 import type { EvaluatorSessionSnapshotV1 } from "@/lib/opticore-evaluator-session-sync";
 import { readEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ScheduleEntry } from "@/types/db";
@@ -51,19 +54,23 @@ export function isWorkflowScheduleBundleV1(v: unknown): v is WorkflowScheduleBun
   );
 }
 
+function slotsForPlotRow(row: EvaluatorSessionSnapshotV1["rows"][number]) {
+  return row.startSlotIndex >= DAY_ONE_HOUR_SLOTS.length ? NIGHT_FULL_DAY_SLOTS : DAY_ONE_HOUR_SLOTS;
+}
+
 function rowTimeBounds(row: EvaluatorSessionSnapshotV1["rows"][number]): {
-  start: (typeof BSIT_EVALUATOR_TIME_SLOTS)[0];
-  endSlot: (typeof BSIT_EVALUATOR_TIME_SLOTS)[0];
+  start: { startTime: string; endTime: string };
+  endSlot: { startTime: string; endTime: string };
 } | null {
   const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
   if (!p) return null;
-  const dur = scheduleDurationSlots(p);
-  const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
-  const startIdx = Math.min(row.startSlotIndex, maxS);
-  const start = BSIT_EVALUATOR_TIME_SLOTS[startIdx];
+  const slots = slotsForPlotRow(row);
+  const dur = plotRowDurationSlots(p);
+  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
+  const start = slots[startIdx];
   const endIdx = startIdx + dur - 1;
-  const endSlot = BSIT_EVALUATOR_TIME_SLOTS[endIdx];
-  if (!start || !endSlot || startIdx < 0 || endIdx >= BSIT_EVALUATOR_TIME_SLOTS.length) return null;
+  const endSlot = slots[endIdx];
+  if (!start || !endSlot || startIdx < 0 || endIdx >= slots.length) return null;
   return { start, endSlot };
 }
 

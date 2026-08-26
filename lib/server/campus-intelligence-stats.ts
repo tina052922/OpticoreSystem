@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { apiFetch } from "@/lib/api/client";
 import { getSupabaseServiceRoleKey, getSupabaseUrl } from "@/lib/server/supabase-env";
+import { resolveProgramMode } from "@/lib/scheduling/program-mode";
 
 export type CampusIntelligenceStats = {
   roomCount: number;
@@ -261,17 +262,24 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
   let facultyLoadDistribution: FacultyLoadBand[] = [];
 
   if (sectionIds.length > 0 && period) {
-    const { data: entries } = await supabase
+    const baseSelect = "day, startTime, endTime, roomId, instructorId";
+    let { data: entries, error: entriesErr } = await supabase
       .from("ScheduleEntry")
-      .select("day, startTime, endTime, roomId, instructorId")
+      .select(`${baseSelect}, programMode`)
       .eq("academicPeriodId", period.id)
       .in("sectionId", sectionIds);
+    if (entriesErr) {
+      const retry = await supabase
+        .from("ScheduleEntry")
+        .select(baseSelect)
+        .eq("academicPeriodId", period.id)
+        .in("sectionId", sectionIds);
+      entries = retry.data;
+    }
 
     if (entries && entries.length > 0) {
       const blockRooms: Set<string>[] = Array.from({ length: BLOCK_COUNT }, () => new Set());
       const instructorHours = new Map<string, number>();
-      const modeOf = (day: string) =>
-        String(day ?? "").toLowerCase().startsWith("night::") ? "night" : "day";
 
       for (const e of entries) {
         const idx = timeBlockIdx(e.startTime);
@@ -280,7 +288,7 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
           const [sh] = e.startTime.split(":").map(Number);
           const [eh] = e.endTime.split(":").map(Number);
           const hrs = Math.abs(eh - sh);
-          const key = `${e.instructorId}::${modeOf(e.day)}`;
+          const key = `${e.instructorId}::${resolveProgramMode(e)}`;
           instructorHours.set(key, (instructorHours.get(key) || 0) + hrs);
         }
       }

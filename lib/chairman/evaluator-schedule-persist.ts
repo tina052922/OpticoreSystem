@@ -3,7 +3,7 @@ import {
   normalizeProspectusCode,
   prospectusByCode,
 } from "@/lib/chairman/bsit-prospectus";
-import { inferDurationSlotsFromTimes, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
+import { inferDurationSlotsFromTimes, plotRowDurationSlots, clampPlotStartSlotIndex } from "@/lib/evaluator/plot-duration";
 import { resolveProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
 import type { ScheduleEntry, Subject } from "@/types/db";
 
@@ -54,8 +54,7 @@ export function plotRowsToScheduleEntries(args: {
     const p = prospectusByCode(row.subjectCode);
     if (!p) continue;
     const dur = plotRowDurationSlots(p, row);
-    const maxS = slots.length - dur;
-    const startIdx = Math.min(row.startSlotIndex, maxS);
+    const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
     const startSlot = slots[startIdx];
     const endSlot = slots[startIdx + dur - 1];
     if (!startSlot || !endSlot) continue;
@@ -104,8 +103,7 @@ export function scheduleEntriesToPlotRows(args: {
     const startIdx = slots.findIndex((s) => s.startTime === startH);
     if (startIdx < 0) continue;
     const dur = inferDurationSlotsFromTimes(e.startTime, e.endTime);
-    const maxS = slots.length - dur;
-    const clampedStart = Math.min(startIdx, Math.max(0, maxS));
+    const clampedStart = clampPlotStartSlotIndex(startIdx, dur, slots.length);
 
     out.push({
       id: e.id,

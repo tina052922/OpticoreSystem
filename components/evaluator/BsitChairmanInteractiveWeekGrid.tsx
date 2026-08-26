@@ -19,7 +19,7 @@ import {
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
-import { plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
+import { clampPlotStartSlotIndex, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
@@ -54,8 +54,7 @@ function rowTimeBounds(
   const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   if (!p) return null;
   const dur = plotRowDurationSlots(p, row);
-  const maxS = slots.length - dur;
-  const startIdx = Math.min(row.startSlotIndex, maxS);
+  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
   if (startIdx < 0 || startIdx + dur > slots.length) return null;
   return { startIdx, dur };
 }
@@ -271,7 +270,7 @@ export function BsitChairmanInteractiveWeekGrid({
       }
     }
     return m;
-  }, [filteredRows, programCodeForSummary]);
+  }, [filteredRows, programCodeForSummary, slots]);
 
   const unplacedRows = useMemo(
     () =>
@@ -347,7 +346,7 @@ export function BsitChairmanInteractiveWeekGrid({
   );
 
   const anchorLabel = modal
-    ? `${modal.draft.day || "New slot"} · ${modal.draft.startSlotIndex >= 0 ? (BSIT_ONE_HOUR_SLOTS[modal.draft.startSlotIndex]?.label ?? "Time slot") : "Select time"}`
+    ? `${modal.draft.day || "New slot"} · ${modal.draft.startSlotIndex >= 0 ? (slots[modal.draft.startSlotIndex]?.label ?? "Time slot") : "Select time"}`
     : "";
 
   const isCellSelected = (day: BsitEvaluatorWeekday, slotIdx: number) =>

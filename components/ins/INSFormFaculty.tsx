@@ -27,6 +27,7 @@ import { INS5ADocument } from "@/components/pdf/forms/INS5ADocument";
 import { facultyScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
 import type { INS5AProps } from "@/components/pdf/types/insTypes";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -226,8 +227,9 @@ export function INSFormFaculty({
           </div>
         ) : null}
         <div className="max-w-[1200px] mx-auto space-y-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold text-gray-800 mb-0">INS Form</h2>
+            <ProgramModeToggle size="sm" />
           </div>
 
           {instructorReadOnlyPortal && live.academicPeriodId ? (
