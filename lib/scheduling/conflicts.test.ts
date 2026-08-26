@@ -45,6 +45,7 @@ function block(partial: Partial<ScheduleBlock> & Pick<ScheduleBlock, "id">): Sch
     day: partial.day ?? "Monday",
     startTime: partial.startTime ?? "7:00",
     endTime: partial.endTime ?? "9:00",
+    programMode: partial.programMode,
   };
 }
 
@@ -144,5 +145,88 @@ describe("scheduleEntryToSparseBlock + scanAllSparseScheduleConflicts", () => {
     };
     const hits = detectConflictsSparse(a, [a, b]);
     expect(hits.some((h) => h.type === "faculty")).toBe(true);
+  });
+
+  it("does not treat Day 4:00–5:00 PM as a Night double-booking", () => {
+    const dayBlock = {
+      id: "day",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "16:00",
+      endTime: "17:00",
+      instructorId: "fac-1",
+      sectionId: "sec-a",
+      roomId: "r1",
+      programSession: "day" as const,
+    };
+    const nightBlock = {
+      id: "night",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "16:00",
+      endTime: "17:00",
+      instructorId: "fac-1",
+      sectionId: "sec-b",
+      roomId: "r2",
+      programSession: "night" as const,
+    };
+    expect(detectConflictsSparse(dayBlock, [dayBlock, nightBlock])).toHaveLength(0);
+    expect(detectConflictsSparse(nightBlock, [dayBlock, nightBlock])).toHaveLength(0);
+  });
+});
+
+describe("Day vs Night program isolation", () => {
+  it("does not treat Day 4:00–5:00 PM and Night 4:00–5:00 PM as a faculty double-booking", () => {
+    const dayLoad = block({
+      id: "day-gwyneth",
+      instructorId: "gwyneth",
+      sectionId: "sec-day",
+      roomId: "r-day",
+      day: "Monday",
+      startTime: "16:00",
+      endTime: "17:00",
+      programMode: "day",
+    });
+    const nightLoad = block({
+      id: "night-gwyneth",
+      instructorId: "gwyneth",
+      sectionId: "sec-night",
+      roomId: "r-night",
+      day: "Monday",
+      startTime: "16:00",
+      endTime: "17:00",
+      programMode: "night",
+    });
+    expect(detectConflictsForEntry(nightLoad, [dayLoad])).toHaveLength(0);
+    expect(detectConflictsForEntry(dayLoad, [nightLoad])).toHaveLength(0);
+  });
+
+  it("still flags two Night Program meetings for the same instructor", () => {
+    const a = block({
+      id: "n1",
+      instructorId: "gwyneth",
+      sectionId: "sec-a",
+      roomId: "r1",
+      day: "Monday",
+      startTime: "16:00",
+      endTime: "17:00",
+      programMode: "night",
+    });
+    const b = block({
+      id: "n2",
+      instructorId: "gwyneth",
+      sectionId: "sec-b",
+      roomId: "r2",
+      day: "Monday",
+      startTime: "16:00",
+      endTime: "17:00",
+      programMode: "night",
+    });
+    expect(detectConflictsForEntry(b, [a]).some((h) => h.type === "faculty")).toBe(true);
+  });
+
+  it("strips Night:: day prefix so Saturday night still matches Saturday", () => {
+    expect(normalizeDayForConflict("Night::Monday")).toBe("Monday");
+    expect(intervalsOverlap("Night::Saturday", "07:00", "08:00", "Saturday", "07:00", "08:00")).toBe(true);
   });
 });

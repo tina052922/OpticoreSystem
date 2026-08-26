@@ -47,6 +47,8 @@ import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApproval
 import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEntryQuickEditDialog";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
@@ -73,6 +75,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
     day: e.day,
     startTime: e.startTime,
     endTime: e.endTime,
+    programMode: resolveProgramMode(e),
   };
 }
 
@@ -94,6 +97,7 @@ export function CentralHubEvaluatorView({
   hubAccessMode = "default",
 }: CentralHubEvaluatorViewProps) {
   const toast = useOpticoreToast();
+  const { programMode } = useProgramMode();
   const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -404,16 +408,21 @@ export function CentralHubEvaluatorView({
     return sec.yearLevel;
   }, [sectionFilterId, sectionById]);
 
+  const modeEntries = useMemo(
+    () => filterByProgramMode(entries, programMode),
+    [entries, programMode],
+  );
+
   const plottedSubjectCodesForHub = useMemo(() => {
     const set = new Set<string>();
     if (!sectionFilterId.trim() || !academicPeriodId) return set;
-    for (const e of entries) {
+    for (const e of modeEntries) {
       if (e.academicPeriodId !== academicPeriodId || e.sectionId !== sectionFilterId) continue;
       const sub = subjectById.get(e.subjectId);
       if (sub?.code) set.add(normalizeProspectusCode(sub.code));
     }
     return set;
-  }, [entries, academicPeriodId, sectionFilterId, subjectById]);
+  }, [modeEntries, academicPeriodId, sectionFilterId, subjectById]);
 
   useEffect(() => {
     if (!sectionFilterId) return;
@@ -421,7 +430,7 @@ export function CentralHubEvaluatorView({
     if (!ok) setSectionFilterId("");
   }, [programId, sectionFilterId, sectionsInDepartmentScope]);
 
-  const universe = useMemo(() => entries.map(toBlock), [entries]);
+  const universe = useMemo(() => modeEntries.map(toBlock), [modeEntries]);
 
   const suggestAlternativesForEntry = useCallback(
     (entryId: string) => {
@@ -505,7 +514,7 @@ export function CentralHubEvaluatorView({
     if (!academicPeriodId) return;
     setConflictScanBusy(true);
     void (async () => {
-      const termEntries = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+      const termEntries = modeEntries.filter((e) => e.academicPeriodId === academicPeriodId);
       const entryById = new Map(termEntries.map((e) => [e.id, e]));
       const localBlocks = termEntries
         .map((e) => scheduleEntryToSparseBlock(e))
@@ -580,6 +589,7 @@ export function CentralHubEvaluatorView({
             mode: "doi_campus",
             collegeId: null,
             programId: null,
+            programMode,
           }) as CampusConflictScanApiPayload;
         } catch (e) {
           const payload = mergePayload(null);
@@ -631,7 +641,8 @@ export function CentralHubEvaluatorView({
     })();
   }, [
     academicPeriodId,
-    entries,
+    modeEntries,
+    programMode,
     subjectById,
     sectionById,
     roomById,
@@ -645,7 +656,7 @@ export function CentralHubEvaluatorView({
   const tableRows = useMemo(() => {
     if (!academicPeriodId) return [];
     return buildScheduleEvaluatorTableRows({
-      entries,
+      entries: modeEntries,
       academicPeriodId,
       scopeCollegeId,
       programId,
@@ -659,7 +670,7 @@ export function CentralHubEvaluatorView({
       collegeNameById,
     });
   }, [
-    entries,
+    modeEntries,
     scopeCollegeId,
     academicPeriodId,
     programId,

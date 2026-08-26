@@ -3,7 +3,14 @@ import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import { insPickSlotRender } from "@/lib/ins/ins-weekly-grid-span";
 import { insPrintedSignatureLines } from "@/lib/ins/ins-pdf-adapters";
-import { INS_DAYS, INS_TIME_SLOTS } from "./opticore-ins-constants";
+import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
+import {
+  insTimeSlotLabel,
+  isNightCellClosed,
+  slotsForSession,
+  weekdaysForSession,
+} from "@/lib/scheduling/program-session";
+import { INS_DAYS } from "./opticore-ins-constants";
 
 const vLabel = {
   writingMode: "vertical-rl" as const,
@@ -59,6 +66,9 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
     compactSignaturePrint = false,
   } = props;
   const cellMode = props.cellMode ?? "legacy";
+  const programSession = useProgramSessionOptional()?.programSession ?? "day";
+  const hourSlots = slotsForSession(programSession);
+  const days = weekdaysForSession(programSession);
 
   return (
     <div className="overflow-x-auto print:overflow-visible">
@@ -66,42 +76,46 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
         className={`flex min-w-0 ${signatureStrip === "none" ? "" : "gap-1"}`}
       >
         <table
-          className={`flex-none table-fixed border-collapse ${insTableBorder}`}
+          className={`w-full min-w-0 border-collapse ${insTableBorder}`}
         >
           <thead>
             <tr className="bg-neutral-50">
               <th
-                className={`${insTableBorder} px-2 py-3 print:py-0 print:px-1 print:text-[7pt] text-left text-xs font-bold uppercase tracking-wide text-neutral-900`}
+                className={`${insTableBorder} w-[7.5rem] px-1 py-2 print:py-0 print:px-0.5 print:text-[6.5pt] text-left text-[10px] font-bold uppercase tracking-wide text-neutral-900`}
               >
                 TIME
               </th>
-              {INS_DAYS.map((day) => (
+              {days.map((day) => (
                 <th
                   key={day}
-                  className={`${insTableBorder} px-2 py-3 print:py-2 print:px-2 print:text-[7pt] text-center text-xs font-bold text-neutral-900`}
+                  className={`${insTableBorder} px-1 py-2 print:py-1 print:px-1 print:text-[6.5pt] text-center text-[10px] font-bold text-neutral-900`}
                 >
-                  {day}
+                  {day.slice(0, 3)}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {INS_TIME_SLOTS.map((time, slotIdx) => (
-              <tr key={time}>
+            {hourSlots.map((slot, slotIdx) => {
+              const time = insTimeSlotLabel(slot);
+              return (
+              <tr key={`${slot.startTime}-${slot.endTime}`}>
                 <td
-                  className={`${insTableBorder} px-2 py-3 print:py-0 print:px-1 print:text-[7pt] text-xs font-semibold text-neutral-900 whitespace-nowrap align-middle`}
+                  className={`${insTableBorder} px-1 py-1 print:py-0 print:px-0.5 print:text-[6pt] text-[10px] font-semibold text-neutral-900 whitespace-nowrap align-middle`}
                 >
                   {time}
                 </td>
-                {INS_DAYS.map((day) => {
+                {days.map((day) => {
+                  const closed = isNightCellClosed(programSession, day, slot.startTime);
                   if (cellMode === "spanned" && "cellsByDay" in props) {
                     const pick = insPickSlotRender(
-                      day,
+                      day as InsDay,
                       slotIdx,
-                      props.cellsByDay[day],
+                      props.cellsByDay[day as InsDay],
                       {
                         mondayPlaceholderSlot: props.showMondayPlaceholder,
                       },
+                      hourSlots,
                     );
                     if (pick.kind === "skip") {
                       return null;
@@ -113,12 +127,14 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                           className={`${insTableBorder} p-0 align-middle`}
                         >
                           <div
-                            className="flex flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-1 print:px-0.5 print:text-[6.5pt] text-center text-xs leading-snug text-neutral-900"
+                            className="flex flex-col items-center justify-center gap-0 px-1 py-1 print:py-0 print:px-0.5 print:text-[6pt] text-center text-[10px] leading-tight text-neutral-900 overflow-hidden"
                             style={{ minHeight: "var(--ins-row-h)" }}
                           >
-                            {pick.placeholder
+                            {closed ? (
+                              <span className="text-[9px] italic text-neutral-400 print:text-[5.5pt]">Closed</span>
+                            ) : pick.placeholder
                               ? props.renderSpanned({
-                                  day,
+                                  day: day as InsDay,
                                   timeSlotLabel: time,
                                   slotIndex: slotIdx,
                                   rowSpan: 1,
@@ -138,13 +154,13 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                         className={`${insTableBorder} p-0 align-stretch`}
                       >
                         <div
-                          className="flex h-full min-h-0 flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-1 print:px-0.5 print:text-[6.5pt] text-center text-xs leading-snug text-neutral-900"
+                          className="flex h-full min-h-0 flex-col items-center justify-center gap-0 px-1 py-1 print:py-0 print:px-0.5 print:text-[6pt] text-center text-[10px] leading-tight text-neutral-900 overflow-hidden"
                           style={{
                             minHeight: `calc(var(--ins-row-h) * ${rowSpan})`,
                           }}
                         >
                           {props.renderSpanned({
-                            day,
+                            day: day as InsDay,
                             timeSlotLabel: time,
                             slotIndex: slotIdx,
                             rowSpan,
@@ -160,18 +176,21 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                       className={`${insTableBorder} p-0 align-middle`}
                     >
                       <div
-                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-3 print:py-0 print:px-0.5 print:text-[6.5pt] text-center text-xs leading-snug text-neutral-900"
+                        className="flex flex-col items-center justify-center gap-0 px-1 py-1 print:py-0 print:px-0.5 print:text-[6pt] text-center text-[10px] leading-tight text-neutral-900 overflow-hidden"
                         style={{ minHeight: "var(--ins-row-h)" }}
                       >
-                        {"renderCell" in props
-                          ? props.renderCell(time, day)
+                        {closed ? (
+                          <span className="text-[9px] italic text-neutral-400 print:text-[5.5pt]">Closed</span>
+                        ) : "renderCell" in props
+                          ? props.renderCell(time, day as InsDay)
                           : null}
                       </div>
                     </td>
                   );
                 })}
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
 

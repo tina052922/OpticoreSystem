@@ -26,6 +26,7 @@ type INSHeaderProps = {
   revision?: string;
   /** Pass `null` to hide the banner (e.g. printing on pre-headed paper). */
   headerBanner?: string | null;
+  programMode?: "day" | "night";
 };
 
 export function INSHeader({
@@ -40,6 +41,7 @@ export function INSHeader({
   }),
   revision = "2",
   headerBanner = CTU_HEADER_BANNER,
+  programMode = "day",
 }: INSHeaderProps) {
   return (
     <View>
@@ -72,7 +74,7 @@ export function INSHeader({
       <View style={ins.formTitleRow}>
         <View style={ins.formTitleCenter}>
           <Text style={ins.formTitle}>{formTitle}</Text>
-          <Text style={ins.formSubtitle}>Day Program</Text>
+          <Text style={ins.formSubtitle}>{programMode === "night" ? "Night Program" : "Day Program"}</Text>
           <Text style={ins.semesterLine}>{semesterLabel}</Text>
         </View>
       </View>

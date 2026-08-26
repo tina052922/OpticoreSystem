@@ -1,9 +1,9 @@
 /**
  * Placeholder `User` for ScheduleEntry rows that represent an unfilled GEC slot.
  * Must match `supabase/migrations/20260413120000_gec_chairman_schedule_placeholder_and_rls.sql`.
+ * Hardcoded (not NEXT_PUBLIC_) so no project secrets are compiled into the browser.
  */
-export const GEC_VACANT_INSTRUCTOR_USER_ID =
-  process.env.NEXT_PUBLIC_GEC_VACANT_INSTRUCTOR_ID?.trim() || "a0000000-0000-4000-8000-000000000099";
+export const GEC_VACANT_INSTRUCTOR_USER_ID = "a0000000-0000-4000-8000-000000000099";
 
 /** CHED-style general education codes we treat as GEC-chair scope (editable when vacant). */
 export function isGecCurriculumSubjectCode(code: string): boolean {

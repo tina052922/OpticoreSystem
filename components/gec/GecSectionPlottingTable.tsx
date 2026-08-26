@@ -173,8 +173,8 @@ export function GecSectionPlottingTable({
       .filter((e) => e.academicPeriodId === academicPeriodId && e.sectionId === sectionId)
       .slice()
       .sort((a, b) => {
-        const da = BSIT_EVALUATOR_WEEKDAYS.indexOf(a.day as BsitEvaluatorWeekday);
-        const db = BSIT_EVALUATOR_WEEKDAYS.indexOf(b.day as BsitEvaluatorWeekday);
+        const da = (BSIT_EVALUATOR_WEEKDAYS as readonly string[]).indexOf(a.day);
+        const db = (BSIT_EVALUATOR_WEEKDAYS as readonly string[]).indexOf(b.day);
         if (da !== db) return (da < 0 ? 99 : da) - (db < 0 ? 99 : db);
         return hhmm(a.startTime).localeCompare(hhmm(b.startTime));
       });

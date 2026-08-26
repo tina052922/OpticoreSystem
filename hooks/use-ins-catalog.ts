@@ -21,6 +21,8 @@ import {
 } from "@/lib/scheduling/conflict-enrichment";
 import { runCampusConflictScan } from "@/lib/scheduling/campus-conflict-scan-client";
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
+import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { slotDurationHours } from "@/lib/scheduling/time";
@@ -59,6 +61,7 @@ function toScheduleBlock(e: ScheduleEntry): ScheduleBlock {
     day: e.day,
     startTime: e.startTime,
     endTime: e.endTime,
+    programMode: resolveProgramMode(e),
   };
 }
 
@@ -92,6 +95,7 @@ export function useInsCatalog(args: {
   ignoreProgramScope?: boolean;
 }) {
   const semesterFilter = useSemesterFilterOptional();
+  const { programMode } = useProgramMode();
   /** Fallback when `SemesterFilterProvider` is not mounted (e.g. isolated tests). */
   const [fallbackPeriodId, setFallbackPeriodId] = useState("");
 
@@ -411,17 +415,22 @@ export function useInsCatalog(args: {
     return m;
   }, [facultyInsNames]);
 
+  const modeEntries = useMemo(
+    () => filterByProgramMode(entries, programMode),
+    [entries, programMode],
+  );
+
   /**
    * College + optional program slice (share bundles, program-scoped `subjectIdByCode`). Not used for INS 5B/5C grids.
    */
   const scopedEntries = useMemo(() => {
     let base: ScheduleEntry[];
     if (args.campusWide) {
-      base = entries.filter((e) => sectionById.has(e.sectionId));
+      base = modeEntries.filter((e) => sectionById.has(e.sectionId));
     } else if (!args.collegeId) {
-      base = entries;
+      base = modeEntries;
     } else {
-      base = entries.filter((e) => {
+      base = modeEntries.filter((e) => {
         const sec = sectionById.get(e.sectionId);
         if (!sec) return false;
         const pr = programById.get(sec.programId);
@@ -439,7 +448,7 @@ export function useInsCatalog(args: {
     if (teachingSectionIds.size === 0) return [];
     return base.filter((e) => teachingSectionIds.has(e.sectionId));
   }, [
-    entries,
+    modeEntries,
     args.collegeId,
     args.programId,
     args.campusWide,
@@ -456,18 +465,18 @@ export function useInsCatalog(args: {
    */
   const insResourceEntries = useMemo(() => {
     if (args.campusWide) {
-      return entries.filter((e) => sectionById.has(e.sectionId));
+      return modeEntries.filter((e) => sectionById.has(e.sectionId));
     }
-    if (!args.collegeId) return entries;
+    if (!args.collegeId) return modeEntries;
     const uid = args.instructorPortalUserId?.trim();
     if (uid) {
-      const termAll = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+      const termAll = modeEntries.filter((e) => e.academicPeriodId === academicPeriodId);
       const teachingSectionIds = new Set(termAll.filter((e) => e.instructorId === uid).map((e) => e.sectionId));
       if (teachingSectionIds.size === 0) return [];
-      return entries.filter((e) => teachingSectionIds.has(e.sectionId));
+      return modeEntries.filter((e) => teachingSectionIds.has(e.sectionId));
     }
-    return entries;
-  }, [entries, args.campusWide, args.collegeId, args.instructorPortalUserId, academicPeriodId, sectionById]);
+    return modeEntries;
+  }, [modeEntries, args.campusWide, args.collegeId, args.instructorPortalUserId, academicPeriodId, sectionById]);
 
   const termResourceEntries = useMemo(
     () => insResourceEntries.filter((e) => e.academicPeriodId === academicPeriodId),
@@ -541,12 +550,12 @@ export function useInsCatalog(args: {
 
   /** Same scope as Evaluator grid: every `ScheduleEntry` row in this term (not only the INS college/program filter). */
   const getInsConflictSummaries = useCallback(() => {
-    const blocks = entries
+    const blocks = modeEntries
       .filter((e) => e.academicPeriodId === academicPeriodId)
       .map((e) => scheduleEntryToSparseBlock(e))
       .filter((b): b is NonNullable<typeof b> => b != null);
     return scanAllSparseScheduleConflicts(blocks).issueSummaries;
-  }, [entries, academicPeriodId]);
+  }, [modeEntries, academicPeriodId]);
 
   /** Full alert body: enriched causes + one GA-style suggestion per unique issue (when pools are available). */
   const buildInsConflictAlertText = useCallback(
@@ -555,7 +564,7 @@ export function useInsCatalog(args: {
       issueSummaries: string[];
     }): string => {
     if (!academicPeriodId || scan.issueSummaries.length === 0) return "";
-    const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+    const termRows = modeEntries.filter((e) => e.academicPeriodId === academicPeriodId);
 
     const entryById = new Map(entries.map((e) => [e.id, e]));
     const enriched = enrichCampusConflictIssues(
@@ -652,17 +661,17 @@ export function useInsCatalog(args: {
         issueSummaries: [] as string[],
       };
     }
-    const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+    const termRows = modeEntries.filter((e) => e.academicPeriodId === academicPeriodId);
     const blocks = termRows
       .map((e) => scheduleEntryToSparseBlock(e))
       .filter((b): b is NonNullable<typeof b> => b != null);
     const scan = scanAllSparseScheduleConflicts(blocks);
     return { ...scan, issueSummaries: scan.issueSummaries };
-  }, [entries, academicPeriodId]);
+  }, [modeEntries, academicPeriodId]);
 
   useEffect(() => {
     setInsConflictScanOverride(null);
-  }, [entries, academicPeriodId]);
+  }, [modeEntries, academicPeriodId]);
 
   const insConflictScan = insConflictScanOverride ?? insConflictScanComputed;
 
@@ -674,10 +683,11 @@ export function useInsCatalog(args: {
     }
     const scan = await runCampusConflictScan({
       academicPeriodId,
-      localEntries: entries,
+      localEntries: modeEntries,
       apiMode: args.campusWide ? "doi_campus" : "college",
       collegeId: args.campusWide ? null : args.collegeId,
       programId: args.ignoreProgramScope ? null : args.programId,
+      programMode,
     });
     setInsConflictScanOverride({
       conflictingEntryIds: scan.conflictingEntryIds,
@@ -721,7 +731,7 @@ export function useInsCatalog(args: {
       if (!academicPeriodId || !instructorId.trim()) return [];
       if (insConflictScan.issueSummaries.length === 0) return [];
 
-      const termRows = entries.filter((e) => e.academicPeriodId === academicPeriodId);
+      const termRows = modeEntries.filter((e) => e.academicPeriodId === academicPeriodId);
       const entryById = new Map(entries.map((e) => [e.id, e]));
       const enriched = enrichCampusConflictIssues(
         insConflictScan.issues,
@@ -915,7 +925,7 @@ export function useInsCatalog(args: {
     return entries
       .filter((e) => e.academicPeriodId === academicPeriodId)
       .some((e) => Boolean(e.lockedByDoiAt));
-  }, [entries, academicPeriodId]);
+  }, [modeEntries, academicPeriodId]);
 
   const campusWideDirectorSignatureUrl = campusInsSettings?.campusDirectorSignatureImageUrl?.trim() || null;
 
@@ -927,7 +937,7 @@ export function useInsCatalog(args: {
     academicPeriodId,
     setAcademicPeriodId,
     /** Full term `ScheduleEntry` rows from Supabase (RLS-visible). Campus-wide instructor totals + conflict scan. */
-    entries,
+    entries: modeEntries,
     scopedEntries,
     /** INS 5B/5C + pickers: campus-wide resources (within RLS), not the college/program slice alone. */
     insResourceEntries,

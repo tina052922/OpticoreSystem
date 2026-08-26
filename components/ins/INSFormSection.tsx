@@ -24,6 +24,7 @@ import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5BDocument } from "@/components/pdf/forms/INS5BDocument";
 import { sectionScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import type { INS5BProps } from "@/components/pdf/types/insTypes";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
@@ -77,6 +78,7 @@ export function INSFormSection({
   initialSectionId = null,
   printOnLoad = false,
 }: INSFormSectionProps) {
+  const { programMode } = useProgramMode();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Faculty portal: read-only INS; no conflict run or automated fixes. */
@@ -191,10 +193,11 @@ export function INSFormSection({
     adviser: "",
     assignment: "",
     semesterLabel: catalog.periodLabel ?? "____ Semester, AY ____",
-    schedule: sectionScheduleToPdfGrid(displaySchedule),
+    schedule: sectionScheduleToPdfGrid(displaySchedule, programMode),
     courses: displayCourses,
     signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
-  }), [displayAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots]);
+    programMode,
+  }), [displayAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots, programMode]);
 
   const sectionConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;

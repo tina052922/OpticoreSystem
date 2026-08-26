@@ -1,4 +1,5 @@
 import type { BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
+import type { ProgramSessionWeekday } from "@/lib/scheduling/program-session";
 import type { PlotLecLabMode } from "@/lib/evaluator/chairman-plot-leclab";
 import { inferLecLabMode } from "@/lib/evaluator/chairman-plot-leclab";
 
@@ -15,7 +16,7 @@ export type PlotRow = {
   startSlotIndex: number;
   /** Consecutive 1-hour slots for this meeting (default 1 — split contact across multiple rows). */
   durationSlots?: number;
-  day: BsitEvaluatorWeekday | "";
+  day: BsitEvaluatorWeekday | ProgramSessionWeekday | "";
   /** When set, VPAA published this row; RLS blocks chairman writes — do not upsert/delete. */
   lockedByDoiAt?: string | null;
 };

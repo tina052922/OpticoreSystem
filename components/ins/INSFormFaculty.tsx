@@ -26,6 +26,7 @@ import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5ADocument } from "@/components/pdf/forms/INS5ADocument";
 import { facultyScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
 import type { INS5AProps } from "@/components/pdf/types/insTypes";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -82,6 +83,7 @@ export function INSFormFaculty({
   doiFormalApprovalPanel = false,
   hideInnerInsTabs = false,
 }: INSFormFacultyProps) {
+  const { programMode } = useProgramMode();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Instructor shell only (`/faculty/ins`); avoids treating `/chairman/ins` or other paths as faculty portal. */
@@ -135,11 +137,12 @@ export function INSFormFaculty({
       minor: live.facultyCredentials.minor,
       specialTraining: live.facultyCredentials.specialTraining,
     } : null,
-    schedule: facultyScheduleToPdfGrid(displaySchedule),
+    schedule: facultyScheduleToPdfGrid(displaySchedule, programMode),
     courses: displayCourses,
     summary: useLiveData ? live.facultyFormSummary : null,
     signatureSlots: signatureSlotsToPdf(useLiveData ? live.insSignatureSlots : null),
-  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots]);
+    programMode,
+  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots, programMode]);
 
   async function onShare() {
     try {

@@ -1,6 +1,9 @@
+import "server-only";
+
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { apiFetch } from "@/lib/api/client";
+import { getSupabaseServiceRoleKey, getSupabaseUrl } from "@/lib/server/supabase-env";
 
 export type CampusIntelligenceStats = {
   roomCount: number;
@@ -22,8 +25,8 @@ export type CampusIntelligenceData = CampusIntelligenceStats & {
  * Uses server-side env vars — NEVER exposed to the browser.
  */
 function getSupabaseAdmin() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = getSupabaseUrl();
+  const key = getSupabaseServiceRoleKey();
   if (!url || !key) return null;
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -123,19 +126,22 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
   const programId = args.programId ?? undefined;
 
   // Resolve current academic period (fall back to latest)
-  let { data: period } = await supabase
+  let { data: currentPeriods, error: currentPeriodErr } = await supabase
     .from("AcademicPeriod")
     .select("id")
     .eq("isCurrent", true)
-    .maybeSingle();
+    .limit(1);
+  if (currentPeriodErr) {
+    currentPeriods = null;
+  }
+  let period = Array.isArray(currentPeriods) ? currentPeriods[0] : currentPeriods;
   if (!period) {
     const { data: latest } = await supabase
       .from("AcademicPeriod")
       .select("id")
       .order("startDate", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    period = latest;
+      .limit(1);
+    period = Array.isArray(latest) ? latest[0] : latest;
   }
 
   let roomCount = 0;
@@ -241,8 +247,9 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     "7:00 AM – 9:00 AM",   "9:00 AM – 11:00 AM",
     "11:00 AM – 1:00 PM",  "1:00 PM – 3:00 PM",
     "3:00 PM – 5:00 PM",   "5:00 PM – 7:00 PM",
+    "7:00 PM – 9:00 PM",   "9:00 PM – 10:00 PM",
   ];
-  const BLOCK_COUNT = 6;
+  const BLOCK_COUNT = 8;
   function timeBlockIdx(st: string): number {
     const h = parseInt(st.split(":")[0], 10);
     const i = Math.floor((h - 7) / 2);
@@ -263,6 +270,8 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     if (entries && entries.length > 0) {
       const blockRooms: Set<string>[] = Array.from({ length: BLOCK_COUNT }, () => new Set());
       const instructorHours = new Map<string, number>();
+      const modeOf = (day: string) =>
+        String(day ?? "").toLowerCase().startsWith("night::") ? "night" : "day";
 
       for (const e of entries) {
         const idx = timeBlockIdx(e.startTime);
@@ -271,7 +280,8 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
           const [sh] = e.startTime.split(":").map(Number);
           const [eh] = e.endTime.split(":").map(Number);
           const hrs = Math.abs(eh - sh);
-          instructorHours.set(e.instructorId, (instructorHours.get(e.instructorId) || 0) + hrs);
+          const key = `${e.instructorId}::${modeOf(e.day)}`;
+          instructorHours.set(key, (instructorHours.get(key) || 0) + hrs);
         }
       }
 
@@ -281,8 +291,13 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
         utilization: Math.round((rooms.size / totalRooms) * 100),
       }));
 
+      const maxByInstructor = new Map<string, number>();
+      for (const [key, hrs] of instructorHours) {
+        const id = key.split("::")[0] ?? key;
+        maxByInstructor.set(id, Math.max(maxByInstructor.get(id) || 0, hrs));
+      }
       let full = 0, partial = 0, overloaded = 0;
-      for (const hrs of instructorHours.values()) {
+      for (const hrs of maxByInstructor.values()) {
         if (hrs >= 24) overloaded++;
         else if (hrs >= 18) full++;
         else partial++;

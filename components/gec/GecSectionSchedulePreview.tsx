@@ -77,7 +77,7 @@ export function GecSectionSchedulePreview({
       const maxS = slots.length - d;
       const eff = Math.min(start, Math.max(0, maxS));
       const day = e.day as BsitEvaluatorWeekday;
-      if (!BSIT_EVALUATOR_WEEKDAYS.includes(day)) continue;
+      if (!(BSIT_EVALUATOR_WEEKDAYS as readonly string[]).includes(day)) continue;
       for (let k = 1; k < d; k++) {
         m.add(`${day}-${eff + k}`);
       }

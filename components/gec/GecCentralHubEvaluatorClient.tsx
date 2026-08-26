@@ -42,8 +42,10 @@ import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/Evaluator
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
 import type { GecPlotEditPatch } from "@/components/gec/GecSectionPlottingTable";
-import { BSIT_EVALUATOR_TIME_SLOTS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
+import { evaluatorTimeSlots, evaluatorWeekdays, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { plotEntryDurationSlots, timesFromSlotRange } from "@/lib/evaluator/plot-duration";
+import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import {
   GEC_VACANT_INSTRUCTOR_USER_ID,
@@ -80,6 +82,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
     day: e.day,
     startTime: e.startTime.length > 5 ? e.startTime.slice(0, 5) : e.startTime,
     endTime: e.endTime.length > 5 ? e.endTime.slice(0, 5) : e.endTime,
+    programMode: resolveProgramMode(e),
   };
 }
 
@@ -93,6 +96,8 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  */
 export function GecCentralHubEvaluatorClient() {
   const toast = useOpticoreToast();
+  const { programMode } = useProgramMode();
+  const slotsForMode = evaluatorTimeSlots(programMode);
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -331,6 +336,11 @@ export function GecCentralHubEvaluatorClient() {
     });
   }, [allEntries, edits]);
 
+  const modeMergedEntries = useMemo(
+    () => filterByProgramMode(mergedEntries, programMode),
+    [mergedEntries, programMode],
+  );
+
   const selectedDbCollege = useMemo(
     () => (collegeParam && !isCampusWide ? colleges.find((c) => c.id === collegeParam) : undefined),
     [colleges, collegeParam, isCampusWide],
@@ -373,7 +383,7 @@ export function GecCentralHubEvaluatorClient() {
   /** Rows that are vacant GEC placeholders (DB + newly added local rows). */
   const vacantGecSourceIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const e of allEntries) {
+    for (const e of modeMergedEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
       const sec = sectionById.get(e.sectionId);
       const pr = sec ? programById.get(sec.programId) : null;
@@ -387,7 +397,7 @@ export function GecCentralHubEvaluatorClient() {
     }
     return ids;
   }, [
-    allEntries,
+    modeMergedEntries,
     academicPeriodId,
     collegeParam,
     isCampusWide,
@@ -529,7 +539,7 @@ export function GecCentralHubEvaluatorClient() {
   const tableRows = useMemo(() => {
     if (!academicPeriodId || !collegeParam) return [];
     return buildScheduleEvaluatorTableRows({
-      entries: mergedEntries,
+      entries: modeMergedEntries,
       academicPeriodId,
       scopeCollegeId: scopeCollegeIdForRows,
       programId,
@@ -542,7 +552,7 @@ export function GecCentralHubEvaluatorClient() {
       collegeNameById,
     });
   }, [
-    mergedEntries,
+    modeMergedEntries,
     academicPeriodId,
     collegeParam,
     scopeCollegeIdForRows,
@@ -607,8 +617,8 @@ export function GecCentralHubEvaluatorClient() {
   function runConflictCheck() {
     if (!academicPeriodId) return;
     void (async () => {
-      const entryById = new Map(mergedEntries.map((e) => [e.id, e]));
-      const sparseBlocks = mergedEntries
+      const entryById = new Map(modeMergedEntries.map((e) => [e.id, e]));
+      const sparseBlocks = modeMergedEntries
         .filter((e) => e.academicPeriodId === academicPeriodId)
         .map((e) => scheduleEntryToSparseBlock(e))
         .filter((b): b is NonNullable<typeof b> => b != null);
@@ -631,6 +641,7 @@ export function GecCentralHubEvaluatorClient() {
           mode: "doi_campus",
           collegeId: null,
           programId: null,
+          programMode,
         });
         serverPayload = {
           entryCount: j.entryCount ?? 0,
@@ -666,14 +677,14 @@ export function GecCentralHubEvaluatorClient() {
           : [...new Set([...(serverPayload?.issueSummaries ?? []), ...localScan.issueSummaries])];
       setConflictSummary(summaryLines);
 
-      const universe = mergedEntries.filter((e) => e.academicPeriodId === academicPeriodId).map(toBlock);
+      const universe = modeMergedEntries.filter((e) => e.academicPeriodId === academicPeriodId).map(toBlock);
       const gaMap: Record<string, GASuggestion[]> = {};
       const roomIds = rooms.map((r) => r.id);
       const instructorIds = users
         .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
         .map((u) => u.id);
       for (const iss of mergedEnriched.slice(0, 3)) {
-        const entry = mergedEntries.find((e) => e.id === iss.rowA.entryId);
+        const entry = modeMergedEntries.find((e) => e.id === iss.rowA.entryId);
         if (!entry) continue;
         if (roomIds.length === 0 || instructorIds.length === 0) continue;
         const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
@@ -841,9 +852,9 @@ export function GecCentralHubEvaluatorClient() {
       return;
     }
     const dur = plotEntryDurationSlots(programCode, firstSub, 1);
-    const maxIdx = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
+    const maxIdx = slotsForMode.length - dur;
     const effIdx = Math.min(Math.max(0, startIdx), maxIdx);
-    const times = timesFromSlotRange(effIdx, dur);
+    const times = timesFromSlotRange(effIdx, dur, slotsForMode);
     if (!times) return;
     const roomPick = roomsForPlotting[0]?.id ?? "";
     if (!roomPick) {
@@ -863,6 +874,7 @@ export function GecCentralHubEvaluatorClient() {
       startTime: times.startTime,
       endTime: times.endTime,
       status: "draft",
+      programMode,
     };
     setExtraEntries((prev) => [...prev, row]);
     setFocusPlotEntryId(id);
@@ -922,27 +934,27 @@ export function GecCentralHubEvaluatorClient() {
   const gecPlottedSubjectCodesForSection = useMemo(() => {
     if (!sectionIdFilter || !academicPeriodId) return new Set<string>();
     const set = new Set<string>();
-    for (const e of mergedEntries) {
+    for (const e of modeMergedEntries) {
       if (e.sectionId !== sectionIdFilter || e.academicPeriodId !== academicPeriodId) continue;
       const sub = subjectById.get(e.subjectId);
       if (!sub || !isGecCurriculumSubjectCode(sub.code)) continue;
       set.add(normalizeProspectusCode(sub.code));
     }
     return set;
-  }, [mergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
+  }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
 
   /** GEC subject ids on this section (enables “add another time slot” in the plot modal). */
   const gecPlottedSubjectIdsForSection = useMemo(() => {
     if (!sectionIdFilter || !academicPeriodId) return new Set<string>();
     const set = new Set<string>();
-    for (const e of mergedEntries) {
+    for (const e of modeMergedEntries) {
       if (e.sectionId !== sectionIdFilter || e.academicPeriodId !== academicPeriodId) continue;
       const sub = subjectById.get(e.subjectId);
       if (!sub || !isGecCurriculumSubjectCode(sub.code)) continue;
       set.add(e.subjectId);
     }
     return set;
-  }, [mergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
+  }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
 
   const gecSubjectsForPlot = useMemo(() => {
     if (!selectedSection || !allowedSubjectIds || allowedSubjectIds.size === 0) return [];
@@ -959,13 +971,13 @@ export function GecCentralHubEvaluatorClient() {
   const sparseCampusWideUniverse = useMemo(() => {
     if (!academicPeriodId) return [];
     const list = [];
-    for (const e of mergedEntries) {
+    for (const e of modeMergedEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
       const b = scheduleEntryToSparseBlock(e);
       if (b) list.push(b);
     }
     return list;
-  }, [mergedEntries, academicPeriodId]);
+  }, [modeMergedEntries, academicPeriodId]);
 
   const conflictForEntry = useCallback(
     (e: ScheduleEntry) => {
@@ -1256,7 +1268,10 @@ export function GecCentralHubEvaluatorClient() {
                     sectionId={sectionIdFilter}
                     sectionName={selectedSection?.name ?? sectionIdFilter}
                     academicPeriodId={academicPeriodId}
-                    mergedEntries={mergedEntries}
+                    mergedEntries={modeMergedEntries}
+                    programMode={programMode}
+                    weekdays={evaluatorWeekdays(programMode)}
+                    timeSlots={slotsForMode}
                     vacantGecSourceIds={vacantGecSourceIds}
                     subjectById={subjectById}
                     roomById={roomById}

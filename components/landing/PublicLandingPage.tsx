@@ -48,10 +48,19 @@ export function PublicLandingPage() {
             <Button
               asChild
               size="sm"
-              className="shrink-0 bg-[#a30000] hover:bg-[#8b0000] text-white font-semibold rounded-full px-3 sm:px-5 h-9 sm:h-10 sm:text-sm"
+              className="shrink-0 h-9 sm:h-10 rounded-full px-4 sm:px-5 font-semibold bg-[#780301] text-white shadow-sm hover:bg-[#5a0201] sm:text-sm"
             >
               <Link href="/login" className="inline-flex items-center justify-center whitespace-nowrap">
                 Sign in
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              className="shrink-0 h-9 sm:h-10 rounded-full px-4 sm:px-5 font-semibold bg-[#ff990a] text-white shadow-sm hover:bg-[#e88909] sm:text-sm"
+            >
+              <Link href="/register" className="inline-flex items-center justify-center whitespace-nowrap">
+                Sign up
               </Link>
             </Button>
           </div>
@@ -89,14 +98,22 @@ export function PublicLandingPage() {
               <Button
                 asChild
                 size="lg"
-                className="w-full min-[380px]:w-auto min-[380px]:flex-1 sm:flex-initial justify-center bg-white text-[#780301] hover:bg-white/90 font-bold rounded-full"
+                className="w-full min-[380px]:w-auto min-[380px]:flex-1 sm:flex-initial h-11 justify-center rounded-full bg-[#ff990a] px-6 font-semibold text-white shadow-md hover:bg-[#e88909]"
               >
-                <Link href="/login">Get Started</Link>
+                <Link href="/register">Sign up</Link>
               </Button>
               <Button
                 asChild
                 size="lg"
-                className="w-full min-[380px]:w-auto min-[380px]:flex-1 sm:flex-initial justify-center bg-[#ff990a] hover:bg-[#e88909] text-white font-semibold rounded-full border-0"
+                className="w-full min-[380px]:w-auto min-[380px]:flex-1 sm:flex-initial h-11 justify-center rounded-full bg-[#780301] px-6 font-semibold text-white shadow-md ring-2 ring-white/35 hover:bg-[#5a0201]"
+              >
+                <Link href="/login">Sign in</Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="w-full min-[380px]:w-auto min-[380px]:flex-1 sm:flex-initial h-11 justify-center rounded-full border-2 border-white/80 bg-transparent px-6 font-semibold text-white hover:bg-white/12"
               >
                 <Link href="/campus-navigation">Campus navigation</Link>
               </Button>

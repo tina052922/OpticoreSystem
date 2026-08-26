@@ -13,6 +13,11 @@ import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import { resolveInsPrintedSigners } from "@/lib/ins/ins-pdf-adapters";
 import { insTotalStudents } from "@/components/pdf/types/insTypes";
+import type { InsDay } from "./opticore-ins-constants";
+import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
+import { programModeLabel } from "@/lib/scheduling/program-mode";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { OpticoreInsNightScheduleTable } from "./OpticoreInsNightScheduleTable";
 
 /** INS Form 5A (draft / unpublished): official vertical signature columns — matches CTU paper layout; fills when VPAA publishes. */
 const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
@@ -38,8 +43,6 @@ const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
     imageUrl: null,
   },
 ];
-import type { InsDay } from "./opticore-ins-constants";
-import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
 
 const formDate = () =>
   new Intl.DateTimeFormat("en-PH", {
@@ -200,6 +203,7 @@ export function OpticoreInsForm5A({
   onScheduleEntryClick,
   conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5AProps) {
+  const { programMode } = useProgramMode();
   return (
     <div className="space-y-5 print:space-y-0.5 text-neutral-900 print:text-[7pt] print:leading-snug">
       <div className="flex flex-col gap-4 print:gap-0.5 border-b border-neutral-300 pb-6 print:pb-0.5 sm:flex-row sm:items-start sm:justify-between">
@@ -217,7 +221,7 @@ export function OpticoreInsForm5A({
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[8pt] print:leading-none">
           Program by Teacher
         </h4>
-        <div className="text-sm print:text-[6.5pt]">Day Program</div>
+        <div className="text-sm print:text-[6.5pt]">{programModeLabel(programMode)}</div>
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">
@@ -335,6 +339,28 @@ export function OpticoreInsForm5A({
         ) : null}
       </div>
 
+      {programMode === "night" ? (
+        <OpticoreInsNightScheduleTable
+          cellsByDay={schedule as Record<string, InsTimedCell[]>}
+          renderCell={(items) => (
+            <div className="w-full overflow-hidden text-[9px] leading-tight print:text-[6pt]">
+              {(items as InsFacultyCell[]).slice(0, 2).map((c, idx) => (
+                <div key={c.scheduleEntryId ?? `${c.course}-${idx}`} className="truncate">
+                  <span className="font-bold">{c.course}</span>
+                  <span className="block truncate">{c.yearSec}</span>
+                  <span className="block truncate">{c.room}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          summary={
+            <InsSummaryOfCourses
+              courses={courses}
+              emptyMessage="No courses plotted for this faculty in the selected term. Use Evaluator to add schedule rows."
+            />
+          }
+        />
+      ) : (
       <OpticoreInsScheduleTableWithSignatures
         cellMode="spanned"
         cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
@@ -413,6 +439,7 @@ export function OpticoreInsForm5A({
         signatureSlots={insSignatureSlots ?? FORM_5A_DRAFT_SIGNATURE_SLOTS}
         scheduleApproved={scheduleApproved}
       />
+      )}
 
       <InsSummaryOfCourses
         courses={courses}
@@ -652,6 +679,7 @@ export function OpticoreInsForm5B({
   insSignatureSlots = null,
   conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5BProps) {
+  const { programMode } = useProgramMode();
   return (
     <div className="space-y-5 print:space-y-1 text-neutral-900 print:text-[7.5pt] print:leading-tight">
       <div className="flex flex-col gap-4 print:gap-0.5 border-b border-neutral-300 pb-6 print:pb-1 sm:flex-row sm:items-start sm:justify-between">
@@ -669,7 +697,7 @@ export function OpticoreInsForm5B({
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
           Program by Section
         </h4>
-        <div className="text-sm print:text-[7.5pt]">Day Program</div>
+        <div className="text-sm print:text-[7.5pt]">{programModeLabel(programMode)}</div>
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">
@@ -730,6 +758,23 @@ export function OpticoreInsForm5B({
         </div>
       </div>
 
+      {programMode === "night" ? (
+        <OpticoreInsNightScheduleTable
+          cellsByDay={schedule as Record<string, InsTimedCell[]>}
+          renderCell={(items) => (
+            <div className="w-full overflow-hidden text-[9px] leading-tight print:text-[6pt]">
+              {items.slice(0, 2).map((c: any, idx: number) => (
+                <div key={`${c.course ?? "c"}-${idx}`} className="truncate">
+                  <span className="font-bold">{c.course}</span>
+                  <span className="block truncate">{c.instructor ?? c.yearSec}</span>
+                  <span className="block truncate">{c.room}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          summary={<InsSummaryOfCourses courses={courses} />}
+        />
+      ) : (
       <OpticoreInsScheduleTableWithSignatures
         cellMode="spanned"
         cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
@@ -783,8 +828,9 @@ export function OpticoreInsForm5B({
         scheduleApproved={scheduleApproved}
         signatureStrip="campusOnly"
       />
+      )}
 
-      <InsSummaryOfCourses courses={courses} />
+      {programMode === "night" ? null : <InsSummaryOfCourses courses={courses} />}
 
       <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
         <div className="text-sm font-semibold text-neutral-900">Approved</div>
@@ -839,6 +885,7 @@ export function OpticoreInsForm5C({
   semesterLabel,
   conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5CProps) {
+  const { programMode } = useProgramMode();
   // Same resolution the PDF uses, so screen and print never name different
   // people on the Director/Dean and Campus Director lines.
   const {
@@ -864,7 +911,7 @@ export function OpticoreInsForm5C({
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
           Room Utilization
         </h4>
-        <div className="text-sm print:text-[7.5pt]">Day Program</div>
+        <div className="text-sm print:text-[7.5pt]">{programModeLabel(programMode)}</div>
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
           {readOnly ? (
             <span className="block py-1 text-center text-sm text-neutral-900">
@@ -896,6 +943,22 @@ export function OpticoreInsForm5C({
         )}
       </div>
 
+      {programMode === "night" ? (
+        <OpticoreInsNightScheduleTable
+          cellsByDay={schedule as Record<string, InsTimedCell[]>}
+          renderCell={(items) => (
+            <div className="w-full overflow-hidden text-[9px] leading-tight print:text-[6pt]">
+              {items.slice(0, 2).map((c: any, idx: number) => (
+                <div key={`${c.course ?? "c"}-${idx}`} className="truncate">
+                  <span className="font-bold">{c.course}</span>
+                  <span className="block truncate">{c.instructor ?? c.yearSec}</span>
+                  <span className="block truncate">{c.room}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        />
+      ) : (
       <OpticoreInsScheduleTableWithSignatures
         cellMode="spanned"
         cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
@@ -955,6 +1018,7 @@ export function OpticoreInsForm5C({
         scheduleApproved={scheduleApproved}
         signatureStrip="none"
       />
+      )}
 
       {/* Screen footer (spacious). Print uses a compact signature-line footer below. */}
       <div className="mt-12 grid grid-cols-1 gap-x-16 gap-y-12 border-t border-neutral-200 pt-12 md:grid-cols-2 print:hidden">

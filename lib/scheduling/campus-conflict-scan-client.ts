@@ -3,6 +3,7 @@ import {
   scheduleEntryToSparseBlock,
   type SparseScheduleBlock,
 } from "@/lib/scheduling/conflicts";
+import { resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { schedulingApi } from "@/lib/api/client";
 import type { ScheduleEntry } from "@/types/db";
 
@@ -42,6 +43,7 @@ export async function runCampusConflictScan(args: {
   apiMode?: "doi_campus" | "gec_campus" | "chairman_program" | "college";
   collegeId?: string | null;
   programId?: string | null;
+  programMode?: "day" | "night" | null;
 }): Promise<CampusConflictScanResult> {
   const localScan = args.localSparseBlocks
     ? localCampusConflictScanFromSparse(args.localSparseBlocks)
@@ -52,8 +54,6 @@ export async function runCampusConflictScan(args: {
   const issueMap = new Map<string, (typeof localScan.issues)[0]>();
   for (const i of localScan.issues) issueMap.set(issueEdgeKey(i), i);
 
-  const ids = new Set<string>(localScan.conflictingEntryIds);
-
   let apiOk = false;
   let apiError: string | undefined;
 
@@ -63,19 +63,30 @@ export async function runCampusConflictScan(args: {
       mode: args.apiMode ?? "doi_campus",
       collegeId: args.collegeId ?? null,
       programId: args.programId ?? null,
+      programMode: args.programMode ?? null,
     });
     apiOk = true;
-    for (const id of api.conflictingEntryIds ?? []) ids.add(id);
     for (const i of api.issues ?? []) issueMap.set(issueEdgeKey(i), i);
   } catch (e) {
     apiError = e instanceof Error ? e.message : "Network error";
   }
 
-  const mergedIssues = [...issueMap.values()];
+  const mergedIssues = [...issueMap.values()].filter((i) => {
+    if (!i.relatedEntryId) return true;
+    const a = args.localEntries.find((e) => e.id === i.entryId);
+    const b = args.localEntries.find((e) => e.id === i.relatedEntryId);
+    if (!a || !b) return true;
+    return resolveProgramMode(a) === resolveProgramMode(b);
+  });
   const issueSummaries = [...new Set(mergedIssues.map((i) => i.message))];
+  const filteredIds = new Set<string>();
+  for (const i of mergedIssues) {
+    filteredIds.add(i.entryId);
+    if (i.relatedEntryId) filteredIds.add(i.relatedEntryId);
+  }
 
   return {
-    conflictingEntryIds: ids,
+    conflictingEntryIds: filteredIds,
     issueSummaries,
     issues: mergedIssues,
     apiOk,

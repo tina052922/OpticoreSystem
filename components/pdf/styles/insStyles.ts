@@ -201,6 +201,7 @@ export const ins = StyleSheet.create({
     borderRightWidth: 0.5,
     borderRightColor: GRID_BORDER,
     justifyContent: "center",
+    overflow: "hidden",
   },
   gridCellAlt: {
     flex: 1,
@@ -209,10 +210,11 @@ export const ins = StyleSheet.create({
     borderRightWidth: 0.5,
     borderRightColor: GRID_BORDER,
     justifyContent: "center",
-    // backgroundColor: ALT_BG,
+    overflow: "hidden",
   },
   cellGroup: {
     textAlign: "center",
+    overflow: "hidden",
   },
   cellLine1: {
     fontSize: 5.5,

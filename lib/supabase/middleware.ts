@@ -1,11 +1,14 @@
+import "server-only";
+
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/server/supabase-env";
 
 export function createSupabaseMiddlewareClient(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = getSupabaseUrl();
+  const anon = getSupabaseAnonKey();
 
   if (!url || !anon) {
     return { supabase: null, response: supabaseResponse, configured: false as const };

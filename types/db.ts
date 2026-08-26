@@ -138,6 +138,9 @@ export interface Room {
   displayName?: string | null;
 }
 
+/** Day Program and Night Program are independent loads (never conflict with each other). */
+export type ScheduleProgramMode = "day" | "night";
+
 export interface ScheduleEntry {
   id: string;
   academicPeriodId: string;
@@ -149,8 +152,15 @@ export interface ScheduleEntry {
   startTime: string;
   endTime: string;
   status: ScheduleStatus;
+  /** `day` or `night` program; optional until migration is applied. */
+  programSession?: "day" | "night" | null;
   /** Set when VPAA publishes the term; plotted rows cannot be edited by chairman/college (RLS). */
   lockedByDoiAt?: string | null;
+  /**
+   * Day vs Night program. Missing/null is treated as `"day"` so existing rows stay on the Day grid.
+   * Night loads are stored separately and must not conflict with Day loads.
+   */
+  programMode?: ScheduleProgramMode | null;
 }
 
 /** Chairman documents why plotted loads exceed Faculty Manual caps; visible to DOI. */

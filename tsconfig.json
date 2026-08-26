@@ -39,6 +39,10 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "Landingpage",
+    "Smart-Campus Navigation System",
+    "web",
+    "supabase"
   ]
 }

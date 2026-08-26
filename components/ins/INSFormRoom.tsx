@@ -25,6 +25,7 @@ import type { College } from "@/types/db";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5CDocument } from "@/components/pdf/forms/INS5CDocument";
 import { roomScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import type { INS5CProps } from "@/components/pdf/types/insTypes";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
@@ -65,6 +66,7 @@ export function INSFormRoom({
   instructorPortalUserId = null,
   hideInnerInsTabs = false,
 }: INSFormRoomProps) {
+  const { programMode } = useProgramMode();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   const instructorFacultyPortal = insBasePath.startsWith("/faculty/ins");
@@ -173,9 +175,10 @@ export function INSFormRoom({
   const pdfData = useMemo((): INS5CProps => ({
     roomAssignment: displayRoom,
     semesterLabel: (useLiveData ? catalog.periodLabel : undefined) ?? "____ Semester, AY ____",
-    schedule: roomScheduleToPdfGrid(displaySchedule),
+    schedule: roomScheduleToPdfGrid(displaySchedule, programMode),
     signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
-  }), [displayRoom, displaySchedule, useLiveData, catalog.periodLabel, insSignatureSlots]);
+    programMode,
+  }), [displayRoom, displaySchedule, useLiveData, catalog.periodLabel, insSignatureSlots, programMode]);
 
   const roomConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedRoomId) return 0;
