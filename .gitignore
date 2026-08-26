@@ -19,5 +19,6 @@ tsconfig.tsbuildinfo
 
 sample_forms/
 *.md
+!docs/*.md
 .vercel
 .env*
