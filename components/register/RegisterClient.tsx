@@ -2,25 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
-import {
-  authApi,
-  registerApi,
-  apiFetch,
-  ApiClientError,
-} from "@/lib/api/client";
-import { getDefaultHomeForRole } from "@/lib/auth/role-home";
+import { registerApi, apiFetch, ApiClientError } from "@/lib/api/client";
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = { id: string; code: string; name: string; collegeId: string };
 type SectionRow = { id: string; name: string; programId: string; yearLevel: number };
 
+/** Mirrors the backend's per-signup resend cooldown. */
+const RESEND_COOLDOWN_SECONDS = 60;
+
 export function RegisterClient() {
-  const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,6 +32,24 @@ export function RegisterClient() {
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Set once the verification email is away. Registration deliberately creates
+   * no account, so there is nothing to log into yet — we swap the form for a
+   * "check your inbox" panel instead of redirecting.
+   */
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [sentMessage, setSentMessage] = useState("");
+  const [resendState, setResendState] = useState<
+    { kind: "idle" } | { kind: "sending" } | { kind: "sent" } | { kind: "error"; message: string }
+  >({ kind: "idle" });
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,8 +100,10 @@ export function RegisterClient() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    // Must match the backend's MIN_PASSWORD_LENGTH, otherwise the form accepts
+    // a password the API will reject.
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirmPassword) {
@@ -104,11 +119,13 @@ export function RegisterClient() {
       return;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     setSubmitting(true);
     try {
-      await registerApi.student({
+      const res = await registerApi.student({
         fullName: fullName.trim(),
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
         programId,
         sectionId,
@@ -116,21 +133,105 @@ export function RegisterClient() {
         studentId: studentId.trim() || "",
       });
 
-      const { user } = await authApi.login({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-      if (user.role === "student") {
-        router.refresh();
-        window.location.assign(getDefaultHomeForRole("student"));
-        return;
-      }
-      window.location.assign("/student");
+      /**
+       * No auto-login here: `register-student` only stores a pending signup and
+       * emails a link. The account does not exist until `/verify-email` is
+       * opened, so attempting to sign in now would always fail.
+       */
+      setSentMessage(res.message);
+      setSentTo(normalizedEmail);
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+      // Don't keep the plaintext password in component state any longer than
+      // the request needs it.
+      setPassword("");
+      setConfirmPassword("");
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Registration failed");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function onResend() {
+    if (!sentTo || cooldown > 0) return;
+    setResendState({ kind: "sending" });
+    try {
+      await registerApi.resendVerification(sentTo);
+      setResendState({ kind: "sent" });
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch (err) {
+      setResendState({
+        kind: "error",
+        message: err instanceof ApiClientError ? err.message : "Could not resend the email.",
+      });
+    }
+  }
+
+  if (sentTo) {
+    return (
+      <LoginContainer>
+        <div className="space-y-6 text-center">
+          <div className="flex justify-center">
+            <div className="w-20 h-20 rounded-full bg-[#780301]/10 flex items-center justify-center">
+              <svg
+                width="38"
+                height="38"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#780301"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+            </div>
+          </div>
+
+          <h1 className="text-2xl font-bold text-black">Check your email</h1>
+          <p className="text-base text-black/80">{sentMessage}</p>
+          <p className="text-base text-black/80">
+            We sent a verification link to <strong>{sentTo}</strong>. Open it to finish
+            creating your account — no account exists until you do.
+          </p>
+          <p className="text-sm text-black/55">
+            Can&apos;t find it? Check your spam folder.
+          </p>
+
+          {resendState.kind === "error" ? (
+            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
+              {resendState.message}
+            </div>
+          ) : null}
+          {resendState.kind === "sent" && cooldown > 0 ? (
+            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">
+              Verification email sent again.
+            </div>
+          ) : null}
+
+          <Button
+            type="button"
+            onClick={() => void onResend()}
+            disabled={cooldown > 0 || resendState.kind === "sending"}
+            className="w-full h-14 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg text-lg font-semibold disabled:opacity-60"
+          >
+            {resendState.kind === "sending"
+              ? "Sending…"
+              : cooldown > 0
+                ? `Resend in ${cooldown}s`
+                : "Resend email"}
+          </Button>
+
+          <p className="text-center text-base">
+            <Link href="/login" className="text-[#5483b3] font-medium hover:underline">
+              Back to login
+            </Link>
+          </p>
+        </div>
+      </LoginContainer>
+    );
   }
 
   return (
@@ -186,13 +287,17 @@ export function RegisterClient() {
             <Input
               id="reg-email"
               type="email"
-              placeholder="Enter your email"
+              placeholder="yourname@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
               className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
               required
             />
+            <p className="text-sm text-black/55">
+              Student registration requires a Gmail address. We&apos;ll send a
+              verification link there.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -208,7 +313,7 @@ export function RegisterClient() {
               autoComplete="new-password"
               className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
               required
-              minLength={6}
+              minLength={8}
             />
           </div>
 
@@ -225,7 +330,7 @@ export function RegisterClient() {
               autoComplete="new-password"
               className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
               required
-              minLength={6}
+              minLength={8}
             />
           </div>
 

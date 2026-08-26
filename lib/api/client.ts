@@ -794,7 +794,12 @@ export const registerApi = {
     yearLevel: number;
     studentId: string;
   }) {
-    return apiFetch<{ ok: true }>("/api/auth/register-student", {
+    /**
+     * Resolves with a deliberately generic message: the backend returns the
+     * same body whether or not the address already exists, to prevent account
+     * enumeration. No account is created until the emailed link is opened.
+     */
+    return apiFetch<{ ok: true; message: string }>("/api/auth/register-student", {
       method: "POST",
       body: input,
       retryOn401: false,
