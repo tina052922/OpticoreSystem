@@ -25,6 +25,7 @@ import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5BDocument } from "@/components/pdf/forms/INS5BDocument";
 import { sectionScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import type { INS5BProps } from "@/components/pdf/types/insTypes";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
@@ -298,7 +299,10 @@ export function INSFormSection({
         ) : null}
 
         <div className="max-w-[1200px] mx-auto space-y-4">
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">INS Form</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold text-gray-800 mb-0">INS Form</h2>
+            <ProgramModeToggle size="sm" />
+          </div>
           <p className="text-gray-600 text-sm">Program by Section (5B).</p>
         </div>
 

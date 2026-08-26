@@ -87,7 +87,7 @@ const daySelectClass =
   "w-full min-h-10 min-w-0 rounded-md border border-black/25 bg-white px-2 text-[11px] font-medium text-neutral-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
 import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
-import { plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
+import { clampPlotStartSlotIndex, inferDurationSlotsFromTimes, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
@@ -98,6 +98,7 @@ export type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 const LOCAL_EDIT_PLOT_KEYS: (keyof PlotRow)[] = [
   "day",
   "startSlotIndex",
+  "durationSlots",
   "sectionId",
   "subjectCode",
   "lecLabMode",
@@ -134,8 +135,7 @@ function rowTimeBounds(
   const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   if (!p) return null;
   const dur = plotRowDurationSlots(p, row);
-  const maxS = slots.length - dur;
-  const startIdx = Math.min(row.startSlotIndex, maxS);
+  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
   const start = slots[startIdx];
   const endIdx = startIdx + dur - 1;
   const endSlot = slots[endIdx];
@@ -591,6 +591,7 @@ export function BsitChairmanEvaluatorWorksheet({
             instructorId: e.instructorId,
             roomId: e.roomId,
             startSlotIndex: slotIdx,
+            durationSlots: inferDurationSlotsFromTimes(e.startTime, e.endTime),
             day: normalizeScheduleEntryDayForEvaluator(e.day),
             lockedByDoiAt: e.lockedByDoiAt ?? null,
           },
@@ -610,6 +611,7 @@ export function BsitChairmanEvaluatorWorksheet({
           const samePlot =
             normalizeScheduleEntryDayForEvaluator(local.day) === normalizeScheduleEntryDayForEvaluator(nr.day) &&
             local.startSlotIndex === nr.startSlotIndex &&
+            (local.durationSlots ?? 1) === (nr.durationSlots ?? 1) &&
             local.sectionId === nr.sectionId &&
             local.roomId === nr.roomId &&
             local.instructorId === nr.instructorId &&
@@ -1330,8 +1332,8 @@ export function BsitChairmanEvaluatorWorksheet({
     const p = next.subjectCode ? prospectusRowForProgram(programCodeForSummary, next.subjectCode) : undefined;
     if (p) {
       const d = plotRowDurationSlots(p, next);
-      const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - d;
-      if (next.startSlotIndex > maxS) return { ...next, startSlotIndex: maxS };
+      const startSlotIndex = clampPlotStartSlotIndex(next.startSlotIndex, d, slotsForMode.length);
+      if (startSlotIndex !== next.startSlotIndex) return { ...next, startSlotIndex };
     }
     return next;
   }
@@ -1418,6 +1420,7 @@ export function BsitChairmanEvaluatorWorksheet({
         roomId: draft.roomId,
         day: draft.day,
         startSlotIndex: draft.startSlotIndex,
+        durationSlots: draft.durationSlots ?? 1,
       };
       if (!exists) {
         flushSync(() => {

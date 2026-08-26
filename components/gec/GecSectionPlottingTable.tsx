@@ -4,18 +4,20 @@ import { useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  BSIT_EVALUATOR_TIME_SLOTS,
-  BSIT_EVALUATOR_WEEKDAYS,
-  type BsitEvaluatorWeekday,
+  evaluatorTimeSlots,
+  evaluatorWeekdays,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { normalizeSlotHHMM, startSlotIndexFromScheduleEntryStartTime } from "@/lib/chairman/evaluator-schedule-hydration";
+import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
+import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
+import { resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import {
+  clampPlotStartSlotIndex,
   inferDurationSlotsFromTimes,
   plotEntryDurationSlots,
   timesFromSlotRange,
 } from "@/lib/evaluator/plot-duration";
-import { detectConflictsSparse } from "@/lib/scheduling/conflicts";
-import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecCurriculumSubjectCode, isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import {
   formatInstructorPlotOptionLabel,
@@ -93,10 +95,8 @@ function hhmm(t: string): string {
 }
 
 /** Align GEC grid with Program Chairman: tolerate "7:00" vs "07:00" and seconds from Postgres. */
-function startSlotIndexFromEntry(e: ScheduleEntry): number {
-  const h = hhmm(e.startTime);
-  const idx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === h);
-  return idx >= 0 ? idx : startSlotIndexFromScheduleEntryStartTime(e.startTime);
+function startSlotIndexFromEntry(e: ScheduleEntry, mode: "day" | "night"): number {
+  return startSlotIndexFromScheduleEntryStartTime(e.startTime, resolveProgramMode(e) === "night" ? "night" : mode);
 }
 
 function entryToSparse(e: ScheduleEntry): SparseScheduleBlock | null {
@@ -110,6 +110,7 @@ function entryToSparse(e: ScheduleEntry): SparseScheduleBlock | null {
     instructorId: e.instructorId,
     sectionId: e.sectionId,
     roomId: e.roomId,
+    programMode: resolveProgramMode(e),
   };
 }
 
@@ -150,6 +151,9 @@ export function GecSectionPlottingTable({
   showAlternativeSolutionsHeading = false,
   highlightConflictEntryIds,
 }: Props) {
+  const { programMode } = useProgramMode();
+  const slotsForMode = evaluatorTimeSlots(programMode);
+  const daysForMode = evaluatorWeekdays(programMode);
   const [localAddBusy, setLocalAddBusy] = useState(false);
   /**
    * Per entry row: building filter for two-step room pick (not persisted — `ScheduleEntry.roomId` only).
@@ -173,12 +177,12 @@ export function GecSectionPlottingTable({
       .filter((e) => e.academicPeriodId === academicPeriodId && e.sectionId === sectionId)
       .slice()
       .sort((a, b) => {
-        const da = (BSIT_EVALUATOR_WEEKDAYS as readonly string[]).indexOf(a.day);
-        const db = (BSIT_EVALUATOR_WEEKDAYS as readonly string[]).indexOf(b.day);
+        const da = (daysForMode as readonly string[]).indexOf(a.day);
+        const db = (daysForMode as readonly string[]).indexOf(b.day);
         if (da !== db) return (da < 0 ? 99 : da) - (db < 0 ? 99 : db);
         return hhmm(a.startTime).localeCompare(hhmm(b.startTime));
       });
-  }, [mergedEntries, academicPeriodId, sectionId]);
+  }, [mergedEntries, academicPeriodId, sectionId, daysForMode]);
 
   /** All plotted rows for this term campus-wide — matches GEC Chairman full scan (majors + GEC, every program). */
   const sparseCampusWideUniverse = useMemo(() => {
@@ -223,9 +227,8 @@ export function GecSectionPlottingTable({
   function applySlotRange(entryId: string, subjectId: string, startIdx: number, durationSlots = 1) {
     const sub = subjectById.get(subjectId);
     const dur = plotEntryDurationSlots(programCode, sub, durationSlots);
-    const maxS = BSIT_EVALUATOR_TIME_SLOTS.length - dur;
-    const idx = Math.min(Math.max(0, startIdx), maxS);
-    const times = timesFromSlotRange(idx, dur);
+    const idx = clampPlotStartSlotIndex(Math.max(0, startIdx), dur, slotsForMode.length);
+    const times = timesFromSlotRange(idx, dur, slotsForMode);
     if (!times) return;
     patchEdit(entryId, { startTime: times.startTime, endTime: times.endTime });
   }
@@ -331,9 +334,9 @@ export function GecSectionPlottingTable({
                 const editable = canEditVacant && isVacantSlot;
                 const cf = conflictForEntry(merged);
                 const dur = inferDurationSlotsFromTimes(merged.startTime, merged.endTime);
-                const startIdx = startSlotIndexFromEntry(merged);
-                const maxStart = Math.max(0, BSIT_EVALUATOR_TIME_SLOTS.length - dur);
-                const effStart = startIdx >= 0 ? Math.min(startIdx, maxStart) : 0;
+                const startIdx = startSlotIndexFromEntry(merged, programMode);
+                const maxStart = Math.max(0, slotsForMode.length - dur);
+                const effStart = startIdx >= 0 ? clampPlotStartSlotIndex(startIdx, dur, slotsForMode.length) : 0;
                 const conflictScanHit = highlightConflictEntryIds?.has(e.id) ?? false;
                 const rowClass = editable
                   ? "bg-emerald-50/90 ring-1 ring-inset ring-emerald-400/70"
@@ -492,7 +495,7 @@ export function GecSectionPlottingTable({
                           value={effStart}
                           onChange={(ev) => applySlotRange(e.id, merged.subjectId, parseInt(ev.target.value, 10))}
                         >
-                          {BSIT_EVALUATOR_TIME_SLOTS.slice(0, maxStart + 1).map((t, idx) => (
+                          {slotsForMode.slice(0, maxStart + 1).map((t, idx) => (
                             <option key={`${idx}-${t.label}`} value={idx}>
                               {t.label} ({dur}h)
                             </option>
@@ -511,7 +514,7 @@ export function GecSectionPlottingTable({
                           value={merged.day}
                           onChange={(ev) => patchEdit(e.id, { day: ev.target.value })}
                         >
-                          {BSIT_EVALUATOR_WEEKDAYS.map((d) => (
+                          {daysForMode.map((d) => (
                             <option key={d} value={d}>
                               {d}
                             </option>

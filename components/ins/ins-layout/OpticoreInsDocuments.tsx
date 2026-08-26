@@ -345,7 +345,7 @@ export function OpticoreInsForm5A({
           renderCell={(items) => (
             <div className="w-full overflow-hidden text-[9px] leading-tight print:text-[6pt]">
               {(items as InsFacultyCell[]).slice(0, 2).map((c, idx) => (
-                <div key={c.scheduleEntryId ?? `${c.course}-${idx}`} className="truncate">
+                <div key={c.scheduleEntryId ?? `${c.course}-${idx}`} className="truncate max-h-[2.4em]">
                   <span className="font-bold">{c.course}</span>
                   <span className="block truncate">{c.yearSec}</span>
                   <span className="block truncate">{c.room}</span>
@@ -764,7 +764,7 @@ export function OpticoreInsForm5B({
           renderCell={(items) => (
             <div className="w-full overflow-hidden text-[9px] leading-tight print:text-[6pt]">
               {items.slice(0, 2).map((c: any, idx: number) => (
-                <div key={`${c.course ?? "c"}-${idx}`} className="truncate">
+                <div key={`${c.course ?? "c"}-${idx}`} className="truncate max-h-[2.4em]">
                   <span className="font-bold">{c.course}</span>
                   <span className="block truncate">{c.instructor ?? c.yearSec}</span>
                   <span className="block truncate">{c.room}</span>
@@ -949,7 +949,7 @@ export function OpticoreInsForm5C({
           renderCell={(items) => (
             <div className="w-full overflow-hidden text-[9px] leading-tight print:text-[6pt]">
               {items.slice(0, 2).map((c: any, idx: number) => (
-                <div key={`${c.course ?? "c"}-${idx}`} className="truncate">
+                <div key={`${c.course ?? "c"}-${idx}`} className="truncate max-h-[2.4em]">
                   <span className="font-bold">{c.course}</span>
                   <span className="block truncate">{c.instructor ?? c.yearSec}</span>
                   <span className="block truncate">{c.room}</span>

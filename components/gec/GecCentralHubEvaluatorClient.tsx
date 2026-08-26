@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
+import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
 import {
   detectConflictsSparse,
@@ -1181,6 +1182,9 @@ export function GecCentralHubEvaluatorClient() {
               ))}
             </select>
           </label>
+          <div className="pb-0.5">
+            <ProgramModeToggle size="sm" />
+          </div>
           {!sectionIdFilter ? (
             <div className="ml-auto flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[200px] pb-0.5">
               <span className="text-black/55">Select a section to open the INS weekly grid workspace.</span>

@@ -199,7 +199,7 @@ export function ChairmanPlotScheduleModal({
     !draft.day || draft.startSlotIndex < 0
       ? "Select subject, day, and time"
       : pr
-        ? formatTimeRangeFromSlots(effectiveStart, dur)
+        ? formatTimeRangeFromSlots(effectiveStart, dur, slots)
         : "Select subject for duration";
   const sectionName = draft.sectionId
     ? (sectionNameById.get(draft.sectionId) ?? "")

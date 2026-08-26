@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
+import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import { Button } from "@/components/ui/button";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import {
@@ -1102,12 +1103,15 @@ export function CentralHubEvaluatorView({
           <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← College hub
           </Link>
-          <span className="text-[13px] text-black/55">
-            Scope:{" "}
-            <strong className="text-black/80">
-              {isCampusWide ? "All colleges (campus-wide)" : collegeRow?.name ?? hub?.name ?? "—"}
-            </strong>
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <ProgramModeToggle size="sm" />
+            <span className="text-[13px] text-black/55">
+              Scope:{" "}
+              <strong className="text-black/80">
+                {isCampusWide ? "All colleges (campus-wide)" : collegeRow?.name ?? hub?.name ?? "—"}
+              </strong>
+            </span>
+          </div>
         </div>
 
         {panel === "timetabling" ? (
