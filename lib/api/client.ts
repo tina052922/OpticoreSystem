@@ -800,6 +800,34 @@ export const registerApi = {
       retryOn401: false,
     });
   },
+  /**
+   * Consumes an emailed verification token and creates the student account.
+   * Idempotent server-side: replaying a consumed token resolves with
+   * `alreadyVerified: true` rather than throwing.
+   */
+  verifyEmail(token: string) {
+    return apiFetch<{
+      ok: true;
+      alreadyVerified: boolean;
+      message: string;
+      email?: string;
+    }>("/api/auth/verify-email", {
+      method: "POST",
+      body: { token },
+      retryOn401: false,
+    });
+  },
+  /** Re-sends the verification email for a pending signup. */
+  resendVerification(email: string) {
+    return apiFetch<{ ok: true; message: string }>(
+      "/api/auth/resend-verification",
+      {
+        method: "POST",
+        body: { email },
+        retryOn401: false,
+      },
+    );
+  },
 };
 
 export const accessRequestsApi = {
