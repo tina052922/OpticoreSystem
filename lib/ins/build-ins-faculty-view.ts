@@ -1,7 +1,4 @@
-import {
-  INS_DAYS,
-  type InsDay,
-} from "@/components/ins/ins-layout/opticore-ins-constants";
+import { INS_DAYS, toInsDay, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import { slotDurationHours } from "@/lib/scheduling/facultyPolicies";
 import { formatTimeRange12h } from "@/lib/time/format-12h";
@@ -49,12 +46,6 @@ function emptySchedule(): InsFacultySchedule {
   const o = {} as InsFacultySchedule;
   for (const d of INS_DAYS) o[d] = [];
   return o;
-}
-
-/** Map evaluator `day` (e.g. Monday) to INS day key. */
-function toInsDay(day: string): InsDay | null {
-  const d = INS_DAYS.find((x) => x === day);
-  return d ?? null;
 }
 
 /**

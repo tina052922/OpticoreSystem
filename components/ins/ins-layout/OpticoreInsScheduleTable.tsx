@@ -3,12 +3,10 @@ import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import { insPickSlotRender } from "@/lib/ins/ins-weekly-grid-span";
 import { insPrintedSignatureLines } from "@/lib/ins/ins-pdf-adapters";
-import { useProgramSessionOptional } from "@/contexts/ProgramSessionContext";
 import {
   insTimeSlotLabel,
   isNightCellClosed,
   slotsForSession,
-  weekdaysForSession,
 } from "@/lib/scheduling/program-session";
 import { INS_DAYS } from "./opticore-ins-constants";
 
@@ -66,9 +64,9 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
     compactSignaturePrint = false,
   } = props;
   const cellMode = props.cellMode ?? "legacy";
-  const programSession = useProgramSessionOptional()?.programSession ?? "day";
-  const hourSlots = slotsForSession(programSession);
-  const days = weekdaysForSession(programSession);
+  // Day Program paper forms always print Mon–Sun. Night uses OpticoreInsNightScheduleTable.
+  const hourSlots = slotsForSession("day");
+  const days = INS_DAYS;
 
   return (
     <div className="overflow-x-auto print:overflow-visible">
@@ -106,7 +104,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                   {time}
                 </td>
                 {days.map((day) => {
-                  const closed = isNightCellClosed(programSession, day, slot.startTime);
+                  const closed = isNightCellClosed("day", day, slot.startTime);
                   if (cellMode === "spanned" && "cellsByDay" in props) {
                     const pick = insPickSlotRender(
                       day as InsDay,
