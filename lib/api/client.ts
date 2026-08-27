@@ -795,22 +795,32 @@ export const registerApi = {
     studentId: string;
   }) {
     /**
-     * Resolves with a deliberately generic message: the backend returns the
-     * same body whether or not the address already exists, to prevent account
-     * enumeration. No account is created until the emailed link is opened.
+     * Emails a 6-digit code and holds the signup in server memory. Nothing is
+     * written to the database until `verifyEmail` succeeds.
+     *
+     * Throws `ApiClientError` with `code: "EMAIL_EXISTS"` (HTTP 409) when the
+     * address already has an account.
      */
-    return apiFetch<{ ok: true; message: string }>("/api/auth/register-student", {
+    return apiFetch<{
+      ok: true;
+      otpRequired: true;
+      email: string;
+      expiresInMinutes: number;
+      message: string;
+    }>("/api/auth/register-student", {
       method: "POST",
       body: input,
       retryOn401: false,
     });
   },
   /**
-   * Consumes an emailed verification token and creates the student account.
-   * Idempotent server-side: replaying a consumed token resolves with
-   * `alreadyVerified: true` rather than throwing.
+   * Confirms the emailed code and creates the student account.
+   *
+   * The code is single-use: the server drops the pending signup before it
+   * starts creating anything, so a resubmit cannot create two accounts. A wrong
+   * code throws with `attemptsLeft`; exhausting the budget cancels the signup.
    */
-  verifyEmail(token: string) {
+  verifyEmail(input: { email: string; code: string }) {
     return apiFetch<{
       ok: true;
       alreadyVerified: boolean;
@@ -818,20 +828,23 @@ export const registerApi = {
       email?: string;
     }>("/api/auth/verify-email", {
       method: "POST",
-      body: { token },
+      body: input,
       retryOn401: false,
     });
   },
-  /** Re-sends the verification email for a pending signup. */
+  /** Issues a NEW code, invalidating the previous one. */
   resendVerification(email: string) {
-    return apiFetch<{ ok: true; message: string }>(
-      "/api/auth/resend-verification",
-      {
-        method: "POST",
-        body: { email },
-        retryOn401: false,
-      },
-    );
+    return apiFetch<{
+      ok: true;
+      otpRequired: true;
+      email: string;
+      expiresInMinutes: number;
+      message: string;
+    }>("/api/auth/resend-verification", {
+      method: "POST",
+      body: { email },
+      retryOn401: false,
+    });
   },
 };
 

@@ -7,13 +7,16 @@ import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { registerApi, apiFetch, ApiClientError } from "@/lib/api/client";
+import { OtpVerificationPanel } from "@/components/register/OtpVerificationPanel";
+import {
+  clearPendingRegistration,
+  loadPendingRegistration,
+  savePendingRegistration,
+} from "@/lib/auth/pending-registration-state";
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = { id: string; code: string; name: string; collegeId: string };
 type SectionRow = { id: string; name: string; programId: string; yearLevel: number };
-
-/** Mirrors the backend's per-signup resend cooldown. */
-const RESEND_COOLDOWN_SECONDS = 60;
 
 export function RegisterClient() {
   const [fullName, setFullName] = useState("");
@@ -34,22 +37,22 @@ export function RegisterClient() {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Set once the verification email is away. Registration deliberately creates
-   * no account, so there is nothing to log into yet — we swap the form for a
-   * "check your inbox" panel instead of redirecting.
+   * Set once the code is away. Registration deliberately creates no account, so
+   * there is nothing to log into yet — we swap the form for the OTP panel.
+   *
+   * Only non-secret UX state is persisted; the code itself never leaves the
+   * server. See `lib/auth/pending-registration-state.ts`.
    */
-  const [sentTo, setSentTo] = useState<string | null>(null);
-  const [sentMessage, setSentMessage] = useState("");
-  const [resendState, setResendState] = useState<
-    { kind: "idle" } | { kind: "sending" } | { kind: "sent" } | { kind: "error"; message: string }
-  >({ kind: "idle" });
-  const [cooldown, setCooldown] = useState(0);
+  const [pending, setPending] = useState<
+    { email: string; lastSentAt: number } | null
+  >(null);
+  const [verifiedMessage, setVerifiedMessage] = useState<string | null>(null);
 
+  // Resume the code screen after a refresh or an accidental navigation.
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const id = setInterval(() => setCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000);
-    return () => clearInterval(id);
-  }, [cooldown]);
+    const saved = loadPendingRegistration();
+    if (saved) setPending({ email: saved.email, lastSentAt: saved.lastSentAt });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,13 +137,18 @@ export function RegisterClient() {
       });
 
       /**
-       * No auto-login here: `register-student` only stores a pending signup and
-       * emails a link. The account does not exist until `/verify-email` is
-       * opened, so attempting to sign in now would always fail.
+       * No auto-login here: `register-student` only holds the signup in server
+       * memory and emails a code. The account does not exist until the code is
+       * confirmed, so attempting to sign in now would always fail.
        */
-      setSentMessage(res.message);
-      setSentTo(normalizedEmail);
-      setCooldown(RESEND_COOLDOWN_SECONDS);
+      const now = Date.now();
+      savePendingRegistration({
+        email: normalizedEmail,
+        lastSentAt: now,
+        expiresAt: now + res.expiresInMinutes * 60_000,
+      });
+      setPending({ email: normalizedEmail, lastSentAt: now });
+
       // Don't keep the plaintext password in component state any longer than
       // the request needs it.
       setPassword("");
@@ -152,84 +160,64 @@ export function RegisterClient() {
     }
   }
 
-  async function onResend() {
-    if (!sentTo || cooldown > 0) return;
-    setResendState({ kind: "sending" });
-    try {
-      await registerApi.resendVerification(sentTo);
-      setResendState({ kind: "sent" });
-      setCooldown(RESEND_COOLDOWN_SECONDS);
-    } catch (err) {
-      setResendState({
-        kind: "error",
-        message: err instanceof ApiClientError ? err.message : "Could not resend the email.",
-      });
-    }
+  /** Abandon the in-flight signup and return to a clean form. */
+  function startOver() {
+    clearPendingRegistration();
+    setPending(null);
+    setVerifiedMessage(null);
+    setError(null);
   }
 
-  if (sentTo) {
+  if (verifiedMessage) {
     return (
       <LoginContainer>
         <div className="space-y-6 text-center">
           <div className="flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-[#780301]/10 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
               <svg
-                width="38"
-                height="38"
+                width="40"
+                height="40"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#780301"
-                strokeWidth="2"
+                stroke="#15803d"
+                strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 aria-hidden
               >
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                <path d="M20 6 9 17l-5-5" />
               </svg>
             </div>
           </div>
-
-          <h1 className="text-2xl font-bold text-black">Check your email</h1>
-          <p className="text-base text-black/80">{sentMessage}</p>
-          <p className="text-base text-black/80">
-            We sent a verification link to <strong>{sentTo}</strong>. Open it to finish
-            creating your account — no account exists until you do.
-          </p>
-          <p className="text-sm text-black/55">
-            Can&apos;t find it? Check your spam folder.
-          </p>
-
-          {resendState.kind === "error" ? (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
-              {resendState.message}
-            </div>
-          ) : null}
-          {resendState.kind === "sent" && cooldown > 0 ? (
-            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">
-              Verification email sent again.
-            </div>
-          ) : null}
-
+          <h1 className="text-2xl font-bold text-black">Email verified</h1>
+          <p className="text-base text-black/80">{verifiedMessage}</p>
           <Button
-            type="button"
-            onClick={() => void onResend()}
-            disabled={cooldown > 0 || resendState.kind === "sending"}
-            className="w-full h-14 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg text-lg font-semibold disabled:opacity-60"
+            asChild
+            className="w-full h-14 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg text-lg font-semibold"
           >
-            {resendState.kind === "sending"
-              ? "Sending…"
-              : cooldown > 0
-                ? `Resend in ${cooldown}s`
-                : "Resend email"}
+            <Link href="/login">Continue to login</Link>
           </Button>
-
-          <p className="text-center text-base">
-            <Link href="/login" className="text-[#5483b3] font-medium hover:underline">
-              Back to login
-            </Link>
-          </p>
         </div>
+      </LoginContainer>
+    );
+  }
+
+  if (pending) {
+    return (
+      <LoginContainer>
+        <OtpVerificationPanel
+          email={pending.email}
+          lastSentAt={pending.lastSentAt}
+          onVerified={(message) => {
+            setPending(null);
+            setVerifiedMessage(message);
+          }}
+          onResent={({ lastSentAt, expiresAt }) => {
+            savePendingRegistration({ email: pending.email, lastSentAt, expiresAt });
+            setPending({ email: pending.email, lastSentAt });
+          }}
+          onStartOver={startOver}
+        />
       </LoginContainer>
     );
   }
