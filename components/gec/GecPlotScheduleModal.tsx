@@ -11,6 +11,7 @@ import {
 import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { normalizeSlotHHMM } from "@/lib/chairman/evaluator-schedule-hydration";
 import {
+  clampPlotStartSlotIndex,
   inferDurationSlotsFromTimes,
   maxPlotDurationSlotsForSubject,
   plotEntryDurationSlots,
@@ -149,9 +150,8 @@ export function GecPlotScheduleModal({
   const sub = gecSubjects.find((s) => s.id === draft.subjectId);
   const dur = plotEntryDurationSlots(programCode, sub, durationSlots);
   const maxDur = sub ? maxPlotDurationSlotsForSubject(programCode, sub) : 1;
-  const maxStart = slots.length - dur;
   const startIdx = startSlotIndexFromEntry(draft, slots);
-  const effectiveStart = Math.min(Math.max(0, startIdx), maxStart);
+  const effectiveStart = clampPlotStartSlotIndex(Math.max(0, startIdx), dur, slots.length);
   const timeLine = sub ? formatTimeRangeFromSlots(effectiveStart, dur, slots) : "Select GEC subject for duration";
   const roomsInB = buildingValue ? roomsInBuildingSorted(rooms, buildingValue) : [];
 
@@ -168,8 +168,7 @@ export function GecPlotScheduleModal({
   const applySlotFromIndex = (idx: number, subjectId: string, slotDur = durationSlots) => {
     const subject = gecSubjects.find((s) => s.id === subjectId);
     const d = plotEntryDurationSlots(programCode, subject, slotDur);
-    const maxS = slots.length - d;
-    const eff = Math.min(Math.max(0, idx), maxS);
+    const eff = clampPlotStartSlotIndex(Math.max(0, idx), d, slots.length);
     const times = timesFromSlotRange(eff, d, slots);
     if (!times) return;
     onDraftChange({

@@ -159,4 +159,25 @@ describe("evaluateFacultyLoadsForCollege / teaching-load justification gate", ()
     expect(hasTeachingLoadJustificationViolation).toBe(true);
     expect(rows[0].violations.some((v) => v.code === "OVER_STANDARD_TEACHING_LOAD")).toBe(true);
   });
+
+  it("counts Day and Night contact separately when callers pass one program's rows", () => {
+    const dayOnly: ScheduleEntry[] = [
+      { ...makeEntry("d1", "08:00", "10:00", "Monday"), programMode: "day" },
+    ];
+    const nightOnly: ScheduleEntry[] = [
+      { ...makeEntry("n1", "18:00", "20:00", "Monday"), programMode: "night" },
+    ];
+    const mixed: ScheduleEntry[] = [...dayOnly, ...nightOnly];
+    const subjects = new Map([[subjectId, baseSubject]]);
+    const users = new Map([[instructorId, userRow]]);
+    const profiles = new Map([[instructorId, profile("Regular", null)]]);
+
+    const dayLoad = evaluateFacultyLoadsForCollege(dayOnly, subjects, users, profiles, "c1", () => "c1");
+    const nightLoad = evaluateFacultyLoadsForCollege(nightOnly, subjects, users, profiles, "c1", () => "c1");
+    const mixedLoad = evaluateFacultyLoadsForCollege(mixed, subjects, users, profiles, "c1", () => "c1");
+
+    expect(dayLoad.rows[0].weeklyTotalContactHours).toBeCloseTo(2, 5);
+    expect(nightLoad.rows[0].weeklyTotalContactHours).toBeCloseTo(2, 5);
+    expect(mixedLoad.rows[0].weeklyTotalContactHours).toBeCloseTo(4, 5);
+  });
 });

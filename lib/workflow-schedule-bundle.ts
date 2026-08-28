@@ -6,6 +6,8 @@ import {
 import {
   DAY_ONE_HOUR_SLOTS,
   NIGHT_FULL_DAY_SLOTS,
+  isProgramMode,
+  type ProgramMode,
 } from "@/lib/scheduling/program-mode";
 import type { EvaluatorSessionSnapshotV1 } from "@/lib/opticore-evaluator-session-sync";
 import { readEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
@@ -54,17 +56,23 @@ export function isWorkflowScheduleBundleV1(v: unknown): v is WorkflowScheduleBun
   );
 }
 
-function slotsForPlotRow(row: EvaluatorSessionSnapshotV1["rows"][number]) {
+function slotsForPlotRow(row: EvaluatorSessionSnapshotV1["rows"][number], snapMode?: ProgramMode) {
+  const mode = isProgramMode(row.programMode) ? row.programMode : snapMode;
+  if (mode === "night") return NIGHT_FULL_DAY_SLOTS;
+  if (mode === "day") return DAY_ONE_HOUR_SLOTS;
   return row.startSlotIndex >= DAY_ONE_HOUR_SLOTS.length ? NIGHT_FULL_DAY_SLOTS : DAY_ONE_HOUR_SLOTS;
 }
 
-function rowTimeBounds(row: EvaluatorSessionSnapshotV1["rows"][number]): {
+function rowTimeBounds(
+  row: EvaluatorSessionSnapshotV1["rows"][number],
+  snapMode?: ProgramMode,
+): {
   start: { startTime: string; endTime: string };
   endSlot: { startTime: string; endTime: string };
 } | null {
   const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
   if (!p) return null;
-  const slots = slotsForPlotRow(row);
+  const slots = slotsForPlotRow(row, snapMode);
   const dur = plotRowDurationSlots(p);
   const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
   const start = slots[startIdx];
@@ -82,14 +90,18 @@ export function plotRowsToScheduleEntries(args: {
   rows: EvaluatorSessionSnapshotV1["rows"];
   academicPeriodId: string;
   subjectIdByCode: Map<string, string>;
+  programMode?: ProgramMode;
 }): ScheduleEntry[] {
   const out: ScheduleEntry[] = [];
   for (const row of args.rows) {
     if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) continue;
     const subjectId = args.subjectIdByCode.get(normalizeProspectusCode(row.subjectCode));
     if (!subjectId) continue;
-    const t = rowTimeBounds(row);
+    const t = rowTimeBounds(row, args.programMode);
     if (!t) continue;
+    const mode: ProgramMode = isProgramMode(row.programMode)
+      ? row.programMode
+      : args.programMode ?? (row.startSlotIndex >= DAY_ONE_HOUR_SLOTS.length ? "night" : "day");
     out.push({
       id: row.id,
       academicPeriodId: args.academicPeriodId,
@@ -101,6 +113,7 @@ export function plotRowsToScheduleEntries(args: {
       startTime: t.start.startTime,
       endTime: t.endSlot.endTime,
       status: "draft",
+      programMode: mode,
     });
   }
   return out;
@@ -143,6 +156,7 @@ export function buildWorkflowScheduleBundle(args: BuildWorkflowBundleArgs): Work
           rows: plotRows,
           academicPeriodId: args.academicPeriodId,
           subjectIdByCode: args.subjectIdByCode,
+          programMode: snap?.programMode,
         })
       : [];
 

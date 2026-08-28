@@ -44,8 +44,8 @@ import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSumma
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
 import type { GecPlotEditPatch } from "@/components/gec/GecSectionPlottingTable";
 import { evaluatorTimeSlots, evaluatorWeekdays, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import { plotEntryDurationSlots, timesFromSlotRange } from "@/lib/evaluator/plot-duration";
-import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { clampPlotStartSlotIndex, plotEntryDurationSlots, timesFromSlotRange } from "@/lib/evaluator/plot-duration";
+import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode, stampProgramMode } from "@/lib/scheduling/program-mode";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import {
@@ -214,7 +214,7 @@ export function GecCentralHubEvaluatorClient() {
       setRooms(bundle.rooms ?? []);
       setUsers(bundle.users ?? []);
       setFacultyProfiles(bundle.facultyProfiles ?? []);
-      setEntries(bundle.entries ?? []);
+      setEntries(hydrateScheduleEntries(bundle.entries ?? []));
       setLoading(false);
     } catch {
       setLoadError("Failed to load evaluator data.");
@@ -236,7 +236,7 @@ export function GecCentralHubEvaluatorClient() {
       const data = await catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(
         academicPeriodId,
       );
-      setEntries(data.entries ?? []);
+      setEntries(hydrateScheduleEntries(data.entries ?? []));
     } catch {}
   }, [academicPeriodId]);
 
@@ -255,7 +255,7 @@ export function GecCentralHubEvaluatorClient() {
         const data = await catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(
           academicPeriodId,
         );
-        if (!cancelled) setEntries(data.entries ?? []);
+        if (!cancelled) setEntries(hydrateScheduleEntries(data.entries ?? []));
       } catch (e: any) {
         if (!cancelled) setLoadError(e?.message ?? "Failed to load entries");
       }
@@ -424,7 +424,7 @@ export function GecCentralHubEvaluatorClient() {
           const isNew = pendingNewEntryIds.has(e.id);
           const hasPatch = patch && Object.keys(patch).length > 0;
           if (!isNew && !hasPatch) continue;
-          toSave.push({ ...e, ...patch });
+          toSave.push(stampProgramMode({ ...e, ...patch }, programMode));
         }
         if (toSave.length === 0) return;
         try { await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave }); } catch {}
@@ -449,6 +449,7 @@ export function GecCentralHubEvaluatorClient() {
     vacantGecSourceIds,
     pendingNewEntryIds,
     toast,
+    programMode,
   ]);
 
   /** Connection restore: flush autosave once immediately (don’t wait for the 9s debounce). */
@@ -471,7 +472,7 @@ export function GecCentralHubEvaluatorClient() {
             const isNew = pendingNewEntryIds.has(e.id);
             const hasPatch = patch && Object.keys(patch).length > 0;
             if (!isNew && !hasPatch) continue;
-            toSave.push({ ...e, ...patch });
+            toSave.push(stampProgramMode({ ...e, ...patch }, programMode));
           }
           if (toSave.length === 0) return;
           try { await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave }); } catch {}
@@ -492,6 +493,7 @@ export function GecCentralHubEvaluatorClient() {
     vacantGecSourceIds,
     pendingNewEntryIds,
     toast,
+    programMode,
   ]);
 
   const programsInCollege = useMemo(() => {
@@ -753,7 +755,7 @@ export function GecCentralHubEvaluatorClient() {
         const patch = edits[e.id];
         const hasPatch = patch && Object.keys(patch).length > 0;
         if (isNew || hasPatch) {
-          toSave.push(merged);
+          toSave.push(stampProgramMode(merged, programMode));
         }
       }
       if (toSave.length === 0) {
@@ -853,8 +855,7 @@ export function GecCentralHubEvaluatorClient() {
       return;
     }
     const dur = plotEntryDurationSlots(programCode, firstSub, 1);
-    const maxIdx = slotsForMode.length - dur;
-    const effIdx = Math.min(Math.max(0, startIdx), maxIdx);
+    const effIdx = clampPlotStartSlotIndex(Math.max(0, startIdx), dur, slotsForMode.length);
     const times = timesFromSlotRange(effIdx, dur, slotsForMode);
     if (!times) return;
     const roomPick = roomsForPlotting[0]?.id ?? "";

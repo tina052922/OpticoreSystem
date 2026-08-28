@@ -78,6 +78,9 @@ export function clampPlotStartSlotIndex(
   slotCount: number,
 ): number {
   if (startSlotIndex < 0) return startSlotIndex;
+  // Night 6:00 PM is index 11 on the 15-slot Night table. Never pull that
+  // index onto a 10-slot Day table (which would land on 4:00 PM).
+  if (startSlotIndex >= slotCount) return startSlotIndex;
   const dur = Math.max(1, Math.round(durationSlots) || 1);
   const maxS = Math.max(0, slotCount - dur);
   return Math.min(startSlotIndex, maxS);

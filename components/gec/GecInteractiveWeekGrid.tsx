@@ -21,6 +21,7 @@ import {
 import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { normalizeSlotHHMM } from "@/lib/chairman/evaluator-schedule-hydration";
 import {
+  clampPlotStartSlotIndex,
   inferDurationSlotsFromTimes,
   plotEntryDurationSlots,
   timesFromSlotRange,
@@ -58,8 +59,8 @@ function entryTimeBounds(
   const startIdx = startSlotIndexFromEntry(e, slots);
   if (startIdx < 0) return null;
   const maxS = slots.length - dur;
-  const eff = Math.min(startIdx, maxS);
-  if (eff < 0 || eff + dur > slots.length) return null;
+  const eff = clampPlotStartSlotIndex(startIdx, dur, slots.length);
+  if (eff < 0 || eff > maxS) return null;
   return { startIdx: eff, dur };
 }
 
@@ -617,8 +618,7 @@ export function GecInteractiveWeekGrid({
                 const sub = gecSubjects.find((s) => s.id === pickedSubjectId);
                 if (!sub) return;
                 const d = plotEntryDurationSlots(programCode, sub, 1);
-                const maxS = slots.length - d;
-                const eff = Math.min(startSlotIndexFromEntry(modal.draft, slots), maxS);
+                const eff = clampPlotStartSlotIndex(startSlotIndexFromEntry(modal.draft, slots), d, slots.length);
                 const times = timesFromSlotRange(eff, d, slots);
                 if (!times) return;
                 setModal((m) =>

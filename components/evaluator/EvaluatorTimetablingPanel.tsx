@@ -62,6 +62,13 @@ import {
   roomsInBuildingSorted,
 } from "@/lib/evaluator/room-by-building";
 import { mergeById } from "@/lib/collections/merge-by-id";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
+import {
+  filterByProgramMode,
+  hydrateScheduleEntries,
+  resolveProgramMode,
+  stampProgramMode,
+} from "@/lib/scheduling/program-mode";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -74,6 +81,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
     day: e.day,
     startTime: e.startTime,
     endTime: e.endTime,
+    programMode: resolveProgramMode(e),
   };
 }
 
@@ -93,6 +101,7 @@ export function EvaluatorTimetablingPanel({
   chairmanProgramName = null,
 }: EvaluatorTimetablingPanelProps) {
   const toast = useOpticoreToast();
+  const { programMode } = useProgramMode();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const systemConfig = useSystemConfigurationOptional();
   const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
@@ -156,7 +165,7 @@ export function EvaluatorTimetablingPanel({
         `/api/catalog/evaluator-bundle?academicPeriodId=${periodId}`,
         { method: "GET" },
       );
-      setDbEntries(bundle.entries ?? []);
+      setDbEntries(hydrateScheduleEntries(bundle.entries ?? []));
       setLoadJustifications(bundle.justifications ?? []);
       setPeriods(bundle.periods ?? []);
       setColleges(bundle.colleges ?? []);
@@ -188,7 +197,7 @@ export function EvaluatorTimetablingPanel({
         entries: ScheduleEntry[];
         justifications: ScheduleLoadJustification[];
       }>(academicPeriodId);
-      setDbEntries(data.entries ?? []);
+      setDbEntries(hydrateScheduleEntries(data.entries ?? []));
       setLoadJustifications(data.justifications ?? []);
     } catch {}
   }, [academicPeriodId]);
@@ -209,7 +218,7 @@ export function EvaluatorTimetablingPanel({
           justifications: ScheduleLoadJustification[];
         }>(academicPeriodId);
         if (!cancelled) {
-          setDbEntries(data.entries ?? []);
+          setDbEntries(hydrateScheduleEntries(data.entries ?? []));
           setLoadJustifications(data.justifications ?? []);
         }
       } catch (e: any) {
@@ -436,6 +445,11 @@ export function EvaluatorTimetablingPanel({
     return m;
   }, [colleges]);
 
+  const modeDbEntries = useMemo(
+    () => filterByProgramMode(dbEntries, programMode),
+    [dbEntries, programMode],
+  );
+
   const mergedScheduleEntries = useMemo((): ScheduleEntry[] => {
     const fromLocal: ScheduleEntry[] = localDrafts.map((b) => ({
       id: b.id,
@@ -448,9 +462,10 @@ export function EvaluatorTimetablingPanel({
       startTime: b.startTime,
       endTime: b.endTime,
       status: "draft",
+      programMode: b.programMode === "night" || b.programMode === "day" ? b.programMode : programMode,
     }));
-    return [...dbEntries, ...fromLocal];
-  }, [dbEntries, localDrafts]);
+    return [...modeDbEntries, ...fromLocal];
+  }, [modeDbEntries, localDrafts, programMode]);
 
   const instructorPlotOptionsForPanel = useMemo(() => {
     const base = usersToInstructorPlotOptions(instructorsInCollege, profileByUserId);
@@ -464,7 +479,7 @@ export function EvaluatorTimetablingPanel({
   const mergedEntriesForPolicy = useMemo((): ScheduleEntry[] => {
     if (!academicPeriodId || !effectiveCollegeId) return [];
     const byId = new Map<string, ScheduleEntry>();
-    for (const e of dbEntries) {
+    for (const e of modeDbEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
       byId.set(e.id, e);
     }
@@ -481,10 +496,11 @@ export function EvaluatorTimetablingPanel({
         startTime: b.startTime,
         endTime: b.endTime,
         status: "draft",
+        programMode: b.programMode === "night" || b.programMode === "day" ? b.programMode : programMode,
       });
     }
     return [...byId.values()];
-  }, [dbEntries, localDrafts, academicPeriodId, effectiveCollegeId]);
+  }, [modeDbEntries, localDrafts, academicPeriodId, effectiveCollegeId, programMode]);
 
   const policyEvaluation = useMemo(() => {
     if (!effectiveCollegeId) {
@@ -542,9 +558,9 @@ export function EvaluatorTimetablingPanel({
   }, [sections]);
 
   const universe = useMemo(() => {
-    const fromDb = dbEntries.map(toBlock);
+    const fromDb = modeDbEntries.map(toBlock);
     return [...fromDb, ...localDrafts];
-  }, [dbEntries, localDrafts]);
+  }, [modeDbEntries, localDrafts]);
 
   const scheduleTableRows = useMemo(() => {
     if (!chairmanCollegeId || !academicPeriodId) return [];
@@ -767,8 +783,9 @@ export function EvaluatorTimetablingPanel({
       day,
       startTime: slot.startTime,
       endTime: slot.endTime,
+      programMode,
     };
-  }, [academicPeriodId, sectionId, subjectId, instructorId, roomId, day, slot]);
+  }, [academicPeriodId, sectionId, subjectId, instructorId, roomId, day, slot, programMode]);
 
   useEffect(() => {
     if (!candidate) {
@@ -862,18 +879,24 @@ export function EvaluatorTimetablingPanel({
     }
     setSaveMsg(null);
 
-    const rows = localDrafts.map((b) => ({
-      id: b.id,
-      academicPeriodId: b.academicPeriodId,
-      subjectId: b.subjectId,
-      instructorId: b.instructorId,
-      sectionId: b.sectionId,
-      roomId: b.roomId,
-      day: b.day,
-      startTime: b.startTime,
-      endTime: b.endTime,
-      status: "draft" as const,
-    }));
+    const rows = localDrafts.map((b) =>
+      stampProgramMode(
+        {
+          id: b.id,
+          academicPeriodId: b.academicPeriodId,
+          subjectId: b.subjectId,
+          instructorId: b.instructorId,
+          sectionId: b.sectionId,
+          roomId: b.roomId,
+          day: b.day,
+          startTime: b.startTime,
+          endTime: b.endTime,
+          status: "draft" as const,
+          programMode: b.programMode,
+        },
+        programMode,
+      ),
+    );
 
     const needsTeachingJustification = policyEvaluation.hasTeachingLoadJustificationViolation;
 

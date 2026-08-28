@@ -164,8 +164,8 @@ function PlotCellSummary({
   const pr = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
   const dur = pr ? plotRowDurationSlots(pr, row) : 1;
   const slots = timeSlots;
-  const maxS = slots.length - dur;
-  const eff = pr ? Math.min(row.startSlotIndex, maxS) : 0;
+  const eff =
+    pr && slots ? clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length) : 0;
   const sec = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "";
   const room = row.roomId ? (roomCodeById.get(row.roomId) ?? "") : "";
   const inst = row.instructorId ? (instructorDisplayById.get(row.instructorId) ?? "") : "";

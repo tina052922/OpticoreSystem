@@ -51,6 +51,7 @@ export function startSlotIndexFromScheduleEntryStartTime(
   const slots = evaluatorTimeSlots(mode);
   const idx = slots.findIndex((t) => t.startTime === key);
   if (idx >= 0) return idx;
+  if (mode === "night") return -1;
   const dayIdx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === key);
   return dayIdx >= 0 ? dayIdx : 0;
 }

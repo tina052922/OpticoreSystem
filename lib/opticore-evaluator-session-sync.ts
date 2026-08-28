@@ -15,6 +15,7 @@ export type BsitEvaluatorPlotRowSnapshot = {
   roomId: string;
   startSlotIndex: number;
   day: string;
+  programMode?: "day" | "night";
 };
 
 export type EvaluatorSessionSnapshotV1 = {
@@ -22,6 +23,7 @@ export type EvaluatorSessionSnapshotV1 = {
   academicPeriodId: string;
   collegeId: string | null;
   programId: string | null;
+  programMode?: "day" | "night";
   rows: BsitEvaluatorPlotRowSnapshot[];
   updatedAt: string;
 };

@@ -8,9 +8,10 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { isEvaluatorSlotPlottable, evaluatorTimeSlots, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
 import {
+  clampPlotStartSlotIndex,
   maxPlotDurationSlots,
   plotRowDurationSlots,
 } from "@/lib/evaluator/plot-duration";
@@ -76,8 +77,12 @@ function buildCandidateBlock(
   if (!pr) return null;
   const dur = plotRowDurationSlots(pr, merged);
   const maxS = slots.length - dur;
-  const startIdx =
-    merged.startSlotIndex < 0 ? 0 : Math.min(merged.startSlotIndex, maxS);
+  const startIdx = clampPlotStartSlotIndex(
+    merged.startSlotIndex < 0 ? 0 : merged.startSlotIndex,
+    dur,
+    slots.length,
+  );
+  if (startIdx < 0 || startIdx > maxS) return null;
   const start = slots[startIdx];
   const endSlot = slots[startIdx + dur - 1];
   if (!start || !endSlot) return null;
@@ -161,7 +166,7 @@ export function ChairmanPlotScheduleModal({
   onApply,
   onRemove,
 }: ChairmanPlotScheduleModalProps) {
-  const slots = timeSlots ?? BSIT_ONE_HOUR_SLOTS;
+  const slots = timeSlots ?? evaluatorTimeSlots(programMode);
   const days = weekdays;
   const [visible, setVisible] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
@@ -193,8 +198,11 @@ export function ChairmanPlotScheduleModal({
   const dur = pr ? plotRowDurationSlots(pr, draft) : 1;
   const maxDur = pr ? maxPlotDurationSlots(pr) : 1;
   const maxStart = slots.length - dur;
-  const effectiveStart =
-    draft.startSlotIndex < 0 ? 0 : Math.min(draft.startSlotIndex, maxStart);
+  const effectiveStart = clampPlotStartSlotIndex(
+    draft.startSlotIndex < 0 ? 0 : draft.startSlotIndex,
+    dur,
+    slots.length,
+  );
   const timeLine =
     !draft.day || draft.startSlotIndex < 0
       ? "Select subject, day, and time"
@@ -547,8 +555,7 @@ export function ChairmanPlotScheduleModal({
                   let startSlotIndex = draft.startSlotIndex;
                   if (p) {
                     const d = plotRowDurationSlots(p, draft);
-                    const maxS = slots.length - d;
-                    if (startSlotIndex > maxS) startSlotIndex = maxS;
+                    startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots.length);
                   }
                   onDraftChange({
                     ...draft,
@@ -654,8 +661,7 @@ export function ChairmanPlotScheduleModal({
                 let startSlotIndex = draft.startSlotIndex;
                 if (p) {
                   const d = plotRowDurationSlots(p, { durationSlots: 1 });
-                  const maxS = slots.length - d;
-                  if (startSlotIndex > maxS) startSlotIndex = maxS;
+                  startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots.length);
                 }
                 onDraftChange({
                   ...draft,
@@ -901,8 +907,11 @@ export function ChairmanPlotScheduleModal({
                 disabled={readOnly}
                 onChange={(e) => {
                   const durationSlots = parseInt(e.target.value, 10) || 1;
-                  const maxS = slots.length - durationSlots;
-                  const startSlotIndex = Math.min(draft.startSlotIndex, maxS);
+                  const startSlotIndex = clampPlotStartSlotIndex(
+                    draft.startSlotIndex,
+                    durationSlots,
+                    slots.length,
+                  );
                   onDraftChange({ ...draft, durationSlots, startSlotIndex });
                 }}
               >

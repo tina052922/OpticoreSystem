@@ -46,7 +46,7 @@ import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import { evaluatorTimeSlots, evaluatorWeekdaysForMode, filterByProgramMode, isEvaluatorSlotPlottable, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { encodeDayForStorage, evaluatorTimeSlots, evaluatorWeekdaysForMode, filterByProgramMode, isEvaluatorSlotPlottable, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
@@ -211,6 +211,7 @@ function buildWorksheetPolicyScheduleEntries(args: {
   for (const e of allTermScheduleEntries) {
     if (e.academicPeriodId !== academicPeriodId) continue;
     if (worksheetIds.has(e.id)) continue;
+    if (resolveProgramMode(e) !== programMode) continue;
     byId.set(e.id, e);
   }
 
@@ -1157,7 +1158,7 @@ export function BsitChairmanEvaluatorWorksheet({
       programMode,
       slots: slotsForMode,
     });
-  }, [academicPeriodId, allTermScheduleEntries, rows, programId, programCodeForSummary]);
+  }, [academicPeriodId, allTermScheduleEntries, rows, programId, programCodeForSummary, programMode, slotsForMode]);
 
   const policyRows = useMemo(() => {
     if (!academicPeriodId || !chairmanCollegeId) {
@@ -1524,6 +1525,7 @@ export function BsitChairmanEvaluatorWorksheet({
       academicPeriodId,
       collegeId: chairmanCollegeId,
       programId: chairmanProgramId,
+      programMode,
       rows: rows.map((r) => ({
         id: r.id,
         sectionId: r.sectionId,
@@ -1533,10 +1535,11 @@ export function BsitChairmanEvaluatorWorksheet({
         roomId: r.roomId,
         startSlotIndex: r.startSlotIndex,
         day: r.day,
+        programMode,
       })),
       updatedAt: new Date().toISOString(),
     });
-  }, [rows, academicPeriodId, chairmanCollegeId, chairmanProgramId]);
+  }, [rows, academicPeriodId, chairmanCollegeId, chairmanProgramId, programMode]);
 
   useEffect(() => {
     const on = () => setConnOnline(true);
@@ -1660,7 +1663,7 @@ export function BsitChairmanEvaluatorWorksheet({
             instructorId: row.instructorId,
             sectionId: row.sectionId,
             roomId: row.roomId,
-            day: row.day,
+            day: encodeDayForStorage(row.day, programMode),
             startTime: tb.start.startTime,
             endTime: tb.endSlot.endTime,
             status: "draft",

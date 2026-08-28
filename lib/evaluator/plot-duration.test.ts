@@ -14,7 +14,7 @@ describe("clampPlotStartSlotIndex", () => {
     expect(fourPm).toBe(9);
     expect(clampPlotStartSlotIndex(sixPm, 1, NIGHT_FULL_DAY_SLOTS.length)).toBe(11);
     expect(clampPlotStartSlotIndex(sixPm, 2, NIGHT_FULL_DAY_SLOTS.length)).toBe(11);
-    expect(clampPlotStartSlotIndex(sixPm, 1, DAY_ONE_HOUR_SLOTS.length)).toBe(9);
+    expect(clampPlotStartSlotIndex(sixPm, 1, DAY_ONE_HOUR_SLOTS.length)).toBe(11);
   });
 
   it("leaves unplaced rows at -1", () => {
@@ -37,6 +37,11 @@ describe("timesFromSlotRange night placement", () => {
       startTime: "18:00:00",
       endTime: "20:00:00",
     });
+  });
+
+  it("does not remap a Night 6:00 PM index onto the Day 4:00 PM slot", () => {
+    const sixPm = NIGHT_FULL_DAY_SLOTS.findIndex((s) => s.startTime === "18:00");
+    expect(timesFromSlotRange(sixPm, 1, DAY_ONE_HOUR_SLOTS)).toBeNull();
   });
 
   it("still maps Day 4:00 PM – 5:00 PM on the day grid", () => {

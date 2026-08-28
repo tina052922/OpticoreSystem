@@ -163,17 +163,41 @@ describe("TC005 — Conflict messages use readable 12-hour ranges", () => {
 
 describe("TC007 — Search and listings filter by the selected program", () => {
   const rows = [
-    { id: "day-1", day: "Monday", programMode: "day" },
-    { id: "night-1", day: "Monday", programMode: "night" },
+    { id: "day-1", day: "Monday", startTime: "08:00", programMode: "day" },
+    { id: "night-1", day: "Monday", startTime: "18:00", programMode: "night" },
     { id: "night-2", day: "Night::Tuesday" },
-    { id: "legacy-day", day: "Wednesday" },
+    { id: "legacy-day", day: "Wednesday", startTime: "09:00" },
+    { id: "untagged-6pm", day: "Monday", startTime: "18:00" },
+    { id: "tagged-night-4pm", day: "Monday", startTime: "16:00", programMode: "night" },
   ];
 
   it("returns Night rows only when the Night Program is selected", () => {
-    expect(filterByProgramMode(rows, "night").map((r) => r.id)).toEqual(["night-1", "night-2"]);
+    expect(filterByProgramMode(rows, "night").map((r) => r.id)).toEqual([
+      "night-1",
+      "night-2",
+      "untagged-6pm",
+      "tagged-night-4pm",
+    ]);
   });
 
   it("returns Day rows only when the Day Program is selected", () => {
     expect(filterByProgramMode(rows, "day").map((r) => r.id)).toEqual(["day-1", "legacy-day"]);
+  });
+});
+
+describe("TC008 — Faculty load stays per program", () => {
+  it("does not mix Day and Night hours for the same instructor", () => {
+    const rows = [
+      { id: "d", instructorId: "alberca", day: "Monday", startTime: "08:00", endTime: "10:00", programMode: "day" as const },
+      { id: "n", instructorId: "alberca", day: "Monday", startTime: "18:00", endTime: "20:00", programMode: "night" as const },
+    ];
+    expect(filterByProgramMode(rows, "day")).toHaveLength(1);
+    expect(filterByProgramMode(rows, "night")).toHaveLength(1);
+  });
+
+  it("infers untagged 6:00 PM as Night and keeps tagged Night 4:00 PM as Night", () => {
+    expect(resolveProgramMode({ day: "Monday", startTime: "18:00" })).toBe("night");
+    expect(resolveProgramMode({ day: "Monday", startTime: "16:00", programMode: "night" })).toBe("night");
+    expect(resolveProgramMode({ day: "Monday", startTime: "16:00", programMode: "day" })).toBe("day");
   });
 });

@@ -140,27 +140,77 @@ export function encodeDayForStorage(day: string, mode: ProgramMode): string {
   return mode === "night" ? `${NIGHT_DAY_PREFIX}${cal}` : cal;
 }
 
+function startHourFromTime(startTime?: string | null): number | null {
+  if (!startTime) return null;
+  const h = parseInt(String(startTime).trim().split(":")[0] ?? "", 10);
+  return Number.isFinite(h) ? h : null;
+}
+
+/**
+ * Untagged legacy rows: weekend and after 5:00 PM are Night-only windows.
+ * Friday 4:00–5:00 PM stays Day unless `programMode` / `Night::` says otherwise.
+ */
+function inferProgramModeFromShape(row: { day?: string | null; startTime?: string | null }): ProgramMode | null {
+  if (isWeekend(row.day ?? "")) return "night";
+  const hour = startHourFromTime(row.startTime);
+  if (hour != null && hour >= 17) return "night";
+  return null;
+}
+
 export function resolveProgramMode(row: {
   programMode?: string | null;
   programSession?: string | null;
   day?: string | null;
+  startTime?: string | null;
 }): ProgramMode {
   if (isProgramMode(row.programMode)) return row.programMode;
   if (isProgramMode(row.programSession)) return row.programSession;
   const raw = (row.programMode ?? row.programSession ?? "").trim().toLowerCase();
   if (raw === "night" || raw === "day") return raw;
   if ((row.day ?? "").toLowerCase().startsWith(NIGHT_DAY_PREFIX.toLowerCase())) return "night";
-  return DEFAULT_PROGRAM_MODE;
+  return inferProgramModeFromShape(row) ?? DEFAULT_PROGRAM_MODE;
+}
+
+export function hydrateScheduleEntry<T extends {
+  day?: string;
+  programMode?: string | null;
+  startTime?: string | null;
+}>(row: T): T & { programMode: ProgramMode; day: string } {
+  const mode = resolveProgramMode(row);
+  return {
+    ...row,
+    day: stripNightDayPrefix(row.day ?? ""),
+    programMode: mode,
+  };
+}
+
+export function hydrateScheduleEntries<T extends {
+  day?: string;
+  programMode?: string | null;
+  startTime?: string | null;
+}>(rows: T[] | null | undefined): Array<T & { programMode: ProgramMode; day: string }> {
+  return (rows ?? []).map((r) => hydrateScheduleEntry(r));
+}
+
+/** Stamp an explicit Day/Night marker, keeping a row's existing mode when already set. */
+export function stampProgramMode<T extends { programMode?: string | null }>(
+  row: T,
+  fallback: ProgramMode,
+): T & { programMode: ProgramMode } {
+  return {
+    ...row,
+    programMode: isProgramMode(row.programMode) ? row.programMode : fallback,
+  };
 }
 
 export function matchesProgramMode(
-  row: { programMode?: string | null; day?: string | null },
+  row: { programMode?: string | null; day?: string | null; startTime?: string | null },
   mode: ProgramMode,
 ): boolean {
   return resolveProgramMode(row) === mode;
 }
 
-export function filterByProgramMode<T extends { programMode?: string | null; day?: string | null }>(
+export function filterByProgramMode<T extends { programMode?: string | null; day?: string | null; startTime?: string | null }>(
   rows: T[],
   mode: ProgramMode,
 ): T[] {

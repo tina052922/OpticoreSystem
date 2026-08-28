@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Clock, MapPin, BookOpen, LayoutGrid, Layers } from "lucide-react";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { cn } from "@/components/ui/utils";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import { formatTimeRange12h } from "@/lib/time/format-12h";
@@ -37,6 +38,7 @@ type Props = {
  */
 export function FacultyDashboardTermClient({ profileName, surface = "campus-intelligence" }: Props) {
   const { selectedPeriodId, selectedPeriod, ready } = useSemesterFilter();
+  const { programMode } = useProgramMode();
   const [data, setData] = useState<FacultyPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
     void (async () => {
       try {
         const res = await fetch(
-          `/api/portal/faculty-term-data?periodId=${encodeURIComponent(selectedPeriodId)}`,
+          `/api/portal/faculty-term-data?periodId=${encodeURIComponent(selectedPeriodId)}&programMode=${encodeURIComponent(programMode)}`,
         );
         const j = (await res.json()) as FacultyPayload & { error?: string };
         if (!res.ok) {
@@ -66,7 +68,7 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
     return () => {
       cancelled = true;
     };
-  }, [ready, selectedPeriodId]);
+  }, [ready, selectedPeriodId, programMode]);
 
   const rows = data?.rows ?? [];
   const weeklyHours = data?.weeklyHours ?? 0;

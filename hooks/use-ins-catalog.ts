@@ -21,7 +21,7 @@ import {
 } from "@/lib/scheduling/conflict-enrichment";
 import { runCampusConflictScan } from "@/lib/scheduling/campus-conflict-scan-client";
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
-import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
@@ -162,7 +162,7 @@ export function useInsCatalog(args: {
          * `schedule` → `pdfData` and make `@react-pdf` regenerate an open
          * preview on every 30s tick even though nothing changed.
          */
-        setEntries((prev) => preserveListIdentity(prev, data.entries ?? []) as ScheduleEntry[]);
+        setEntries((prev) => preserveListIdentity(prev, hydrateScheduleEntries(data.entries ?? [])) as ScheduleEntry[]);
       } catch (e: any) {
         setError(e?.message ?? "Failed to load schedule entries");
       }
@@ -234,7 +234,7 @@ export function useInsCatalog(args: {
 
     if (!scopedCollegeId) {
       setPeriods(periodList);
-      setEntries((prev) => preserveListIdentity(prev, sch) as ScheduleEntry[]);
+      setEntries((prev) => preserveListIdentity(prev, hydrateScheduleEntries(sch)) as ScheduleEntry[]);
       setSections(bundle.sections);
       setSubjects(bundle.subjects);
       setRooms(bundle.rooms);
@@ -274,7 +274,7 @@ export function useInsCatalog(args: {
       : prList;
 
     setPeriods(periodList);
-    setEntries((prev) => preserveListIdentity(prev, sch) as ScheduleEntry[]);
+    setEntries((prev) => preserveListIdentity(prev, hydrateScheduleEntries(sch)) as ScheduleEntry[]);
     setSections(sectionsMerged);
     setSubjects(subjectsMerged);
     setRooms(roomsMerged);

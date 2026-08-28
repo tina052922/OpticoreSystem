@@ -4,7 +4,7 @@ import {
   prospectusByCode,
 } from "@/lib/chairman/bsit-prospectus";
 import { inferDurationSlotsFromTimes, plotRowDurationSlots, clampPlotStartSlotIndex } from "@/lib/evaluator/plot-duration";
-import { resolveProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { encodeDayForStorage, resolveProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
 import type { ScheduleEntry, Subject } from "@/types/db";
 
 /** Minimal row shape shared with `BsitChairmanEvaluatorWorksheet` for DB round-trip. */
@@ -74,7 +74,7 @@ export function plotRowsToScheduleEntries(args: {
       instructorId: row.instructorId,
       sectionId: row.sectionId,
       roomId: row.roomId,
-      day: row.day,
+      day: encodeDayForStorage(row.day, programMode),
       startTime: startSlot.startTime,
       endTime: endSlot.endTime,
       status: "draft",
