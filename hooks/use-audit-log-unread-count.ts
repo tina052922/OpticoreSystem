@@ -49,9 +49,9 @@ export function useAuditLogUnreadCount(args: { enabled?: boolean; storageScope: 
           { since },
           { forceRefresh: opts.forceRefresh },
         );
-        setCount(data.unread);
+        setCount(typeof data.unread === "number" ? data.unread : Number(data.unreadCount ?? 0) || 0);
       } catch {
-        /* keep last count */
+        setCount(0);
       }
     },
     [enabled, args.storageScope],

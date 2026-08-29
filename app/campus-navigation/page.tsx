@@ -1,18 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
-
-function dashboardForRole(role: string): string {
-  switch (role) {
-    case "student": return "/student";
-    case "instructor": return "/faculty";
-    case "chairman_admin":
-    case "gec_chairman":
-    case "cas_admin":
-    case "college_admin": return "/chairman";
-    case "doi_admin": return "/doi";
-    default: return "/";
-  }
-}
+import { getDefaultHomeForRole } from "@/lib/auth/role-home";
 
 /**
  * Canonical Campus Navigation entrypoint.
@@ -22,7 +10,7 @@ function dashboardForRole(role: string): string {
 export default async function CampusNavigationPage() {
   try {
     const profile = await getAuthenticatedProfile();
-    const dest = dashboardForRole(profile.role);
+    const dest = getDefaultHomeForRole(profile.role);
     redirect(`/campus-navigation-standalone.html?from=${encodeURIComponent(dest)}`);
   } catch {
     redirect("/campus-navigation-standalone.html");

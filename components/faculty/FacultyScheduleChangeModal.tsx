@@ -5,32 +5,13 @@ import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { scheduleChangeApi, ApiClientError } from "@/lib/api/client";
+import {
+  addMinutesToTimeInput,
+  meetingDurationMinutes,
+  toTimeInputValue,
+} from "@/lib/schedule-change/request-times";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-function timeToMinutes(t: string): number {
-  const raw = t.trim();
-  const base = raw.length > 5 ? raw.slice(0, 5) : raw;
-  const [h, m] = base.split(":").map((x) => parseInt(x, 10));
-  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
-  return h * 60 + m;
-}
-
-/** Value for `<input type="time" />` (HH:MM). */
-function toTimeInputValue(t: string): string {
-  const m = timeToMinutes(t);
-  const h = Math.floor(m / 60) % 24;
-  const min = m % 60;
-  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-}
-
-function addMinutesToTimeInput(start: string, durationMinutes: number): string {
-  const m = timeToMinutes(start) + durationMinutes;
-  const norm = ((m % (24 * 60)) + 24 * 60) % (24 * 60);
-  const h = Math.floor(norm / 60);
-  const min = norm % 60;
-  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-}
 
 export type ScheduleEntryOption = {
   id: string;
@@ -83,7 +64,22 @@ export function FacultyScheduleChangeModal({
     setLoadingEntries(true);
     try {
       const data = await scheduleChangeApi.instructorEntries({ periodId: academicPeriodId });
-      setEntries((data.entries ?? []).map((e) => ({ id: e.id, label: `${e.subject} — ${e.section}`, day: e.day, startTime: e.startTime, endTime: e.endTime, subjectCode: e.subject, sectionName: e.section })));
+      setEntries(
+        (data.entries ?? []).flatMap((e) => {
+          if (!e?.id) return [];
+          return [
+            {
+              id: e.id,
+              label: `${e.subject ?? "Class"} — ${e.section ?? "—"}`,
+              day: e.day || "Monday",
+              startTime: e.startTime || "08:00",
+              endTime: e.endTime || "09:00",
+              subjectCode: e.subject ?? "",
+              sectionName: e.section ?? "",
+            },
+          ];
+        }),
+      );
       setPeriodName(data.periodName ?? null);
     } catch {
       setEntries([]);
@@ -123,8 +119,8 @@ export function FacultyScheduleChangeModal({
   useEffect(() => {
     if (!open || !scheduleEntryId || entries.length === 0) return;
     const sel = entries.find((e) => e.id === scheduleEntryId);
-    if (!sel) return;
-    const dur = Math.max(30, timeToMinutes(sel.endTime) - timeToMinutes(sel.startTime));
+    if (!sel?.startTime || !sel.endTime) return;
+    const dur = meetingDurationMinutes(sel.startTime, sel.endTime);
 
     const entryChanged = scheduleEntryId !== lastHydratedScheduleEntryIdRef.current;
     if (entryChanged) {
@@ -147,13 +143,22 @@ export function FacultyScheduleChangeModal({
       toast.error("Failed to submit. Please try again.", "Select a class meeting to change.");
       return;
     }
+    const sel = entries.find((e) => e.id === scheduleEntryId);
+    const start = toTimeInputValue(requestedStartTime || sel?.startTime);
+    const dur = meetingDurationMinutes(sel?.startTime, sel?.endTime);
+    const end = addMinutesToTimeInput(start, dur);
+    if (!start || !end) {
+      setError("Choose a valid start time.");
+      toast.error("Failed to submit. Please try again.", "Choose a valid start time.");
+      return;
+    }
     setSubmitting(true);
     try {
       await scheduleChangeApi.create({
         scheduleEntryId,
         requestedDay,
-        requestedStartTime,
-        requestedEndTime,
+        requestedStartTime: start,
+        requestedEndTime: end,
         reason,
       });
       setDone(true);

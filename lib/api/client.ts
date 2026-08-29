@@ -646,7 +646,7 @@ export const auditLogApi = {
     params: { since?: string } = {},
     opts: { cookieHeader?: string; forceRefresh?: boolean } = {},
   ) {
-    return apiFetch<{ unread: number }>(
+    return apiFetch<{ unread: number; unreadCount?: number }>(
       `/api/audit/unread-count${qs(params)}`,
       {
         method: "GET",
@@ -1096,7 +1096,7 @@ export const auditApi = {
     });
   },
   getUnreadCount() {
-    return apiFetch<{ unreadCount: number }>("/api/audit/unread-count", {
+    return apiFetch<{ unread?: number; unreadCount?: number }>("/api/audit/unread-count", {
       method: "GET",
     });
   },

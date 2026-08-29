@@ -21,10 +21,7 @@ export function middleware(request: NextRequest) {
   const authRedirectRoutes = ["/login"];
 
   if (authRedirectRoutes.includes(pathname) && hasAccessToken) {
-    const lastPath = request.cookies.get("last_visited_path")?.value;
-    if (lastPath && lastPath !== "/login" && lastPath !== "/register" && lastPath.startsWith("/")) {
-      return NextResponse.redirect(new URL(lastPath, request.url));
-    }
+    // Always land on `/` so the role home (not a leftover last_visited_path) is used.
     return NextResponse.redirect(new URL("/", request.url));
   }
 

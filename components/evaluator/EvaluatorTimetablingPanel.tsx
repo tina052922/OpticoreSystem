@@ -794,20 +794,11 @@ export function EvaluatorTimetablingPanel({
     }
     const hits = detectConflictsForEntry(candidate, universe);
     setConflicts(hits);
+    if (hits.length === 0) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
   }, [candidate, universe]);
-
-  /** Auto-generate GA suggestions whenever conflicts appear (keeps alternatives actionable without extra clicks). */
-  useEffect(() => {
-    if (!candidate) return;
-    if (conflicts.length === 0) return;
-    // Avoid spamming GA runs if the suggestions already match the current candidate.
-    const sig = `${candidate.sectionId}|${candidate.subjectId}|${candidate.instructorId}|${candidate.roomId}|${candidate.day}|${candidate.startTime}|${candidate.endTime}`;
-    const prevSig = (window as unknown as { __opticore_ga_sig?: string }).__opticore_ga_sig;
-    if (prevSig === sig && suggestions.length > 0) return;
-    (window as unknown as { __opticore_ga_sig?: string }).__opticore_ga_sig = sig;
-    runGA();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidate, conflicts.length]);
 
   const previewSectionEntries = useMemo(() => {
     if (!sectionId) return [];
@@ -1079,6 +1070,11 @@ export function EvaluatorTimetablingPanel({
 
   function runAlternativeSuggestion() {
     if (!academicPeriodId) return;
+    if (!fullCheckRan || fullConflictSummaries.length === 0) {
+      setAltOpen(false);
+      setAltSuggestions([]);
+      return;
+    }
     const scopeId = effectiveCollegeId;
     const first = mergedScheduleEntries.find((e) => {
       if (e.academicPeriodId !== academicPeriodId) return false;
@@ -1092,7 +1088,6 @@ export function EvaluatorTimetablingPanel({
     });
     if (!first) {
       setAltSuggestions([]);
-      setAltOpen(true);
       return;
     }
     const sec0 = sectionById.get(first.sectionId);
@@ -1100,7 +1095,6 @@ export function EvaluatorTimetablingPanel({
     const cid = pr0?.collegeId ?? scopeId;
     if (!cid) {
       setAltSuggestions([]);
-      setAltOpen(true);
       return;
     }
     const roomIds = (bsitScope ? roomsForPlotter : rooms.filter((r) => r.collegeId === cid || r.collegeId == null)).map(
@@ -1111,7 +1105,6 @@ export function EvaluatorTimetablingPanel({
       .map((u) => u.id);
     if (roomIds.length === 0 || instructorIds.length === 0) {
       setAltSuggestions([]);
-      setAltOpen(true);
       return;
     }
     setAltBusy(true);
@@ -1201,6 +1194,7 @@ export function EvaluatorTimetablingPanel({
               <p className="text-[12px] text-black/55 max-w-sm">
                 Academic term is selected in the sidebar (orange semester control).
               </p>
+              {fullCheckRan && fullConflictSummaries.length > 0 ? (
               <Button
                 type="button"
                 className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
@@ -1209,6 +1203,7 @@ export function EvaluatorTimetablingPanel({
               >
                 {altBusy ? "Working…" : "Alternative Suggestion"}
               </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -1600,7 +1595,7 @@ export function EvaluatorTimetablingPanel({
             <div className="text-[13px] text-black/50">Complete all required fields to run conflict checks.</div>
           )}
 
-          {showSuggestions && suggestions.length > 0 ? (
+          {showSuggestions && suggestions.length > 0 && conflicts.length > 0 ? (
             <div className="rounded-lg border border-black/10 bg-white p-4">
               <div className="text-sm font-semibold mb-2">Suggested alternatives (genetic algorithm + rules)</div>
               <div className="space-y-2">
@@ -1773,7 +1768,7 @@ export function EvaluatorTimetablingPanel({
         </div>
       </div>
 
-      {altOpen ? (
+      {altOpen && altSuggestions.length > 0 && fullCheckRan && fullConflictSummaries.length > 0 ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
           <div
             className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl border border-black/10"

@@ -32,11 +32,27 @@ export function pathAllowedForRole(
   role: Role | string | null | undefined,
   path: string,
 ): boolean {
-  // Basic validation: ensure the path matches the role's general area
-  if (!role) return false;
+  if (!role || !path.startsWith("/")) return false;
+  if (path.startsWith("/campus-navigation") || path.startsWith("/account/")) return true;
 
-  const home = getDefaultHomeForRole(role);
-  const homeBase = home.split("/")[1]; // e.g., "chairman", "admin", "faculty"
-
-  return path.startsWith(`/${homeBase}`);
+  switch (role) {
+    case "college_admin":
+      return path.startsWith("/admin/college");
+    case "cas_admin":
+      return path.startsWith("/admin/cas");
+    case "gec_chairman":
+      return path.startsWith("/admin/gec");
+    case "chairman_admin":
+      return path.startsWith("/chairman");
+    case "doi_admin":
+      return path.startsWith("/doi");
+    case "instructor":
+      return path.startsWith("/faculty");
+    case "student":
+      return path.startsWith("/student");
+    case "visitor":
+      return path.startsWith("/campus-navigation");
+    default:
+      return false;
+  }
 }

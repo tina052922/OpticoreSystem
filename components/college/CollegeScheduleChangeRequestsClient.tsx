@@ -73,6 +73,7 @@ export function CollegeScheduleChangeRequestsClient() {
   const autoCheckDoneForSelected = useRef<string | null>(null);
   /** Set from API for Supabase Realtime filter (same college as the signed-in admin). */
   const [realtimeCollegeId, setRealtimeCollegeId] = useState<string | null>(null);
+  const forbiddenRef = useRef(false);
 
   /** Instructor request or index into merged campus-built alternatives list. */
   const [approveSolutionChoice, setApproveSolutionChoice] = useState<"instructor" | number>("instructor");
@@ -92,6 +93,7 @@ export function CollegeScheduleChangeRequestsClient() {
   }, [effectiveAlternatives.length, selectedId]);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (forbiddenRef.current) return;
     if (!opts?.silent) {
       setLoading(true);
     }
@@ -106,6 +108,13 @@ export function CollegeScheduleChangeRequestsClient() {
         return list[0]?.id ?? null;
       });
     } catch (e) {
+      if (e instanceof ApiClientError && e.status === 403) {
+        forbiddenRef.current = true;
+        setRequests([]);
+        setRealtimeCollegeId(null);
+        setError("This queue is only available to College Admin.");
+        return;
+      }
       setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to load");
     } finally {
       if (!opts?.silent) {

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { authApi } from "@/lib/api/client";
 import type { Role, SafeUser } from "@/lib/api/client";
+import { getDefaultHomeForRole } from "@/lib/auth/role-home";
 
 export async function getAuthenticatedProfile(): Promise<SafeUser> {
   try {
@@ -57,8 +58,7 @@ export async function requireRoles(allowedRoles: Role[]): Promise<SafeUser> {
   const profile = await getAuthenticatedProfile();
 
   if (!allowedRoles.includes(profile.role)) {
-    // Redirect to login with a forbidden error so the UI can show a message
-    redirect(`/login?error=forbidden_role`);
+    redirect(getDefaultHomeForRole(profile.role));
   }
 
   return profile;

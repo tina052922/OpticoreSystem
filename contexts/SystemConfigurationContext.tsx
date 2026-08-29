@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -46,6 +47,7 @@ export function SystemConfigurationProvider({ children }: { children: ReactNode 
   const [schedulingPolicy, setSchedulingPolicy] = useState<SchedulingPolicyConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const skipForbiddenRef = useRef(false);
 
   /**
    * `forceRefresh` is used by the save/broadcast listeners below: those fire
@@ -54,11 +56,21 @@ export function SystemConfigurationProvider({ children }: { children: ReactNode 
    * duplicate requests from multiple providers/portals mounting at once.
    */
   const reload = useCallback(async (opts: { forceRefresh?: boolean } = {}) => {
+    if (skipForbiddenRef.current) {
+      setLoading(false);
+      return;
+    }
     try {
       const { config } = await systemConfigApi.get({ forceRefresh: opts.forceRefresh });
       setSchedulingPolicy((config.schedulingPolicy as SchedulingPolicyConfig | null) ?? null);
       setError(null);
     } catch (e) {
+      if (e instanceof ApiClientError && e.status === 403) {
+        skipForbiddenRef.current = true;
+        setSchedulingPolicy(null);
+        setError(null);
+        return;
+      }
       setError(
         e instanceof ApiClientError
           ? e.message

@@ -62,6 +62,70 @@ function CredLine({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+function FacultyScheduleRequestCells({
+  items,
+  readOnly,
+  clickableScheduleEntryCells,
+  onScheduleEntryClick,
+  compact,
+}: {
+  items: InsTimedCell[];
+  readOnly?: boolean;
+  clickableScheduleEntryCells?: boolean;
+  onScheduleEntryClick?: (scheduleEntryId: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={
+        compact
+          ? "w-full overflow-hidden text-[9px] leading-tight print:text-[6pt]"
+          : "w-full space-y-1 print:space-y-0 print:flex print:flex-row print:flex-wrap print:gap-x-2 print:gap-y-0.5 print:items-start print:justify-start"
+      }
+    >
+      {(items as InsFacultyCell[]).slice(0, compact ? 2 : 3).map((classAtTime, idx) => {
+        const inner = compact ? (
+          <div className="truncate max-h-[2.4em]">
+            <span className="font-bold">{classAtTime.course}</span>
+            <span className="block truncate">{classAtTime.yearSec}</span>
+            <span className="block truncate">{classAtTime.room}</span>
+          </div>
+        ) : (
+          <div className="w-full grid grid-cols-1 gap-0 text-[10px] leading-tight print:text-[6.5pt] print:grid print:grid-cols-1 print:leading-tight print:gap-x-1 print:items-baseline">
+            <span className="font-bold text-black truncate">{classAtTime.course}</span>
+            <span className="text-neutral-700 truncate">{classAtTime.yearSec}</span>
+            <span className="text-neutral-600 truncate">{classAtTime.room}</span>
+          </div>
+        );
+        const entryId = classAtTime.scheduleEntryId;
+        const canRequest =
+          Boolean(readOnly) &&
+          Boolean(clickableScheduleEntryCells) &&
+          typeof onScheduleEntryClick === "function" &&
+          Boolean(entryId) &&
+          !classAtTime.vacantGec;
+        const body = canRequest ? (
+          <button
+            type="button"
+            className="w-full text-left rounded-md p-0.5 -m-0.5 transition-[box-shadow,background] hover:bg-[#ff990a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50 cursor-pointer"
+            title="Request schedule change for this class"
+            onClick={() => entryId && onScheduleEntryClick(entryId)}
+          >
+            {inner}
+          </button>
+        ) : (
+          inner
+        );
+        return (
+          <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`} className="min-w-0">
+            {body}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Summary of Courses — mirrors the PDF `INSSummaryTable` exactly:
  * a title row carrying the student total, then two columns
@@ -343,15 +407,13 @@ export function OpticoreInsForm5A({
         <OpticoreInsNightScheduleTable
           cellsByDay={schedule as Record<string, InsTimedCell[]>}
           renderCell={(items) => (
-            <div className="w-full overflow-hidden text-[9px] leading-tight print:text-[6pt]">
-              {(items as InsFacultyCell[]).slice(0, 2).map((c, idx) => (
-                <div key={c.scheduleEntryId ?? `${c.course}-${idx}`} className="truncate max-h-[2.4em]">
-                  <span className="font-bold">{c.course}</span>
-                  <span className="block truncate">{c.yearSec}</span>
-                  <span className="block truncate">{c.room}</span>
-                </div>
-              ))}
-            </div>
+            <FacultyScheduleRequestCells
+              items={items}
+              readOnly={readOnly}
+              clickableScheduleEntryCells={clickableScheduleEntryCells}
+              onScheduleEntryClick={onScheduleEntryClick}
+              compact
+            />
           )}
           summary={
             <InsSummaryOfCourses

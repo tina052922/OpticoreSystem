@@ -2,8 +2,10 @@
  * Display-only: convert 24h HH:MM strings from the database into 12-hour labels.
  */
 
-function normalizeHHMM(t: string): { h: number; m: number } | null {
+function normalizeHHMM(t: string | null | undefined): { h: number; m: number } | null {
+  if (typeof t !== "string") return null;
   const raw = t.trim().slice(0, 5);
+  if (!raw) return null;
   const [a, b] = raw.split(":");
   const h = parseInt(a, 10);
   const m = parseInt(b, 10);
@@ -11,9 +13,9 @@ function normalizeHHMM(t: string): { h: number; m: number } | null {
   return { h: ((h % 24) + 24) % 24, m: ((m % 60) + 60) % 60 };
 }
 
-export function formatHHMMTo12h(hhmm: string): string {
+export function formatHHMMTo12h(hhmm: string | null | undefined): string {
   const n = normalizeHHMM(hhmm);
-  if (!n) return hhmm.trim();
+  if (!n) return typeof hhmm === "string" ? hhmm.trim() : "";
   const { h, m } = n;
   const isPm = h >= 12;
   const h12 = h % 12 === 0 ? 12 : h % 12;
@@ -21,6 +23,9 @@ export function formatHHMMTo12h(hhmm: string): string {
 }
 
 /** e.g. `"1:00 PM – 4:00 PM"` */
-export function formatTimeRange12h(startHHMM: string, endHHMM: string): string {
-  return `${formatHHMMTo12h(startHHMM)} – ${formatHHMMTo12h(endHHMM)}`;
+export function formatTimeRange12h(startHHMM: string | null | undefined, endHHMM: string | null | undefined): string {
+  const start = formatHHMMTo12h(startHHMM);
+  const end = formatHHMMTo12h(endHHMM);
+  if (!start && !end) return "—";
+  return `${start || "—"} – ${end || "—"}`;
 }

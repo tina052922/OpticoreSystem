@@ -134,23 +134,6 @@ export function CentralHubEvaluatorView({
     };
   }, [hubAccessMode]);
 
-  /** College Admin: open own college hub directly (college scope only — not campus-wide). */
-  useEffect(() => {
-    if (hubAccessMode !== "collegeAdmin" || collegeSlug || !myCollegeId || !collegeAdminProfileReady) return;
-    if (landingPanelForTabs === "hrs") return;
-    const slug = hubSlugForCollegeId(myCollegeId);
-    if (!slug) return;
-    router.replace(`${basePath}?college=${encodeURIComponent(slug)}&panel=timetabling`);
-  }, [
-    hubAccessMode,
-    collegeSlug,
-    myCollegeId,
-    collegeAdminProfileReady,
-    landingPanelForTabs,
-    router,
-    basePath,
-  ]);
-
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
@@ -698,6 +681,12 @@ export function CentralHubEvaluatorView({
   }, [searchParams, loading, academicPeriodId, runScopedConflictScan]);
 
   function runAlternativeSuggestion() {
+    const hasConflicts = Boolean(campusConflictScan?.enrichedIssues?.length);
+    if (!hasConflicts) {
+      setAltOpen(false);
+      setAltSuggestions([]);
+      return;
+    }
     if (!academicPeriodId) return;
     const first = entries.find((e) => {
       if (e.academicPeriodId !== academicPeriodId) return false;
@@ -712,7 +701,6 @@ export function CentralHubEvaluatorView({
     });
     if (!first) {
       setAltSuggestions([]);
-      setAltOpen(true);
       return;
     }
     const sec0 = sectionById.get(first.sectionId);
@@ -720,7 +708,6 @@ export function CentralHubEvaluatorView({
     const cid = pr0?.collegeId ?? scopeCollegeId;
     if (!cid) {
       setAltSuggestions([]);
-      setAltOpen(true);
       return;
     }
     const roomIds = rooms.filter((r) => r.collegeId === cid || r.collegeId == null).map((r) => r.id);
@@ -729,7 +716,6 @@ export function CentralHubEvaluatorView({
       .map((u) => u.id);
     if (roomIds.length === 0 || instructorIds.length === 0) {
       setAltSuggestions([]);
-      setAltOpen(true);
       return;
     }
     setAltBusy(true);
@@ -833,7 +819,7 @@ export function CentralHubEvaluatorView({
     if (!h?.collegeId || !myCollegeId || !myUserId) return;
     if (h.collegeId === myCollegeId) return;
     if (!hasApprovedCrossCollegeEvaluatorAccess(accessRequests, h.collegeId, myUserId)) return;
-    if (searchParams.get("panel") === "timetabling") return;
+    if (searchParams.get("panel")) return;
     router.replace(`${basePath}?college=${encodeURIComponent(collegeSlug)}&panel=timetabling`);
   }, [
     hubAccessMode,
@@ -1176,13 +1162,6 @@ export function CentralHubEvaluatorView({
             ) : null}
 
             {hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId ? (
-              <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50/80 px-4 py-2 text-[13px] text-sky-950">
-                <strong>College scope:</strong> schedules and departments below are limited to{" "}
-                {collegeRow?.name ?? hub?.name ?? "this college"}. Use department/section filters as needed.
-              </div>
-            ) : null}
-
-            {hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId ? (
               <div className="space-y-6 max-w-[1400px] mx-auto mb-6">
                 <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
                   <span>Department (program)</span>
@@ -1288,6 +1267,7 @@ export function CentralHubEvaluatorView({
                 <span className="text-[11px] text-black/50 max-w-[220px] leading-snug">
                   Scans all colleges for overlaps — unchanged by your hub scope filter.
                 </span>
+                {campusConflictScan && campusConflictScan.enrichedIssues.length > 0 ? (
                 <Button
                   type="button"
                   className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
@@ -1296,6 +1276,7 @@ export function CentralHubEvaluatorView({
                 >
                   {altBusy ? "Working…" : "Alternative Suggestion"}
                 </Button>
+                ) : null}
               </div>
             </div>
 
@@ -1392,7 +1373,7 @@ export function CentralHubEvaluatorView({
                 }}
               />
 
-            {altOpen ? (
+            {altOpen && altSuggestions.length > 0 && (campusConflictScan?.enrichedIssues?.length ?? 0) > 0 ? (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
                 <div
                   className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl border border-black/10"

@@ -44,6 +44,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 export function SystemConfigurationClient({ mode, collegeId = null, collegeName = null }: SystemConfigurationClientProps) {
   const { schedulingPolicy, policyConstants, reload: reloadPolicy } = useSystemConfiguration();
+  const canWriteCampusPolicy = mode === "doi";
 
   const [policyDraft, setPolicyDraft] = useState<SchedulingPolicyConfig>(DEFAULT_SCHEDULING_POLICY);
   const [policySaving, setPolicySaving] = useState(false);
@@ -276,6 +277,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
             </label>
           ))}
         </div>
+        {canWriteCampusPolicy ? (
         <Button
           type="button"
           className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold"
@@ -284,6 +286,9 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
         >
           {policySaving ? "Saving…" : "Save teaching load policy"}
         </Button>
+        ) : (
+          <p className="text-xs text-black/55">Campus-wide teaching load policy is set by VPAA / DOI.</p>
+        )}
         {policyMsg ? <p className="text-sm text-emerald-800">{policyMsg}</p> : null}
       </SectionCard>
 
@@ -308,6 +313,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
             </label>
           ))}
         </div>
+        {canWriteCampusPolicy ? (
         <Button
           type="button"
           className="mt-3 bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold"
@@ -316,6 +322,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
         >
           {policySaving ? "Saving…" : "Save rates & policy"}
         </Button>
+        ) : null}
       </SectionCard>
 
       <SectionCard title="Rate per hour by designation">
@@ -351,6 +358,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
             </label>
           ))}
         </div>
+        {canWriteCampusPolicy ? (
         <Button
           type="button"
           className="mt-3 bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold"
@@ -359,6 +367,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
         >
           {policySaving ? "Saving…" : "Save designation rates"}
         </Button>
+        ) : null}
         {policyMsg ? <p className="text-sm text-emerald-800">{policyMsg}</p> : null}
       </SectionCard>
 
@@ -384,7 +393,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
                     </span>
                   ) : null}
                 </span>
-                {!p.isCurrent ? (
+                {!p.isCurrent && canWriteCampusPolicy ? (
                   <Button type="button" size="sm" variant="outline" onClick={() => void setCurrentPeriod(p.id)}>
                     Set as current
                   </Button>
@@ -394,6 +403,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
           </ul>
         )}
 
+        {canWriteCampusPolicy ? (
         <form onSubmit={(e) => void addPeriod(e)} className="space-y-3 border-t border-black/10 pt-4">
           <p className="text-xs font-semibold text-black/70">Add new academic period</p>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -433,6 +443,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
             Create & set current
           </Button>
         </form>
+        ) : null}
         {periodMsg ? <p className="text-sm text-emerald-800">{periodMsg}</p> : null}
       </SectionCard>
     </div>
