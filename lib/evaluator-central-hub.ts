@@ -53,3 +53,35 @@ export function hubCollegeBySlug(slug: string | null): HubCollege | undefined {
 export function hubSlugForCollegeId(collegeId: string): string | undefined {
   return CENTRAL_HUB_COLLEGES.find((c) => c.collegeId === collegeId)?.slug;
 }
+
+/** Explicit college-list URL so Next.js does not keep `?college=` when clicking Colleges. */
+export function hubCollegesListHref(basePath: string): string {
+  const path = basePath.split("?")[0] || basePath;
+  return `${path}?view=colleges`;
+}
+
+export function isHubCollegeListView(view: string | null, college: string | null): boolean {
+  if ((view ?? "").trim().toLowerCase() === "colleges") return true;
+  return !college?.trim();
+}
+
+/** GEC landing tiles: always show hub colleges, then any extra DB colleges. */
+export function gecHubCollegeTiles(
+  dbColleges: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  const leftover = new Map(dbColleges.map((c) => [c.id, c]));
+  const tiles: Array<{ id: string; name: string }> = [];
+  for (const h of CENTRAL_HUB_COLLEGES) {
+    if (h.collegeId && leftover.has(h.collegeId)) {
+      const row = leftover.get(h.collegeId)!;
+      tiles.push({ id: row.id, name: row.name });
+      leftover.delete(h.collegeId);
+    } else {
+      tiles.push({ id: h.collegeId ?? h.slug, name: h.name });
+    }
+  }
+  for (const extra of leftover.values()) {
+    tiles.push({ id: extra.id, name: extra.name });
+  }
+  return tiles;
+}

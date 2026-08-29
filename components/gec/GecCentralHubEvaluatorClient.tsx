@@ -56,7 +56,12 @@ import {
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
-import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
+import {
+  CAMPUS_WIDE_COLLEGE_SLUG,
+  gecHubCollegeTiles,
+  hubCollegesListHref,
+  isHubCollegeListView,
+} from "@/lib/evaluator-central-hub";
 import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
@@ -102,8 +107,11 @@ export function GecCentralHubEvaluatorClient() {
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const collegeParam = searchParams.get("college")?.trim() ?? "";
+  const collegeParam = isHubCollegeListView(searchParams.get("view"), searchParams.get("college"))
+    ? ""
+    : searchParams.get("college")?.trim() ?? "";
   const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
+  const gecCollegesListHref = hubCollegesListHref("/admin/gec/evaluator");
   const isCampusWide = collegeParam === CAMPUS_WIDE_COLLEGE_SLUG;
 
   const { requests, loading: accessLoading, reload: reloadAccess } = useAccessRequests();
@@ -1018,33 +1026,20 @@ export function GecCentralHubEvaluatorClient() {
     [sparseCampusWideUniverse, subjectById, roomById, userById, sectionById],
   );
 
-  if (loadError) {
-    return <div className="px-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4 m-4">{loadError}</div>;
-  }
+  const landingTiles = gecHubCollegeTiles(colleges.map((c) => ({ id: c.id, name: c.name })));
 
-  if (invalidCollege) {
-    return (
-      <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Invalid college selection." />
-        <div className="px-4 md:px-8 pb-8">
-          <Link href="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
-            ← Back to college hub
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  /** Landing: college tiles — same structure as College Admin Central Hub (`CentralHubEvaluatorView`). */
+  /** Landing: college tiles first — never wait on catalog errors, never skip to Timetabling. */
   if (!collegeParam) {
     return (
       <div>
-        <ChairmanPageHeader
-          title="Central Hub Evaluator"
-          subtitle="Pick a college or open the campus-wide timetable. Vacant GEC edits require approval for that college."
-        />
+        <ChairmanPageHeader title="Central Hub Evaluator" />
         <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
           <GecHubEvaluatorTabs collegeParam="" panel="timetabling" />
+          {loadError ? (
+            <p className="mb-4 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Catalog could not fully load. College list below is still available.
+            </p>
+          ) : null}
           <div className="mb-4 flex justify-center mt-4">
             <Link
               href={`/admin/gec/evaluator?college=${CAMPUS_WIDE_COLLEGE_SLUG}`}
@@ -1053,21 +1048,44 @@ export function GecCentralHubEvaluatorClient() {
               All colleges (campus-wide timetable)
             </Link>
           </div>
-          {loading ? (
-            <p className="text-sm text-black/55 text-center">Loading colleges…</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {colleges.map((c) => (
-                <Link
-                  key={c.id}
-                  href={`/admin/gec/evaluator?college=${encodeURIComponent(c.id)}`}
-                  className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
-                >
-                  {c.name}
-                </Link>
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {landingTiles.map((c) => (
+              <Link
+                key={c.id}
+                href={`/admin/gec/evaluator?college=${encodeURIComponent(c.id)}`}
+                className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
+              >
+                {c.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div>
+        <ChairmanPageHeader title="Central Hub Evaluator" />
+        <div className="px-4 md:px-8 pb-8">
+          <Link href={gecCollegesListHref} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
+            ← Back to college hub
+          </Link>
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (invalidCollege) {
+    return (
+      <div>
+        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Invalid college selection." />
+        <div className="px-4 md:px-8 pb-8">
+          <Link href={gecCollegesListHref} className="text-[13px] font-semibold text-[#780301] hover:underline">
+            ← Back to college hub
+          </Link>
         </div>
       </div>
     );
@@ -1083,7 +1101,7 @@ export function GecCentralHubEvaluatorClient() {
         />
         <div className="px-4 md:px-8 pb-8 max-w-[1400px] mx-auto">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <Link href="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
+            <Link href={gecCollegesListHref} className="text-[13px] font-semibold text-[#780301] hover:underline">
               ← College hub
             </Link>
             <span className="text-[13px] text-black/55">
@@ -1104,12 +1122,12 @@ export function GecCentralHubEvaluatorClient() {
     <div>
       <ChairmanPageHeader
         title="Central Hub Evaluator"
-        subtitle="Select college and section. Conflict check uses the full campus timetable for the selected term; you may edit vacant GEC slots only."
+        subtitle="Vacant GEC slots only after one-time access approval for this college."
       />
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
+          <Link href={gecCollegesListHref} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← College hub
           </Link>
           <span className="text-[13px] text-black/55">

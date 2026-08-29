@@ -7,7 +7,6 @@ import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
 import { DoiCampusDirectorSignatureCard } from "@/components/doi/DoiCampusDirectorSignatureCard";
 import {
   adminApi,
-  collegeApi,
   semestersApi,
   systemConfigApi,
   ApiClientError,
@@ -23,15 +22,13 @@ import {
   useSystemConfiguration,
 } from "@/contexts/SystemConfigurationContext";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
-import type { AcademicPeriod, User } from "@/types/db";
+import type { AcademicPeriod } from "@/types/db";
 
 export type SystemConfigurationClientProps = {
   mode: "doi" | "college";
   collegeId?: string | null;
   collegeName?: string | null;
 };
-
-type SignerUser = Pick<User, "id" | "name" | "email" | "role">;
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -50,12 +47,6 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
   const [policySaving, setPolicySaving] = useState(false);
   const [policyMsg, setPolicyMsg] = useState<string | null>(null);
 
-  const [campusDirectorUserId, setCampusDirectorUserId] = useState("");
-  const [contractSignerUserId, setContractSignerUserId] = useState("");
-  const [signerUsers, setSignerUsers] = useState<SignerUser[]>([]);
-  const [signerSaving, setSignerSaving] = useState(false);
-  const [signerMsg, setSignerMsg] = useState<string | null>(null);
-
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
   const [periodLoading, setPeriodLoading] = useState(true);
   const [periodMsg, setPeriodMsg] = useState<string | null>(null);
@@ -64,18 +55,6 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
   useEffect(() => {
     setPolicyDraft(mergeSchedulingPolicyDraft(schedulingPolicy, policyConstants));
   }, [schedulingPolicy, policyConstants]);
-
-  const loadCollegeSigners = useCallback(async () => {
-    if (mode !== "college" || !collegeId) return;
-    try {
-      const data = await collegeApi.getSignerSettings({ collegeId });
-      setCampusDirectorUserId(data.campusDirectorUserId ?? "");
-      setContractSignerUserId(data.contractSignerUserId ?? "");
-      setSignerUsers(data.users as SignerUser[]);
-    } catch {
-      /* ignore transient load errors */
-    }
-  }, [mode, collegeId]);
 
   const loadPeriods = useCallback(async () => {
     setPeriodLoading(true);
@@ -88,10 +67,6 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
       setPeriodLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    void loadCollegeSigners();
-  }, [loadCollegeSigners]);
 
   useEffect(() => {
     void loadPeriods();
@@ -109,26 +84,6 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
       setPolicyMsg(e instanceof ApiClientError ? e.message : "Save failed");
     } finally {
       setPolicySaving(false);
-    }
-  }
-
-  async function saveCollegeSigners() {
-    if (!collegeId) return;
-    setSignerSaving(true);
-    setSignerMsg(null);
-    try {
-      await collegeApi.patchSignerSettings({
-        collegeId,
-        campusDirectorUserId: campusDirectorUserId || null,
-        contractSignerUserId: contractSignerUserId || null,
-      });
-      setSignerMsg("INS signatory assignments saved.");
-      notifySystemConfigurationSaved("collegeSigners");
-      dispatchInsCatalogReload();
-    } catch (e) {
-      setSignerMsg(e instanceof ApiClientError ? e.message : "Save failed");
-    } finally {
-      setSignerSaving(false);
     }
   }
 
@@ -211,47 +166,6 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
                 dispatchInsCatalogReload();
               }}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm">
-                <span className="font-medium text-black/80">Campus Director (user)</span>
-                <select
-                  className="mt-1 w-full h-10 rounded-lg border border-black/20 px-2 text-sm"
-                  value={campusDirectorUserId}
-                  onChange={(e) => setCampusDirectorUserId(e.target.value)}
-                >
-                  <option value="">— Not set —</option>
-                  {signerUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-black/80">Contract signer (user)</span>
-                <select
-                  className="mt-1 w-full h-10 rounded-lg border border-black/20 px-2 text-sm"
-                  value={contractSignerUserId}
-                  onChange={(e) => setContractSignerUserId(e.target.value)}
-                >
-                  <option value="">— Not set —</option>
-                  {signerUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <Button
-              type="button"
-              className="bg-[#780301] hover:bg-[#5a0201] text-white"
-              disabled={signerSaving || !collegeId}
-              onClick={() => void saveCollegeSigners()}
-            >
-              {signerSaving ? "Saving…" : "Save signatory assignments"}
-            </Button>
-            {signerMsg ? <p className="text-sm text-emerald-800">{signerMsg}</p> : null}
           </div>
         )}
       </SectionCard>

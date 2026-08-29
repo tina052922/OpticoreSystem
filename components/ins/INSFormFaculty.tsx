@@ -87,8 +87,8 @@ export function INSFormFaculty({
   const { programMode } = useProgramMode();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
-  /** Instructor shell only (`/faculty/ins`); avoids treating `/chairman/ins` or other paths as faculty portal. */
-  const facultyPortalIns = insBasePath.startsWith("/faculty/ins");
+  /** Instructor shell (`/faculty/ins`, `/faculty/schedule`). */
+  const facultyPortalIns = insBasePath.startsWith("/faculty");
   const instructorReadOnlyPortal = Boolean(facultyPortalIns && lockedInstructorId);
   const [changeModalOpen, setChangeModalOpen] = useState(false);
   const [changeModalEntryId, setChangeModalEntryId] = useState<string | null>(null);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
+import { CAMPUS_WIDE_COLLEGE_SLUG, hubCollegesListHref } from "@/lib/evaluator-central-hub";
 
 type Panel = "timetabling" | "hrs";
 
@@ -24,15 +24,15 @@ export function HubEvaluatorTabs({ basePath, collegeSlug, panel, collegeAdminLan
   const timetablingActive = !isLanding && panel === "timetabling";
   const hrsActive = (isLanding && collegeAdminLanding && panel === "hrs") || (!isLanding && panel === "hrs");
 
+  const collegesHref = hubCollegesListHref(basePath);
+
   const timetablingHref = isLanding
-    ? collegeAdminLanding
-      ? undefined
-      : `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}`
+    ? undefined
     : `${basePath}?college=${encodeURIComponent(collegeSlug!)}`;
 
   const hrsHref = isLanding
     ? collegeAdminLanding
-      ? `${basePath}?panel=hrs`
+      ? `${basePath}?view=colleges&panel=hrs`
       : `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}&panel=hrs`
     : `${basePath}?college=${encodeURIComponent(collegeSlug!)}&panel=hrs`;
 
@@ -43,18 +43,18 @@ export function HubEvaluatorTabs({ basePath, collegeSlug, panel, collegeAdminLan
 
   return (
     <div className="flex gap-2 border-b border-gray-200 mb-6 flex-wrap">
-      <Link href={basePath} className={tabClass(collegesActive)}>
+      <Link href={collegesHref} className={tabClass(collegesActive)}>
         Colleges
       </Link>
-      {isLanding && collegeAdminLanding && !timetablingHref ? (
-        <span className={`${tabClass(false)} cursor-not-allowed opacity-50`}>
-          Timetabling & Optimization
-        </span>
-      ) : timetablingHref ? (
+      {timetablingHref ? (
         <Link href={timetablingHref} className={tabClass(timetablingActive)}>
           Timetabling & Optimization
         </Link>
-      ) : null}
+      ) : (
+        <span className={`${tabClass(false)} cursor-not-allowed opacity-50`}>
+          Timetabling & Optimization
+        </span>
+      )}
       <Link href={hrsHref} className={tabClass(hrsActive)}>
         Hrs · Units · Preps · Remarks
       </Link>

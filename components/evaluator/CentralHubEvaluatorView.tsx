@@ -12,7 +12,9 @@ import {
   CAMPUS_WIDE_COLLEGE_SLUG,
   CENTRAL_HUB_COLLEGES,
   hubCollegeBySlug,
+  hubCollegesListHref,
   hubSlugForCollegeId,
+  isHubCollegeListView,
 } from "@/lib/evaluator-central-hub";
 import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import {
@@ -102,7 +104,9 @@ export function CentralHubEvaluatorView({
   const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const collegeSlug = searchParams.get("college");
+  const collegeSlug = isHubCollegeListView(searchParams.get("view"), searchParams.get("college"))
+    ? null
+    : searchParams.get("college");
   const isCampusWide = collegeSlug?.toLowerCase() === CAMPUS_WIDE_COLLEGE_SLUG;
   const hub = hubCollegeBySlug(collegeSlug);
   const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
@@ -244,14 +248,7 @@ export function CentralHubEvaluatorView({
 
   useEffect(() => {
     if (loading) return;
-    const pending = readPendingCentralHubBundle();
-    if (!pending || collegeSlug) return;
-    const slug = hubSlugForCollegeId(pending.collegeId) ?? CAMPUS_WIDE_COLLEGE_SLUG;
-    router.replace(`${basePath}?college=${encodeURIComponent(slug)}`);
-  }, [loading, collegeSlug, router, basePath]);
-
-  useEffect(() => {
-    if (loading || !collegeSlug) return;
+    if (!collegeSlug) return;
     const pending = readPendingCentralHubBundle();
     if (!pending) return;
     if (pending.createdAt === lastAppliedBundleAtRef.current) return;
@@ -803,35 +800,7 @@ export function CentralHubEvaluatorView({
     ],
   );
 
-  /** College Admin: own college opens Timetabling directly; cross-college opens Timetabling after peer approval. */
-  useEffect(() => {
-    if (hubAccessMode !== "collegeAdmin" || !collegeSlug || isCampusWide) return;
-    const h = hubCollegeBySlug(collegeSlug);
-    if (!h?.collegeId || !myCollegeId) return;
-    if (h.collegeId !== myCollegeId) return;
-    if (searchParams.get("panel")) return;
-    router.replace(`${basePath}?college=${encodeURIComponent(collegeSlug)}&panel=timetabling`);
-  }, [hubAccessMode, collegeSlug, isCampusWide, myCollegeId, searchParams, router, basePath]);
-
-  useEffect(() => {
-    if (hubAccessMode !== "collegeAdmin" || !collegeSlug || isCampusWide) return;
-    const h = hubCollegeBySlug(collegeSlug);
-    if (!h?.collegeId || !myCollegeId || !myUserId) return;
-    if (h.collegeId === myCollegeId) return;
-    if (!hasApprovedCrossCollegeEvaluatorAccess(accessRequests, h.collegeId, myUserId)) return;
-    if (searchParams.get("panel")) return;
-    router.replace(`${basePath}?college=${encodeURIComponent(collegeSlug)}&panel=timetabling`);
-  }, [
-    hubAccessMode,
-    collegeSlug,
-    isCampusWide,
-    accessRequests,
-    myCollegeId,
-    myUserId,
-    searchParams,
-    router,
-    basePath,
-  ]);
+  /** College Admin: own college is full access; peer college is view-only after approval. Do not auto-jump from the college list. */
 
   /* —— Hub: college tiles —— */
   if (!collegeSlug) {
@@ -845,7 +814,7 @@ export function CentralHubEvaluatorView({
               <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="hrs" collegeAdminLanding />
               <HrsUnitsPrepsRemarksTable />
               <p className="text-[13px] text-black/55 mt-8 text-center">
-                <Link href={basePath} className="font-semibold text-[#780301] hover:underline">
+                <Link href={hubCollegesListHref(basePath)} className="font-semibold text-[#780301] hover:underline">
                   ← Back to college selection
                 </Link>
               </p>
@@ -864,9 +833,6 @@ export function CentralHubEvaluatorView({
               panel={landingPanelForTabs}
               collegeAdminLanding
             />
-            <p className="text-[13px] text-black/60 mb-4 text-center">
-              College scope: pick your college or request peer-college access from the hub.
-            </p>
             <div id="college-hub-tiles" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {CENTRAL_HUB_COLLEGES.filter((c) => !myCollegeId || c.collegeId === myCollegeId || !c.collegeId).map(
                 (c) => (
@@ -942,7 +908,7 @@ export function CentralHubEvaluatorView({
       <div>
         <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Invalid college selection." />
         <div className="px-4 md:px-8 pb-8">
-          <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
+          <Link href={hubCollegesListHref(basePath)} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← Back to college hub
           </Link>
         </div>
@@ -955,7 +921,7 @@ export function CentralHubEvaluatorView({
       <div>
         <ChairmanPageHeader title="Central Hub Evaluator" />
         <div className="px-4 md:px-8 pb-8 max-w-2xl">
-          <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
+          <Link href={hubCollegesListHref(basePath)} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← Back to college hub
           </Link>
           <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-6 text-[14px] text-amber-950">
@@ -973,7 +939,7 @@ export function CentralHubEvaluatorView({
       <div>
         <ChairmanPageHeader title="Central Hub Evaluator" subtitle={hub.name} />
         <div className="px-4 md:px-8 pb-8">
-          <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
+          <Link href={hubCollegesListHref(basePath)} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← All colleges
           </Link>
           <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-6 text-[14px] text-amber-950 leading-relaxed">
@@ -1012,7 +978,7 @@ export function CentralHubEvaluatorView({
         <ChairmanPageHeader title="Central Hub Evaluator" subtitle={hub?.name ?? "Peer college"} />
         <div className="px-4 md:px-8 pb-8 max-w-xl">
           <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
-          <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
+          <Link href={hubCollegesListHref(basePath)} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← College hub
           </Link>
           {crossPending ? (
@@ -1020,7 +986,7 @@ export function CentralHubEvaluatorView({
               <p className="font-semibold text-amber-950">Approval pending</p>
               <p className="mt-2 text-black/80">
                 Waiting for a College Admin of <strong>{hub?.abbr}</strong> to approve your access. After approval,
-                return here — you will be moved to <strong>Timetabling & Optimization</strong> automatically.
+                you can open this college in <strong>view-only</strong> mode (no edits).
               </p>
               <Button type="button" variant="outline" className="mt-4" onClick={() => void reloadAccessRequests()}>
                 Refresh status
@@ -1031,7 +997,7 @@ export function CentralHubEvaluatorView({
               <p className="font-semibold text-gray-900">Access required</p>
               <p className="mt-2 text-[14px] text-black/75">
                 Viewing another college&apos;s schedules requires approval from that college&apos;s College Admin.
-                Submit a request; once approved, you can proceed to <strong>Timetabling & Optimization</strong>.
+                After approval you may <strong>view only</strong> — you cannot edit their timetable.
               </p>
               {accessRequestErr ? <p className="mt-2 text-sm text-red-700">{accessRequestErr}</p> : null}
               <Button
@@ -1066,6 +1032,7 @@ export function CentralHubEvaluatorView({
   }
 
   const collegeRow = scopeCollegeId ? colleges.find((c) => c.id === scopeCollegeId) : null;
+  const hubReadOnly = Boolean(needsPeerApproval && crossApproved);
 
   return (
     <div>
@@ -1073,6 +1040,12 @@ export function CentralHubEvaluatorView({
 
       <div className="px-4 md:px-8 pb-8">
         <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
+        {hubReadOnly ? (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/90 px-4 py-3 text-[13px] text-amber-950">
+            Peer-college access is <strong>view only</strong>. You cannot edit, apply alternatives, or save schedule
+            rows for <strong>{hub?.abbr ?? "this college"}</strong>.
+          </div>
+        ) : null}
         {hubBundleNotice ? (
           <div className="mb-4 rounded-lg border border-[#FF990A]/50 bg-[#FF990A]/10 px-4 py-3 text-[13px] text-gray-900">
             {hubBundleNotice}
@@ -1086,7 +1059,7 @@ export function CentralHubEvaluatorView({
           </div>
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <Link href={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
+          <Link href={hubCollegesListHref(basePath)} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← College hub
           </Link>
           <div className="flex flex-wrap items-center gap-3">
@@ -1267,7 +1240,7 @@ export function CentralHubEvaluatorView({
                 <span className="text-[11px] text-black/50 max-w-[220px] leading-snug">
                   Scans all colleges for overlaps — unchanged by your hub scope filter.
                 </span>
-                {campusConflictScan && campusConflictScan.enrichedIssues.length > 0 ? (
+                {campusConflictScan && campusConflictScan.enrichedIssues.length > 0 && !hubReadOnly ? (
                 <Button
                   type="button"
                   className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold h-11 px-5"
@@ -1288,7 +1261,7 @@ export function CentralHubEvaluatorView({
                   suggestionsByIssueKey={hubConflictGaByIssueKey}
                   busyIssueKey={busyConflictApplyKey}
                   onApplySuggestion={(key, s) => void applyHubConflictSuggestion(key, s)}
-                  allowApply
+                  allowApply={!hubReadOnly}
                   maxIssues={14}
                   formatSuggestionLabel={(s) =>
                     formatGaSuggestionShortLabel(s, {
@@ -1322,13 +1295,13 @@ export function CentralHubEvaluatorView({
                   focusRowId={focusEntryId}
                   conflictDetailsByRowId={conflictDetailsByRowId}
                   rowDomIdPrefix="central-eval-row"
-                  onRowClick={(id) => setEditEntryId(id)}
+                  onRowClick={hubReadOnly ? undefined : (id) => setEditEntryId(id)}
                 />
               </>
             )}
 
             <DoiScheduleEntryQuickEditDialog
-                open={Boolean(editEntryId)}
+                open={Boolean(editEntryId) && !hubReadOnly}
                 onOpenChange={(o) => {
                   if (!o) setEditEntryId(null);
                 }}

@@ -231,16 +231,21 @@ export function FacultyScheduleChangeModal({
                 <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                   No classes are assigned to you for this term yet.
                 </p>
+              ) : initialScheduleEntryId && !entries.some((e) => e.id === initialScheduleEntryId) ? (
+                <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  You can only request a change for your own classes.
+                </p>
               ) : (
                 <>
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-black" htmlFor="fac-sc-entry">
                       Class meeting <span className="text-red-700">*</span>
                     </label>
-                    <select
+                      <select
                       id="fac-sc-entry"
                       required
-                      className="w-full h-11 rounded-lg border border-black/15 bg-white px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--color-opticore-orange)]/40"
+                      disabled={Boolean(initialScheduleEntryId)}
+                      className="w-full h-11 rounded-lg border border-black/15 bg-white px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--color-opticore-orange)]/40 disabled:bg-black/[0.03]"
                       value={scheduleEntryId}
                       onChange={(e) => setScheduleEntryId(e.target.value)}
                     >
