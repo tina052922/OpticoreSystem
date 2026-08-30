@@ -10,6 +10,7 @@ import {
   meetingDurationMinutes,
   toTimeInputValue,
 } from "@/lib/schedule-change/request-times";
+import { formatHHMMTo12h, formatTimeRange12h } from "@/lib/time/format-12h";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -313,7 +314,7 @@ export function FacultyScheduleChangeModal({
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-black">Pick a free day/time cell</p>
                     <p className="text-[11px] text-black/55">
-                      Duration stays {requestedStartTime}–{requestedEndTime} length. Gray = unavailable. Green = current class.
+                      Duration stays {formatTimeRange12h(requestedStartTime, requestedEndTime)}. Gray = unavailable. Green = current class.
                     </p>
                     {gridLoading ? (
                       <p className="text-sm text-black/50">Loading available slots…</p>
@@ -335,7 +336,9 @@ export function FacultyScheduleChangeModal({
                           <tbody>
                             {[...new Set(gridCells.map((c) => c.startTime))].sort().map((start) => (
                               <tr key={start} className="border-t border-black/10">
-                                <td className="p-1.5 whitespace-nowrap font-medium sticky left-0 bg-white">{start}</td>
+                                <td className="p-1.5 whitespace-nowrap font-medium sticky left-0 bg-white">
+                                  {formatHHMMTo12h(start)}
+                                </td>
                                 {(gridWeekdays.length ? gridWeekdays : WEEKDAYS).map((day) => {
                                   const cell = gridCells.find((c) => c.day === day && c.startTime === start);
                                   if (!cell) return <td key={day} className="p-0.5" />;
@@ -348,7 +351,14 @@ export function FacultyScheduleChangeModal({
                                       <button
                                         type="button"
                                         disabled={blocked}
-                                        title={cell.reason ?? cell.status}
+                                        title={
+                                          cell.reason
+                                            ? `${formatTimeRange12h(cell.startTime, cell.endTime)} — ${cell.reason}`
+                                            : formatTimeRange12h(cell.startTime, cell.endTime)
+                                        }
+                                        aria-label={`${cell.day} ${formatTimeRange12h(cell.startTime, cell.endTime)}${
+                                          cell.reason ? ` — ${cell.reason}` : ""
+                                        }`}
                                         onClick={() => {
                                           if (blocked) return;
                                           setRequestedDay(cell.day);
@@ -366,7 +376,11 @@ export function FacultyScheduleChangeModal({
                                                 : "bg-[#fff7ed] hover:bg-[#ffedd5] text-black"
                                         }`}
                                       >
-                                        {blocked ? "Busy" : original && !selected ? "Now" : cell.endTime}
+                                        {blocked
+                                          ? "Busy"
+                                          : original && !selected
+                                            ? "Now"
+                                            : formatHHMMTo12h(cell.endTime)}
                                       </button>
                                     </td>
                                   );
