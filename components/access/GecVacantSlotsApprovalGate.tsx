@@ -1,19 +1,41 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { accessRequestsApi, ApiClientError } from "@/lib/api/client";
 import type { GecVacantSlotApprovalUiState } from "@/components/access/RequestAccessPanel";
 
 type Props = {
   state: GecVacantSlotApprovalUiState;
   loading?: boolean;
-  /** When set, reflects vacant-slot access for this college only. */
   collegeId?: string | null;
+  onSubmitted?: () => void;
 };
 
-/** Compact status for vacant GEC editing in the Central Hub (per college). */
-export function GecVacantSlotsApprovalGate({ state, loading, collegeId }: Props) {
+export function GecVacantSlotsApprovalGate({ state, loading, collegeId, onSubmitted }: Props) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!collegeId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await accessRequestsApi.create({
+        targetCollegeId: collegeId,
+        scopes: ["gec_vacant_slots"],
+        note: "Central Hub Evaluator — vacant GEC slots for this college",
+      });
+      onSubmitted?.();
+    } catch (e) {
+      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!collegeId) return null;
 
   if (loading) {
@@ -53,26 +75,26 @@ export function GecVacantSlotsApprovalGate({ state, loading, collegeId }: Props)
     );
   }
 
-  if (state.status === "rejected") {
-    return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950 no-print" role="status">
-        Request not approved for this college.
-        <Button type="button" asChild size="sm" className="ml-3 bg-[#780301] hover:bg-[#5a0201] align-middle">
-          <Link href="/admin/gec/request-access">Request again</Link>
+  return (
+    <div className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-black/80 no-print space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span>
+          {state.status === "rejected"
+            ? "Request not approved for this college."
+            : "Read-only for vacant GEC edits — request access for this college."}
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          className="bg-[#FF990A] hover:bg-[#e88909] text-white"
+          disabled={busy}
+          onClick={() => void submit()}
+        >
+          <KeyRound className="w-3.5 h-3.5 mr-1 inline" />
+          {busy ? "Submitting…" : state.status === "rejected" ? "Request again" : "Request access"}
         </Button>
       </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-black/80 no-print flex flex-wrap items-center gap-2">
-      <span>Read-only for vacant GEC edits — request access for this college.</span>
-      <Button type="button" asChild size="sm" className="bg-[#FF990A] hover:bg-[#e88909] text-white">
-        <Link href="/admin/gec/request-access">
-          <KeyRound className="w-3.5 h-3.5 mr-1 inline" />
-          Request
-        </Link>
-      </Button>
+      {error ? <p className="text-sm text-red-700">{error}</p> : null}
     </div>
   );
 }

@@ -51,10 +51,23 @@ export function FacultyScheduleChangeModal({
   const [requestedDay, setRequestedDay] = useState("Monday");
   const [requestedStartTime, setRequestedStartTime] = useState("08:00");
   const [requestedEndTime, setRequestedEndTime] = useState("09:00");
+  const [requestedRoomId, setRequestedRoomId] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [gridLoading, setGridLoading] = useState(false);
+  const [gridWeekdays, setGridWeekdays] = useState<string[]>([]);
+  const [gridCells, setGridCells] = useState<
+    Array<{
+      day: string;
+      startTime: string;
+      endTime: string;
+      status: "original" | "available" | "busy" | "no_room";
+      reason: string | null;
+      freeRooms: { id: string; code: string }[];
+    }>
+  >([]);
 
   /** When this differs from current `scheduleEntryId`, resetting day/start/end comes from DB row bounds. */
   const lastHydratedScheduleEntryIdRef = useRef<string>("");
@@ -103,8 +116,40 @@ export function FacultyScheduleChangeModal({
     setDone(false);
     setError(null);
     setReason("");
+    setRequestedRoomId("");
+    setGridCells([]);
     lastHydratedScheduleEntryIdRef.current = "";
   }, [open, initialScheduleEntryId]);
+
+  useEffect(() => {
+    if (!open || !academicPeriodId || !scheduleEntryId) {
+      setGridCells([]);
+      return;
+    }
+    let cancelled = false;
+    setGridLoading(true);
+    void (async () => {
+      try {
+        const data = await scheduleChangeApi.requestGrid({
+          periodId: academicPeriodId,
+          scheduleEntryId,
+        });
+        if (cancelled) return;
+        setGridWeekdays(data.weekdays ?? []);
+        setGridCells(data.cells ?? []);
+      } catch {
+        if (!cancelled) {
+          setGridWeekdays(WEEKDAYS);
+          setGridCells([]);
+        }
+      } finally {
+        if (!cancelled) setGridLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, academicPeriodId, scheduleEntryId]);
 
   useEffect(() => {
     if (!open) return;
@@ -152,6 +197,12 @@ export function FacultyScheduleChangeModal({
       toast.error("Failed to submit. Please try again.", "Choose a valid start time.");
       return;
     }
+    const picked = gridCells.find((c) => c.day === requestedDay && c.startTime === start);
+    if (picked && (picked.status === "busy" || picked.status === "no_room")) {
+      setError("That cell is unavailable. Pick a free slot.");
+      toast.error("Failed to submit. Please try again.", "That cell is unavailable.");
+      return;
+    }
     setSubmitting(true);
     try {
       await scheduleChangeApi.create({
@@ -159,6 +210,7 @@ export function FacultyScheduleChangeModal({
         requestedDay,
         requestedStartTime: start,
         requestedEndTime: end,
+        requestedRoomId: requestedRoomId || undefined,
         reason,
       });
       setDone(true);
@@ -182,7 +234,7 @@ export function FacultyScheduleChangeModal({
         aria-label="Close"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative z-[101] w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-black/10 bg-white shadow-xl">
+      <div className="relative z-[101] w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-black/10 bg-white shadow-xl">
         <div className="flex items-center justify-between gap-2 border-b border-black/10 px-4 py-3">
           <h2 className="text-lg font-semibold text-black">Request schedule change</h2>
           <button
@@ -258,54 +310,93 @@ export function FacultyScheduleChangeModal({
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-black" htmlFor="fac-sc-day">
-                        New day
-                      </label>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-black">Pick a free day/time cell</p>
+                    <p className="text-[11px] text-black/55">
+                      Duration stays {requestedStartTime}–{requestedEndTime} length. Gray = unavailable. Green = current class.
+                    </p>
+                    {gridLoading ? (
+                      <p className="text-sm text-black/50">Loading available slots…</p>
+                    ) : gridCells.length === 0 ? (
+                      <p className="text-sm text-amber-900">Could not load the slot grid. Try again.</p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-black/10">
+                        <table className="w-full text-[11px] border-collapse">
+                          <thead>
+                            <tr className="bg-black/[0.04]">
+                              <th className="p-1.5 text-left sticky left-0 bg-black/[0.04]">Time</th>
+                              {(gridWeekdays.length ? gridWeekdays : WEEKDAYS).map((d) => (
+                                <th key={d} className="p-1.5 font-semibold">
+                                  {d.slice(0, 3)}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...new Set(gridCells.map((c) => c.startTime))].sort().map((start) => (
+                              <tr key={start} className="border-t border-black/10">
+                                <td className="p-1.5 whitespace-nowrap font-medium sticky left-0 bg-white">{start}</td>
+                                {(gridWeekdays.length ? gridWeekdays : WEEKDAYS).map((day) => {
+                                  const cell = gridCells.find((c) => c.day === day && c.startTime === start);
+                                  if (!cell) return <td key={day} className="p-0.5" />;
+                                  const selected =
+                                    requestedDay === cell.day && requestedStartTime === cell.startTime;
+                                  const blocked = cell.status === "busy" || cell.status === "no_room";
+                                  const original = cell.status === "original";
+                                  return (
+                                    <td key={day} className="p-0.5">
+                                      <button
+                                        type="button"
+                                        disabled={blocked}
+                                        title={cell.reason ?? cell.status}
+                                        onClick={() => {
+                                          if (blocked) return;
+                                          setRequestedDay(cell.day);
+                                          setRequestedStartTime(cell.startTime);
+                                          setRequestedEndTime(cell.endTime);
+                                          setRequestedRoomId(cell.freeRooms[0]?.id ?? "");
+                                        }}
+                                        className={`w-full min-h-[2.25rem] rounded-md px-1 py-1 text-left leading-tight ${
+                                          blocked
+                                            ? "cursor-not-allowed bg-black/[0.06] text-black/35"
+                                            : selected
+                                              ? "bg-[#ff990a] text-white font-semibold"
+                                              : original
+                                                ? "bg-emerald-100 text-emerald-950"
+                                                : "bg-[#fff7ed] hover:bg-[#ffedd5] text-black"
+                                        }`}
+                                      >
+                                        {blocked ? "Busy" : original && !selected ? "Now" : cell.endTime}
+                                      </button>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    <label className="block text-sm">
+                      <span className="font-medium text-black">Available room</span>
                       <select
-                        id="fac-sc-day"
-                        className="w-full h-11 rounded-lg border border-black/15 bg-white px-3 text-sm"
-                        value={requestedDay}
-                        onChange={(e) => setRequestedDay(e.target.value)}
+                        className="mt-1 w-full h-11 rounded-lg border border-black/15 bg-white px-3 text-sm"
+                        value={requestedRoomId}
+                        onChange={(e) => setRequestedRoomId(e.target.value)}
                       >
-                        {WEEKDAYS.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
+                        <option value="">— Select a free room —</option>
+                        {(
+                          gridCells.find(
+                            (c) => c.day === requestedDay && c.startTime === requestedStartTime,
+                          )?.freeRooms ?? []
+                        ).map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.code}
                           </option>
                         ))}
                       </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-black" htmlFor="fac-sc-start">
-                        Start (24h)
-                      </label>
-                      <input
-                        id="fac-sc-start"
-                        type="time"
-                        className="w-full h-11 rounded-lg border border-black/15 px-3 text-sm"
-                        value={requestedStartTime}
-                        onChange={(e) => setRequestedStartTime(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-black" htmlFor="fac-sc-end">
-                        End (24h)
-                      </label>
-                      <input
-                        id="fac-sc-end"
-                        type="time"
-                        readOnly
-                        aria-readonly="true"
-                        title="End time stays aligned with your class length when you change the start time."
-                        className="w-full h-11 rounded-lg border border-black/15 bg-black/[0.03] px-3 text-sm text-black/75"
-                        value={requestedEndTime}
-                      />
-                    </div>
+                    </label>
                   </div>
-                  <p className="text-[11px] text-black/50 -mt-1">
-                    Duration matches your selected meeting: adjusting start moves the end time automatically.
-                  </p>
 
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-black" htmlFor="fac-sc-reason">

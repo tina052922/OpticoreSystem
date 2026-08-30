@@ -142,19 +142,7 @@ export function CollegeScheduleChangeRequestsClient() {
     setCheckResult(null);
     setError(null);
     try {
-      const res = await fetch(`/api/college/schedule-change-requests/${row.id}/check-conflicts`, {
-        method: "POST",
-        credentials: "include",
-      });
-      const data = (await res.json()) as {
-        severity?: string;
-        summary?: string;
-        hits?: ConflictHitRow[];
-        suggestedMitigation?: Mitigation | null;
-        alternativeSolutions?: AlternativeSolutionRow[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error || "Check failed");
+      const data = await scheduleChangeApi.checkConflicts(row.id);
       setCheckResult({
         severity: data.severity,
         summary: data.summary,

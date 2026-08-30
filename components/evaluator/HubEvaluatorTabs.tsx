@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CAMPUS_WIDE_COLLEGE_SLUG, hubCollegesListHref } from "@/lib/evaluator-central-hub";
+import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
+import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
 
 type Panel = "timetabling" | "hrs";
 
@@ -8,27 +9,18 @@ export type HubEvaluatorTabsProps = {
   /** `null` = landing (college tiles). */
   collegeSlug: string | null;
   panel: Panel;
-  /**
-   * College Admin hub: Timetabling is only available after a college is selected (no campus-wide jump).
-   * Hrs content lives on the dedicated Hrs tab (`?panel=hrs` on landing, or `&panel=hrs` with a college).
-   */
   collegeAdminLanding?: boolean;
 };
 
-/**
- * Tab bar shared by College / CAS / DOI Central Hub — matches Campus Intelligence shell styling.
- */
 export function HubEvaluatorTabs({ basePath, collegeSlug, panel, collegeAdminLanding = false }: HubEvaluatorTabsProps) {
   const isLanding = !collegeSlug;
   const collegesActive = isLanding && (!collegeAdminLanding || panel !== "hrs");
   const timetablingActive = !isLanding && panel === "timetabling";
   const hrsActive = (isLanding && collegeAdminLanding && panel === "hrs") || (!isLanding && panel === "hrs");
 
-  const collegesHref = hubCollegesListHref(basePath);
-
   const timetablingHref = isLanding
     ? undefined
-    : `${basePath}?college=${encodeURIComponent(collegeSlug!)}`;
+    : `${basePath}?college=${encodeURIComponent(collegeSlug!)}&panel=timetabling`;
 
   const hrsHref = isLanding
     ? collegeAdminLanding
@@ -43,9 +35,9 @@ export function HubEvaluatorTabs({ basePath, collegeSlug, panel, collegeAdminLan
 
   return (
     <div className="flex gap-2 border-b border-gray-200 mb-6 flex-wrap">
-      <Link href={collegesHref} className={tabClass(collegesActive)}>
+      <HubCollegesNavLink basePath={basePath} className={tabClass(collegesActive)}>
         Colleges
-      </Link>
+      </HubCollegesNavLink>
       {timetablingHref ? (
         <Link href={timetablingHref} className={tabClass(timetablingActive)}>
           Timetabling & Optimization

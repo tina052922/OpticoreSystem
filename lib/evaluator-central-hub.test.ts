@@ -3,7 +3,7 @@ import { gecHubCollegeTiles, hubCollegesListHref, isHubCollegeListView } from ".
 
 describe("central hub college list navigation", () => {
   it("uses an explicit view query so Colleges does not keep the prior college", () => {
-    expect(hubCollegesListHref("/admin/college/evaluator")).toBe(
+    expect(hubCollegesListHref("/admin/college/evaluator?college=cote&panel=timetabling")).toBe(
       "/admin/college/evaluator?view=colleges",
     );
     expect(isHubCollegeListView("colleges", "cote")).toBe(true);

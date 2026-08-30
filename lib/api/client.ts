@@ -911,6 +911,7 @@ export const scheduleChangeApi = {
     requestedDay: string;
     requestedStartTime: string;
     requestedEndTime: string;
+    requestedRoomId?: string;
     reason: string;
   }) {
     return apiFetch<{ ok: true; id: string }>("/api/schedule-change/faculty", {
@@ -923,6 +924,7 @@ export const scheduleChangeApi = {
     requestedDay: string;
     requestedStartTime: string;
     requestedEndTime: string;
+    requestedRoomId?: string;
     reason: string;
   }) {
     return apiFetch<{ ok: true; id: string }>("/api/schedule-change/faculty", {
@@ -933,6 +935,23 @@ export const scheduleChangeApi = {
   instructorEntries(params: { periodId: string }) {
     return apiFetch<{ entries: { id: string; subject: string; day: string; startTime: string; endTime: string; section: string }[]; periodName?: string }>(
       `/api/schedule-change/instructor-entries?periodId=${encodeURIComponent(params.periodId)}`,
+      { method: "GET" },
+    );
+  },
+  requestGrid(params: { periodId: string; scheduleEntryId: string }) {
+    return apiFetch<{
+      entry: { id: string; day: string; startTime: string; endTime: string; durationMinutes: number };
+      weekdays: string[];
+      cells: Array<{
+        day: string;
+        startTime: string;
+        endTime: string;
+        status: "original" | "available" | "busy" | "no_room";
+        reason: string | null;
+        freeRooms: { id: string; code: string }[];
+      }>;
+    }>(
+      `/api/schedule-change/request-grid?periodId=${encodeURIComponent(params.periodId)}&scheduleEntryId=${encodeURIComponent(params.scheduleEntryId)}`,
       { method: "GET" },
     );
   },
@@ -947,6 +966,16 @@ export const scheduleChangeApi = {
       "/api/schedule-change/college",
       { method: "GET" },
     );
+  },
+  checkConflicts(id: string) {
+    return apiFetch<{
+      severity?: string;
+      summary?: string;
+      hits?: Array<{ type?: string; message?: string; detail?: string; withEntryId?: string }>;
+      suggestedMitigation?: { roomId?: string; roomCode?: string; label?: string } | null;
+      alternativeSolutions?: Array<{ kind?: string; label?: string; day?: string; startTime?: string; endTime?: string; roomId?: string; roomCode?: string }>;
+      error?: string;
+    }>(`/api/schedule-change/${id}/check-conflicts`, { method: "POST" });
   },
   review(
     id: string,

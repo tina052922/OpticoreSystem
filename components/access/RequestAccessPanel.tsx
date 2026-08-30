@@ -33,13 +33,10 @@ export function hasActiveScopeGrant(
 ): boolean {
   const now = Date.now();
   return requests.some((r) => {
-    if (
-      r.status !== "approved" ||
-      !r.expiresAt ||
-      new Date(r.expiresAt).getTime() <= now ||
-      !Array.isArray(r.scopes) ||
-      !r.scopes.includes(scope)
-    ) {
+    if (r.status !== "approved" || !Array.isArray(r.scopes) || !r.scopes.includes(scope)) {
+      return false;
+    }
+    if (r.expiresAt && new Date(r.expiresAt).getTime() <= now) {
       return false;
     }
     if (collegeId != null && collegeId !== "") {

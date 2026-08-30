@@ -59,10 +59,9 @@ import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-re
 import {
   CAMPUS_WIDE_COLLEGE_SLUG,
   gecHubCollegeTiles,
-  hubCollegesListHref,
   isHubCollegeListView,
 } from "@/lib/evaluator-central-hub";
-import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
+import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
@@ -111,7 +110,6 @@ export function GecCentralHubEvaluatorClient() {
     ? ""
     : searchParams.get("college")?.trim() ?? "";
   const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
-  const gecCollegesListHref = hubCollegesListHref("/admin/gec/evaluator");
   const isCampusWide = collegeParam === CAMPUS_WIDE_COLLEGE_SLUG;
 
   const { requests, loading: accessLoading, reload: reloadAccess } = useAccessRequests();
@@ -896,7 +894,6 @@ export function GecCentralHubEvaluatorClient() {
    * The evaluator has multiple landing/invalid states; keeping hooks unconditional prevents hook order
    * changes when the user navigates between hub → college → section.
    */
-  const selectedCollege = isCampusWide ? null : selectedDbCollege;
   const selectedSection = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
   const sectionProgram = selectedSection ? programById.get(selectedSection.programId) : undefined;
 
@@ -1069,9 +1066,9 @@ export function GecCentralHubEvaluatorClient() {
       <div>
         <ChairmanPageHeader title="Central Hub Evaluator" />
         <div className="px-4 md:px-8 pb-8">
-          <Link href={gecCollegesListHref} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
+          <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← Back to college hub
-          </Link>
+          </HubCollegesNavLink>
           <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>
         </div>
       </div>
@@ -1083,9 +1080,9 @@ export function GecCentralHubEvaluatorClient() {
       <div>
         <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Invalid college selection." />
         <div className="px-4 md:px-8 pb-8">
-          <Link href={gecCollegesListHref} className="text-[13px] font-semibold text-[#780301] hover:underline">
+          <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← Back to college hub
-          </Link>
+          </HubCollegesNavLink>
         </div>
       </div>
     );
@@ -1101,15 +1098,9 @@ export function GecCentralHubEvaluatorClient() {
         />
         <div className="px-4 md:px-8 pb-8 max-w-[1400px] mx-auto">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <Link href={gecCollegesListHref} className="text-[13px] font-semibold text-[#780301] hover:underline">
+            <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
               ← College hub
-            </Link>
-            <span className="text-[13px] text-black/55">
-              Scope:{" "}
-              <strong className="text-black/80">
-                {isCampusWide ? "All colleges (campus-wide)" : selectedCollege?.name ?? "—"}
-              </strong>
-            </span>
+            </HubCollegesNavLink>
           </div>
           <GecHubEvaluatorTabs collegeParam={collegeParam} panel="hrs" />
           <HrsUnitsPrepsRemarksTable />
@@ -1127,15 +1118,9 @@ export function GecCentralHubEvaluatorClient() {
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href={gecCollegesListHref} className="text-[13px] font-semibold text-[#780301] hover:underline">
+          <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← College hub
-          </Link>
-          <span className="text-[13px] text-black/55">
-            Scope:{" "}
-            <strong className="text-black/80">
-              {isCampusWide ? "All colleges (campus-wide)" : selectedCollege?.name ?? "—"}
-            </strong>
-          </span>
+          </HubCollegesNavLink>
         </div>
 
         <GecHubEvaluatorTabs collegeParam={collegeParam} panel="timetabling" />
@@ -1144,6 +1129,7 @@ export function GecCentralHubEvaluatorClient() {
           state={approvalState}
           loading={accessLoading}
           collegeId={grantScopeCollegeId}
+          onSubmitted={() => void reloadAccess()}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
