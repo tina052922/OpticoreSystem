@@ -62,6 +62,7 @@ import {
   isHubCollegeListView,
 } from "@/lib/evaluator-central-hub";
 import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
+import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
