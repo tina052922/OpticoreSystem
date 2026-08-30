@@ -5,12 +5,15 @@ import { createClient } from "@supabase/supabase-js";
 import { apiFetch } from "@/lib/api/client";
 import { getSupabaseServiceRoleKey, getSupabaseUrl } from "@/lib/server/supabase-env";
 import { resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { slotDurationHours } from "@/lib/scheduling/time";
 
 export type CampusIntelligenceStats = {
   roomCount: number;
   sectionCount: number;
   facultyCount: number;
   draftScheduleCount: number;
+  plottedScheduleCount?: number;
+  standardWeeklyTeachingHours?: number;
 };
 
 export type RoomUtilizationSlot = { time: string; utilization: number };
@@ -38,6 +41,7 @@ function buildQs(args: {
   mode: "chairman_program" | "program" | "college" | "gec_campus" | "doi_campus";
   collegeId?: string | null;
   programId?: string | null;
+  periodId?: string | null;
 }): string {
     const backendMode =
       args.mode === "chairman_program" ? "program" :
@@ -47,6 +51,7 @@ function buildQs(args: {
   p.set("mode", backendMode);
   if (args.collegeId) p.set("collegeId", args.collegeId);
   if (args.programId) p.set("programId", args.programId);
+  if (args.periodId) p.set("periodId", args.periodId);
   p.set("_t", Date.now().toString());
   return p.toString();
 }
@@ -61,6 +66,7 @@ export async function getCampusIntelligenceStats(
       | "doi_campus";
     collegeId?: string | null;
     programId?: string | null;
+    periodId?: string | null;
   },
 ): Promise<CampusIntelligenceData> {
   const qs = buildQs(args);
@@ -118,6 +124,7 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     mode: "chairman_program" | "program" | "college" | "gec_campus" | "doi_campus";
     collegeId?: string | null;
     programId?: string | null;
+    periodId?: string | null;
   },
 ): Promise<CampusIntelligenceData> {
   const rawMode = args.mode === "chairman_program" ? "program" : args.mode;
@@ -126,7 +133,8 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
   const collegeId = args.collegeId ?? undefined;
   const programId = args.programId ?? undefined;
 
-  // Resolve current academic period (fall back to latest)
+  // Resolve selected or current academic period (fall back to latest)
+  let period: { id: string } | null = args.periodId ? { id: args.periodId } : null;
   let { data: currentPeriods, error: currentPeriodErr } = await supabase
     .from("AcademicPeriod")
     .select("id")
@@ -135,7 +143,9 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
   if (currentPeriodErr) {
     currentPeriods = null;
   }
-  let period = Array.isArray(currentPeriods) ? currentPeriods[0] : currentPeriods;
+  if (!period) {
+    period = Array.isArray(currentPeriods) ? currentPeriods[0] : currentPeriods;
+  }
   if (!period) {
     const { data: latest } = await supabase
       .from("AcademicPeriod")
@@ -173,19 +183,18 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     facultyCount = fc ?? 0;
 
     if (sectionIds.length > 0 && period) {
-      const { count: dc } = await supabase
+      const { data: plotted } = await supabase
         .from("ScheduleEntry")
-        .select("id", { count: "exact", head: true })
+        .select("sectionId")
         .eq("academicPeriodId", period.id)
-        .eq("status", "draft")
         .in("sectionId", sectionIds);
-      draftScheduleCount = dc ?? 0;
+      draftScheduleCount = new Set((plotted || []).map((r: { sectionId?: string }) => r.sectionId).filter(Boolean)).size;
     }
   } else if (mode === "college" && collegeId) {
     const { count: rc } = await supabase
       .from("Room")
       .select("id", { count: "exact", head: true })
-      .eq("collegeId", collegeId);
+      .or(`collegeId.eq.${collegeId},collegeId.is.null`);
     roomCount = rc ?? 0;
 
     const { data: programs } = await supabase
@@ -208,13 +217,12 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
         .eq("role", "instructor");
       facultyCount = fc ?? 0;
       if (period && sectionIds.length > 0) {
-        const { count: dc } = await supabase
+        const { data: plotted } = await supabase
           .from("ScheduleEntry")
-          .select("id", { count: "exact", head: true })
+          .select("sectionId")
           .eq("academicPeriodId", period.id)
-          .eq("status", "draft")
           .in("sectionId", sectionIds);
-        draftScheduleCount = dc ?? 0;
+        draftScheduleCount = new Set((plotted || []).map((r: { sectionId?: string }) => r.sectionId).filter(Boolean)).size;
       }
     }
   } else if (mode === "campus") {
@@ -233,13 +241,12 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
       .eq("role", "instructor");
     facultyCount = fc ?? 0;
     if (period && sectionIds.length > 0) {
-      const { count: dc } = await supabase
+      const { data: plotted } = await supabase
         .from("ScheduleEntry")
-        .select("id", { count: "exact", head: true })
+        .select("sectionId")
         .eq("academicPeriodId", period.id)
-        .eq("status", "draft")
         .in("sectionId", sectionIds);
-      draftScheduleCount = dc ?? 0;
+      draftScheduleCount = new Set((plotted || []).map((r: { sectionId?: string }) => r.sectionId).filter(Boolean)).size;
     }
   }
 
@@ -285,9 +292,7 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
         const idx = timeBlockIdx(e.startTime);
         if (idx >= 0 && e.roomId) blockRooms[idx].add(e.roomId);
         if (e.instructorId && e.startTime && e.endTime) {
-          const [sh] = e.startTime.split(":").map(Number);
-          const [eh] = e.endTime.split(":").map(Number);
-          const hrs = Math.abs(eh - sh);
+          const hrs = slotDurationHours(e.startTime, e.endTime);
           const key = `${e.instructorId}::${resolveProgramMode(e)}`;
           instructorHours.set(key, (instructorHours.get(key) || 0) + hrs);
         }
@@ -299,13 +304,13 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
         utilization: Math.round((rooms.size / totalRooms) * 100),
       }));
 
-      const maxByInstructor = new Map<string, number>();
+      const hoursByInstructor = new Map<string, number>();
       for (const [key, hrs] of instructorHours) {
         const id = key.split("::")[0] ?? key;
-        maxByInstructor.set(id, Math.max(maxByInstructor.get(id) || 0, hrs));
+        hoursByInstructor.set(id, (hoursByInstructor.get(id) || 0) + hrs);
       }
       let full = 0, partial = 0, overloaded = 0;
-      for (const hrs of maxByInstructor.values()) {
+      for (const hrs of hoursByInstructor.values()) {
         if (hrs >= 24) overloaded++;
         else if (hrs >= 18) full++;
         else partial++;

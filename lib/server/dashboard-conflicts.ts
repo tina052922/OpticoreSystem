@@ -11,6 +11,7 @@ export async function getDashboardConflictBanner(args: {
   mode: "chairman_program" | "college" | "gec_campus" | "doi_campus";
   collegeId?: string | null;
   programId?: string | null;
+  periodId?: string | null;
 }): Promise<DashboardConflictBanner | null> {
   try {
     const cookieStore = await cookies();
@@ -27,7 +28,7 @@ export async function getDashboardConflictBanner(args: {
       },
     );
 
-    const academicPeriodId = periodRes.semester?.id;
+    const academicPeriodId = args.periodId || periodRes.semester?.id;
     if (!academicPeriodId) {
       console.log("[Conflicts] No current academic period found");
       return null;

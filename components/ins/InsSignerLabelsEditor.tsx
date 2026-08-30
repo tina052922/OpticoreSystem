@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiFetch, campusInsSettingsApi, collegeApi } from "@/lib/api/client";
+import { notifySystemConfigurationSaved } from "@/contexts/SystemConfigurationContext";
 import type { CollegeInsSignerDisplay } from "@/types/db";
 
 export const INS_SIGNATORY_SLOT_DEFS: { key: string; label: string }[] = [
@@ -72,6 +73,7 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
         await collegeApi.patchSignerSettings({ collegeId, insSignerDisplay: display });
       }
       setMsg("Saved.");
+      notifySystemConfigurationSaved(mode === "doi" ? "insSigners" : "collegeSigners");
       onUpdated?.();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Save failed");

@@ -9,6 +9,8 @@ import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { cn } from "@/components/ui/utils";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import { formatTimeRange12h } from "@/lib/time/format-12h";
+import { SYSTEM_CONFIG_RELOAD_EVENT } from "@/lib/system-configuration/system-config-reload";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 
 type FacultyPayload = {
   rows: ScheduleRowView[];
@@ -21,7 +23,7 @@ type FacultyPayload = {
   policyMaxWeeklyHours?: number;
   policyRemainingHours?: number;
   policyOverloadBy?: number;
-  policyStatus?: "within_limit" | "over_limit";
+  policyStatus?: "within_limit" | "over_limit" | "overloaded";
 };
 
 export type FacultyDashboardSurface = "campus-intelligence" | "my-schedule";
@@ -42,6 +44,15 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
   const [data, setData] = useState<FacultyPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+
+  useRealtimeEvent("config.changed", () => setReloadTick((n) => n + 1));
+
+  useEffect(() => {
+    const onReload = () => setReloadTick((n) => n + 1);
+    window.addEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onReload);
+    return () => window.removeEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onReload);
+  }, []);
 
   useEffect(() => {
     if (!ready || !selectedPeriodId) return;
@@ -51,7 +62,7 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
     void (async () => {
       try {
         const res = await fetch(
-          `/api/portal/faculty-term-data?periodId=${encodeURIComponent(selectedPeriodId)}&programMode=${encodeURIComponent(programMode)}`,
+          `/api/portal/faculty-term-data?periodId=${encodeURIComponent(selectedPeriodId)}&programMode=${encodeURIComponent(programMode)}&_t=${Date.now()}`,
         );
         const j = (await res.json()) as FacultyPayload & { error?: string };
         if (!res.ok) {
@@ -68,7 +79,7 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
     return () => {
       cancelled = true;
     };
-  }, [ready, selectedPeriodId, programMode]);
+  }, [ready, selectedPeriodId, programMode, reloadTick]);
 
   const rows = data?.rows ?? [];
   const weeklyHours = data?.weeklyHours ?? 0;
@@ -79,7 +90,7 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
   const policyMax = data?.policyMaxWeeklyHours;
   const policyRemaining = data?.policyRemainingHours;
   const policyOverload = data?.policyOverloadBy ?? 0;
-  const policyStatus = data?.policyStatus;
+  const policyStatus = data?.policyStatus === "overloaded" ? "over_limit" : data?.policyStatus;
   const hasPolicyCap = typeof policyMax === "number" && policyMax > 0;
 
   const scheduleSectionNames = useMemo(
@@ -156,7 +167,7 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
             <div>
               <p className="text-[11px] font-medium text-black/50">Maximum allowed hours</p>
               <p className="text-2xl font-bold tabular-nums text-black">{policyMax}</p>
-              <p className="text-[10px] text-black/45 mt-0.5">Based on your faculty profile (designation / status).</p>
+              <p className="text-[10px] text-black/45 mt-0.5">From System Configuration and your faculty profile.</p>
             </div>
             <div>
               <p className="text-[11px] font-medium text-black/50">Remaining hours</p>

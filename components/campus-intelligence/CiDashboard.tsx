@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Users, BookOpen, DoorOpen, FileText, AlertTriangle, ChevronRight } from "lucide-react";
+import { apiFetch, schedulingApi } from "@/lib/api/client";
+import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { SYSTEM_CONFIG_RELOAD_EVENT } from "@/lib/system-configuration/system-config-reload";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import { CiDashboardCharts } from "./CiDashboardCharts";
 
 export type CiDashboardVariant = "full" | "gec" | "doi";
@@ -19,6 +25,7 @@ export type CiDashboardLiveStats = {
   sectionCount: number;
   facultyCount: number;
   draftScheduleCount: number;
+  plottedScheduleCount?: number;
 };
 
 export type CiDashboardChartData = {
@@ -62,45 +69,137 @@ function fmtCount(n: number): string {
   return n.toLocaleString();
 }
 
+function conflictModeFor(
+  variant: CiDashboardVariant,
+  analyticsScope: CiDashboardProps["analyticsScope"],
+): "chairman_program" | "college" | "gec_campus" | "doi_campus" {
+  if (analyticsScope?.mode === "program") return "chairman_program";
+  if (analyticsScope?.mode === "college") return "college";
+  return variant === "gec" ? "gec_campus" : "doi_campus";
+}
+
 export function CiDashboard({
   welcomeName,
   basePath: _basePath,
-  variant: _variant = "full",
+  variant = "full",
   conflictBanner = null,
   liveStats = null,
   analyticsScope = null,
   chartsData = null,
 }: CiDashboardProps) {
+  const { selectedPeriodId, ready } = useSemesterFilter();
+  const { programMode } = useProgramMode();
+  const [statsLive, setStatsLive] = useState(liveStats);
+  const [chartsLive, setChartsLive] = useState(chartsData);
+  const [conflictsLive, setConflictsLive] = useState(conflictBanner);
+  const [reloadTick, setReloadTick] = useState(0);
+
+  useRealtimeEvent("config.changed", () => setReloadTick((n) => n + 1));
+  useRealtimeEvent("period.changed", () => setReloadTick((n) => n + 1));
+
+  useEffect(() => {
+    const onReload = () => setReloadTick((n) => n + 1);
+    window.addEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onReload);
+    return () => window.removeEventListener(SYSTEM_CONFIG_RELOAD_EVENT, onReload);
+  }, []);
+
+  useEffect(() => {
+    setStatsLive(liveStats);
+    setChartsLive(chartsData);
+    setConflictsLive(conflictBanner);
+  }, [liveStats, chartsData, conflictBanner]);
+
+  useEffect(() => {
+    if (!ready || !selectedPeriodId || !analyticsScope) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const qs = new URLSearchParams();
+        qs.set("mode", analyticsScope.mode);
+        if (analyticsScope.collegeId) qs.set("collegeId", analyticsScope.collegeId);
+        if (analyticsScope.programId) qs.set("programId", analyticsScope.programId);
+        qs.set("periodId", selectedPeriodId);
+        const data = await apiFetch<
+          CiDashboardLiveStats &
+            CiDashboardChartData & { plottedScheduleCount?: number; standardWeeklyTeachingHours?: number }
+        >(`/api/analytics/dashboard?${qs.toString()}`, { method: "GET", forceRefresh: true });
+        if (cancelled) return;
+        setStatsLive({
+          roomCount: data.roomCount,
+          sectionCount: data.sectionCount,
+          facultyCount: data.facultyCount,
+          draftScheduleCount: data.plottedScheduleCount ?? data.draftScheduleCount,
+          plottedScheduleCount: data.plottedScheduleCount ?? data.draftScheduleCount,
+        });
+        setChartsLive({
+          roomUtilizationBySlot: data.roomUtilizationBySlot ?? [],
+          facultyLoadDistribution: data.facultyLoadDistribution ?? [],
+        });
+      } catch {
+        /* keep server-rendered stats */
+      }
+      try {
+        const scan = await schedulingApi.scopeConflictScan({
+          academicPeriodId: selectedPeriodId,
+          mode: conflictModeFor(variant, analyticsScope),
+          collegeId: analyticsScope.collegeId ?? null,
+          programId: analyticsScope.programId ?? null,
+          programMode,
+        });
+        if (cancelled) return;
+        const href =
+          variant === "gec"
+            ? "/admin/gec/evaluator"
+            : variant === "doi"
+              ? "/doi/evaluator"
+              : analyticsScope.mode === "college"
+                ? "/admin/college/evaluator"
+                : "/chairman/evaluator";
+        setConflictsLive({
+          conflictingRowCount: scan.conflictingEntryIds?.length ?? 0,
+          previewLines: (scan.issueSummaries ?? []).slice(0, 3),
+          evaluatorHref: href,
+        });
+      } catch {
+        /* keep server-rendered conflicts */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, selectedPeriodId, analyticsScope, variant, programMode, reloadTick]);
+
+  const plottedCount = statsLive?.plottedScheduleCount ?? statsLive?.draftScheduleCount;
   const stats = [
     {
       label: "Rooms",
-      value: liveStats ? fmtCount(liveStats.roomCount) : "—",
+      value: statsLive ? fmtCount(statsLive.roomCount) : "—",
       icon: DoorOpen,
       color: "#4CAF50",
     },
     {
       label: "Sections",
-      value: liveStats ? fmtCount(liveStats.sectionCount) : "—",
+      value: statsLive ? fmtCount(statsLive.sectionCount) : "—",
       icon: BookOpen,
       color: "#FF990A",
     },
     {
       label: "Faculty",
-      value: liveStats ? fmtCount(liveStats.facultyCount) : "—",
+      value: statsLive ? fmtCount(statsLive.facultyCount) : "—",
       icon: Users,
       color: "#780301",
     },
     {
-      label: "Draft schedules (current term)",
-      value: liveStats ? fmtCount(liveStats.draftScheduleCount) : "—",
+      label: "Plotted schedules (selected term)",
+      value: statsLive && typeof plottedCount === "number" ? fmtCount(plottedCount) : "—",
       icon: FileText,
       color: "#FFC107",
     },
     {
-      label: "Schedule conflicts (current term)",
-      value: conflictBanner ? String(conflictBanner.conflictingRowCount) : "—",
+      label: "Schedule conflicts (selected term)",
+      value: conflictsLive ? String(conflictsLive.conflictingRowCount) : "—",
       icon: AlertTriangle,
-      color: conflictBanner ? "#F44336" : "#9E9E9E",
+      color: conflictsLive && conflictsLive.conflictingRowCount > 0 ? "#F44336" : "#9E9E9E",
     },
   ];
 
@@ -113,9 +212,9 @@ export function CiDashboard({
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Campus Intelligence Core</h2>
       </div>
 
-      {conflictBanner && conflictBanner.conflictingRowCount > 0 ? (
+      {conflictsLive && conflictsLive.conflictingRowCount > 0 ? (
         <Link
-          href={conflictBanner.evaluatorHref}
+          href={conflictsLive.evaluatorHref}
           className="block rounded-xl border-2 border-red-400/80 bg-linear-to-r from-red-50 to-amber-50/90 p-4 sm:p-5 shadow-[0px_4px_12px_rgba(120,3,1,0.12)] hover:border-opticore-orange transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-opticore-red-1"
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -126,12 +225,12 @@ export function CiDashboard({
               <div className="min-w-0">
                 <h3 className="text-lg font-bold text-red-950">Conflicts detected today</h3>
                 <p className="text-sm text-red-900/85 mt-0.5">
-                  {conflictBanner.conflictingRowCount} schedule row(s) participate in a time overlap (faculty, room, or
+                  {conflictsLive.conflictingRowCount} schedule row(s) participate in a time overlap (faculty, room, or
                   section). Open the Evaluator to review details and suggested remedies.
                 </p>
-                {conflictBanner.previewLines.length > 0 ? (
+                {conflictsLive.previewLines.length > 0 ? (
                   <ul className="mt-2 text-xs text-red-950/80 space-y-1 list-disc pl-5 max-h-30 overflow-y-auto">
-                    {conflictBanner.previewLines.map((line, i) => (
+                    {conflictsLive.previewLines.map((line, i) => (
                       <li key={i}>{line}</li>
                     ))}
                   </ul>
@@ -161,7 +260,7 @@ export function CiDashboard({
         })}
       </div>
 
-      <CiDashboardCharts analyticsScope={analyticsScope} chartsData={chartsData} />
+      <CiDashboardCharts analyticsScope={analyticsScope} chartsData={chartsLive} />
     </div>
   );
 }

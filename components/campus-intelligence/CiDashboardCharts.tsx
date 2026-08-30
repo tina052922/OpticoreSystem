@@ -245,10 +245,10 @@ export function CiDashboardCharts({
                     </p>
                     <p className="text-xs text-gray-600">
                       {item.name === "Partial Load"
-                        ? "<18 hrs/wk estimated."
+                        ? "Below the campus full-load band."
                         : item.name === "Full Load"
-                          ? "~18–24 hrs/wk estimated."
-                          : "Above usual cap — review."}
+                          ? "Within the configured weekly teaching band."
+                          : "Above the configured weekly teaching cap."}
                     </p>
                     <p className="text-sm text-gray-800 mt-0.5">
                       <span className="tabular-nums font-semibold">
