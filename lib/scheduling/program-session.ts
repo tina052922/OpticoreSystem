@@ -1,4 +1,4 @@
-/** Day vs Night program plotting / INS grids. Night is a separate mode; Day stays Mon–Fri 7:00–17:00. */
+/** Day vs Evening program plotting / INS grids. Evening is stored as `night`; Day stays Mon–Fri 7:00–17:00. */
 
 export type ProgramSession = "day" | "night";
 

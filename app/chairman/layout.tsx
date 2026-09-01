@@ -17,6 +17,8 @@ export default async function ChairmanLayout({ children }: { children: React.Rea
       navItems={CHAIRMAN_NAV}
       roleLabel="Chairman admin · COTE"
       profileHref="/chairman/profile"
+      scheduleChangeRequestsBadgeCollegeId={session.collegeId}
+      scheduleChangeRequestsBadgeProgramId={session.programId}
     >
       {children}
     </CampusIntelligenceShell>

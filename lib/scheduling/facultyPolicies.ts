@@ -40,11 +40,20 @@ export type FacultyLoadRow = {
   weeklyTotalContactHours: number;
   weeklyLectureHours: number;
   weeklyLabHours: number;
+  /** Distinct `subjectId`s in the entries passed to the evaluator (one program mode at a time). */
+  preparations: number;
+  /** Sum of lec+lab units for unique subject–section pairs. */
+  weeklyUnits: number;
+  subjectCodes: string[];
   status: string | null;
   designation: string | null;
   effectiveTeachingCap: number | null;
   violations: FacultyPolicyViolation[];
 };
+
+/** Allowed distinct subjects without justification; assigning a 4th (or more) requires a written reason. */
+export const MAX_WEEKLY_PREPS_WITHOUT_JUSTIFICATION = 3;
+export const PREP_LIMIT_JUSTIFICATION_THRESHOLD = 4;
 
 // NOTE: `designationTeachingCapHours` now lives in `@/lib/faculty/designation-system` so UI + policy checks match.
 
@@ -73,6 +82,7 @@ export const TEACHING_LOAD_JUSTIFICATION_CODES = new Set<string>([
   "PARTTIME_WEEKLY_OVER_CAP",
   "OVER_DESIGNATION_TEACHING_CAP",
   "OVER_STANDARD_TEACHING_LOAD",
+  "OVER_PREP_LIMIT",
 ]);
 
 export function rowNeedsTeachingLoadJustification(row: FacultyLoadRow): boolean {
@@ -192,17 +202,37 @@ export function evaluateFacultyLoadsForCollege(
 ): { rows: FacultyLoadRow[]; hasAnyViolation: boolean; hasTeachingLoadJustificationViolation: boolean } {
   const byInstructor = new Map<
     string,
-    { total: number; lec: number; lab: number }
+    {
+      total: number;
+      lec: number;
+      lab: number;
+      subjectIds: Set<string>;
+      seenPairs: Set<string>;
+      units: number;
+    }
   >();
 
   for (const e of entries) {
     const sub = subjectsById.get(e.subjectId);
     const dur = slotDurationHours(e.startTime, e.endTime);
     const { lec, lab } = lectureLabSplitHours(sub, dur);
-    const cur = byInstructor.get(e.instructorId) ?? { total: 0, lec: 0, lab: 0 };
+    const cur = byInstructor.get(e.instructorId) ?? {
+      total: 0,
+      lec: 0,
+      lab: 0,
+      subjectIds: new Set<string>(),
+      seenPairs: new Set<string>(),
+      units: 0,
+    };
     cur.total += dur;
     cur.lec += lec;
     cur.lab += lab;
+    if (e.subjectId) cur.subjectIds.add(e.subjectId);
+    const pairKey = `${e.subjectId}:${e.sectionId}`;
+    if (!cur.seenPairs.has(pairKey)) {
+      cur.seenPairs.add(pairKey);
+      if (sub) cur.units += sub.lecUnits + sub.labUnits;
+    }
     byInstructor.set(e.instructorId, cur);
   }
 
@@ -215,16 +245,29 @@ export function evaluateFacultyLoadsForCollege(
     const desCap = designationTeachingCapHours(ctx.designation);
     const effectiveTeachingCap = desCap ?? policyConstants.STANDARD_WEEKLY_TEACHING_HOURS;
     const teaching = collectTeachingLoadCapViolations(ctx, hrs.total, policyConstants);
+    if (hrs.subjectIds.size >= PREP_LIMIT_JUSTIFICATION_THRESHOLD) {
+      teaching.push({
+        code: "OVER_PREP_LIMIT",
+        message: `Preparations (${hrs.subjectIds.size} distinct subjects) reach or exceed the allowed ${MAX_WEEKLY_PREPS_WITHOUT_JUSTIFICATION} without justification.`,
+      });
+    }
     const secondary = collectSecondaryPolicyViolations(hrs.total, hrs.lec, hrs.lab, policyConstants);
     const violations = [...teaching, ...secondary];
     if (violations.length > 0) hasAnyViolation = true;
     if (teaching.length > 0) hasTeachingLoadJustificationViolation = true;
+    const subjectCodes = [...hrs.subjectIds]
+      .map((id) => subjectsById.get(id)?.code)
+      .filter((c): c is string => Boolean(c))
+      .sort((a, b) => a.localeCompare(b));
     rows.push({
       instructorId,
       instructorName: ctx.name,
       weeklyTotalContactHours: hrs.total,
       weeklyLectureHours: hrs.lec,
       weeklyLabHours: hrs.lab,
+      preparations: hrs.subjectIds.size,
+      weeklyUnits: hrs.units,
+      subjectCodes,
       status: ctx.status,
       designation: ctx.designation,
       effectiveTeachingCap,

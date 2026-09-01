@@ -957,13 +957,13 @@ export const scheduleChangeApi = {
   },
   list() {
     return apiFetch<{ requests: ScheduleChangeRequest[]; collegeId?: string }>(
-      "/api/schedule-change/college",
+      "/api/schedule-change/chairman",
       { method: "GET" },
     );
   },
   collegeList() {
     return apiFetch<{ requests: ScheduleChangeRequest[] }>(
-      "/api/schedule-change/college",
+      "/api/schedule-change/chairman",
       { method: "GET" },
     );
   },
@@ -990,7 +990,7 @@ export const scheduleChangeApi = {
     );
   },
   pendingCount(
-    params: { collegeId?: string } = {},
+    params: { collegeId?: string; programId?: string } = {},
     opts: { cookieHeader?: string; forceRefresh?: boolean } = {},
   ) {
     return apiFetch<{ pending: number }>(

@@ -8,7 +8,7 @@ describe("formatHHMMTo12h", () => {
     expect(formatTimeRange12h("07:00", "17:00")).toBe("7:00 AM – 5:00 PM");
   });
 
-  it("labels Night Program weekday and weekend hours as 12-hour AM/PM", () => {
+  it("labels Evening Program weekday and weekend hours as 12-hour AM/PM", () => {
     expect(formatHHMMTo12h("16:00")).toBe("4:00 PM");
     expect(formatHHMMTo12h("22:00")).toBe("10:00 PM");
     expect(formatTimeRange12h("16:00", "22:00")).toBe("4:00 PM – 10:00 PM");

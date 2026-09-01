@@ -34,6 +34,7 @@ import type {
   Program,
   Room,
   ScheduleEntry,
+  ScheduleLoadJustification,
   Section,
   Subject,
   User,
@@ -46,12 +47,15 @@ import {
 import { HubEvaluatorTabs } from "@/components/evaluator/HubEvaluatorTabs";
 import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
+import { EvaluatorTimetablingPanel } from "@/components/evaluator/EvaluatorTimetablingPanel";
+import { TeachingLoadSummaryTable } from "@/components/college/TeachingLoadSummaryTable";
+import { buildTeachingLoadSummary } from "@/lib/scheduling/teaching-load-summary";
+import { hydrateScheduleEntries, filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEntryQuickEditDialog";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
-import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
@@ -99,6 +103,7 @@ export function CentralHubEvaluatorView({
   showDoiGovernance = false,
   hubAccessMode = "default",
 }: CentralHubEvaluatorViewProps) {
+  const hubTitle = hubAccessMode === "collegeAdmin" ? "Evaluator" : "Central Hub Evaluator";
   const toast = useOpticoreToast();
   const { programMode } = useProgramMode();
   const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
@@ -148,6 +153,7 @@ export function CentralHubEvaluatorView({
   const [users, setUsers] = useState<User[]>([]);
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
+  const [justifications, setJustifications] = useState<ScheduleLoadJustification[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
 
   const [programId, setProgramId] = useState("");
@@ -193,6 +199,7 @@ export function CentralHubEvaluatorView({
         setPrograms(bundle.programs ?? []);
         setColleges(bundle.colleges ?? []);
         setFacultyProfiles(bundle.facultyProfiles ?? []);
+        setJustifications(bundle.justifications ?? []);
         setLoading(false);
       }
     } catch {
@@ -311,6 +318,33 @@ export function CentralHubEvaluatorView({
     () => programs.filter((p) => !scopeCollegeId || p.collegeId === scopeCollegeId),
     [programs, scopeCollegeId],
   );
+
+  const teachingLoadRows = useMemo(() => {
+    const cid = myCollegeId || scopeCollegeId;
+    if (!cid || !academicPeriodId) return [];
+    return buildTeachingLoadSummary({
+      collegeId: cid,
+      academicPeriodId,
+      entries: hydrateScheduleEntries(entries),
+      users,
+      profiles: facultyProfiles,
+      programs,
+      sections,
+      subjects,
+      justifications,
+    });
+  }, [
+    myCollegeId,
+    scopeCollegeId,
+    academicPeriodId,
+    entries,
+    users,
+    facultyProfiles,
+    programs,
+    sections,
+    subjects,
+    justifications,
+  ]);
 
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
@@ -809,10 +843,16 @@ export function CentralHubEvaluatorView({
       if (landingPanelForTabs === "hrs") {
         return (
           <div>
-            <ChairmanPageHeader title="Central Hub Evaluator" />
-            <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
+            <ChairmanPageHeader title={hubTitle} />
+            <div className="px-4 md:px-8 pb-12 max-w-[1400px] mx-auto">
               <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="hrs" collegeAdminLanding />
-              <HrsUnitsPrepsRemarksTable />
+              <p className="text-[13px] text-black/65 mb-4">
+                Full form:{" "}
+                <Link href="/admin/college/teaching-load-summary" className="font-semibold text-[#780301] hover:underline">
+                  Summary of Teaching Load
+                </Link>
+              </p>
+              <TeachingLoadSummaryTable rows={teachingLoadRows} />
               <p className="text-[13px] text-black/55 mt-8 text-center">
                 <HubCollegesNavLink basePath={basePath} className="font-semibold text-[#780301] hover:underline">
                   ← Back to college selection
@@ -825,7 +865,7 @@ export function CentralHubEvaluatorView({
 
       return (
         <div>
-          <ChairmanPageHeader title="Central Hub Evaluator" />
+          <ChairmanPageHeader title={hubTitle} />
           <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
             <HubEvaluatorTabs
               basePath={basePath}
@@ -866,7 +906,7 @@ export function CentralHubEvaluatorView({
     }
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" />
+        <ChairmanPageHeader title={hubTitle} />
         <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
           <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="timetabling" />
           <div className="mb-4 flex justify-center">
@@ -906,7 +946,7 @@ export function CentralHubEvaluatorView({
   if (collegeSlug && !isCampusWide && !hub) {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Invalid college selection." />
+        <ChairmanPageHeader title={hubTitle} subtitle="Invalid college selection." />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← Back to college hub
@@ -919,7 +959,7 @@ export function CentralHubEvaluatorView({
   if (isCampusWide && hubAccessMode === "collegeAdmin") {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" />
+        <ChairmanPageHeader title={hubTitle} />
         <div className="px-4 md:px-8 pb-8 max-w-2xl">
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← Back to college hub
@@ -937,7 +977,7 @@ export function CentralHubEvaluatorView({
   if (!isCampusWide && hub && !hub.collegeId) {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" subtitle={hub.name} />
+        <ChairmanPageHeader title={hubTitle} subtitle={hub.name} />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← All colleges
@@ -966,7 +1006,7 @@ export function CentralHubEvaluatorView({
   if (hubAccessMode === "collegeAdmin" && collegeSlug && !isCampusWide && hub?.collegeId && !collegeAdminProfileReady) {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Loading your session…" />
+        <ChairmanPageHeader title={hubTitle} subtitle="Loading your session…" />
         <div className="px-8 py-12 text-sm text-black/60">Please wait.</div>
       </div>
     );
@@ -975,7 +1015,7 @@ export function CentralHubEvaluatorView({
   if (needsPeerApproval && !crossApproved) {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" subtitle={hub?.name ?? "Peer college"} />
+        <ChairmanPageHeader title={hubTitle} subtitle={hub?.name ?? "Peer college"} />
         <div className="px-4 md:px-8 pb-8 max-w-xl">
           <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
@@ -1035,7 +1075,7 @@ export function CentralHubEvaluatorView({
 
   return (
     <div>
-      <ChairmanPageHeader title="Central Hub Evaluator" />
+      <ChairmanPageHeader title={hubTitle} />
 
       <div className="px-4 md:px-8 pb-8">
         <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
@@ -1068,6 +1108,15 @@ export function CentralHubEvaluatorView({
 
         {panel === "timetabling" ? (
           <>
+            {hubAccessMode === "collegeAdmin" && !hubReadOnly && myCollegeId && hub?.collegeId === myCollegeId ? (
+              <div className="mb-8">
+                <p className="text-[13px] text-black/65 mb-3">
+                  Plot and edit schedules for departments in your college (same Evaluator tools as Program Chairman).
+                  Peer-college hubs stay view-only after access approval.
+                </p>
+                <EvaluatorTimetablingPanel chairmanCollegeId={myCollegeId} collegeWidePrograms />
+              </div>
+            ) : null}
             {showDoiGovernance ? (
               <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/90 px-4 py-2 text-[13px] text-gray-900">
                 <strong>Vice President’s scope:</strong> set <em>College</em> to <strong>All colleges</strong> below for
@@ -1375,7 +1424,20 @@ export function CentralHubEvaluatorView({
             ) : null}
           </>
         ) : panel === "hrs" ? (
-          <HrsUnitsPrepsRemarksTable />
+          hubAccessMode === "collegeAdmin" ? (
+            <div className="space-y-3">
+              <p className="text-[13px] text-black/65">
+                Day and Evening loads are listed separately. Open the{" "}
+                <Link href="/admin/college/teaching-load-summary" className="font-semibold text-[#780301] hover:underline">
+                  Summary of Teaching Load
+                </Link>{" "}
+                page for the full college roster.
+              </p>
+              <TeachingLoadSummaryTable rows={teachingLoadRows} />
+            </div>
+          ) : (
+            <HrsUnitsPrepsRemarksTable />
+          )
         ) : null}
       </div>
     </div>

@@ -138,7 +138,7 @@ export interface Room {
   displayName?: string | null;
 }
 
-/** Day Program and Night Program are independent loads (never conflict with each other). */
+/** Day Program and Evening Program (`night` in storage) are independent loads. */
 export type ScheduleProgramMode = "day" | "night";
 
 export interface ScheduleEntry {
@@ -157,8 +157,8 @@ export interface ScheduleEntry {
   /** Set when VPAA publishes the term; plotted rows cannot be edited by chairman/college (RLS). */
   lockedByDoiAt?: string | null;
   /**
-   * Day vs Night program. Missing/null is treated as `"day"` so existing rows stay on the Day grid.
-   * Night loads are stored separately and must not conflict with Day loads.
+   * Day vs Evening program. Missing/null is treated as `"day"` so existing rows stay on the Day grid.
+   * Evening loads are stored as `night` and must not conflict with Day loads.
    */
   programMode?: ScheduleProgramMode | null;
 }

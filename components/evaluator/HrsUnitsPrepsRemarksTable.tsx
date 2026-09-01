@@ -64,14 +64,11 @@ function remarkForPolicyRow(row: FacultyLoadRow): LoadRowVM["remark"] {
 }
 
 function prepCountFromRow(row: FacultyLoadRow): number {
-  // Distinct preparations are not explicitly stored per ScheduleEntry in this release.
-  // Use a stable heuristic so load tables remain informative without manual data entry.
-  return Math.max(1, Math.round(row.weeklyTotalContactHours / 3) || 0);
+  return row.preparations;
 }
 
 function unitsFromRow(row: FacultyLoadRow): number {
-  // Semester “units” are approximated from weekly contact hours for governance visibility.
-  return Math.round(row.weeklyTotalContactHours * 1.5);
+  return row.weeklyUnits;
 }
 
 export function HrsUnitsPrepsRemarksTable(props?: {

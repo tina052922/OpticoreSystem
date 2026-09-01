@@ -64,8 +64,11 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   Settings,
 };
 
-/** Sidebar link that shows a numeric badge (pending schedule change requests for College Admin). */
-const SCHEDULE_CHANGE_REQUESTS_HREF = "/admin/college/schedule-change-requests";
+/** Sidebar link that shows a numeric badge (pending schedule change requests). */
+const SCHEDULE_CHANGE_REQUESTS_HREFS = new Set([
+  "/admin/college/schedule-change-requests",
+  "/chairman/schedule-change-requests",
+]);
 const COLLEGE_ACCESS_REQUESTS_HREF = "/admin/college/access-requests";
 const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
 /** College Admin: same data as DOI queue, scoped by RLS to their college. */
@@ -87,10 +90,11 @@ export type CampusIntelligenceShellProps = {
   /** Kept for layouts that pass it; inbox is only in the sidebar, not the avatar menu. */
   inboxHref?: string;
   /**
-   * When set (College Admin layout), shows a red/orange pending count badge on
-   * "Schedule change requests" and keeps it updated via Supabase Realtime + polling fallback.
+   * When set, shows a pending count badge on "Schedule change requests"
+   * (Program Chairman queue) and keeps it updated via Realtime + polling.
    */
   scheduleChangeRequestsBadgeCollegeId?: string | null;
+  scheduleChangeRequestsBadgeProgramId?: string | null;
   /** College Admin: pending access requests for this college hub. */
   accessRequestsBadgeCollegeId?: string | null;
   /** DOI layout: shows a badge on "Policy reviews" when items are waiting for review. */
@@ -118,6 +122,7 @@ export function CampusIntelligenceShell({
   roleLabel,
   profileHref,
   scheduleChangeRequestsBadgeCollegeId = null,
+  scheduleChangeRequestsBadgeProgramId = null,
   accessRequestsBadgeCollegeId = null,
   policyReviewsBadge = false,
   policyJustificationsBadgeCollegeId = null,
@@ -127,7 +132,10 @@ export function CampusIntelligenceShell({
   const router = useRouter();
   const navHrefs = navItems.map((i) => i.href);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const pendingScrCount = usePendingScheduleChangeRequestsCount(scheduleChangeRequestsBadgeCollegeId);
+  const pendingScrCount = usePendingScheduleChangeRequestsCount(
+    scheduleChangeRequestsBadgeCollegeId,
+    scheduleChangeRequestsBadgeProgramId,
+  );
   const pendingAccessCount = usePendingAccessRequestsCount(accessRequestsBadgeCollegeId);
   const pendingDoiPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
   const showDoiPolicyBadge = policyReviewsBadge && pendingDoiPolicyReviews > 0;
@@ -294,7 +302,7 @@ export function CampusIntelligenceShell({
               const active = isNavItemActive(pathname, item.href, navHrefs);
               const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
               const scrBadge =
-                item.href === SCHEDULE_CHANGE_REQUESTS_HREF && pendingScrCount > 0 ? pendingScrCount : null;
+                SCHEDULE_CHANGE_REQUESTS_HREFS.has(item.href) && pendingScrCount > 0 ? pendingScrCount : null;
               const accessBadge =
                 item.href === COLLEGE_ACCESS_REQUESTS_HREF && pendingAccessCount > 0 ? pendingAccessCount : null;
               const doiPolicyBadge =

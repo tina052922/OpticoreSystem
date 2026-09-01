@@ -2024,8 +2024,8 @@ export function BsitChairmanEvaluatorWorksheet({
         title={policyModalReason === "assign" ? "Overload: justify before assigning" : "Policy justification"}
         promptText={
           policyModalReason === "assign"
-            ? "This assignment pushes the instructor past the faculty load policy. Enter a justification for DOI/VPAA review, then the assignment will be kept and saved."
-            : "This assignment exceeds the faculty load policy. Do you want to proceed with justification?"
+            ? "This assignment pushes the instructor past faculty load policy (weekly hours and/or 4 or more subject preparations). Enter a justification for College Admin and DOI/VPAA review, then the assignment will be kept and saved."
+            : "This assignment exceeds faculty load policy (weekly hours and/or 4 or more subject preparations). Do you want to proceed with justification?"
         }
         confirmButtonLabel={policyModalReason === "assign" ? "Record justification & apply assignment" : undefined}
         value={justificationText}

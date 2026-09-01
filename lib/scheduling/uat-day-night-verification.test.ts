@@ -171,7 +171,7 @@ describe("TC007 — Search and listings filter by the selected program", () => {
     { id: "tagged-night-4pm", day: "Monday", startTime: "16:00", programMode: "night" },
   ];
 
-  it("returns Night rows only when the Night Program is selected", () => {
+  it("returns Evening rows only when the Evening Program is selected", () => {
     expect(filterByProgramMode(rows, "night").map((r) => r.id)).toEqual([
       "night-1",
       "night-2",

@@ -52,7 +52,7 @@ type Row = ScheduleChangeRequest & {
 };
 
 /**
- * College Admin: review instructor schedule change requests, run conflict check, approve/reject, notify faculty.
+ * Program Chairman: review instructor schedule change requests, run conflict check, approve/reject, notify faculty.
  */
 export function CollegeScheduleChangeRequestsClient() {
   const toast = useOpticoreToast();
@@ -112,7 +112,7 @@ export function CollegeScheduleChangeRequestsClient() {
         forbiddenRef.current = true;
         setRequests([]);
         setRealtimeCollegeId(null);
-        setError("This queue is only available to College Admin.");
+        setError("This queue is only available to Program Chairman.");
         return;
       }
       setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to load");

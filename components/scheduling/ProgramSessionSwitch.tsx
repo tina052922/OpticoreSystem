@@ -14,7 +14,7 @@ export function ProgramSessionSwitch({ className }: { className?: string }) {
         className,
       )}
       role="group"
-      aria-label="Day or Night program"
+      aria-label="Day or Evening program"
     >
       <button
         type="button"
@@ -36,7 +36,7 @@ export function ProgramSessionSwitch({ className }: { className?: string }) {
         )}
       >
         <Moon className="size-3.5" aria-hidden />
-        Night Program
+        Evening Program
       </button>
     </div>
   );

@@ -180,4 +180,49 @@ describe("evaluateFacultyLoadsForCollege / teaching-load justification gate", ()
     expect(nightLoad.rows[0].weeklyTotalContactHours).toBeCloseTo(2, 5);
     expect(mixedLoad.rows[0].weeklyTotalContactHours).toBeCloseTo(4, 5);
   });
+
+  it("requires justification when assigning would reach 4 distinct subject preps", () => {
+    const subjects = new Map<string, Subject>([
+      [subjectId, baseSubject],
+      ["sub2", { ...baseSubject, id: "sub2", code: "IT 102" }],
+      ["sub3", { ...baseSubject, id: "sub3", code: "IT 103" }],
+      ["sub4", { ...baseSubject, id: "sub4", code: "IT 104" }],
+    ]);
+    const threePreps: ScheduleEntry[] = [
+      { ...makeEntry("e1", "08:00", "09:00", "Monday"), subjectId },
+      { ...makeEntry("e2", "08:00", "09:00", "Tuesday"), subjectId: "sub2" },
+      { ...makeEntry("e3", "08:00", "09:00", "Wednesday"), subjectId: "sub3" },
+    ];
+    const fourPreps: ScheduleEntry[] = [
+      ...threePreps,
+      { ...makeEntry("e4", "08:00", "09:00", "Thursday"), subjectId: "sub4" },
+    ];
+    const users = new Map([[instructorId, userRow]]);
+    const profiles = new Map([[instructorId, profile("Regular", null)]]);
+
+    const under = evaluateFacultyLoadsForCollege(threePreps, subjects, users, profiles, "c1", () => "c1");
+    const over = evaluateFacultyLoadsForCollege(fourPreps, subjects, users, profiles, "c1", () => "c1");
+
+    expect(under.rows[0].preparations).toBe(3);
+    expect(rowNeedsTeachingLoadJustification(under.rows[0])).toBe(false);
+    expect(over.rows[0].preparations).toBe(4);
+    expect(over.hasTeachingLoadJustificationViolation).toBe(true);
+    expect(rowNeedsTeachingLoadJustification(over.rows[0])).toBe(true);
+    expect(over.rows[0].violations.some((v) => v.code === "OVER_PREP_LIMIT")).toBe(true);
+  });
+
+  it("does not treat repeated meetings of the same subject as extra preps", () => {
+    const entries: ScheduleEntry[] = [
+      makeEntry("e1", "08:00", "09:00", "Monday"),
+      makeEntry("e2", "08:00", "09:00", "Tuesday"),
+      makeEntry("e3", "08:00", "09:00", "Wednesday"),
+      makeEntry("e4", "08:00", "09:00", "Thursday"),
+    ];
+    const subjects = new Map([[subjectId, baseSubject]]);
+    const users = new Map([[instructorId, userRow]]);
+    const profiles = new Map([[instructorId, profile("Regular", null)]]);
+    const { rows } = evaluateFacultyLoadsForCollege(entries, subjects, users, profiles, "c1", () => "c1");
+    expect(rows[0].preparations).toBe(1);
+    expect(rows[0].violations.some((v) => v.code === "OVER_PREP_LIMIT")).toBe(false);
+  });
 });

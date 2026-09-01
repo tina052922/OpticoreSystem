@@ -1,7 +1,8 @@
 /**
- * Day Program vs Night Program — independent loads, grids, and conflict universes.
+ * Day Program vs Evening Program — independent loads, grids, and conflict universes.
+ * Persistence still uses `programMode: "night"` for Evening (do not rename the stored value).
  *
- * Night windows (official INS Form 5A/5B/5C):
+ * Evening windows (official INS Form 5A/5B/5C):
  *   Mon–Fri  4:00 PM – 10:00 PM
  *   Sat–Sun  7:00 AM – 10:00 PM
  *
@@ -124,7 +125,7 @@ export function parseProgramMode(v: unknown): ProgramMode {
 }
 
 export function programModeLabel(mode: ProgramMode): string {
-  return mode === "night" ? "Night Program" : "Day Program";
+  return mode === "night" ? "Evening Program" : "Day Program";
 }
 
 export function stripNightDayPrefix(day: string): string {

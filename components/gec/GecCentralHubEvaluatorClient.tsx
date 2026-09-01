@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, catalogApi, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
+import { apiFetch, authApi, catalogApi, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -75,6 +75,10 @@ import {
 } from "@/lib/evaluator/instructor-employee-id";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
+import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "@/lib/scheduling/facultyPolicies";
+import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
+import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
+import { PolicyJustificationModal } from "@/components/evaluator/PolicyJustificationModal";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
@@ -102,6 +106,8 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  */
 export function GecCentralHubEvaluatorClient() {
   const toast = useOpticoreToast();
+  const systemConfig = useSystemConfigurationOptional();
+  const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
   const { programMode } = useProgramMode();
   const slotsForMode = evaluatorTimeSlots(programMode);
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
@@ -132,6 +138,8 @@ export function GecCentralHubEvaluatorClient() {
   const [edits, setEdits] = useState<Record<string, GecPlotEditPatch>>({});
   const [pickedSummaryCode, setPickedSummaryCode] = useState<string | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
+  const [justModalOpen, setJustModalOpen] = useState(false);
+  const [justificationText, setJustificationText] = useState("");
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [conflictIds, setConflictIds] = useState<Set<string>>(new Set());
   const [conflictSummary, setConflictSummary] = useState<string[]>([]);
@@ -749,7 +757,7 @@ export function GecCentralHubEvaluatorClient() {
     });
   }, [searchParams, loading, conflictIds]);
 
-  async function saveVacantEdits() {
+  async function saveVacantEdits(opts?: { skipJustificationPrompt?: boolean }) {
     if (!canEditVacant || !collegeParam || !academicPeriodId) return;
     setSaveBusy(true);
     setSaveMsg(null);
@@ -770,6 +778,76 @@ export function GecCentralHubEvaluatorClient() {
         toast.info("No changes to save");
         return;
       }
+
+      const byId = new Map(allEntries.map((e) => [e.id, e]));
+      for (const e of toSave) byId.set(e.id, e);
+      const hypothetical = filterByProgramMode(
+        [...byId.values()].filter(
+          (e) => e.instructorId && e.instructorId !== GEC_VACANT_INSTRUCTOR_USER_ID,
+        ),
+        programMode,
+      );
+      const collegeIdForPolicy = plotCollegeId || grantScopeCollegeId || collegeParam;
+      const policy = evaluateFacultyLoadsForCollege(
+        hypothetical,
+        subjectById,
+        userById,
+        facultyProfileByUserId,
+        collegeIdForPolicy ?? "",
+        (sid) => {
+          const sec = sectionById.get(sid);
+          const pr = sec ? programById.get(sec.programId) : null;
+          return pr?.collegeId ?? null;
+        },
+        policyConstants,
+      );
+      const needsJust = policy.hasTeachingLoadJustificationViolation;
+      if (needsJust && !opts?.skipJustificationPrompt) {
+        setJustModalOpen(true);
+        setSaveMsg("Enter a justification for College Admin and DOI review (min. 12 characters).");
+        return;
+      }
+      if (needsJust && justificationText.trim().length < 12) {
+        setJustModalOpen(true);
+        setSaveMsg("Enter a justification for DOI/VPAA review (min. 12 characters).");
+        return;
+      }
+      if (needsJust) {
+        const { user } = await authApi.me();
+        if (!user) {
+          setSaveMsg("Not signed in.");
+          toast.error("Failed to save. Please try again.", "Not signed in.");
+          return;
+        }
+        const violators = policy.rows.filter((r) => rowNeedsTeachingLoadJustification(r));
+        const snapRows = violators.map(
+          (r) =>
+            `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk · ${r.preparations} preps — ${r.violations.map((v) => v.code).join(", ")}`,
+        );
+        const t = justificationText.trim();
+        for (const v of violators) {
+          await apiFetch("/api/catalog/schedule-load-justifications", {
+            method: "POST",
+            body: {
+              academicPeriodId,
+              collegeId: collegeIdForPolicy,
+              facultyUserId: v.instructorId,
+              scheduleEntryId: toSave.find((r) => r.instructorId === v.instructorId)?.id ?? null,
+              authorUserId: user.id,
+              authorName: user.name ?? user.email ?? user.id,
+              authorEmail: user.email ?? null,
+              justification: t,
+              violationsSnapshot: {
+                summary: snapRows.join("\n"),
+                detail: policy.rows,
+                facultyWeeklyHours: v.weeklyTotalContactHours,
+                preparations: v.preparations,
+              },
+            },
+          });
+        }
+      }
+
       await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
       setEdits({});
       setExtraEntries([]);
@@ -1111,6 +1189,7 @@ export function GecCentralHubEvaluatorClient() {
   }
 
   return (
+    <>
     <div>
       <ChairmanPageHeader
         title="Central Hub Evaluator"
@@ -1381,5 +1460,20 @@ export function GecCentralHubEvaluatorClient() {
         )}
       </div>
     </div>
+    <PolicyJustificationModal
+      open={justModalOpen}
+      title="Policy justification"
+      promptText="Assigning this GEC slot exceeds faculty load policy (weekly hours and/or 4 or more subject preparations). Enter a justification for College Admin and DOI review."
+      value={justificationText}
+      minLength={12}
+      saving={saveBusy}
+      onChange={setJustificationText}
+      onCancel={() => setJustModalOpen(false)}
+      onSave={async () => {
+        setJustModalOpen(false);
+        await saveVacantEdits({ skipJustificationPrompt: true });
+      }}
+    />
+    </>
   );
 }

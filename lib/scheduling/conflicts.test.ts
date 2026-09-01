@@ -201,7 +201,7 @@ describe("Day vs Night program isolation", () => {
     expect(detectConflictsForEntry(dayLoad, [nightLoad])).toHaveLength(0);
   });
 
-  it("still flags two Night Program meetings for the same instructor", () => {
+  it("still flags two Evening Program meetings for the same instructor", () => {
     const a = block({
       id: "n1",
       instructorId: "gwyneth",

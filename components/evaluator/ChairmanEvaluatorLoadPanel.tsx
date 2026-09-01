@@ -24,12 +24,11 @@ function remarkForRow(row: FacultyLoadRow): "Underloaded" | "Maximum" | "Overloa
 }
 
 function prepCountFromRow(row: FacultyLoadRow): number {
-  // Distinct preps not tracked in FacultyLoadRow; show placeholder — policy engine focuses on units/hours.
-  return Math.max(1, Math.round(row.weeklyTotalContactHours / 3) || 0);
+  return row.preparations;
 }
 
 function unitsFromRow(row: FacultyLoadRow): number {
-  return Math.round(row.weeklyTotalContactHours * 1.5);
+  return row.weeklyUnits;
 }
 
 export function ChairmanEvaluatorLoadPanel({ snapshot }: { snapshot: ChairmanPolicySnapshot | null }) {

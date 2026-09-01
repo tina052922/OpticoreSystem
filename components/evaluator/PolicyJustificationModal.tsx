@@ -2,8 +2,7 @@
 
 /**
  * Shown when saving a schedule would violate faculty load rules (Evaluator / Chairman worksheet).
- * **Trigger:** total weekly contact hours for an instructor (all programs in the college, current term) exceed
- * the policy cap (e.g. regular organic faculty over 24 hrs/wk, part-time over part-time cap, or over designation cap).
+ * **Trigger:** weekly contact hours exceed the policy cap, or distinct subject preparations reach 4 or more.
  * Enter at least `minLength` characters, confirm, then save proceeds and `ScheduleLoadJustification` rows are written.
  */
 
@@ -27,7 +26,7 @@ export type PolicyJustificationModalProps = {
 export function PolicyJustificationModal({
   open,
   title = "Policy justification",
-  promptText = "This assignment exceeds the faculty load policy. Do you want to proceed with justification?",
+  promptText = "This assignment exceeds faculty load policy (weekly hours and/or 4 or more subject preparations). Do you want to proceed with justification?",
   confirmButtonLabel,
   value,
   minLength = 12,

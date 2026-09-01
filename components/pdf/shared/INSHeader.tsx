@@ -74,7 +74,7 @@ export function INSHeader({
       <View style={ins.formTitleRow}>
         <View style={ins.formTitleCenter}>
           <Text style={ins.formTitle}>{formTitle}</Text>
-          <Text style={ins.formSubtitle}>{programMode === "night" ? "Night Program" : "Day Program"}</Text>
+          <Text style={ins.formSubtitle}>{programMode === "night" ? "Evening Program" : "Day Program"}</Text>
           <Text style={ins.semesterLine}>{semesterLabel}</Text>
         </View>
       </View>

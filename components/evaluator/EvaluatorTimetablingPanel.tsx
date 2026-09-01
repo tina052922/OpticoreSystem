@@ -86,12 +86,14 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
 }
 
 export type EvaluatorTimetablingPanelProps = {
-  /** Chairman scope: fixed college; program is the only scope filter in the UI. */
+  /** Chairman / College Admin college scope. */
   chairmanCollegeId: string | null;
   /** When set, UI is locked to this program (no college-wide or multi-program scope). */
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
+  /** College Admin: all programs in the college; hide chairman-only program-lock warning. */
+  collegeWidePrograms?: boolean;
 };
 
 export function EvaluatorTimetablingPanel({
@@ -99,6 +101,7 @@ export function EvaluatorTimetablingPanel({
   chairmanProgramId = null,
   chairmanProgramCode = null,
   chairmanProgramName = null,
+  collegeWidePrograms = false,
 }: EvaluatorTimetablingPanelProps) {
   const toast = useOpticoreToast();
   const { programMode } = useProgramMode();
@@ -968,7 +971,7 @@ export function EvaluatorTimetablingPanel({
       });
 
       dispatchInsCatalogReload({ academicPeriodId });
-      if (author?.role === "chairman_admin" && effectiveCollegeId) {
+      if ((author?.role === "chairman_admin" || author?.role === "college_admin") && effectiveCollegeId) {
         const auditRows = rows.map((e) => ({
           subjectCode: subjectCodeById.get(e.subjectId) ?? "—",
           sectionName: sectionNameById.get(e.sectionId) ?? "",
@@ -977,7 +980,7 @@ export function EvaluatorTimetablingPanel({
           endTime: e.endTime,
         }));
         void recordScheduleWrite({
-            action: "chairman.evaluator_save",
+            action: author.role === "college_admin" ? "college.evaluator_save" : "chairman.evaluator_save",
             collegeId: effectiveCollegeId,
             academicPeriodId,
             details: { rowCount: rows.length, rows: auditRows },
@@ -1150,7 +1153,7 @@ export function EvaluatorTimetablingPanel({
         </div>
       ) : null}
 
-      {chairmanCollegeId && !chairmanProgramId ? (
+      {chairmanCollegeId && !chairmanProgramId && !collegeWidePrograms ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           Your chairman account has no <code className="text-xs rounded bg-white/80 px-1">chairmanProgramId</code>{" "}
           (assigned program). Ask an administrator to set it so RLS and the plotter lock to one program (e.g. BSIT).
@@ -1799,7 +1802,7 @@ export function EvaluatorTimetablingPanel({
       <PolicyJustificationModal
         open={justModalOpen}
         title="Policy justification"
-        promptText="This assignment exceeds the faculty load policy. Do you want to proceed with justification?"
+        promptText="This assignment exceeds faculty load policy (weekly hours and/or 4 or more subject preparations). Do you want to proceed with justification?"
         value={justificationText}
         minLength={12}
         saving={policySaving}

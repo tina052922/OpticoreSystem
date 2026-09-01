@@ -46,7 +46,7 @@ export function ProgramModeToggle({ className, size = "md" }: Props) {
       aria-label="Program schedule"
     >
       {btn("day", "Day Program", <Sun className={size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5"} aria-hidden />)}
-      {btn("night", "Night Program", <Moon className={size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5"} aria-hidden />)}
+      {btn("night", "Evening Program", <Moon className={size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5"} aria-hidden />)}
     </div>
   );
 }
