@@ -70,6 +70,7 @@ import { hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
