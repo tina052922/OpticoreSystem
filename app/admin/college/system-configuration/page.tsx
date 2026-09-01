@@ -24,7 +24,7 @@ export default async function CollegeSystemConfigurationPage() {
     <div>
       <ChairmanPageHeader
         title="System Configuration"
-        subtitle="Signatories, teaching load, and academic terms"
+        subtitle="Campus-wide settings (DOI-level scope). Saves apply to connected pages and users."
       />
       <SystemConfigurationClient mode="college" collegeId={profile.collegeId} collegeName={collegeName} />
     </div>

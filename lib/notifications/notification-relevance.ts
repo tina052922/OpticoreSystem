@@ -26,6 +26,7 @@ export function isScheduleRelatedNotificationMessage(message: string): boolean {
     "your class has been changed",
     "your class is now scheduled",
     "your schedule change request",
+    "sent to program chairman",
     "approved.",
     "approved (with solution)",
     "rejected.",

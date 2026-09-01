@@ -16,7 +16,7 @@ import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { WorkflowReadinessBanner } from "@/components/notifications/WorkflowReadinessBanner";
 
 export type EvaluatorPageProps = {
-  /** Chairman: program plotter. College: same plotter, college-wide. CAS / DOI: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
+  /** Chairman / College Admin: week-grid plotter. DOI: same layout, view-only. CAS: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
   variant?: "chairman" | "college" | "cas" | "doi";
   /** Server-provided college scope for Chairman / College Admin. */
   chairmanCollegeId?: string | null;
@@ -45,20 +45,17 @@ export function EvaluatorPage({
   const { selectedPeriodId, selectedPeriod } = useSemesterFilter();
   const showCollegeHub = variant === "college" && searchParams.get("hub") === "1";
 
-  if (variant === "cas" || variant === "doi" || showCollegeHub) {
+  if (variant === "cas" || showCollegeHub) {
     return (
       <div>
-        {variant === "doi" || variant === "college" ? (
+        {variant === "college" ? (
           <div className="px-4 md:px-8 pt-4">
-            <WorkflowReadinessBanner
-              variant={variant === "doi" ? "doi" : "college"}
-              evaluatorHref={centralHubBasePath(variant === "college" ? "college" : "doi")}
-            />
+            <WorkflowReadinessBanner variant="college" evaluatorHref={centralHubBasePath("college")} />
           </div>
         ) : null}
         <CentralHubEvaluatorView
           basePath={centralHubBasePath(variant === "college" ? "college" : variant)}
-          showDoiGovernance={variant === "doi"}
+          showDoiGovernance={false}
           hubAccessMode={variant === "college" ? "collegeAdmin" : "default"}
         />
       </div>
@@ -66,13 +63,17 @@ export function EvaluatorPage({
   }
 
   const collegeWide = variant === "college";
+  const doiViewOnly = variant === "doi";
 
   return (
     <div>
       <ChairmanPageHeader title="Evaluator" />
-      {collegeWide ? (
+      {collegeWide || doiViewOnly ? (
         <div className="px-4 md:px-8 pt-2">
-          <WorkflowReadinessBanner variant="college" evaluatorHref="/admin/college/evaluator" />
+          <WorkflowReadinessBanner
+            variant={doiViewOnly ? "doi" : "college"}
+            evaluatorHref={doiViewOnly ? "/doi/evaluator" : "/admin/college/evaluator"}
+          />
         </div>
       ) : null}
 
@@ -108,7 +109,7 @@ export function EvaluatorPage({
               academicPeriodId={selectedPeriodId}
               periodLabel={selectedPeriod?.name ?? null}
             />
-          ) : (
+          ) : doiViewOnly ? null : (
             <NotifyProgramPlottedButton
               academicPeriodId={selectedPeriodId}
               periodLabel={selectedPeriod?.name ?? null}
@@ -124,6 +125,12 @@ export function EvaluatorPage({
             check is campus-wide. Peer-college hubs remain view-only.
           </p>
         ) : null}
+        {doiViewOnly ? (
+          <p className="text-[13px] text-black/65 mb-4">
+            Same Evaluator layout as College Admin. View-only: you cannot plot or edit. Use <strong>Run conflict
+            check</strong> for a campus-wide scan. Formal publish stays on Schedule Hub.
+          </p>
+        ) : null}
 
         <div className={tab !== "timetabling" ? "hidden" : ""}>
           <BsitChairmanEvaluatorWorksheet
@@ -132,6 +139,9 @@ export function EvaluatorPage({
             chairmanProgramCode={chairmanProgramCode}
             chairmanProgramName={chairmanProgramName}
             collegeWidePrograms={collegeWide}
+            campusWidePrograms={doiViewOnly}
+            viewOnly={doiViewOnly}
+            insFormBasePath={doiViewOnly ? "/doi/ins" : collegeWide ? "/admin/college/ins" : "/chairman/ins"}
             onPolicySnapshot={setPolicySnapshot}
           />
         </div>

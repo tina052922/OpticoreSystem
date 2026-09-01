@@ -16,6 +16,10 @@ import {
   plotRowDurationSlots,
 } from "@/lib/evaluator/plot-duration";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
+import {
+  hoursExceedSubjectRequirement,
+  subjectHoursOverLimitMessage,
+} from "@/lib/scheduling/subject-semester-hours";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
   formatLecLabDisplay,
@@ -126,6 +130,8 @@ export type ChairmanPlotScheduleModalProps = {
   existingBlocks: SparseScheduleBlock[];
   /** Instructor weekly teaching-hours snapshot (current campus-wide hours + cap) for the live overload indicator. */
   instructorLoadById?: Map<string, { hours: number; cap: number }>;
+  /** Required weekly contact vs hours already plotted for this section + subject (excluding this draft). */
+  subjectHourBudget?: { required: number; alreadyPlotted: number } | null;
   readOnly: boolean;
   isNewPlot: boolean;
   anchorLabel: string;
@@ -158,6 +164,7 @@ export function ChairmanPlotScheduleModal({
   academicPeriodId,
   existingBlocks,
   instructorLoadById,
+  subjectHourBudget = null,
   readOnly,
   isNewPlot,
   anchorLabel,
@@ -299,6 +306,22 @@ export function ChairmanPlotScheduleModal({
   const missingBuilding = !buildingValue;
   const plotIncomplete =
     missingSection || missingSubject || missingInstructor || missingRoom || missingBuilding;
+  const hoursOverLimit =
+    Boolean(subjectHourBudget) &&
+    hoursExceedSubjectRequirement({
+      requiredHours: subjectHourBudget?.required ?? 0,
+      alreadyPlottedHours: subjectHourBudget?.alreadyPlotted ?? 0,
+      additionalHours: dur,
+    });
+  const hoursOverLimitMessage =
+    hoursOverLimit && draft.subjectCode && subjectHourBudget
+      ? subjectHoursOverLimitMessage({
+          subjectCode: draft.subjectCode,
+          requiredHours: subjectHourBudget.required,
+          alreadyPlottedHours: subjectHourBudget.alreadyPlotted,
+          additionalHours: dur,
+        })
+      : null;
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
 
   const draftDurationHours = draft.subjectCode ? dur : 0;
@@ -494,6 +517,11 @@ export function ChairmanPlotScheduleModal({
           {plotIncomplete && !readOnly ? (
             <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
               Complete the highlighted fields before this plot can be saved.
+            </p>
+          ) : null}
+          {hoursOverLimitMessage && !readOnly ? (
+            <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
+              {hoursOverLimitMessage}
             </p>
           ) : null}
           {hasConflict ? (
@@ -999,7 +1027,7 @@ export function ChairmanPlotScheduleModal({
           <Button
             type="button"
             className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold min-w-[120px]"
-            disabled={readOnly || hasConflict || plotIncomplete}
+            disabled={readOnly || hasConflict || plotIncomplete || hoursOverLimit}
             onClick={onApply}
           >
             {isNewPlot ? "Plot schedule" : "Save changes"}

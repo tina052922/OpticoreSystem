@@ -35,7 +35,7 @@ type FacultyScheduleChangeModalProps = {
 
 /**
  * Request a meeting time change for one of the instructor’s plotted rows.
- * Submits to College Admin (`ScheduleChangeRequest`). Notifications are created in the database
+ * Submits to Program Chairman (`ScheduleChangeRequest`). Notifications are created in the database
  * when the row is inserted (see migration `schedule_change_request_notifications`).
  */
 export function FacultyScheduleChangeModal({
@@ -253,7 +253,7 @@ export function FacultyScheduleChangeModal({
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-950 text-sm">
               <p className="font-semibold mb-1">Request sent</p>
               <p className="leading-relaxed">
-                College Admin will review and run a conflict check. Watch the notification bell for status updates.
+                Your Program Chairman will review and run a conflict check. Watch the notification bell for status updates.
               </p>
               <Button
                 type="button"
@@ -467,7 +467,7 @@ export function FacultyScheduleChangeModal({
                       disabled={submitting || entries.length === 0}
                       className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-semibold"
                     >
-                      {submitting ? "Submitting…" : "Submit to College Admin"}
+                      {submitting ? "Submitting…" : "Submit to Chairman"}
                     </Button>
                   </div>
                 </>

@@ -125,7 +125,7 @@ async function main() {
   const list = notifs ?? [];
   const adminHit = list.some((n) => adminIds.includes(n.userId) && n.message.includes("New schedule change request"));
   const selfHit = list.some(
-    (n) => n.userId === picked.instructorId && n.message.includes("was sent to College Admin"),
+    (n) => n.userId === picked.instructorId && n.message.toLowerCase().includes("program chairman"),
   );
 
   /** Cleanup before exit so QA data stays tidy */

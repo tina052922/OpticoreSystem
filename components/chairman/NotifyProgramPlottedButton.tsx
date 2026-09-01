@@ -33,7 +33,7 @@ export function NotifyProgramPlottedButton({
       });
       setMsg(
         res.message ??
-          `College Admin has been notified that ${programLabel || "this program"} is plotted and ready for college review.`,
+          `College Admin has been notified which section(s) in ${programLabel || "this program"} are ready for double-check.`,
       );
     } catch (e) {
       setErr(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to notify College Admin.");
@@ -45,7 +45,7 @@ export function NotifyProgramPlottedButton({
   return (
     <div className={className}>
       <Button type="button" variant="outline" disabled={busy} onClick={() => void notify()}>
-        {busy ? "Notifying College Admin…" : "Notify College Admin: program plotted"}
+        {busy ? "Notifying College Admin…" : "Notify College Admin: sections ready for check"}
       </Button>
       {msg ? <p className="mt-2 text-[12px] text-emerald-800">{msg}</p> : null}
       {err ? <p className="mt-2 text-[12px] text-red-700">{err}</p> : null}

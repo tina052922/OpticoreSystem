@@ -19,11 +19,11 @@ export function TeachingLoadSummaryTable({
   return (
     <div className="overflow-x-auto">
       {categoryLabel ? (
-        <div className="text-[13px] font-semibold text-[#1e3a5f] uppercase tracking-wide mb-1">{categoryLabel}</div>
+        <div className="text-[13px] font-semibold text-[#780301] uppercase tracking-wide mb-1">{categoryLabel}</div>
       ) : null}
       <table className="w-full border-collapse min-w-[920px] text-[12px]">
         <thead>
-          <tr className="bg-[#1e3a5f] text-white">
+          <tr className="bg-[#780301] text-white">
             <th className="border border-black/20 px-2 py-2 text-center w-12">No.</th>
             <th className="border border-black/20 px-2 py-2 text-left">Name</th>
             <th className="border border-black/20 px-2 py-2 text-left">Designation</th>
@@ -44,7 +44,7 @@ export function TeachingLoadSummaryTable({
             </tr>
           ) : (
             rows.map((r, i) => (
-              <tr key={r.instructorId} className={i % 2 === 1 ? "bg-[#f8fafc]" : "bg-white"}>
+              <tr key={r.instructorId} className={i % 2 === 1 ? "bg-[#fdf6f5]" : "bg-white"}>
                 <td className="border border-black/20 px-2 py-2 tabular-nums text-center">{i + 1}</td>
                 <td className="border border-black/20 px-2 py-2 font-medium">{r.facultyName}</td>
                 <td className="border border-black/20 px-2 py-2">{r.administrativeDesignation ?? "—"}</td>

@@ -67,7 +67,7 @@ export function WorkflowReadinessBanner({
       </span>
       <div className="min-w-0">
         <p className="text-sm font-bold text-[#780301]">
-          {gecReady.length > 0 ? "College ready for GEC plotting" : "Program plotted — review Evaluator"}
+          {gecReady.length > 0 ? "GEC is ready to plot" : "Section ready for double-check"}
         </p>
         <p className="text-sm text-black/75 mt-0.5 leading-relaxed">{notice.message}</p>
         <p className="text-xs font-semibold text-[#780301] mt-1">Open Evaluator</p>

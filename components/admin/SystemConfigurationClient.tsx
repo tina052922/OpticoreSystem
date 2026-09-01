@@ -41,7 +41,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 export function SystemConfigurationClient({ mode, collegeId = null, collegeName = null }: SystemConfigurationClientProps) {
   const { schedulingPolicy, policyConstants, reload: reloadPolicy } = useSystemConfiguration();
-  const canWriteCampusPolicy = mode === "doi";
+  const canWriteCampusPolicy = mode === "doi" || mode === "college";
 
   const [policyDraft, setPolicyDraft] = useState<SchedulingPolicyConfig>(DEFAULT_SCHEDULING_POLICY);
   const [policySaving, setPolicySaving] = useState(false);
@@ -201,7 +201,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
           {policySaving ? "Saving…" : "Save teaching load policy"}
         </Button>
         ) : (
-          <p className="text-xs text-black/55">Campus-wide teaching load policy is set by VPAA / DOI.</p>
+          <p className="text-xs text-black/55">Campus-wide teaching load policy is set by VPAA / DOI or College Admin.</p>
         )}
         {policyMsg ? <p className="text-sm text-emerald-800">{policyMsg}</p> : null}
       </SectionCard>

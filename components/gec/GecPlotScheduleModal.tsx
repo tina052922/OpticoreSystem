@@ -20,6 +20,10 @@ import {
 import { campusNavigationBuildingOptionLabel } from "@/lib/campus/campus-navigation-catalog";
 import { GEC_VACANT_INSTRUCTOR_USER_ID } from "@/lib/gec/gec-vacant";
 import {
+  hoursExceedSubjectRequirement,
+  subjectHoursOverLimitMessage,
+} from "@/lib/scheduling/subject-semester-hours";
+import {
   formatInstructorPlotOptionLabel,
   type InstructorPlotOption,
 } from "@/lib/evaluator/instructor-employee-id";
@@ -89,6 +93,7 @@ export type GecPlotScheduleModalProps = {
   onApplyPickedSummary?: () => void;
   onApply: () => void;
   onRemove?: () => void;
+  subjectHourBudget?: { required: number; alreadyPlotted: number } | null;
 };
 
 export function GecPlotScheduleModal({
@@ -120,6 +125,7 @@ export function GecPlotScheduleModal({
   onApplyPickedSummary,
   onApply,
   onRemove,
+  subjectHourBudget = null,
 }: GecPlotScheduleModalProps) {
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
   const days = weekdays ?? evaluatorWeekdays(programMode);
@@ -169,6 +175,22 @@ export function GecPlotScheduleModal({
   const missingRoom = !draft.roomId;
   const missingBuilding = !buildingValue;
   const plotIncomplete = missingSubject || missingRoom || missingBuilding;
+  const hoursOverLimit =
+    Boolean(subjectHourBudget) &&
+    hoursExceedSubjectRequirement({
+      requiredHours: subjectHourBudget?.required ?? 0,
+      alreadyPlottedHours: subjectHourBudget?.alreadyPlotted ?? 0,
+      additionalHours: dur,
+    });
+  const hoursOverLimitMessage =
+    hoursOverLimit && sub?.code && subjectHourBudget
+      ? subjectHoursOverLimitMessage({
+          subjectCode: sub.code,
+          requiredHours: subjectHourBudget.required,
+          alreadyPlottedHours: subjectHourBudget.alreadyPlotted,
+          additionalHours: dur,
+        })
+      : null;
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
 
   const applySlotFromIndex = (idx: number, subjectId: string, slotDur = durationSlots) => {
@@ -233,10 +255,15 @@ export function GecPlotScheduleModal({
               Complete the highlighted fields before this plot can be saved.
             </p>
           ) : null}
+          {hoursOverLimitMessage && !readOnly ? (
+            <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
+              {hoursOverLimitMessage}
+            </p>
+          ) : null}
           {readOnly ? (
             <p className="text-[12px] text-black/60 rounded-lg border border-black/10 bg-gray-50 px-3 py-2">
-              Major subject rows are read-only. Only <strong>vacant GEC</strong> slots (light green in the grid) can be
-              edited after approval.
+              Major and assigned (non-vacant) rows are locked. Only <strong>vacant GEC</strong> slots (light green)
+              can be plotted, edited, or removed after approval.
             </p>
           ) : null}
 
@@ -473,7 +500,7 @@ export function GecPlotScheduleModal({
             <Button
               type="button"
               className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold min-w-[120px]"
-              disabled={hasConflict || plotIncomplete}
+              disabled={hasConflict || plotIncomplete || hoursOverLimit}
               onClick={onApply}
             >
               {isNewPlot ? "Plot schedule" : "Save changes"}

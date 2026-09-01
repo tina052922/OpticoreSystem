@@ -1312,6 +1312,9 @@ export const userAdminApi = {
   create(input: Record<string, unknown>) {
     return apiFetch<{ user: Record<string, unknown> }>("/api/catalog/users", { method: "POST", body: input });
   },
+  update(id: string, input: Record<string, unknown>) {
+    return apiFetch<{ user: Record<string, unknown> }>(`/api/catalog/users/${id}`, { method: "PUT", body: input });
+  },
   delete(id: string) {
     return apiFetch<{ ok: true }>(`/api/catalog/users/${id}`, { method: "DELETE" });
   },

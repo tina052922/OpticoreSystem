@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { facultyProfileApi, userAdminApi } from "@/lib/api/client";
+import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { FacultyProfile, Program, Section, User } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { computeRatePerHour, DESIGNATION_POLICIES, getDesignationPolicyByLabel } from "@/lib/faculty/designation-system";
@@ -96,6 +97,8 @@ export function FacultyProfileWorkspace({
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -285,6 +288,7 @@ export function FacultyProfileWorkspace({
     setSavingRowId(null);
 
     setSuccess("Faculty details updated.");
+    dispatchInsCatalogReload();
     void loadFaculty();
   }
 
@@ -301,7 +305,7 @@ export function FacultyProfileWorkspace({
       `/api/catalog/users?employeeId=${encodeURIComponent(eid)}`,
       { method: "GET" },
     ).catch(() => ({ users: [] }));
-    if (byEid.users.length > 0) return "Faculty already exists.";
+    if (byEid.users.some((u) => u.id !== editingUserId)) return "Faculty already exists.";
 
     const nameKey = fullName.trim().toLowerCase();
     if (nameKey && collegeId) {
@@ -310,7 +314,10 @@ export function FacultyProfileWorkspace({
         { method: "GET" },
       ).catch(() => ({ users: [] }));
       const instList = instructors.users ?? [];
-      const hitName = instList.some((u: { name: string }) => u.name.trim().toLowerCase() === nameKey);
+      const hitName = instList.some(
+        (u: { id: string; name: string }) =>
+          u.id !== editingUserId && u.name.trim().toLowerCase() === nameKey,
+      );
       if (hitName) return "Faculty already exists.";
 
       const instIds = instList.map((u: { id: string }) => u.id);
@@ -350,6 +357,62 @@ export function FacultyProfileWorkspace({
     }
 
     setSaving(true);
+    if (editingUserId) {
+      const computedRateEdit = computeRatePerHour(
+        {
+          bsDegree: bsDegree.trim() || null,
+          msDegree: msDegree.trim() || null,
+          doctoralDegree: doctoralDegree.trim() || null,
+          designation: designation.trim() || null,
+        } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree" | "designation">,
+        hourlyRateOverrides,
+        ratePerHourByDesignation,
+      );
+      const profilePayload = {
+        fullName: nameTrim,
+        aka: aka.trim() || null,
+        advisorySectionId: advisorySectionId.trim() || null,
+        bsDegree: bsDegree.trim() || null,
+        msDegree: msDegree.trim() || null,
+        doctoralDegree: doctoralDegree.trim() || null,
+        major1: major1.trim() || null,
+        major2: major2.trim() || null,
+        major3: major3.trim() || null,
+        minor1: minor1.trim() || null,
+        minor2: minor2.trim() || null,
+        minor3: minor3.trim() || null,
+        research: research.trim() || null,
+        extension: extension.trim() || null,
+        production: production.trim() || null,
+        specialTraining: specialTraining.trim() || null,
+        status: normalizeFacultyProfileStatus(status),
+        designation: designation.trim() || null,
+        ratePerHour: computedRateEdit,
+      };
+      try {
+        await userAdminApi.update(editingUserId, {
+          name: nameTrim,
+          employeeId: employeeId.trim() || null,
+        });
+        const row = rows.find((r) => r.user.id === editingUserId);
+        if (row?.profile) {
+          await facultyProfileApi.update(row.profile.id, profilePayload);
+        } else {
+          await facultyProfileApi.create({ userId: editingUserId, ...profilePayload });
+        }
+      } catch (err) {
+        setSaving(false);
+        setError(err instanceof Error ? err.message : "Failed to update faculty.");
+        return;
+      }
+      setSaving(false);
+      setSuccess("Faculty updated.");
+      resetFacultyForm();
+      dispatchInsCatalogReload();
+      void loadFaculty();
+      return;
+    }
+
     const id = crypto.randomUUID();
 
     try {
@@ -417,6 +480,13 @@ export function FacultyProfileWorkspace({
 
     setSaving(false);
     setSuccess("Faculty saved.");
+    resetFacultyForm();
+    dispatchInsCatalogReload();
+    void loadFaculty();
+  }
+
+  function resetFacultyForm() {
+    setEditingUserId(null);
     setEmployeeId("");
     setFullName("");
     setAka("");
@@ -436,7 +506,56 @@ export function FacultyProfileWorkspace({
     setStatus(FACULTY_EMPLOYMENT_ORGANIC);
     setDesignation("");
     setAdvisorySectionId("");
-    void loadFaculty();
+  }
+
+  function startEditFaculty(row: ListRow) {
+    setError(null);
+    setSuccess(null);
+    setTab("profile");
+    setEditingUserId(row.user.id);
+    setEmployeeId(row.user.employeeId ?? "");
+    setFullName(row.profile?.fullName ?? row.user.name ?? "");
+    setAka(row.profile?.aka ?? "");
+    setBsDegree(row.profile?.bsDegree ?? "");
+    setMsDegree(row.profile?.msDegree ?? "");
+    setDoctoralDegree(row.profile?.doctoralDegree ?? "");
+    setMajor1(row.profile?.major1 ?? "");
+    setMajor2(row.profile?.major2 ?? "");
+    setMajor3(row.profile?.major3 ?? "");
+    setMinor1(row.profile?.minor1 ?? "");
+    setMinor2(row.profile?.minor2 ?? "");
+    setMinor3(row.profile?.minor3 ?? "");
+    setResearch(row.profile?.research ?? "");
+    setExtension(row.profile?.extension ?? "");
+    setProduction(row.profile?.production ?? "");
+    setSpecialTraining(row.profile?.specialTraining ?? "");
+    setStatus(normalizeFacultyProfileStatus(row.profile?.status));
+    setDesignation(row.profile?.designation ?? "");
+    setAdvisorySectionId(row.profile?.advisorySectionId ?? "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function deleteFaculty(row: ListRow) {
+    if (!enableFacultyListEdit) return;
+    const label = row.profile?.fullName ?? row.user.name;
+    if (!window.confirm(`Delete faculty record for ${label}? This cannot be undone.`)) return;
+    setError(null);
+    setSuccess(null);
+    setDeletingUserId(row.user.id);
+    try {
+      if (row.profile?.id) {
+        await facultyProfileApi.delete(row.profile.id);
+      }
+      await userAdminApi.delete(row.user.id);
+      if (editingUserId === row.user.id) resetFacultyForm();
+      setSuccess("Faculty deleted.");
+      dispatchInsCatalogReload();
+      void loadFaculty();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete faculty.");
+    } finally {
+      setDeletingUserId(null);
+    }
   }
 
   const sectionNameById = useMemo(() => {
@@ -476,14 +595,21 @@ export function FacultyProfileWorkspace({
         </div>
 
         {tab === "profile" ? (
-          <Button
-            type="button"
-            className="bg-[#ff990a] text-white hover:bg-[#e68a09]"
-            disabled={saving || !collegeId}
-            onClick={() => void onAddFaculty()}
-          >
-            + Add Faculty
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {editingUserId ? (
+              <Button type="button" variant="outline" disabled={saving} onClick={() => resetFacultyForm()}>
+                Cancel edit
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              className="bg-[#ff990a] text-white hover:bg-[#e68a09]"
+              disabled={saving || !collegeId}
+              onClick={() => void onAddFaculty()}
+            >
+              {saving ? "Saving…" : editingUserId ? "Save faculty" : "+ Add Faculty"}
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -519,7 +645,7 @@ export function FacultyProfileWorkspace({
             </p>
           ) : null}
 
-          <div className="text-[16px] font-semibold mb-3">New faculty</div>
+          <div className="text-[16px] font-semibold mb-3">{editingUserId ? "Edit faculty" : "New faculty"}</div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
             <div className="space-y-1">
               <div className="text-sm font-medium">Employee ID</div>
@@ -680,13 +806,16 @@ export function FacultyProfileWorkspace({
                     {enableFacultyListEdit ? (
                       <th className="border border-black/10 px-2 py-2 text-left w-28">Save</th>
                     ) : null}
+                    {enableFacultyListEdit ? (
+                      <th className="border border-black/10 px-2 py-2 text-left w-40">Actions</th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody className="text-[12px]">
                   {!collegeId ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 7 : 6}
+                        colSpan={enableFacultyListEdit ? 8 : 6}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No college in scope.
@@ -695,7 +824,7 @@ export function FacultyProfileWorkspace({
                   ) : rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 7 : 6}
+                        colSpan={enableFacultyListEdit ? 8 : 6}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No instructors in the database for this college yet.
@@ -704,7 +833,7 @@ export function FacultyProfileWorkspace({
                   ) : filteredRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 7 : 6}
+                        colSpan={enableFacultyListEdit ? 8 : 6}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No faculty match &quot;{facultyListSearch.trim()}&quot;.
@@ -800,6 +929,31 @@ export function FacultyProfileWorkspace({
                               >
                                 {savingRowId === user.id ? "…" : "Save"}
                               </Button>
+                            </td>
+                          ) : null}
+                          {enableFacultyListEdit ? (
+                            <td className="border border-black/10 px-2 py-2">
+                              <div className="flex flex-wrap gap-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-[11px]"
+                                  onClick={() => startEditFaculty({ user, profile })}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-[11px] text-red-800 border-red-200"
+                                  disabled={deletingUserId === user.id}
+                                  onClick={() => void deleteFaculty({ user, profile })}
+                                >
+                                  {deletingUserId === user.id ? "…" : "Delete"}
+                                </Button>
+                              </div>
                             </td>
                           ) : null}
                         </tr>

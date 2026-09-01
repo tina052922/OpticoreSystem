@@ -45,7 +45,13 @@ import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSumma
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
 import type { GecPlotEditPatch } from "@/components/gec/GecSectionPlottingTable";
 import { evaluatorTimeSlots, evaluatorWeekdays, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import { clampPlotStartSlotIndex, plotEntryDurationSlots, timesFromSlotRange } from "@/lib/evaluator/plot-duration";
+import { clampPlotStartSlotIndex, inferDurationSlotsFromTimes, plotEntryDurationSlots, timesFromSlotRange } from "@/lib/evaluator/plot-duration";
+import {
+  hoursExceedSubjectRequirement,
+  plottedHoursForSubjectSection,
+  requiredWeeklyContactHours,
+  subjectHoursOverLimitMessage,
+} from "@/lib/scheduling/subject-semester-hours";
 import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode, stampProgramMode } from "@/lib/scheduling/program-mode";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
@@ -399,38 +405,10 @@ export function GecCentralHubEvaluatorClient() {
     [requests, grantScopeCollegeId],
   );
 
-  /** GEC/GEE curriculum rows GEC may edit after grant (vacant or already assigned). */
+  /** GEC/GEE curriculum rows GEC may edit after grant (vacant origin + newly added). */
   const gecOwnedIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const e of modeMergedEntries) {
-      if (e.academicPeriodId !== academicPeriodId) continue;
-      const sec = sectionById.get(e.sectionId);
-      const pr = sec ? programById.get(sec.programId) : null;
-      if (!pr) continue;
-      if (!isCampusWide) {
-        if (!collegeParam || pr.collegeId !== collegeParam) continue;
-      }
-      if (programId && sec?.programId !== programId) continue;
-      if (sectionIdFilter && e.sectionId !== sectionIdFilter) continue;
-      if (isGecCurriculumScheduleEntry(e, subjectById)) ids.add(e.id);
-    }
-    return ids;
-  }, [
-    modeMergedEntries,
-    academicPeriodId,
-    collegeParam,
-    isCampusWide,
-    programId,
-    sectionIdFilter,
-    sectionById,
-    programById,
-    subjectById,
-  ]);
-
-  /** Rows that are vacant GEC placeholders (DB + newly added local rows). */
-  const vacantGecSourceIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const e of modeMergedEntries) {
+    for (const e of entries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
       const sec = sectionById.get(e.sectionId);
       const pr = sec ? programById.get(sec.programId) : null;
@@ -442,9 +420,11 @@ export function GecCentralHubEvaluatorClient() {
       if (sectionIdFilter && e.sectionId !== sectionIdFilter) continue;
       if (isGecVacantScheduleEntry(e, subjectById)) ids.add(e.id);
     }
+    for (const e of extraEntries) ids.add(e.id);
     return ids;
   }, [
-    modeMergedEntries,
+    entries,
+    extraEntries,
     academicPeriodId,
     collegeParam,
     isCampusWide,
@@ -454,6 +434,13 @@ export function GecCentralHubEvaluatorClient() {
     programById,
     subjectById,
   ]);
+
+  /** Rows that started as vacant GEC placeholders (DB origin + newly added local rows). */
+  const vacantGecSourceIds = useMemo(() => {
+    const ids = new Set<string>(gecOwnedIds);
+    for (const id of pendingNewEntryIds) ids.add(id);
+    return ids;
+  }, [gecOwnedIds, pendingNewEntryIds]);
 
   /** Autosave (Supabase draft upsert) — debounced and lightweight. */
   useEffect(() => {
@@ -470,7 +457,9 @@ export function GecCentralHubEvaluatorClient() {
           const isNew = pendingNewEntryIds.has(e.id);
           const hasPatch = patch && Object.keys(patch).length > 0;
           if (!isNew && !hasPatch) continue;
-          toSave.push(stampProgramMode({ ...e, ...patch }, programMode));
+          const merged = stampProgramMode({ ...e, ...patch }, programMode);
+          if (!merged.subjectId || !merged.roomId || !merged.day || !merged.startTime || !merged.endTime) continue;
+          toSave.push(merged);
         }
         if (toSave.length === 0) return;
         try { await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave }); } catch {}
@@ -801,6 +790,11 @@ export function GecCentralHubEvaluatorClient() {
         const patch = edits[e.id];
         const hasPatch = patch && Object.keys(patch).length > 0;
         if (isNew || hasPatch) {
+          if (!merged.subjectId || !merged.roomId || !merged.day || !merged.startTime || !merged.endTime) {
+            setSaveMsg("Complete highlighted plot fields (subject, room, time) before saving.");
+            toast.error("Cannot save incomplete GEC plots", "Finish required fields or remove the incomplete slot.");
+            return;
+          }
           toSave.push(stampProgramMode(merged, programMode));
         }
       }
@@ -808,6 +802,46 @@ export function GecCentralHubEvaluatorClient() {
         setSaveMsg("No GEC edits to save.");
         toast.info("No changes to save");
         return;
+      }
+
+      const hourMeetings = modeMergedEntries
+        .filter((e) => vacantGecSourceIds.has(e.id) || toSave.some((s) => s.id === e.id))
+        .map((e) => {
+          const sub = subjectById.get(e.subjectId);
+          return {
+            id: e.id,
+            sectionId: e.sectionId,
+            subjectCode: sub?.code ?? "",
+            hours: inferDurationSlotsFromTimes(e.startTime, e.endTime),
+          };
+        });
+      for (const e of toSave) {
+        const sub = subjectById.get(e.subjectId);
+        if (!sub?.code) continue;
+        const required = requiredWeeklyContactHours({
+          programCode: programById.get(sectionById.get(e.sectionId)?.programId ?? "")?.code,
+          subjectCode: sub.code,
+          lecHours: sub.lecHours,
+          labHours: sub.labHours,
+        });
+        const additional = inferDurationSlotsFromTimes(e.startTime, e.endTime);
+        const already = plottedHoursForSubjectSection({
+          meetings: hourMeetings,
+          sectionId: e.sectionId,
+          subjectCode: sub.code,
+          excludeId: e.id,
+        });
+        if (hoursExceedSubjectRequirement({ requiredHours: required, alreadyPlottedHours: already, additionalHours: additional })) {
+          const msg = subjectHoursOverLimitMessage({
+            subjectCode: sub.code,
+            requiredHours: required,
+            alreadyPlottedHours: already,
+            additionalHours: additional,
+          });
+          setSaveMsg(msg);
+          toast.error("Cannot save: subject hours exceeded", msg);
+          return;
+        }
       }
 
       const byId = new Map(modeMergedEntries.map((e) => [e.id, e]));

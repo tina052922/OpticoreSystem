@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { Users, BookOpen, DoorOpen, FileText, AlertTriangle, ChevronRight } from "lucide-react";
+import { Users, BookOpen, DoorOpen, AlertTriangle, ChevronRight } from "lucide-react";
 import { apiFetch, schedulingApi } from "@/lib/api/client";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { SYSTEM_CONFIG_RELOAD_EVENT } from "@/lib/system-configuration/system-config-reload";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import { CiDashboardCharts } from "./CiDashboardCharts";
-import { WorkflowReadinessBanner } from "@/components/notifications/WorkflowReadinessBanner";
 
 export type CiDashboardVariant = "full" | "gec" | "doi";
 
@@ -170,7 +169,6 @@ export function CiDashboard({
     };
   }, [ready, selectedPeriodId, analyticsScope, variant, programMode, reloadTick]);
 
-  const plottedCount = statsLive?.plottedScheduleCount ?? statsLive?.draftScheduleCount;
   const stats = [
     {
       label: "Rooms",
@@ -191,12 +189,6 @@ export function CiDashboard({
       color: "#780301",
     },
     {
-      label: "Plotted schedules (selected term)",
-      value: statsLive && typeof plottedCount === "number" ? fmtCount(plottedCount) : "—",
-      icon: FileText,
-      color: "#FFC107",
-    },
-    {
       label: "Schedule conflicts (selected term)",
       value: conflictsLive ? String(conflictsLive.conflictingRowCount) : "—",
       icon: AlertTriangle,
@@ -212,18 +204,6 @@ export function CiDashboard({
         ) : null}
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Campus Intelligence Core</h2>
       </div>
-
-      <WorkflowReadinessBanner
-        variant={variant === "gec" ? "gec" : variant === "doi" ? "doi" : "college"}
-        evaluatorHref={
-          conflictsLive?.evaluatorHref ||
-          (variant === "gec"
-            ? "/admin/gec/evaluator"
-            : variant === "doi"
-              ? "/doi/evaluator"
-              : `${basePath}/evaluator`)
-        }
-      />
 
       {variant === "full" && basePath.includes("/admin/college") ? (
         <Link
@@ -268,7 +248,7 @@ export function CiDashboard({
         </Link>
       ) : null}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (

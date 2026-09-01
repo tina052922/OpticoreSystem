@@ -21,6 +21,12 @@ import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib
 import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import { clampPlotStartSlotIndex, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
+import {
+  hoursExceedSubjectRequirement,
+  plottedHoursForSubjectSection,
+  requiredWeeklyContactHours,
+  subjectHoursOverLimitMessage,
+} from "@/lib/scheduling/subject-semester-hours";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
 import type { PlotRow, RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
@@ -101,6 +107,7 @@ export type ChairmanGridPlottingActions = {
   runConflictCheckDisabled?: boolean;
   saveScheduleDisabled?: boolean;
   saveScheduleBusy?: boolean;
+  hideSave?: boolean;
   connOnline?: boolean;
   lastDraftSaveAt?: Date | null;
 };
@@ -375,6 +382,7 @@ export function BsitChairmanInteractiveWeekGrid({
                 <AlertTriangle className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
                 Run conflict check (campus-wide)
               </Button>
+              {plottingActions.hideSave ? null : (
               <Button
                 type="button"
                 className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold shrink-0 h-9 text-xs disabled:opacity-50"
@@ -384,6 +392,7 @@ export function BsitChairmanInteractiveWeekGrid({
                 <Save className="w-3.5 h-3.5 mr-1.5 inline" aria-hidden />
                 {plottingActions.saveScheduleBusy ? "Saving…" : "Save schedule"}
               </Button>
+              )}
             </>
           ) : null}
           <Button
@@ -394,7 +403,7 @@ export function BsitChairmanInteractiveWeekGrid({
           >
             Generate INS Form
           </Button>
-          {plottingActions ? (
+          {plottingActions && !plottingActions.hideSave ? (
             <div className="flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[140px]">
               <span className="font-semibold text-black/70">
                 {plottingActions.connOnline !== false ? (
@@ -615,6 +624,36 @@ export function BsitChairmanInteractiveWeekGrid({
         academicPeriodId={academicPeriodId}
         existingBlocks={existingBlocksForModal}
         instructorLoadById={instructorLoadById}
+        subjectHourBudget={
+          modal?.draft.sectionId && modal.draft.subjectCode
+            ? (() => {
+                const catalog = catalogSubjectRows?.find(
+                  (s) => s.code.trim().toUpperCase() === modal.draft.subjectCode.trim().toUpperCase(),
+                );
+                const required = requiredWeeklyContactHours({
+                  programCode: programCodeForSummary,
+                  subjectCode: modal.draft.subjectCode,
+                  lecHours: catalog?.lecHours,
+                  labHours: catalog?.labHours,
+                });
+                const meetings = rows
+                  .filter((r) => r.sectionId && r.subjectCode)
+                  .map((r) => ({
+                    id: r.id,
+                    sectionId: r.sectionId,
+                    subjectCode: r.subjectCode,
+                    hours: plotRowDurationSlots(prospectusRowForProgram(programCodeForSummary, r.subjectCode), r),
+                  }));
+                const already = plottedHoursForSubjectSection({
+                  meetings,
+                  sectionId: modal.draft.sectionId,
+                  subjectCode: modal.draft.subjectCode,
+                  excludeId: modal.draft.id,
+                });
+                return { required, alreadyPlotted: already };
+              })()
+            : null
+        }
         readOnly={schedulePublished || Boolean(modal?.draft.lockedByDoiAt)}
         isNewPlot={modal?.isNew ?? true}
         anchorLabel={anchorLabel}

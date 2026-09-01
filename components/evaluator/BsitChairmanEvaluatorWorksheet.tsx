@@ -93,6 +93,12 @@ import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-message
 import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
+import {
+  hoursExceedSubjectRequirement,
+  plottedHoursForSubjectSection,
+  requiredWeeklyContactHours,
+  subjectHoursOverLimitMessage,
+} from "@/lib/scheduling/subject-semester-hours";
 
 export type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 
@@ -289,6 +295,11 @@ type BsitChairmanEvaluatorWorksheetProps = {
   chairmanProgramName?: string | null;
   /** College Admin: plot every department in the college (program picker). Chairman stays locked to one program. */
   collegeWidePrograms?: boolean;
+  /** DOI: same program picker as College Admin, campus-wide. */
+  campusWidePrograms?: boolean;
+  /** DOI Evaluator: view-only (no plot / save / remove). Conflict check remains available. */
+  viewOnly?: boolean;
+  insFormBasePath?: string;
   /** Live load summary for the Evaluator &quot;Hrs-Units-Preps-Remarks&quot; tab. */
   onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
 };
@@ -314,6 +325,9 @@ export function BsitChairmanEvaluatorWorksheet({
   chairmanProgramCode = null,
   chairmanProgramName = null,
   collegeWidePrograms = false,
+  campusWidePrograms = false,
+  viewOnly = false,
+  insFormBasePath = "/chairman/ins",
   onPolicySnapshot,
 }: BsitChairmanEvaluatorWorksheetProps) {
   const toast = useOpticoreToast();
@@ -395,32 +409,35 @@ export function BsitChairmanEvaluatorWorksheet({
   const didHydrateFromDbRef = useRef(false);
 
   const collegePrograms = useMemo(() => {
+    if (campusWidePrograms) return sortProgramsForTeachingLoad(programsCatalog);
     if (!collegeWidePrograms || !chairmanCollegeId) return [];
     return sortProgramsForTeachingLoad(
       programsCatalog.filter((p) => p.collegeId === chairmanCollegeId),
     );
-  }, [collegeWidePrograms, chairmanCollegeId, programsCatalog]);
+  }, [campusWidePrograms, collegeWidePrograms, chairmanCollegeId, programsCatalog]);
+
+  const showProgramPicker = collegeWidePrograms || campusWidePrograms;
 
   useEffect(() => {
-    if (!collegeWidePrograms) return;
+    if (!showProgramPicker) return;
     if (pickedProgramId && collegePrograms.some((p) => p.id === pickedProgramId)) return;
     setPickedProgramId(collegePrograms[0]?.id ?? "");
-  }, [collegeWidePrograms, collegePrograms, pickedProgramId]);
+  }, [showProgramPicker, collegePrograms, pickedProgramId]);
 
   const activeCollegeProgram =
-    collegeWidePrograms
+    showProgramPicker
       ? (collegePrograms.find((p) => p.id === pickedProgramId) ?? collegePrograms[0] ?? null)
       : null;
 
   /** Prospectus registry key — aligns with `Program.code` in Supabase (e.g. BSIT, BSENVS). */
-  const programCodeForSummary = collegeWidePrograms
+  const programCodeForSummary = showProgramPicker
     ? (activeCollegeProgram?.code ?? "").trim() || DEFAULT_CHAIRMAN_PROGRAM_CODE
     : (chairmanProgramCode ?? "").trim() || DEFAULT_CHAIRMAN_PROGRAM_CODE;
-  const programId = collegeWidePrograms
+  const programId = showProgramPicker
     ? pickedProgramId || activeCollegeProgram?.id || ""
     : chairmanProgramId ??
       (programCodeForSummary.toUpperCase() === BSENVS_PROGRAM_CODE.toUpperCase() ? BSENVS_PROGRAM_ID : "prog-bsit");
-  const activeProgramName = collegeWidePrograms
+  const activeProgramName = showProgramPicker
     ? activeCollegeProgram?.name ?? chairmanProgramName
     : chairmanProgramName;
 
@@ -1479,7 +1496,48 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const applyPlotFromModal = useCallback(
     (draft: PlotRow, buildingValue: string) => {
-      if (schedulePublished || draft.lockedByDoiAt) return;
+      if (schedulePublished || viewOnly || draft.lockedByDoiAt) return;
+      if (draft.sectionId && draft.subjectCode) {
+        const catalog = subjects.find(
+          (s) => normalizeProspectusCode(s.code) === normalizeProspectusCode(draft.subjectCode),
+        );
+        const required = requiredWeeklyContactHours({
+          programCode: programCodeForSummary,
+          subjectCode: draft.subjectCode,
+          lecHours: catalog?.lecHours,
+          labHours: catalog?.labHours,
+        });
+        const meetings = rows
+          .filter((r) => r.sectionId && r.subjectCode)
+          .map((r) => ({
+            id: r.id,
+            sectionId: r.sectionId,
+            subjectCode: r.subjectCode,
+            hours: plotRowDurationSlots(prospectusRowForProgram(programCodeForSummary, r.subjectCode), r),
+          }));
+        const already = plottedHoursForSubjectSection({
+          meetings,
+          sectionId: draft.sectionId,
+          subjectCode: draft.subjectCode,
+          excludeId: draft.id,
+        });
+        const additional = plotRowDurationSlots(
+          prospectusRowForProgram(programCodeForSummary, draft.subjectCode),
+          draft,
+        );
+        if (hoursExceedSubjectRequirement({ requiredHours: required, alreadyPlottedHours: already, additionalHours: additional })) {
+          toast.error(
+            "Cannot plot: subject hours exceeded",
+            subjectHoursOverLimitMessage({
+              subjectCode: draft.subjectCode,
+              requiredHours: required,
+              alreadyPlottedHours: already,
+              additionalHours: additional,
+            }),
+          );
+          return;
+        }
+      }
       if (buildingValue) {
         setRoomBuildingByRowId((prev) => ({ ...prev, [draft.id]: buildingValue }));
       }
@@ -1503,7 +1561,7 @@ export function BsitChairmanEvaluatorWorksheet({
       commitRowPatch(draft.id, plotPatch, exists ? undefined : draft);
       updateRow(draft.id, { students: draft.students });
     },
-    [rows, schedulePublished, commitRowPatch, updateRow],
+    [rows, schedulePublished, viewOnly, commitRowPatch, updateRow, subjects, programCodeForSummary, toast],
   );
 
   function removeRow(id: string) {
@@ -1667,6 +1725,7 @@ export function BsitChairmanEvaluatorWorksheet({
    */
   const performSchedulePersist = useCallback(
     async (source: "autosave" | "manual") => {
+      if (viewOnly) return;
       if (!academicPeriodId) return;
       if (source === "autosave" && !didHydrateFromDbRef.current) return;
       if (source === "autosave" && typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -1785,6 +1844,55 @@ export function BsitChairmanEvaluatorWorksheet({
           return;
         }
 
+        if (skipped.length > 0) {
+          if (source === "manual") showSkippedMsg("none_saved");
+          return;
+        }
+
+        const hourMeetings = rows
+          .filter((r) => r.sectionId && r.subjectCode)
+          .map((r) => {
+            const p = prospectusRowForProgram(programCodeForSummary, r.subjectCode);
+            return {
+              id: r.id,
+              sectionId: r.sectionId,
+              subjectCode: r.subjectCode,
+              hours: plotRowDurationSlots(p, r),
+            };
+          });
+        for (const row of rows) {
+          if (!row.sectionId || !row.subjectCode) continue;
+          const catalog = subjects.find(
+            (s) => normalizeProspectusCode(s.code) === normalizeProspectusCode(row.subjectCode),
+          );
+          const required = requiredWeeklyContactHours({
+            programCode: programCodeForSummary,
+            subjectCode: row.subjectCode,
+            lecHours: catalog?.lecHours,
+            labHours: catalog?.labHours,
+          });
+          const already = plottedHoursForSubjectSection({
+            meetings: hourMeetings,
+            sectionId: row.sectionId,
+            subjectCode: row.subjectCode,
+            excludeId: row.id,
+          });
+          const additional = hourMeetings.find((m) => m.id === row.id)?.hours ?? 0;
+          if (hoursExceedSubjectRequirement({ requiredHours: required, alreadyPlottedHours: already, additionalHours: additional })) {
+            const msg = subjectHoursOverLimitMessage({
+              subjectCode: row.subjectCode,
+              requiredHours: required,
+              alreadyPlottedHours: already,
+              additionalHours: additional,
+            });
+            if (source === "manual") {
+              setSaveScheduleMsg(msg);
+              toast.error("Cannot save: subject hours exceeded", msg);
+            }
+            return;
+          }
+        }
+
         if (removedIds.length > 0) {
           try {
             for (const id of removedIds) {
@@ -1879,7 +1987,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, subjects],
   );
 
   /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */
@@ -1895,6 +2003,7 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [academicPeriodId, rows.length, performSchedulePersist]);
 
   useEffect(() => {
+    if (viewOnly) return;
     if (!academicPeriodId) return;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = setTimeout(() => {
@@ -1904,7 +2013,7 @@ export function BsitChairmanEvaluatorWorksheet({
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [rows, academicPeriodId, performSchedulePersist]);
+  }, [rows, academicPeriodId, performSchedulePersist, viewOnly]);
 
   if (loadError) {
     return <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>;
@@ -1912,7 +2021,15 @@ export function BsitChairmanEvaluatorWorksheet({
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
-      {schedulePublished ? (
+      {viewOnly ? (
+        <div
+          className="rounded-xl border border-[#780301]/25 bg-[#780301]/5 px-4 py-3 text-[13px] text-[#5a0201] leading-relaxed"
+          role="status"
+        >
+          <span className="font-semibold">DOI Evaluator (view-only).</span> You can browse the same week-grid as College
+          Admin and run a campus-wide conflict check. Plotting, editing, and save are disabled.
+        </div>
+      ) : schedulePublished ? (
         <div
           className="rounded-xl border border-sky-200 bg-sky-50/90 px-4 py-3 text-[13px] text-sky-950 leading-relaxed"
           role="status"
@@ -1924,13 +2041,13 @@ export function BsitChairmanEvaluatorWorksheet({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3 text-[13px] font-semibold text-black/75">
-        {collegeWidePrograms ? (
+        {showProgramPicker ? (
           <>
             <span>Department</span>
             <select
               className="h-10 min-w-[240px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
               value={pickedProgramId}
-              disabled={schedulePublished || collegePrograms.length === 0}
+              disabled={(schedulePublished && !viewOnly) || collegePrograms.length === 0 ? true : false}
               onChange={(e) => {
                 setPickedProgramId(e.target.value);
                 setSelectedSectionId("");
@@ -1941,7 +2058,9 @@ export function BsitChairmanEvaluatorWorksheet({
                 lastFetchAtRef.current = 0;
               }}
             >
-              {collegePrograms.length === 0 ? <option value="">No programs in this college</option> : null}
+              {collegePrograms.length === 0 ? (
+                <option value="">{campusWidePrograms ? "No programs on campus" : "No programs in this college"}</option>
+              ) : null}
               {collegePrograms.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.code ? `${p.code} — ${p.name}` : p.name}
@@ -1954,7 +2073,7 @@ export function BsitChairmanEvaluatorWorksheet({
         <select
           className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
           value={selectedSectionId}
-          disabled={schedulePublished}
+          disabled={schedulePublished && !viewOnly}
           onChange={(e) => setSelectedSectionId(e.target.value)}
         >
           <option value="">All sections</option>
@@ -1978,7 +2097,7 @@ export function BsitChairmanEvaluatorWorksheet({
         fallbackSubjects={catalogSubjectRows}
       />
 
-      {showJustification ? <PolicyViolationFaq /> : null}
+      {showJustification && !viewOnly ? <PolicyViolationFaq /> : null}
 
       <BsitChairmanInteractiveWeekGrid
         rows={rows}
@@ -1989,7 +2108,7 @@ export function BsitChairmanEvaluatorWorksheet({
         catalogSubjectRows={catalogSubjectRows}
         programSections={programSections}
         selectedSectionId={selectedSectionId}
-        schedulePublished={schedulePublished}
+        schedulePublished={schedulePublished || viewOnly}
         instructorPlotOptions={instructorPlotOptions}
         roomsForEvaluatorGrid={roomsForEvaluatorGrid}
         roomById={roomById}
@@ -2010,10 +2129,11 @@ export function BsitChairmanEvaluatorWorksheet({
         onApplyPlot={applyPlotFromModal}
         onRemoveRow={removeRow}
         majorOptions={majorOptions}
-        insFormBasePath="/chairman/ins"
+        insFormBasePath={insFormBasePath}
         plottingActions={{
           onRunConflictCheck: () => void runCampusConflictCheck(),
           onSaveSchedule: () => {
+            if (viewOnly) return;
             if (autosaveTimerRef.current) {
               clearTimeout(autosaveTimerRef.current);
               autosaveTimerRef.current = null;
@@ -2033,12 +2153,12 @@ export function BsitChairmanEvaluatorWorksheet({
             }
             void performSchedulePersist("manual");
           },
-          runConflictCheckDisabled:
-            schedulePublished || !academicPeriodId || mergedBlocksForCampusScan.length === 0,
-          saveScheduleDisabled: schedulePublished,
+          runConflictCheckDisabled: !academicPeriodId || mergedBlocksForCampusScan.length === 0,
+          saveScheduleDisabled: schedulePublished || viewOnly,
+          hideSave: viewOnly,
           saveScheduleBusy,
           connOnline,
-          lastDraftSaveAt,
+          lastDraftSaveAt: viewOnly ? null : lastDraftSaveAt,
         }}
         gridFooter={
           <>
@@ -2062,7 +2182,7 @@ export function BsitChairmanEvaluatorWorksheet({
                 </p>
                 <EnrichedConflictIssuesPanel
                   issues={chairmanEnrichedIssues}
-                  allowApply={!schedulePublished}
+                  allowApply={!schedulePublished && !viewOnly}
                   suggestionsByIssueKey={chairmanGaByIssueKey}
                   busyIssueKey={busyChairmanApplyKey}
                   onApplySuggestion={(k, s) => void applyChairmanConflictSuggestion(k, s)}
@@ -2086,7 +2206,7 @@ export function BsitChairmanEvaluatorWorksheet({
 
       
 
-      {showJustification ? (
+      {showJustification && !viewOnly ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 space-y-2">
           <div className="text-[14px] font-semibold text-amber-950">Justification (DOI / VPAA review)</div>
           <p className="text-[12px] text-amber-950/85 leading-relaxed">
@@ -2096,7 +2216,7 @@ export function BsitChairmanEvaluatorWorksheet({
           <textarea
             className="w-full min-h-[100px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
             value={justificationText}
-            disabled={schedulePublished}
+            disabled={schedulePublished || viewOnly}
             onChange={(e) => setJustificationText(e.target.value)}
             placeholder="e.g. Approved overload; temporary faculty shortage; consolidated sections…"
           />
@@ -2104,7 +2224,7 @@ export function BsitChairmanEvaluatorWorksheet({
             <Button
               type="button"
               className="bg-amber-900 hover:bg-amber-950 text-white"
-              disabled={schedulePublished || justificationSaving}
+              disabled={schedulePublished || viewOnly || justificationSaving}
               onClick={() => void saveLoadJustificationForDoi()}
             >
               {justificationSaving ? "Saving…" : "Submit justification for VPAA (DOI)"}
@@ -2119,7 +2239,9 @@ export function BsitChairmanEvaluatorWorksheet({
       ) : null}
 
       <PolicyJustificationModal
-        open={policyJustificationModalOpen && (policyModalReason === "assign" || showJustification)}
+        open={
+          !viewOnly && policyJustificationModalOpen && (policyModalReason === "assign" || showJustification)
+        }
         title={policyModalReason === "assign" ? "Overload: justify before assigning" : "Policy justification"}
         promptText={
           policyModalReason === "assign"

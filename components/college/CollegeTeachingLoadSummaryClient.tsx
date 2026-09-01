@@ -177,7 +177,7 @@ export function CollegeTeachingLoadSummaryClient() {
               onClick={() => setCategoryId(ALL_CATEGORIES)}
               className={`h-8 px-3 rounded-md text-[12px] font-semibold border ${
                 categoryId === ALL_CATEGORIES
-                  ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                  ? "bg-[#780301] text-white border-[#780301]"
                   : "bg-white text-black/80 border-black/15"
               }`}
             >
@@ -190,7 +190,7 @@ export function CollegeTeachingLoadSummaryClient() {
                 onClick={() => setCategoryId(g.programId)}
                 className={`h-8 px-3 rounded-md text-[12px] font-semibold border ${
                   categoryId === g.programId
-                    ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                    ? "bg-[#780301] text-white border-[#780301]"
                     : "bg-white text-black/80 border-black/15"
                 }`}
               >

@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { FacultyProfileWorkspace } from "@/components/faculty/FacultyProfileWorkspace";
 
-export function FacultyProfileWithScope({ initialCollegeId }: { initialCollegeId?: string | null }) {
+export function FacultyProfileWithScope({
+  initialCollegeId,
+  enableFacultyListEdit = true,
+}: {
+  initialCollegeId?: string | null;
+  enableFacultyListEdit?: boolean;
+}) {
   const [scopeCollegeId, setScopeCollegeId] = useState<string | null>(initialCollegeId ?? null);
   const [scopeProgramId, setScopeProgramId] = useState<string | null>(null);
 
@@ -23,7 +29,11 @@ export function FacultyProfileWithScope({ initialCollegeId }: { initialCollegeId
           }}
         />
       </div>
-      <FacultyProfileWorkspace scopeCollegeId={scopeCollegeId} scopeProgramId={scopeProgramId} />
+      <FacultyProfileWorkspace
+        scopeCollegeId={scopeCollegeId}
+        scopeProgramId={scopeProgramId}
+        enableFacultyListEdit={enableFacultyListEdit}
+      />
     </>
   );
 }

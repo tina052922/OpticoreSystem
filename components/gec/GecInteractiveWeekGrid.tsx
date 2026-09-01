@@ -29,6 +29,10 @@ import {
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { isGecCurriculumScheduleEntry } from "@/lib/gec/gec-vacant";
 import {
+  plottedHoursForSubjectSection,
+  requiredWeeklyContactHours,
+} from "@/lib/scheduling/subject-semester-hours";
+import {
   formatUserInstructorLabel,
   type InstructorPlotOption,
 } from "@/lib/evaluator/instructor-employee-id";
@@ -251,6 +255,7 @@ export function GecInteractiveWeekGrid({
       const isGec = isGecCurriculumScheduleEntry(e, subjectById);
       if (!isGec) return;
       const isVacant = vacantGecSourceIds.has(e.id);
+      if (!isVacant) return;
       const readOnly = !canEditVacant;
       const pickedRoom = e.roomId ? roomById.get(e.roomId) : undefined;
       const buildingValue = roomBuildingByEntryId[e.id] ?? (pickedRoom ? roomBuildingKey(pickedRoom) : "");
@@ -513,12 +518,11 @@ export function GecInteractiveWeekGrid({
                           const room = roomById.get(e.roomId);
                           const inst = userById.get(e.instructorId);
                           const isVacant = vacantGecSourceIds.has(e.id);
-                          const isGec = isGecCurriculumScheduleEntry(e, subjectById);
                           const cf = conflictForEntry(e);
                           const dur = bounds?.dur ?? 1;
                           const hasConflict =
                             cf.faculty === "Yes" || cf.room === "Yes" || cf.section === "Yes";
-                          const lockedMajor = !isGec;
+                          const lockedMajor = !isVacant;
 
                           return (
                             <li key={e.id} id={`gec-hub-eval-row-${e.id}`}>
@@ -544,7 +548,7 @@ export function GecInteractiveWeekGrid({
                                   }
                                 }}
                               >
-                                {canEditVacant && isGec ? (
+                                {canEditVacant && isVacant ? (
                                   <button
                                     type="button"
                                     className="absolute top-0.5 right-0.5 rounded p-0.5 text-red-800 hover:bg-red-100"
@@ -576,7 +580,7 @@ export function GecInteractiveWeekGrid({
                                 {hasConflict ? (
                                   <span className="text-[7px] font-bold text-red-800 mt-0.5 block">Conflict</span>
                                 ) : null}
-                                {!isGec ? (
+                                {!isVacant ? (
                                   <span className="text-[7px] font-semibold text-black/45 block">Locked</span>
                                 ) : null}
                               </div>
@@ -664,6 +668,38 @@ export function GecInteractiveWeekGrid({
         }
         onApply={handleApply}
         onRemove={modal && !modal.readOnly ? handleRemove : undefined}
+        subjectHourBudget={
+          modal?.draft.subjectId && modal.draft.sectionId
+            ? (() => {
+                const sub = subjectById.get(modal.draft.subjectId);
+                if (!sub?.code) return null;
+                const required = requiredWeeklyContactHours({
+                  programCode,
+                  subjectCode: sub.code,
+                  lecHours: sub.lecHours,
+                  labHours: sub.labHours,
+                });
+                const meetings = sectionRows
+                  .filter((e) => e.subjectId && e.sectionId)
+                  .map((e) => {
+                    const s = subjectById.get(e.subjectId);
+                    return {
+                      id: e.id,
+                      sectionId: e.sectionId,
+                      subjectCode: s?.code ?? "",
+                      hours: inferDurationSlotsFromTimes(e.startTime, e.endTime),
+                    };
+                  });
+                const already = plottedHoursForSubjectSection({
+                  meetings,
+                  sectionId: modal.draft.sectionId,
+                  subjectCode: sub.code,
+                  excludeId: modal.entryId,
+                });
+                return { required, alreadyPlotted: already };
+              })()
+            : null
+        }
       />
     </div>
   );

@@ -115,6 +115,7 @@ export function NotificationBell() {
   }
 
   async function markAllRead() {
+    setRaw((prev) => prev.map((n) => ({ ...n, isRead: true })));
     try {
       await notificationsApi.markAllRead();
     } catch {
@@ -151,7 +152,12 @@ export function NotificationBell() {
             <button
               type="button"
               className="text-[11px] font-bold text-[#780301] hover:underline"
-              onClick={() => void markAllRead()}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void markAllRead();
+              }}
             >
               Read all
             </button>
