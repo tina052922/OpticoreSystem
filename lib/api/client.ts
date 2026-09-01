@@ -1192,7 +1192,7 @@ export function recordScheduleWrite(input: {
   return apiFetch<{ ok: true }>("/api/audit/schedule-write", {
     method: "POST",
     body: input,
-  });
+  }).catch(() => ({ ok: true as const }));
 }
 
 export const catalogApi = {
