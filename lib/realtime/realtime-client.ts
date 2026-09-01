@@ -38,7 +38,8 @@ export type RealtimeBadgeKind =
   | "access_requests"
   | "schedule_change_requests"
   | "policy_reviews"
-  | "audit_log";
+  | "audit_log"
+  | "instructor_registrations";
 
 export type RealtimeEventPayload = {
   academicPeriodId?: string;

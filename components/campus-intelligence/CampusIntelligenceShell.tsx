@@ -20,6 +20,7 @@ import {
   Send,
   Settings,
   UserCircle,
+  UserPlus,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -46,6 +47,7 @@ import { usePendingScheduleChangeRequestsCount } from "@/hooks/use-pending-sched
 import { usePendingPolicyReviewsCount } from "@/hooks/use-pending-policy-reviews-count";
 import { usePendingAccessRequestsCount } from "@/hooks/use-pending-access-requests-count";
 import { useAuditLogUnreadCount } from "@/hooks/use-audit-log-unread-count";
+import { usePendingInstructorRegistrationsCount } from "@/hooks/use-pending-instructor-registrations-count";
 
 const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   LayoutDashboard,
@@ -62,6 +64,7 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   History,
   Megaphone,
   Settings,
+  UserPlus,
 };
 
 /** Sidebar link that shows a numeric badge (pending schedule change requests). */
@@ -75,6 +78,7 @@ const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
 const COLLEGE_POLICY_JUSTIFICATIONS_HREF = "/admin/college/policy-reviews";
 const COLLEGE_AUDIT_LOG_HREF = "/admin/college/audit-log";
 const DOI_AUDIT_LOG_HREF = "/doi/audit-log";
+const CHAIRMAN_INSTRUCTOR_REGISTRATIONS_HREF = "/chairman/instructor-registrations";
 
 export type CampusIntelligenceShellProps = {
   children: React.ReactNode;
@@ -108,6 +112,8 @@ export type CampusIntelligenceShellProps = {
    * Use `"college"` vs `"doi"` so College and DOI admins don’t share the same “last seen” timestamp.
    */
   auditLogUnreadScope?: string | null;
+  /** Program Chairman: pending instructor self-registrations for this program. */
+  instructorRegistrationsBadge?: boolean;
 };
 
 /**
@@ -127,6 +133,7 @@ export function CampusIntelligenceShell({
   policyReviewsBadge = false,
   policyJustificationsBadgeCollegeId = null,
   auditLogUnreadScope = null,
+  instructorRegistrationsBadge = false,
 }: CampusIntelligenceShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -151,6 +158,7 @@ export function CampusIntelligenceShell({
     storageScope: auditLogUnreadScope?.trim() || "default",
   });
   const showAuditBadge = Boolean(auditLogUnreadScope?.trim()) && auditUnreadCount > 0;
+  const pendingInstructorRegs = usePendingInstructorRegistrationsCount(instructorRegistrationsBadge);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -315,7 +323,18 @@ export function CampusIntelligenceShell({
                 (item.href === COLLEGE_AUDIT_LOG_HREF || item.href === DOI_AUDIT_LOG_HREF) && showAuditBadge
                   ? auditUnreadCount
                   : null;
-              const badge = doiPolicyBadge ?? collegePolicyBadge ?? scrBadge ?? accessBadge ?? auditBadge ?? null;
+              const instructorRegBadge =
+                item.href === CHAIRMAN_INSTRUCTOR_REGISTRATIONS_HREF && pendingInstructorRegs > 0
+                  ? pendingInstructorRegs
+                  : null;
+              const badge =
+                doiPolicyBadge ??
+                collegePolicyBadge ??
+                scrBadge ??
+                accessBadge ??
+                auditBadge ??
+                instructorRegBadge ??
+                null;
               return (
                 <Link
                   key={item.href}
@@ -343,7 +362,9 @@ export function CampusIntelligenceShell({
                             ? `${badge} pending schedule change request${badge === 1 ? "" : "s"}`
                             : accessBadge !== null
                               ? `${badge} pending access request${badge === 1 ? "" : "s"}`
-                              : `${badge} new audit entr${badge === 1 ? "y" : "ies"} since last visit`
+                              : instructorRegBadge !== null
+                                ? `${badge} pending instructor registration${badge === 1 ? "" : "s"}`
+                                : `${badge} new audit entr${badge === 1 ? "y" : "ies"} since last visit`
                       }
                       aria-label={
                         doiPolicyBadge !== null || collegePolicyBadge !== null
@@ -352,7 +373,9 @@ export function CampusIntelligenceShell({
                             ? `${badge} pending schedule change requests`
                             : accessBadge !== null
                               ? `${badge} pending access requests`
-                              : `${badge} unread audit log items`
+                              : instructorRegBadge !== null
+                                ? `${badge} pending instructor registrations`
+                                : `${badge} unread audit log items`
                       }
                     >
                       {badge > 99 ? "99+" : badge}

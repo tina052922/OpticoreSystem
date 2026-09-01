@@ -1,6 +1,7 @@
 import type { FacultyProfile, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { slotDurationHours } from "@/lib/scheduling/facultyPolicies";
+import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 
 export type TeachingLoadModeSlice = {
   preps: number;
@@ -145,7 +146,7 @@ export function buildTeachingLoadSummary(args: {
 
   const instructorIds = new Set<string>();
   for (const u of args.users) {
-    if (u.collegeId === args.collegeId && (u.role === "instructor" || u.role === "chairman_admin")) {
+    if (u.collegeId === args.collegeId && isPlottableFacultyUser(u)) {
       instructorIds.add(u.id);
     }
   }

@@ -33,6 +33,7 @@ import type {
   Subject,
   User,
 } from "@/types/db";
+import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { useAccessRequests } from "@/hooks/use-access-requests";
 import {
   getGecVacantSlotApprovalUiState,
@@ -592,7 +593,7 @@ export function GecCentralHubEvaluatorClient() {
   const instructorPlotOptionsBase = useMemo(() => {
     if (!plotCollegeId) return [];
     const pool = users.filter(
-      (u) => u.collegeId === plotCollegeId && (u.role === "instructor" || u.role === "chairman_admin"),
+      (u) => u.collegeId === plotCollegeId && isPlottableFacultyUser(u),
     );
     const base = usersToInstructorPlotOptions(pool, facultyProfileByUserId);
     return mergeLegacyRowInstructorsIntoPlotOptions(
@@ -699,7 +700,7 @@ export function GecCentralHubEvaluatorClient() {
       const gaMap: Record<string, GASuggestion[]> = {};
       const roomIds = rooms.map((r) => r.id);
       const instructorIds = users
-        .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+        .filter((u) => isPlottableFacultyUser(u))
         .map((u) => u.id);
       for (const iss of mergedEnriched.slice(0, 3)) {
         const entry = modeMergedEntries.find((e) => e.id === iss.rowA.entryId);

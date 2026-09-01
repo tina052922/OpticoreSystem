@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
-import { authApi } from "@/lib/api/client";
+import { authApi, ApiClientError } from "@/lib/api/client";
 import {
   getDefaultHomeForRole,
   pathAllowedForRole,
@@ -79,9 +79,18 @@ export function LoginClient() {
         err?.error ||
         (typeof err === "string" ? err : "Login failed");
       const isInvalid = message.toLowerCase().includes("invalid") || message.toLowerCase().includes("credentials");
+      const code = err instanceof ApiClientError ? err.code : "";
       toast.error(
-        isInvalid ? "Invalid credentials" : "Login failed",
-        isInvalid ? "Check your email and password and try again." : message,
+        code === "INSTRUCTOR_PENDING"
+          ? "Awaiting chairman approval"
+          : code === "INSTRUCTOR_REJECTED"
+            ? "Registration not approved"
+            : isInvalid
+              ? "Invalid credentials"
+              : "Login failed",
+        isInvalid && !code.startsWith("INSTRUCTOR_")
+          ? "Check your email and password and try again."
+          : message,
       );
     } finally {
       setLoading(false);

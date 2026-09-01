@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
-import { apiFetch, registerApi, authApi, ApiClientError } from "@/lib/api/client";
+import { apiFetch, registerApi, ApiClientError } from "@/lib/api/client";
 import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
 import {
   FACULTY_EMPLOYMENT_ORGANIC,
@@ -14,17 +14,18 @@ import {
 } from "@/lib/faculty/employment-status";
 
 type CollegeRow = { id: string; code: string; name: string };
+type ProgramRow = { id: string; code: string; name: string; collegeId: string };
 
 const fieldClass = "h-11 rounded-xl border border-black/25 bg-white px-3 text-sm shadow-sm w-full";
 const labelClass = "block text-sm font-medium text-[#181818] mb-1";
 
 export function InstructorRegisterClient() {
-  const [phase, setPhase] = useState<"register" | "otp">("register");
   const [fullName, setFullName] = useState("");
   const [aka, setAka] = useState("");
   const [email, setEmail] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [collegeId, setCollegeId] = useState("");
+  const [programId, setProgramId] = useState("");
   const [bsDegree, setBsDegree] = useState("");
   const [msDegree, setMsDegree] = useState("");
   const [doctoralDegree, setDoctoralDegree] = useState("");
@@ -43,26 +44,30 @@ export function InstructorRegisterClient() {
   );
   const [designation, setDesignation] = useState("");
   const [colleges, setColleges] = useState<CollegeRow[]>([]);
+  const [programs, setPrograms] = useState<ProgramRow[]>([]);
   const [loadingColleges, setLoadingColleges] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [otpGenerated, setOtpGenerated] = useState<string | null>(null);
-  const [otpInput, setOtpInput] = useState("");
-
-  function makeOtp(): string {
-    const n = Math.floor(Math.random() * 1_000_000);
-    return String(n).padStart(6, "0");
-  }
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await apiFetch<{ colleges: { id: string; code: string; name: string }[] }>("/api/catalog/public/colleges", { method: "GET", retryOn401: false });
-        if (!cancelled) setColleges(data.colleges);
+        const [collegeRes, programRes] = await Promise.all([
+          apiFetch<{ colleges: CollegeRow[] }>("/api/catalog/public/colleges", { method: "GET", retryOn401: false }),
+          apiFetch<{ programs: ProgramRow[] }>("/api/catalog/public/programs", { method: "GET", retryOn401: false }),
+        ]);
+        if (!cancelled) {
+          setColleges(collegeRes.colleges);
+          setPrograms(programRes.programs ?? []);
+        }
       } catch {
-        if (!cancelled) setColleges([]);
+        if (!cancelled) {
+          setColleges([]);
+          setPrograms([]);
+        }
       } finally {
         if (!cancelled) setLoadingColleges(false);
       }
@@ -71,6 +76,8 @@ export function InstructorRegisterClient() {
       cancelled = true;
     };
   }, []);
+
+  const programsForCollege = programs.filter((p) => p.collegeId === collegeId);
 
   function profilePayload() {
     return {
@@ -97,14 +104,17 @@ export function InstructorRegisterClient() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    setOtpGenerated(null);
-    setOtpInput("");
+    setTempPassword(null);
     if (!employeeId.trim() || employeeId.trim().length < 2) {
       setError("Employee ID is required.");
       return;
     }
     if (!collegeId) {
       setError("Please select your home college.");
+      return;
+    }
+    if (!programId) {
+      setError("Please select your home department so the Program Chairman can review your registration.");
       return;
     }
 
@@ -115,44 +125,19 @@ export function InstructorRegisterClient() {
         email: email.trim(),
         employeeId: employeeId.trim(),
         collegeId,
+        programId,
         ...profilePayload(),
       });
-      const tempPassword = data.temporaryPassword ?? "";
-      if (!tempPassword) throw new Error("Temporary password not returned.");
-
-      await authApi.login({
-        email: email.trim().toLowerCase(),
-        password: tempPassword,
-      });
-
+      setTempPassword(data.temporaryPassword ?? null);
       setSuccess(
         data.message ??
-          "Account created. Your profile is visible to your chairman for review. Continue to OTP verification.",
+          "Registration submitted. Your Program Chairman will approve or reject this account. You cannot sign in until you are approved.",
       );
-      setOtpGenerated(makeOtp());
-      setOtpInput("");
-      setPhase("otp");
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Registration failed");
     } finally {
       setSubmitting(false);
     }
-  }
-
-  async function onVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!otpGenerated) return;
-    const normalized = otpInput.replace(/\D/g, "");
-    if (!/^\d{6}$/.test(normalized)) {
-      setError("Enter the 6-digit code.");
-      return;
-    }
-    if (normalized !== otpGenerated) {
-      setError("Incorrect code.");
-      return;
-    }
-    window.location.assign("/faculty/change-password");
   }
 
   return (
@@ -179,42 +164,23 @@ export function InstructorRegisterClient() {
           <h1 className="text-xl font-medium text-[#181818]">Cebu Technological University</h1>
           <h2 className="text-lg font-bold text-black">Instructor registration</h2>
           <p className="text-[13px] text-black/55">
-            Complete your faculty profile. Use the same Employee ID your chairman recorded so schedules link
-            automatically.
+            Complete your faculty profile. Your Program Chairman must approve the account before you can sign in or be
+            assigned when plotting. Use the same Employee ID so schedules link after approval.
           </p>
         </div>
 
         {success ? (
           <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
             <p className="text-sm font-medium">{success}</p>
-            {phase === "otp" && otpGenerated ? (
-              <form noValidate onSubmit={(e) => void onVerifyOtp(e)} className="space-y-4">
-                <div className="mx-auto inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-6 py-3 text-3xl font-black tracking-[0.35em] tabular-nums">
-                  {otpGenerated}
-                </div>
-                <Input
-                  type="text"
-                  name="instructor-registration-otp"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  maxLength={6}
-                  placeholder="Enter 6-digit code"
-                  value={otpInput}
-                  onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="h-12 text-center tracking-[0.25em] tabular-nums"
-                />
-                {error ? (
-                  <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>
-                ) : null}
-                <Button type="submit" className="w-full h-12 bg-[#780301] hover:bg-[#5a0201] text-white">
-                  Verify OTP
-                </Button>
-              </form>
-            ) : (
-              <Button asChild className="w-full h-12 bg-[#780301] hover:bg-[#5a0201] text-white">
-                <Link href="/login">Continue to sign in</Link>
-              </Button>
-            )}
+            {tempPassword ? (
+              <p className="text-sm">
+                Temporary password (save this for after approval):{" "}
+                <span className="font-mono font-semibold">{tempPassword}</span>
+              </p>
+            ) : null}
+            <Button asChild className="w-full h-12 bg-[#780301] hover:bg-[#5a0201] text-white">
+              <Link href="/login">Back to sign in</Link>
+            </Button>
           </div>
         ) : (
           <form onSubmit={(e) => void onSubmit(e)} className="space-y-5 max-h-[min(70vh,640px)] overflow-y-auto pr-1">
@@ -282,7 +248,10 @@ export function InstructorRegisterClient() {
                 <select
                   id="ins-college"
                   value={collegeId}
-                  onChange={(e) => setCollegeId(e.target.value)}
+                  onChange={(e) => {
+                    setCollegeId(e.target.value);
+                    setProgramId("");
+                  }}
                   disabled={loadingColleges}
                   className={fieldClass}
                   required
@@ -291,6 +260,26 @@ export function InstructorRegisterClient() {
                   {colleges.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.code} — {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="ins-program" className={labelClass}>
+                  Home department
+                </label>
+                <select
+                  id="ins-program"
+                  value={programId}
+                  onChange={(e) => setProgramId(e.target.value)}
+                  disabled={!collegeId}
+                  className={fieldClass}
+                  required
+                >
+                  <option value="">{collegeId ? "Select department…" : "Select college first…"}</option>
+                  {programsForCollege.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code} — {p.name}
                     </option>
                   ))}
                 </select>
@@ -467,7 +456,7 @@ export function InstructorRegisterClient() {
               disabled={submitting || loadingColleges}
               className="w-full h-12 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg font-semibold sticky bottom-0"
             >
-              {submitting ? "Creating account…" : "Register"}
+              {submitting ? "Submitting…" : "Submit for chairman approval"}
             </Button>
 
             <p className="text-center text-sm pb-2">

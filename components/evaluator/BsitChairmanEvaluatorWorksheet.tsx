@@ -17,6 +17,7 @@ import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { slotDurationHours } from "@/lib/scheduling/time";
 import type { FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
+import { isFacultyStaffRole, isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { Button } from "@/components/ui/button";
 import {
   normalizeScheduleEntryDayForEvaluator,
@@ -574,12 +575,12 @@ export function BsitChairmanEvaluatorWorksheet({
       const allUsers = (bundle.users ?? []) as User[];
       const campusFac = allUsers.filter(
         (u) =>
-          (u.role === "instructor" || u.role === "chairman_admin") &&
+          isPlottableFacultyUser(u) &&
           (!chairmanCollegeId || u.collegeId === chairmanCollegeId),
       );
       const instrIds = [...new Set(entries.map((e) => e.instructorId).filter(Boolean))] as string[];
       const rowFac = allUsers.filter(
-        (u) => instrIds.includes(u.id) && (u.role === "instructor" || u.role === "chairman_admin"),
+        (u) => instrIds.includes(u.id) && isFacultyStaffRole(u.role),
       );
       const mergedFac = [...new Map([...campusFac, ...rowFac].map((u) => [u.id, u])).values()];
       setDbInstructors(mergedFac.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")));
@@ -1069,7 +1070,7 @@ export function BsitChairmanEvaluatorWorksheet({
         .map((r) => r.id);
       const instructorIds = dbInstructors
         .filter((u) => !chairmanCollegeId || u.collegeId === chairmanCollegeId)
-        .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+        .filter((u) => isFacultyStaffRole(u.role))
         .map((u) => u.id);
       if (roomIds.length > 0 && instructorIds.length > 0 && mergedBlocksForCampusScan.length > 0) {
         for (const iss of enriched.slice(0, 12)) {

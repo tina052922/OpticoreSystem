@@ -776,7 +776,7 @@ export const registerApi = {
     collegeId: string;
     [key: string]: unknown; // Allow additional profile fields safely
   }) {
-    return apiFetch<{ ok: true; message: string; temporaryPassword: string }>(
+    return apiFetch<{ ok: true; pending?: boolean; message: string; temporaryPassword: string }>(
       "/api/auth/register-instructor",
       {
         method: "POST",
@@ -902,6 +902,52 @@ export const accessRequestsApi = {
         forceRefresh: opts.forceRefresh,
       },
     );
+  },
+};
+
+export type InstructorRegistrationRow = {
+  id: string;
+  email: string;
+  name: string;
+  employeeId: string | null;
+  collegeId: string | null;
+  chairmanProgramId: string | null;
+  instructorValidation: "pending" | "active" | "rejected";
+  instructorValidatedAt: string | null;
+  instructorValidationNote: string | null;
+  createdAt: string | null;
+  programCode: string | null;
+  programName: string | null;
+  profile: {
+    fullName?: string | null;
+    aka?: string | null;
+    designation?: string | null;
+    status?: string | null;
+    bsDegree?: string | null;
+    msDegree?: string | null;
+    doctoralDegree?: string | null;
+  } | null;
+};
+
+export const instructorRegistrationsApi = {
+  list(params: { status?: "pending" | "active" | "rejected" | "all" } = {}) {
+    return apiFetch<{ registrations: InstructorRegistrationRow[] }>(
+      `/api/instructor-registrations${qs(params)}`,
+      { method: "GET" },
+    );
+  },
+  review(id: string, body: { action: "approve" | "reject"; note?: string }) {
+    return apiFetch<{ ok: true; message: string; registration: InstructorRegistrationRow }>(
+      `/api/instructor-registrations/${encodeURIComponent(id)}`,
+      { method: "PATCH", body },
+    );
+  },
+  pendingCount(opts: { forceRefresh?: boolean } = {}) {
+    return apiFetch<{ pending: number }>("/api/instructor-registrations/pending-count", {
+      method: "GET",
+      cacheTtlMs: API_CACHE_TTL.BADGE_COUNT,
+      forceRefresh: opts.forceRefresh,
+    });
   },
 };
 

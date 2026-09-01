@@ -39,6 +39,7 @@ import type {
   Subject,
   User,
 } from "@/types/db";
+import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 
 /** Merge catalog rows by primary key (later arrays win) — links term `ScheduleEntry` to cross-college Section/Subject. */
 function mergeRowsById<T extends { id: string }>(primary: T[], ...extras: T[][]): T[] {
@@ -580,7 +581,7 @@ export function useInsCatalog(args: {
 
     const roomIds = rooms.map((r) => r.id);
     const instructorIds = users
-      .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+      .filter((u) => isPlottableFacultyUser(u))
       .map((u) => u.id);
 
     const lines: string[] = [`Scanned ${termRows.length} schedule row(s) this term.`, ""];
@@ -746,7 +747,7 @@ export function useInsCatalog(args: {
 
       const roomIds = rooms.map((r) => r.id);
       const instructorIds = users
-        .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+        .filter((u) => isPlottableFacultyUser(u))
         .map((u) => u.id);
 
       const lines: string[] = [];
@@ -876,7 +877,7 @@ export function useInsCatalog(args: {
       const termRows = entries.filter((e) => e.academicPeriodId === periodId);
       const roomIds = rooms.map((r) => r.id);
       const instructorIds = users
-        .filter((u) => u.role === "instructor" || u.role === "chairman_admin")
+        .filter((u) => isPlottableFacultyUser(u))
         .map((u) => u.id);
       if (roomIds.length === 0 || instructorIds.length === 0) {
         return { ok: false, message: "Not enough rooms or instructors in catalog to suggest alternatives." };

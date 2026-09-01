@@ -189,6 +189,35 @@ describe("buildTeachingLoadSummary", () => {
     expect(groups[0].rows[0].day.preps).toBe(1);
     expect(groups[1].rows[0].day.preps).toBe(1);
   });
+
+  it("does not list pending self-registered instructors as teaching staff", () => {
+    const pending: User = {
+      id: "pend-1",
+      employeeId: "E9",
+      email: "pend@test.edu",
+      name: "Pending Faculty",
+      role: "instructor",
+      collegeId,
+      chairmanProgramId: "prog-bsit",
+      instructorValidation: "pending",
+      signatureImageUrl: null,
+      profileImageUrl: null,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+    const groups = buildTeachingLoadSummaryByCategory({
+      collegeId,
+      academicPeriodId: periodId,
+      entries: [],
+      users: [pending],
+      profiles: [],
+      programs: [{ id: "prog-bsit", collegeId, code: "BSIT", name: "Information Technology" }],
+      sections: [{ id: "sec-bsit", programId: "prog-bsit", name: "BSIT-1A", yearLevel: 1, studentCount: 40 }],
+      subjects: [subjectDay],
+      justifications: [],
+    });
+    expect(groups[0].rows.map((r) => r.instructorId)).not.toContain("pend-1");
+  });
 });
 
 describe("categoryLabelForProgram", () => {

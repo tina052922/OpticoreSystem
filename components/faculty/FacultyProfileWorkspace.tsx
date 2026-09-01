@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { facultyProfileApi, userAdminApi } from "@/lib/api/client";
 import type { FacultyProfile, Program, Section, User } from "@/types/db";
+import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { computeRatePerHour, DESIGNATION_POLICIES, getDesignationPolicyByLabel } from "@/lib/faculty/designation-system";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { resolveHourlyRates } from "@/lib/system-configuration/scheduling-policy";
@@ -111,11 +112,13 @@ export function FacultyProfileWorkspace({
     let users: Pick<User, "id" | "name" | "employeeId">[] = [];
     try {
       const { apiFetch } = await import("@/lib/api/client");
-      const data = await apiFetch<{ users: Pick<User, "id" | "name" | "employeeId" | "role">[] }>(
+      const data = await apiFetch<{ users: Pick<User, "id" | "name" | "employeeId" | "role" | "instructorValidation">[] }>(
         `/api/catalog/users?collegeId=${collegeId}`,
         { method: "GET" },
       );
-      users = data.users.filter((u) => u.role === "instructor").map((u) => ({ id: u.id, name: u.name, employeeId: u.employeeId }));
+      users = data.users
+        .filter((u) => u.role === "instructor" && isPlottableFacultyUser(u))
+        .map((u) => ({ id: u.id, name: u.name, employeeId: u.employeeId }));
     } catch {
       setLoadingList(false);
       return;

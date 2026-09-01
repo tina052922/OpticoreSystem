@@ -26,6 +26,7 @@ import type {
   Subject,
   User,
 } from "@/types/db";
+import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { Button } from "@/components/ui/button";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
@@ -363,14 +364,13 @@ export function EvaluatorTimetablingPanel({
   const instructorsInCollege = useMemo(() => {
     return collegeUsers.filter(
       (u) =>
-        (!effectiveCollegeId || u.collegeId === effectiveCollegeId) &&
-        (u.role === "instructor" || u.role === "chairman_admin"),
+        (!effectiveCollegeId || u.collegeId === effectiveCollegeId) && isPlottableFacultyUser(u),
     );
   }, [collegeUsers, effectiveCollegeId]);
 
   /** Home college + anyone visible on `ScheduleEntry` rows (merged in `load`), for cross-college teaching. */
   const instructorUserPool = useMemo(
-    () => collegeUsers.filter((u) => u.role === "instructor" || u.role === "chairman_admin"),
+    () => collegeUsers.filter((u) => isPlottableFacultyUser(u)),
     [collegeUsers],
   );
 
@@ -1104,7 +1104,7 @@ export function EvaluatorTimetablingPanel({
       (r) => r.id,
     );
     const instructorIds = collegeUsers
-      .filter((u) => u.collegeId === cid && (u.role === "instructor" || u.role === "chairman_admin"))
+      .filter((u) => u.collegeId === cid && isPlottableFacultyUser(u))
       .map((u) => u.id);
     if (roomIds.length === 0 || instructorIds.length === 0) {
       setAltSuggestions([]);

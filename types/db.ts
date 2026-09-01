@@ -72,7 +72,12 @@ export interface User {
   name: string;
   role: UserRole;
   collegeId: string | null;
-  /** Set for chairman_admin: the one program they manage. */
+  /**
+   * Instructor self-registration gate. Missing/`active` = full access (legacy rows).
+   * `pending` / `rejected` cannot log in as instructor or be assigned on new plots.
+   */
+  instructorValidation?: "pending" | "active" | "rejected" | null;
+  /** Set for chairman_admin: the one program they manage. Instructors store home department here after registration. */
   chairmanProgramId?: string | null;
   /** Public URL for INS / formal forms (uploaded in Profile). */
   signatureImageUrl?: string | null;

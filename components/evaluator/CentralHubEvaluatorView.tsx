@@ -68,7 +68,8 @@ import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/Ch
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
-import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
+import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
+import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -456,7 +457,7 @@ export function CentralHubEvaluatorView({
       if (!cid) return [];
       const roomIds = rooms.filter((r) => !r.collegeId || r.collegeId === cid).map((r) => r.id);
       const instructorIds = users
-        .filter((u) => u.collegeId === cid && (u.role === "instructor" || u.role === "chairman_admin"))
+        .filter((u) => u.collegeId === cid && isPlottableFacultyUser(u))
         .map((u) => u.id);
       if (roomIds.length === 0 || instructorIds.length === 0) return [];
       const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
@@ -507,10 +508,10 @@ export function CentralHubEvaluatorView({
   }, [rooms, editCollegeId]);
 
   const instructorsForEdit = useMemo(() => {
-    if (!editCollegeId) return users.filter((u) => u.role === "instructor" || u.role === "chairman_admin");
+    if (!editCollegeId) return users.filter((u) => isPlottableFacultyUser(u));
     return users.filter(
       (u) =>
-        u.collegeId === editCollegeId && (u.role === "instructor" || u.role === "chairman_admin"),
+        u.collegeId === editCollegeId && isPlottableFacultyUser(u),
     );
   }, [users, editCollegeId]);
 
@@ -742,7 +743,7 @@ export function CentralHubEvaluatorView({
     }
     const roomIds = rooms.filter((r) => r.collegeId === cid || r.collegeId == null).map((r) => r.id);
     const instructorIds = users
-      .filter((u) => u.collegeId === cid && (u.role === "instructor" || u.role === "chairman_admin"))
+      .filter((u) => u.collegeId === cid && isPlottableFacultyUser(u))
       .map((u) => u.id);
     if (roomIds.length === 0 || instructorIds.length === 0) {
       setAltSuggestions([]);
@@ -885,6 +886,11 @@ export function CentralHubEvaluatorView({
               panel={landingPanelForTabs}
               collegeAdminLanding
             />
+            {hubAccessMode === "collegeAdmin" ? (
+              <div className="mb-4">
+                <NotifyGecReadyButton academicPeriodId={academicPeriodId} periodLabel={currentPeriod?.name ?? null} />
+              </div>
+            ) : null}
             <div id="college-hub-tiles" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {CENTRAL_HUB_COLLEGES.filter((c) => !myCollegeId || c.collegeId === myCollegeId || !c.collegeId).map(
                 (c) => (
@@ -1109,11 +1115,14 @@ export function CentralHubEvaluatorView({
             </button>
           </div>
         ) : null}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← College hub
           </HubCollegesNavLink>
           <div className="flex flex-wrap items-center gap-3">
+            {hubAccessMode === "collegeAdmin" ? (
+              <NotifyGecReadyButton academicPeriodId={academicPeriodId} periodLabel={currentPeriod?.name ?? null} />
+            ) : null}
             <ProgramModeToggle size="sm" />
           </div>
         </div>
