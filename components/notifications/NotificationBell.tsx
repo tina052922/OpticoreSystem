@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell } from "lucide-react";
+import { Bell, ClipboardCheck, Megaphone } from "lucide-react";
 import { ApiClientError, authApi, notificationsApi, type Notification, type Role } from "@/lib/api/client";
 import { usePolledCallback } from "@/hooks/use-polled-callback";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { isScheduleRelatedNotificationMessage } from "@/lib/notifications/notification-relevance";
+import { isWorkflowReadinessMessage } from "@/lib/notifications/workflow-indicators";
 
 /**
  * Realtime (SSE) is the primary delivery path; this poll is only a fallback for
@@ -113,6 +114,15 @@ export function NotificationBell() {
     void load({ forceRefresh: true });
   }
 
+  async function markAllRead() {
+    try {
+      await notificationsApi.markAllRead();
+    } catch {
+      /* ignore */
+    }
+    void load({ forceRefresh: true });
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -135,8 +145,17 @@ export function NotificationBell() {
         align="end"
         className="w-[min(100vw-2rem,360px)] max-h-[min(70vh,320px)] overflow-y-auto"
       >
-        <div className="px-2 py-1.5 text-xs font-semibold text-black/60 border-b border-black/10">
-          Notifications
+        <div className="px-2 py-1.5 text-xs font-semibold text-black/60 border-b border-black/10 flex items-center justify-between gap-2">
+          <span>Notifications</span>
+          {unread > 0 ? (
+            <button
+              type="button"
+              className="text-[11px] font-bold text-[#780301] hover:underline"
+              onClick={() => void markAllRead()}
+            >
+              Read all
+            </button>
+          ) : null}
         </div>
         {items.length === 0 ? (
           <div className="px-3 py-4 text-sm text-black/50">No notifications yet.</div>
@@ -147,7 +166,18 @@ export function NotificationBell() {
               className="flex flex-col items-start gap-1 whitespace-normal cursor-default focus:bg-black/[0.04]"
               onSelect={(e) => e.preventDefault()}
             >
-              <span className="text-sm text-black/90">{n.message}</span>
+              <span className="text-sm text-black/90 flex items-start gap-1.5">
+                {isWorkflowReadinessMessage(n.message) ? (
+                  <span className="mt-0.5 shrink-0 text-[#ff990a]" aria-hidden>
+                    {n.message.toLowerCase().includes("gec") ? (
+                      <Megaphone className="w-3.5 h-3.5" />
+                    ) : (
+                      <ClipboardCheck className="w-3.5 h-3.5" />
+                    )}
+                  </span>
+                ) : null}
+                {n.message}
+              </span>
               <span className="text-[11px] text-black/45">
                 {new Date(n.createdAt).toLocaleString()}
                 {!n.isRead ? (

@@ -165,6 +165,12 @@ export function GecPlotScheduleModal({
   const hasConflict =
     conflictFlags.faculty === "Yes" || conflictFlags.room === "Yes" || conflictFlags.section === "Yes";
 
+  const missingSubject = !draft.subjectId;
+  const missingRoom = !draft.roomId;
+  const missingBuilding = !buildingValue;
+  const plotIncomplete = missingSubject || missingRoom || missingBuilding;
+  const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
+
   const applySlotFromIndex = (idx: number, subjectId: string, slotDur = durationSlots) => {
     const subject = gecSubjects.find((s) => s.id === subjectId);
     const d = plotEntryDurationSlots(programCode, subject, slotDur);
@@ -222,6 +228,11 @@ export function GecPlotScheduleModal({
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          {plotIncomplete && !readOnly ? (
+            <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
+              Complete the highlighted fields before this plot can be saved.
+            </p>
+          ) : null}
           {readOnly ? (
             <p className="text-[12px] text-black/60 rounded-lg border border-black/10 bg-gray-50 px-3 py-2">
               Major subject rows are read-only. Only <strong>vacant GEC</strong> slots (light green in the grid) can be
@@ -258,7 +269,7 @@ export function GecPlotScheduleModal({
             </label>
             <select
               id="gec-plot-subject"
-              className={`${fieldClass} mt-1`}
+              className={missingSubject && !readOnly ? incompleteField : `${fieldClass} mt-1`}
               value={draft.subjectId}
               disabled={readOnly || gecSubjects.length === 0}
               onChange={(e) => {
@@ -330,7 +341,7 @@ export function GecPlotScheduleModal({
               </label>
               <select
                 id="gec-plot-building"
-                className={`${fieldClass} mt-1`}
+                className={missingBuilding && !readOnly ? incompleteField : `${fieldClass} mt-1`}
                 value={buildingValue}
                 disabled={readOnly || buildingLabels.length === 0}
                 onChange={(e) => {
@@ -354,7 +365,7 @@ export function GecPlotScheduleModal({
               </label>
               <select
                 id="gec-plot-room"
-                className={`${fieldClass} mt-1`}
+                className={missingRoom && !readOnly ? incompleteField : `${fieldClass} mt-1`}
                 value={draft.roomId}
                 disabled={readOnly || !buildingValue}
                 onChange={(e) => onDraftChange({ ...draft, roomId: e.target.value })}
@@ -450,7 +461,7 @@ export function GecPlotScheduleModal({
         </div>
 
         <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white/95 backdrop-blur px-5 py-4">
-          {!isNewPlot && onRemove && !readOnly ? (
+          {onRemove && !readOnly ? (
             <Button type="button" variant="outline" className="mr-auto text-red-800 border-red-200" onClick={onRemove}>
               Remove schedule
             </Button>
@@ -462,6 +473,7 @@ export function GecPlotScheduleModal({
             <Button
               type="button"
               className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold min-w-[120px]"
+              disabled={hasConflict || plotIncomplete}
               onClick={onApply}
             >
               {isNewPlot ? "Plot schedule" : "Save changes"}

@@ -9,7 +9,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { AlertTriangle, Plus, Save } from "lucide-react";
+import { AlertTriangle, Plus, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChairmanPlotScheduleModal } from "@/components/evaluator/ChairmanPlotScheduleModal";
 import {
@@ -553,8 +553,21 @@ export function BsitChairmanInteractiveWeekGrid({
                                 }}
                                 role="button"
                                 tabIndex={schedulePublished || r.lockedByDoiAt ? -1 : 0}
-                                className={schedulePublished || r.lockedByDoiAt ? "pointer-events-none opacity-70" : ""}
+                                className={`relative ${schedulePublished || r.lockedByDoiAt ? "pointer-events-none opacity-70" : ""}`}
                               >
+                                {!schedulePublished && !r.lockedByDoiAt ? (
+                                  <button
+                                    type="button"
+                                    className="absolute top-0.5 right-0.5 z-10 rounded p-0.5 text-red-800 hover:bg-red-100"
+                                    aria-label="Remove schedule"
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      onRemoveRow(r.id);
+                                    }}
+                                  >
+                                    <X className="w-3 h-3" aria-hidden />
+                                  </button>
+                                ) : null}
                                 <PlotCellSummary
                                   row={r}
                                   programCodeForSummary={programCodeForSummary}

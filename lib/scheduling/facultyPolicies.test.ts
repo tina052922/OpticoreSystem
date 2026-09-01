@@ -211,6 +211,22 @@ describe("evaluateFacultyLoadsForCollege / teaching-load justification gate", ()
     expect(over.rows[0].violations.some((v) => v.code === "OVER_PREP_LIMIT")).toBe(true);
   });
 
+  it("counts lecture and lab of the same subject as one prep", () => {
+    const subjects = new Map<string, Subject>([
+      ["lec", { ...baseSubject, id: "lec", code: "CC-112" }],
+      ["lab", { ...baseSubject, id: "lab", code: "CC-112L", lecUnits: 0, labUnits: 1 }],
+    ]);
+    const entries: ScheduleEntry[] = [
+      { ...makeEntry("e1", "08:00", "10:00", "Monday"), subjectId: "lec" },
+      { ...makeEntry("e2", "10:00", "13:00", "Monday"), subjectId: "lab" },
+    ];
+    const users = new Map([[instructorId, userRow]]);
+    const profiles = new Map([[instructorId, profile("Regular", null)]]);
+    const { rows } = evaluateFacultyLoadsForCollege(entries, subjects, users, profiles, "c1", () => "c1");
+    expect(rows[0].preparations).toBe(1);
+    expect(rows[0].violations.some((v) => v.code === "OVER_PREP_LIMIT")).toBe(false);
+  });
+
   it("does not treat repeated meetings of the same subject as extra preps", () => {
     const entries: ScheduleEntry[] = [
       makeEntry("e1", "08:00", "09:00", "Monday"),

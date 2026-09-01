@@ -11,12 +11,20 @@ export function isGecCurriculumSubjectCode(code: string): boolean {
   return u.startsWith("GEC-") || u.startsWith("GEE-");
 }
 
+/** GEC/GEE curriculum row (vacant or already assigned) — GEC Chairman scope. */
+export function isGecCurriculumScheduleEntry(
+  entry: { subjectId: string },
+  subjectById: Map<string, { code: string }>,
+): boolean {
+  const sub = subjectById.get(entry.subjectId);
+  return Boolean(sub && isGecCurriculumSubjectCode(sub.code));
+}
+
 /** Vacant = GEC/GEE subject row still assigned to the TBD placeholder instructor. */
 export function isGecVacantScheduleEntry(
   entry: { instructorId: string; subjectId: string },
   subjectById: Map<string, { code: string }>,
 ): boolean {
-  const sub = subjectById.get(entry.subjectId);
-  if (!sub || !isGecCurriculumSubjectCode(sub.code)) return false;
+  if (!isGecCurriculumScheduleEntry(entry, subjectById)) return false;
   return entry.instructorId === GEC_VACANT_INSTRUCTOR_USER_ID;
 }

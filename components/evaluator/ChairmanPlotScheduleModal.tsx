@@ -292,6 +292,15 @@ export function ChairmanPlotScheduleModal({
     conflictFlags.room === "Yes" ||
     conflictFlags.section === "Yes";
 
+  const missingSection = !draft.sectionId;
+  const missingSubject = !draft.subjectCode;
+  const missingInstructor = !draft.instructorId;
+  const missingRoom = !draft.roomId;
+  const missingBuilding = !buildingValue;
+  const plotIncomplete =
+    missingSection || missingSubject || missingInstructor || missingRoom || missingBuilding;
+  const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
+
   const draftDurationHours = draft.subjectCode ? dur : 0;
 
   const selectedInstructorLoad = draft.instructorId
@@ -482,6 +491,11 @@ export function ChairmanPlotScheduleModal({
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          {plotIncomplete && !readOnly ? (
+            <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
+              Complete the highlighted fields before this plot can be saved.
+            </p>
+          ) : null}
           {hasConflict ? (
             <div
               className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 flex gap-2 text-[12px] text-red-950"
@@ -602,7 +616,7 @@ export function ChairmanPlotScheduleModal({
             </label>
             <select
               id="plot-section"
-              className={`${fieldClass} mt-1`}
+              className={missingSection && !readOnly ? incompleteField : `${fieldClass} mt-1`}
               value={draft.sectionId}
               disabled={readOnly || noSections}
               onChange={(e) => {
@@ -642,7 +656,7 @@ export function ChairmanPlotScheduleModal({
             </label>
             <select
               id="plot-subject"
-              className={`${fieldClass} mt-1`}
+              className={missingSubject && !readOnly ? incompleteField : `${fieldClass} mt-1`}
               value={subjectSelectValue}
               disabled={readOnly || !draft.sectionId}
               onChange={(e) => {
@@ -723,7 +737,7 @@ export function ChairmanPlotScheduleModal({
             </label>
             <select
               id="plot-instructor"
-              className={`${fieldClass} mt-1`}
+              className={missingInstructor && !readOnly ? incompleteField : `${fieldClass} mt-1`}
               value={draft.instructorId}
               disabled={readOnly || noInstructors}
               onChange={(e) =>
@@ -776,7 +790,7 @@ export function ChairmanPlotScheduleModal({
             </label>
               <select
                 id="plot-building"
-                className={`${fieldClass} mt-1`}
+                className={missingBuilding && !readOnly ? incompleteField : `${fieldClass} mt-1`}
                 value={buildingValue}
                 disabled={readOnly || noBuildings}
                 onChange={(e) => {
@@ -806,7 +820,7 @@ export function ChairmanPlotScheduleModal({
               </label>
               <select
                 id="plot-room"
-                className={`${fieldClass} mt-1`}
+                className={missingRoom && !readOnly ? incompleteField : `${fieldClass} mt-1`}
                 value={draft.roomId}
                 disabled={readOnly || !buildingValue}
                 onChange={(e) =>
@@ -985,7 +999,7 @@ export function ChairmanPlotScheduleModal({
           <Button
             type="button"
             className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold min-w-[120px]"
-            disabled={readOnly || hasConflict}
+            disabled={readOnly || hasConflict || plotIncomplete}
             onClick={onApply}
           >
             {isNewPlot ? "Plot schedule" : "Save changes"}

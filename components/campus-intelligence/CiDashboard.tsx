@@ -10,6 +10,7 @@ import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { SYSTEM_CONFIG_RELOAD_EVENT } from "@/lib/system-configuration/system-config-reload";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import { CiDashboardCharts } from "./CiDashboardCharts";
+import { WorkflowReadinessBanner } from "@/components/notifications/WorkflowReadinessBanner";
 
 export type CiDashboardVariant = "full" | "gec" | "doi";
 
@@ -80,7 +81,7 @@ function conflictModeFor(
 
 export function CiDashboard({
   welcomeName,
-  basePath: _basePath,
+  basePath,
   variant = "full",
   conflictBanner = null,
   liveStats = null,
@@ -211,6 +212,28 @@ export function CiDashboard({
         ) : null}
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Campus Intelligence Core</h2>
       </div>
+
+      <WorkflowReadinessBanner
+        variant={variant === "gec" ? "gec" : variant === "doi" ? "doi" : "college"}
+        evaluatorHref={
+          conflictsLive?.evaluatorHref ||
+          (variant === "gec"
+            ? "/admin/gec/evaluator"
+            : variant === "doi"
+              ? "/doi/evaluator"
+              : `${basePath}/evaluator`)
+        }
+      />
+
+      {variant === "full" && basePath.includes("/admin/college") ? (
+        <Link
+          href="/admin/college/system-configuration"
+          className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-[#780301] hover:border-[#ff990a] shadow-sm"
+        >
+          System Configuration
+          <ChevronRight className="w-4 h-4" aria-hidden />
+        </Link>
+      ) : null}
 
       {conflictsLive && conflictsLive.conflictingRowCount > 0 ? (
         <Link

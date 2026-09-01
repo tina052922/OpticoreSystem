@@ -92,6 +92,7 @@ import { clampPlotStartSlotIndex, inferDurationSlotsFromTimes, plotRowDurationSl
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 
 export type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 
@@ -356,6 +357,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const rows = programMode === "night" ? nightRows : dayRows;
   const setRows = programMode === "night" ? setNightRows : setDayRows;
   const [justificationText, setJustificationText] = useState("");
+  const [loadJustifications, setLoadJustifications] = useState<ScheduleLoadJustification[]>([]);
   const [justificationSaving, setJustificationSaving] = useState(false);
   const [justificationMsg, setJustificationMsg] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string>("");
@@ -429,6 +431,13 @@ export function BsitChairmanEvaluatorWorksheet({
    * (Realtime / cross-reload), and never while the policy modal is open, so typing is not overwritten.
    */
   const justificationHydrateKeyRef = useRef<string | null>(null);
+  const [justificationReloadTick, setJustificationReloadTick] = useState(0);
+
+  useRealtimeEvent("badge.changed", (event) => {
+    if (event.payload?.badge !== "policy_reviews") return;
+    justificationHydrateKeyRef.current = null;
+    setJustificationReloadTick((n) => n + 1);
+  });
   useEffect(() => {
     if (policyJustificationModalOpen) return;
     if (!chairmanCollegeId || !academicPeriodId) {
@@ -447,7 +456,9 @@ export function BsitChairmanEvaluatorWorksheet({
           { method: "GET" },
         );
         if (!cancelled) {
-          const lj = (data.justifications ?? [])[0] as ScheduleLoadJustification | undefined;
+          const list = (data.justifications ?? []) as ScheduleLoadJustification[];
+          setLoadJustifications(list);
+          const lj = list[0];
           setJustificationText(lj?.justification ?? "");
         }
       } catch {}
@@ -455,7 +466,7 @@ export function BsitChairmanEvaluatorWorksheet({
     return () => {
       cancelled = true;
     };
-  }, [academicPeriodId, chairmanCollegeId, policyJustificationModalOpen]);
+  }, [academicPeriodId, chairmanCollegeId, policyJustificationModalOpen, justificationReloadTick]);
 
   /**
    * All sections for this chairman program (plotting grid only). Policy load + INS use campus-wide `ScheduleEntry`
@@ -1247,7 +1258,20 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [policyRows, facultyProfiles, onPolicySnapshot]);
 
   /** VPAA justification modal only when weekly teaching contact exceeds this instructor’s allowed load. */
-  const showJustification = policyRows.hasTeachingLoadJustificationViolation;
+  const acceptedFacultyIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const j of loadJustifications) {
+      if (j.doiDecision !== "accepted") continue;
+      if (academicPeriodId && j.academicPeriodId !== academicPeriodId) continue;
+      const fid = (j.facultyUserId ?? "").trim();
+      if (fid) ids.add(fid);
+    }
+    return ids;
+  }, [loadJustifications, academicPeriodId]);
+
+  const showJustification = policyRows.rows.some(
+    (r) => rowNeedsTeachingLoadJustification(r) && !acceptedFacultyIds.has(r.instructorId),
+  );
 
   /** Live "hours so far / cap" snapshot for the plot modal's instructor-select warning. */
   const instructorLoadById = useMemo(() => {
@@ -1263,10 +1287,12 @@ export function BsitChairmanEvaluatorWorksheet({
   const overloadedInstructorIds = useMemo(() => {
     const ids = new Set<string>();
     for (const r of policyRows.rows) {
-      if (rowNeedsTeachingLoadJustification(r)) ids.add(r.instructorId);
+      if (rowNeedsTeachingLoadJustification(r) && !acceptedFacultyIds.has(r.instructorId)) {
+        ids.add(r.instructorId);
+      }
     }
     return ids;
-  }, [policyRows.rows]);
+  }, [policyRows.rows, acceptedFacultyIds]);
 
   /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
   const saveLoadJustificationForDoi = useCallback(

@@ -49,8 +49,10 @@ import { clampPlotStartSlotIndex, plotEntryDurationSlots, timesFromSlotRange } f
 import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode, stampProgramMode } from "@/lib/scheduling/program-mode";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
+import { WorkflowReadinessBanner } from "@/components/notifications/WorkflowReadinessBanner";
 import {
   GEC_VACANT_INSTRUCTOR_USER_ID,
+  isGecCurriculumScheduleEntry,
   isGecCurriculumSubjectCode,
   isGecVacantScheduleEntry,
 } from "@/lib/gec/gec-vacant";
@@ -397,6 +399,34 @@ export function GecCentralHubEvaluatorClient() {
     [requests, grantScopeCollegeId],
   );
 
+  /** GEC/GEE curriculum rows GEC may edit after grant (vacant or already assigned). */
+  const gecOwnedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of modeMergedEntries) {
+      if (e.academicPeriodId !== academicPeriodId) continue;
+      const sec = sectionById.get(e.sectionId);
+      const pr = sec ? programById.get(sec.programId) : null;
+      if (!pr) continue;
+      if (!isCampusWide) {
+        if (!collegeParam || pr.collegeId !== collegeParam) continue;
+      }
+      if (programId && sec?.programId !== programId) continue;
+      if (sectionIdFilter && e.sectionId !== sectionIdFilter) continue;
+      if (isGecCurriculumScheduleEntry(e, subjectById)) ids.add(e.id);
+    }
+    return ids;
+  }, [
+    modeMergedEntries,
+    academicPeriodId,
+    collegeParam,
+    isCampusWide,
+    programId,
+    sectionIdFilter,
+    sectionById,
+    programById,
+    subjectById,
+  ]);
+
   /** Rows that are vacant GEC placeholders (DB + newly added local rows). */
   const vacantGecSourceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -435,7 +465,7 @@ export function GecCentralHubEvaluatorClient() {
         if (typeof navigator !== "undefined" && navigator.onLine === false) return;
         const toSave: ScheduleEntry[] = [];
         for (const e of [...entries, ...extraEntries]) {
-          if (!vacantGecSourceIds.has(e.id)) continue;
+          if (!gecOwnedIds.has(e.id)) continue;
           const patch = edits[e.id];
           const isNew = pendingNewEntryIds.has(e.id);
           const hasPatch = patch && Object.keys(patch).length > 0;
@@ -462,7 +492,7 @@ export function GecCentralHubEvaluatorClient() {
     edits,
     extraEntries,
     entries,
-    vacantGecSourceIds,
+    gecOwnedIds,
     pendingNewEntryIds,
     toast,
     programMode,
@@ -483,7 +513,7 @@ export function GecCentralHubEvaluatorClient() {
         void (async () => {
           const toSave: ScheduleEntry[] = [];
           for (const e of [...entries, ...extraEntries]) {
-            if (!vacantGecSourceIds.has(e.id)) continue;
+            if (!gecOwnedIds.has(e.id)) continue;
             const patch = edits[e.id];
             const isNew = pendingNewEntryIds.has(e.id);
             const hasPatch = patch && Object.keys(patch).length > 0;
@@ -506,7 +536,7 @@ export function GecCentralHubEvaluatorClient() {
     edits,
     extraEntries,
     entries,
-    vacantGecSourceIds,
+    gecOwnedIds,
     pendingNewEntryIds,
     toast,
     programMode,
@@ -619,7 +649,7 @@ export function GecCentralHubEvaluatorClient() {
 
   /** Apply a GA suggestion to a vacant GEC row only (major rows stay locked). */
   function applyGecGaSuggestion(entryId: string, s: GASuggestion) {
-    if (!vacantGecSourceIds.has(entryId)) return;
+    if (!gecOwnedIds.has(entryId)) return;
     const pad = (t: string) => (t.trim().length <= 5 ? `${t.trim()}:00` : t.trim());
     patchEdit(entryId, {
       day: s.day,
@@ -765,7 +795,7 @@ export function GecCentralHubEvaluatorClient() {
     try {
       const toSave: ScheduleEntry[] = [];
       for (const e of allEntries) {
-        if (!vacantGecSourceIds.has(e.id)) continue;
+        if (!gecOwnedIds.has(e.id)) continue;
         const merged = { ...e, ...edits[e.id] };
         const isNew = pendingNewEntryIds.has(e.id);
         const patch = edits[e.id];
@@ -775,13 +805,32 @@ export function GecCentralHubEvaluatorClient() {
         }
       }
       if (toSave.length === 0) {
-        setSaveMsg("No vacant GEC edits to save.");
+        setSaveMsg("No GEC edits to save.");
         toast.info("No changes to save");
         return;
       }
 
-      const byId = new Map(allEntries.map((e) => [e.id, e]));
+      const byId = new Map(modeMergedEntries.map((e) => [e.id, e]));
       for (const e of toSave) byId.set(e.id, e);
+      const conflictScan = scanAllSparseScheduleConflicts(
+        [...byId.values()]
+          .filter((e) => e.academicPeriodId === academicPeriodId)
+          .map((e) => scheduleEntryToSparseBlock(e))
+          .filter((b): b is NonNullable<typeof b> => b != null),
+      );
+      if (conflictScan.issues.length > 0) {
+        const preview = conflictScan.issueSummaries.slice(0, 3).join(" · ");
+        const more =
+          conflictScan.issueSummaries.length > 3
+            ? ` (+${conflictScan.issueSummaries.length - 3} more)`
+            : "";
+        const msg = `${preview}${more}`;
+        setSaveMsg(`Resolve timetable conflicts before saving: ${msg}`);
+        toast.error("Cannot save until conflicts are resolved", msg);
+        runConflictCheck();
+        return;
+      }
+
       const hypothetical = filterByProgramMode(
         [...byId.values()].filter(
           (e) => e.instructorId && e.instructorId !== GEC_VACANT_INSTRUCTOR_USER_ID,
@@ -911,13 +960,25 @@ export function GecCentralHubEvaluatorClient() {
     if (s) setProgramId(s.programId);
   }
 
-  function removePendingEntry(entryId: string) {
+  async function removeGecEntry(entryId: string) {
+    if (!gecOwnedIds.has(entryId) && !pendingNewEntryIds.has(entryId)) return;
     setExtraEntries((prev) => prev.filter((e) => e.id !== entryId));
     setEdits((prev) => {
       const next = { ...prev };
       delete next[entryId];
       return next;
     });
+    if (pendingNewEntryIds.has(entryId)) return;
+    try {
+      await apiFetch(`/api/catalog/schedule-entries/${entryId}`, { method: "DELETE" });
+      setEntries((prev) => prev.filter((e) => e.id !== entryId));
+      dispatchInsCatalogReload();
+      toast.success("Schedule removed");
+    } catch (e: unknown) {
+      const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Could not remove schedule";
+      setSaveMsg(msg);
+      toast.error("Failed to remove schedule", msg);
+    }
   }
 
   function addGecScheduleRowAt(day: BsitEvaluatorWeekday, startIdx: number) {
@@ -1196,6 +1257,9 @@ export function GecCentralHubEvaluatorClient() {
         title="Central Hub Evaluator"
         subtitle="Vacant GEC slots only after one-time access approval for this college."
       />
+      <div className="px-4 md:px-8 pt-2 max-w-[1400px] mx-auto">
+        <WorkflowReadinessBanner variant="gec" evaluatorHref="/admin/gec/evaluator" />
+      </div>
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1297,7 +1361,7 @@ export function GecCentralHubEvaluatorClient() {
                     allowApply={canEditVacant}
                     onApplySuggestion={(key, s) => {
                       const iss = gecEnrichedConflicts.find((i) => i.key === key);
-                      if (!iss || !vacantGecSourceIds.has(iss.rowA.entryId)) return;
+                      if (!iss || !gecOwnedIds.has(iss.rowA.entryId)) return;
                       applyGecGaSuggestion(iss.rowA.entryId, s);
                     }}
                     formatSuggestionLabel={(sug) =>
@@ -1383,7 +1447,7 @@ export function GecCentralHubEvaluatorClient() {
                     onCreateVacantAtCell={addGecScheduleRowAt}
                     focusEntryId={focusPlotEntryId}
                     onFocusEntryHandled={() => setFocusPlotEntryId(null)}
-                    onRemovePendingEntry={removePendingEntry}
+                    onRemovePendingEntry={removeGecEntry}
                     pendingNewEntryIds={pendingNewEntryIds}
                     insFormBasePath="/admin/gec/ins"
                     plottingActions={{
@@ -1423,7 +1487,7 @@ export function GecCentralHubEvaluatorClient() {
                             allowApply={canEditVacant}
                             onApplySuggestion={(key, s) => {
                               const iss = gecEnrichedConflicts.find((i) => i.key === key);
-                              if (!iss || !vacantGecSourceIds.has(iss.rowA.entryId)) return;
+                              if (!iss || !gecOwnedIds.has(iss.rowA.entryId)) return;
                               applyGecGaSuggestion(iss.rowA.entryId, s);
                             }}
                             formatSuggestionLabel={(sug) =>

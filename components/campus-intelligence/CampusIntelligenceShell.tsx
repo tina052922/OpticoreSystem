@@ -91,6 +91,7 @@ export type CampusIntelligenceShellProps = {
   /** Shown above the semester chip (e.g. “College admin · COTE”). */
   roleLabel?: string;
   profileHref: string;
+  settingsHref?: string;
   /** Kept for layouts that pass it; inbox is only in the sidebar, not the avatar menu. */
   inboxHref?: string;
   /**
@@ -127,6 +128,7 @@ export function CampusIntelligenceShell({
   navItems,
   roleLabel,
   profileHref,
+  settingsHref,
   scheduleChangeRequestsBadgeCollegeId = null,
   scheduleChangeRequestsBadgeProgramId = null,
   accessRequestsBadgeCollegeId = null,
@@ -255,6 +257,14 @@ export function CampusIntelligenceShell({
               <DropdownMenuItem asChild>
                 <Link href={profileHref}>Profile</Link>
               </DropdownMenuItem>
+              {settingsHref ? (
+                <DropdownMenuItem asChild>
+                  <Link href={settingsHref} className="flex items-center gap-2 cursor-pointer">
+                    <Settings className="w-4 h-4 shrink-0 text-black/70" aria-hidden />
+                    System Configuration
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem asChild>
                 <Link href="/account/change-password" className="flex items-center gap-2 cursor-pointer">
                   <KeyRound className="w-4 h-4 shrink-0 text-black/70" aria-hidden />

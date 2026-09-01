@@ -2,6 +2,7 @@ import type { FacultyProfile, ScheduleEntry, Subject, User } from "@/types/db";
 import { FACULTY_POLICY_CONSTANTS } from "./constants";
 import type { ResolvedFacultyPolicyConstants } from "@/lib/system-configuration/scheduling-policy";
 import { designationTeachingCapHours } from "@/lib/faculty/designation-system";
+import { subjectPrepKey } from "./prep-key";
 
 function parseTimeToMinutes(t: string): number {
   const [h, m] = t.split(":").map((x) => parseInt(x, 10));
@@ -207,6 +208,7 @@ export function evaluateFacultyLoadsForCollege(
       lec: number;
       lab: number;
       subjectIds: Set<string>;
+      prepKeys: Set<string>;
       seenPairs: Set<string>;
       units: number;
     }
@@ -221,6 +223,7 @@ export function evaluateFacultyLoadsForCollege(
       lec: 0,
       lab: 0,
       subjectIds: new Set<string>(),
+      prepKeys: new Set<string>(),
       seenPairs: new Set<string>(),
       units: 0,
     };
@@ -228,6 +231,8 @@ export function evaluateFacultyLoadsForCollege(
     cur.lec += lec;
     cur.lab += lab;
     if (e.subjectId) cur.subjectIds.add(e.subjectId);
+    const prep = subjectPrepKey(sub?.code) || e.subjectId;
+    if (prep) cur.prepKeys.add(prep);
     const pairKey = `${e.subjectId}:${e.sectionId}`;
     if (!cur.seenPairs.has(pairKey)) {
       cur.seenPairs.add(pairKey);
@@ -245,10 +250,11 @@ export function evaluateFacultyLoadsForCollege(
     const desCap = designationTeachingCapHours(ctx.designation);
     const effectiveTeachingCap = desCap ?? policyConstants.STANDARD_WEEKLY_TEACHING_HOURS;
     const teaching = collectTeachingLoadCapViolations(ctx, hrs.total, policyConstants);
-    if (hrs.subjectIds.size >= PREP_LIMIT_JUSTIFICATION_THRESHOLD) {
+    const preparations = hrs.prepKeys.size || hrs.subjectIds.size;
+    if (preparations >= PREP_LIMIT_JUSTIFICATION_THRESHOLD) {
       teaching.push({
         code: "OVER_PREP_LIMIT",
-        message: `Preparations (${hrs.subjectIds.size} distinct subjects) reach or exceed the allowed ${MAX_WEEKLY_PREPS_WITHOUT_JUSTIFICATION} without justification.`,
+        message: `Preparations (${preparations} distinct subjects) reach or exceed the allowed ${MAX_WEEKLY_PREPS_WITHOUT_JUSTIFICATION} without justification.`,
       });
     }
     const secondary = collectSecondaryPolicyViolations(hrs.total, hrs.lec, hrs.lab, policyConstants);
@@ -265,7 +271,7 @@ export function evaluateFacultyLoadsForCollege(
       weeklyTotalContactHours: hrs.total,
       weeklyLectureHours: hrs.lec,
       weeklyLabHours: hrs.lab,
-      preparations: hrs.subjectIds.size,
+      preparations,
       weeklyUnits: hrs.units,
       subjectCodes,
       status: ctx.status,

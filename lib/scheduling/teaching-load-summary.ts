@@ -2,6 +2,7 @@ import type { FacultyProfile, ScheduleEntry, ScheduleLoadJustification, Section,
 import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { slotDurationHours } from "@/lib/scheduling/facultyPolicies";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
+import { subjectPrepKey } from "@/lib/scheduling/prep-key";
 
 export type TeachingLoadModeSlice = {
   preps: number;
@@ -83,12 +84,15 @@ export function metricsForEntries(
   subjectById: Map<string, Subject>,
 ): TeachingLoadModeSlice {
   const subjectIds = new Set<string>();
+  const prepKeys = new Set<string>();
   const seenPairs = new Set<string>();
   let hours = 0;
   let units = 0;
   for (const e of entries) {
     hours += slotDurationHours(e.startTime, e.endTime);
     if (e.subjectId) subjectIds.add(e.subjectId);
+    const prep = subjectPrepKey(subjectById.get(e.subjectId)?.code) || e.subjectId;
+    if (prep) prepKeys.add(prep);
     const pairKey = `${e.subjectId}:${e.sectionId}`;
     if (!seenPairs.has(pairKey)) {
       seenPairs.add(pairKey);
@@ -97,7 +101,7 @@ export function metricsForEntries(
     }
   }
   return {
-    preps: subjectIds.size,
+    preps: prepKeys.size || subjectIds.size,
     unitsPerWeek: units,
     hoursPerWeek: Math.round(hours * 100) / 100,
   };

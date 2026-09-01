@@ -13,6 +13,7 @@ import {
   type ChairmanPolicySnapshot,
 } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { WorkflowReadinessBanner } from "@/components/notifications/WorkflowReadinessBanner";
 
 export type EvaluatorPageProps = {
   /** Chairman: program plotter. College: same plotter, college-wide. CAS / DOI: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
@@ -46,11 +47,21 @@ export function EvaluatorPage({
 
   if (variant === "cas" || variant === "doi" || showCollegeHub) {
     return (
-      <CentralHubEvaluatorView
-        basePath={centralHubBasePath(variant === "college" ? "college" : variant)}
-        showDoiGovernance={variant === "doi"}
-        hubAccessMode={variant === "college" ? "collegeAdmin" : "default"}
-      />
+      <div>
+        {variant === "doi" || variant === "college" ? (
+          <div className="px-4 md:px-8 pt-4">
+            <WorkflowReadinessBanner
+              variant={variant === "doi" ? "doi" : "college"}
+              evaluatorHref={centralHubBasePath(variant === "college" ? "college" : "doi")}
+            />
+          </div>
+        ) : null}
+        <CentralHubEvaluatorView
+          basePath={centralHubBasePath(variant === "college" ? "college" : variant)}
+          showDoiGovernance={variant === "doi"}
+          hubAccessMode={variant === "college" ? "collegeAdmin" : "default"}
+        />
+      </div>
     );
   }
 
@@ -59,6 +70,11 @@ export function EvaluatorPage({
   return (
     <div>
       <ChairmanPageHeader title="Evaluator" />
+      {collegeWide ? (
+        <div className="px-4 md:px-8 pt-2">
+          <WorkflowReadinessBanner variant="college" evaluatorHref="/admin/college/evaluator" />
+        </div>
+      ) : null}
 
       <div className="px-4 md:px-8 pb-8">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">

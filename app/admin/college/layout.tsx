@@ -15,6 +15,7 @@ export default async function CollegeAdminLayout({ children }: { children: React
       navItems={COLLEGE_ADMIN_NAV}
       roleLabel="College admin · COTE"
       profileHref="/admin/college/profile"
+      settingsHref="/admin/college/system-configuration"
       accessRequestsBadgeCollegeId={profile.collegeId}
       policyJustificationsBadgeCollegeId={profile.collegeId}
       auditLogUnreadScope="college"

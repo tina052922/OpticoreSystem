@@ -220,6 +220,25 @@ describe("buildTeachingLoadSummary", () => {
   });
 });
 
+describe("metricsForEntries", () => {
+  it("counts CC112 lecture and lab as one prep", () => {
+    const lec: Subject = { ...subjectDay, id: "cc112", code: "CC-112" };
+    const lab: Subject = { ...subjectDay, id: "cc112l", code: "CC-112L", lecUnits: 0, labUnits: 1 };
+    const map = new Map<string, Subject>([
+      [lec.id, lec],
+      [lab.id, lab],
+    ]);
+    const slice = metricsForEntries(
+      [
+        entry({ id: "a", subjectId: lec.id, programMode: "day" }),
+        entry({ id: "b", subjectId: lab.id, programMode: "day", startTime: "10:00", endTime: "13:00" }),
+      ],
+      map,
+    );
+    expect(slice.preps).toBe(1);
+  });
+});
+
 describe("categoryLabelForProgram", () => {
   it("uses institutional labels for known program ids", () => {
     expect(categoryLabelForProgram({ id: "prog-bit-dt", collegeId: "c1", code: "BIT-DT" })).toBe("BIT – Drafting");

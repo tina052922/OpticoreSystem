@@ -9,7 +9,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GecPlotScheduleModal } from "@/components/gec/GecPlotScheduleModal";
 import type { ChairmanGridPlottingActions } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
@@ -27,7 +27,7 @@ import {
   timesFromSlotRange,
 } from "@/lib/evaluator/plot-duration";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
-import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
+import { isGecCurriculumScheduleEntry } from "@/lib/gec/gec-vacant";
 import {
   formatUserInstructorLabel,
   type InstructorPlotOption,
@@ -248,8 +248,10 @@ export function GecInteractiveWeekGrid({
 
   const openModalForEntry = useCallback(
     (e: ScheduleEntry, anchor: CellAnchor) => {
+      const isGec = isGecCurriculumScheduleEntry(e, subjectById);
+      if (!isGec) return;
       const isVacant = vacantGecSourceIds.has(e.id);
-      const readOnly = !canEditVacant || !isVacant;
+      const readOnly = !canEditVacant;
       const pickedRoom = e.roomId ? roomById.get(e.roomId) : undefined;
       const buildingValue = roomBuildingByEntryId[e.id] ?? (pickedRoom ? roomBuildingKey(pickedRoom) : "");
       setHighlightedCell(anchor);
@@ -263,7 +265,7 @@ export function GecInteractiveWeekGrid({
         anchor,
       });
     },
-    [canEditVacant, vacantGecSourceIds, roomById, roomBuildingByEntryId, pendingNewEntryIds],
+    [canEditVacant, vacantGecSourceIds, roomById, roomBuildingByEntryId, pendingNewEntryIds, subjectById],
   );
 
   const openModalForEmptyCell = useCallback(
@@ -282,6 +284,7 @@ export function GecInteractiveWeekGrid({
   const handleApply = useCallback(() => {
     if (!modal || modal.readOnly) return;
     const { entryId, draft, buildingValue } = modal;
+    if (!draft.subjectId || !draft.roomId || !draft.day || !draft.startTime || !draft.endTime) return;
     if (buildingValue) {
       setRoomBuildingByEntryId((prev) => ({ ...prev, [entryId]: buildingValue }));
     }
@@ -297,7 +300,7 @@ export function GecInteractiveWeekGrid({
   }, [modal, onPatchEntry, setRoomBuildingByEntryId, closeModal]);
 
   const handleRemove = useCallback(() => {
-    if (!modal || modal.isNew) return;
+    if (!modal || modal.readOnly) return;
     onRemovePendingEntry?.(modal.entryId);
     closeModal();
   }, [modal, onRemovePendingEntry, closeModal]);
@@ -510,29 +513,50 @@ export function GecInteractiveWeekGrid({
                           const room = roomById.get(e.roomId);
                           const inst = userById.get(e.instructorId);
                           const isVacant = vacantGecSourceIds.has(e.id);
+                          const isGec = isGecCurriculumScheduleEntry(e, subjectById);
                           const cf = conflictForEntry(e);
                           const dur = bounds?.dur ?? 1;
                           const hasConflict =
                             cf.faculty === "Yes" || cf.room === "Yes" || cf.section === "Yes";
+                          const lockedMajor = !isGec;
 
                           return (
                             <li key={e.id} id={`gec-hub-eval-row-${e.id}`}>
                               <div
-                                role="button"
-                                tabIndex={0}
-                                className={`w-full text-left rounded-md px-1.5 py-1.5 leading-tight cursor-pointer transition-colors ${
-                                  isVacant
-                                    ? "bg-emerald-100/90 ring-1 ring-emerald-400/70 hover:bg-emerald-100"
-                                    : "bg-gray-200/70 text-black/70 hover:bg-gray-200/90"
-                                } ${hasConflict ? "border border-red-300/80" : "border border-transparent"}`}
-                                onClick={() => openModalForEntry(e, anchor)}
+                                role={lockedMajor ? undefined : "button"}
+                                tabIndex={lockedMajor ? undefined : 0}
+                                className={`w-full text-left rounded-md px-1.5 py-1.5 leading-tight transition-colors relative ${
+                                  lockedMajor
+                                    ? "bg-gray-200/80 text-black/55 cursor-not-allowed"
+                                    : isVacant
+                                      ? "bg-emerald-100/90 ring-1 ring-emerald-400/70 hover:bg-emerald-100 cursor-pointer"
+                                      : "bg-emerald-50/80 ring-1 ring-emerald-300/50 hover:bg-emerald-50 cursor-pointer"
+                                } ${hasConflict && !lockedMajor ? "border border-red-300/80" : "border border-transparent"}`}
+                                onClick={() => {
+                                  if (lockedMajor) return;
+                                  openModalForEntry(e, anchor);
+                                }}
                                 onKeyDown={(ev) => {
+                                  if (lockedMajor) return;
                                   if (ev.key === "Enter" || ev.key === " ") {
                                     ev.preventDefault();
                                     openModalForEntry(e, anchor);
                                   }
                                 }}
                               >
+                                {canEditVacant && isGec ? (
+                                  <button
+                                    type="button"
+                                    className="absolute top-0.5 right-0.5 rounded p-0.5 text-red-800 hover:bg-red-100"
+                                    aria-label="Remove schedule"
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      onRemovePendingEntry?.(e.id);
+                                    }}
+                                  >
+                                    <X className="w-3 h-3" aria-hidden />
+                                  </button>
+                                ) : null}
                                 <span className="text-[10px] font-bold text-black block truncate">
                                   {sub?.code ?? "—"}
                                 </span>
@@ -552,7 +576,7 @@ export function GecInteractiveWeekGrid({
                                 {hasConflict ? (
                                   <span className="text-[7px] font-bold text-red-800 mt-0.5 block">Conflict</span>
                                 ) : null}
-                                {!isVacant ? (
+                                {!isGec ? (
                                   <span className="text-[7px] font-semibold text-black/45 block">Locked</span>
                                 ) : null}
                               </div>
@@ -639,9 +663,7 @@ export function GecInteractiveWeekGrid({
             : undefined
         }
         onApply={handleApply}
-        onRemove={
-          modal && modal.isNew && pendingNewEntryIds.has(modal.entryId) ? handleRemove : undefined
-        }
+        onRemove={modal && !modal.readOnly ? handleRemove : undefined}
       />
     </div>
   );

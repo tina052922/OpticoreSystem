@@ -312,42 +312,72 @@ export function FacultyScheduleChangeModal({
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-black">Pick a free day/time cell</p>
+                    <p className="text-sm font-medium text-black">Pick a free day and start time</p>
                     <p className="text-[11px] text-black/55">
-                      Duration stays {formatTimeRange12h(requestedStartTime, requestedEndTime)}. Gray = unavailable. Green = current class.
+                      Same layout as Evaluator: days across, hours down. Duration stays{" "}
+                      <strong>{formatTimeRange12h(requestedStartTime, requestedEndTime)}</strong>. Only times in this
+                      Day/Evening window are listed.
                     </p>
+                    <div className="flex flex-wrap gap-3 text-[10px] text-black/70">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="inline-block h-3 w-3 rounded-sm border border-black bg-white" /> Free
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="inline-block h-3 w-3 rounded-sm border border-black bg-emerald-200" /> Current class
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="inline-block h-3 w-3 rounded-sm border border-black bg-[#ff990a]" /> Selected
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="inline-block h-3 w-3 rounded-sm border border-black bg-neutral-200" /> Unavailable
+                      </span>
+                    </div>
                     {gridLoading ? (
                       <p className="text-sm text-black/50">Loading available slots…</p>
                     ) : gridCells.length === 0 ? (
                       <p className="text-sm text-amber-900">Could not load the slot grid. Try again.</p>
                     ) : (
-                      <div className="overflow-x-auto rounded-lg border border-black/10">
-                        <table className="w-full text-[11px] border-collapse">
-                          <thead>
-                            <tr className="bg-black/[0.04]">
-                              <th className="p-1.5 text-left sticky left-0 bg-black/[0.04]">Time</th>
+                      <div className="overflow-x-auto max-h-[min(50vh,420px)] overflow-y-auto rounded-lg border border-black">
+                        <table className="w-full border-collapse border border-black text-[10px]">
+                          <thead className="sticky top-0 z-10">
+                            <tr>
+                              <th className="border border-black bg-[#ff990a] text-white px-1 py-1 w-[88px] font-bold">
+                                TIME
+                              </th>
                               {(gridWeekdays.length ? gridWeekdays : WEEKDAYS).map((d) => (
-                                <th key={d} className="p-1.5 font-semibold">
-                                  {d.slice(0, 3)}
+                                <th
+                                  key={d}
+                                  className="border border-black bg-[#ff990a] text-white px-1 py-1 min-w-[72px] font-bold"
+                                >
+                                  {d}
                                 </th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
                             {[...new Set(gridCells.map((c) => c.startTime))].sort().map((start) => (
-                              <tr key={start} className="border-t border-black/10">
-                                <td className="p-1.5 whitespace-nowrap font-medium sticky left-0 bg-white">
+                              <tr key={start}>
+                                <td className="border border-black px-1 py-1.5 text-center whitespace-nowrap font-medium bg-white">
                                   {formatHHMMTo12h(start)}
                                 </td>
                                 {(gridWeekdays.length ? gridWeekdays : WEEKDAYS).map((day) => {
                                   const cell = gridCells.find((c) => c.day === day && c.startTime === start);
-                                  if (!cell) return <td key={day} className="p-0.5" />;
+                                  if (!cell) {
+                                    return (
+                                      <td
+                                        key={day}
+                                        className="border border-black bg-neutral-100 text-neutral-400 text-center text-[8px] font-semibold"
+                                      >
+                                        —
+                                      </td>
+                                    );
+                                  }
                                   const selected =
                                     requestedDay === cell.day && requestedStartTime === cell.startTime;
                                   const blocked = cell.status === "busy" || cell.status === "no_room";
                                   const original = cell.status === "original";
                                   return (
-                                    <td key={day} className="p-0.5">
+                                    <td key={day} className="border border-black p-0 align-stretch">
                                       <button
                                         type="button"
                                         disabled={blocked}
@@ -366,21 +396,17 @@ export function FacultyScheduleChangeModal({
                                           setRequestedEndTime(cell.endTime);
                                           setRequestedRoomId(cell.freeRooms[0]?.id ?? "");
                                         }}
-                                        className={`w-full min-h-[2.25rem] rounded-md px-1 py-1 text-left leading-tight ${
+                                        className={`w-full min-h-[40px] px-1 py-1.5 text-center font-semibold leading-tight ${
                                           blocked
-                                            ? "cursor-not-allowed bg-black/[0.06] text-black/35"
+                                            ? "cursor-not-allowed bg-neutral-200 text-neutral-500"
                                             : selected
-                                              ? "bg-[#ff990a] text-white font-semibold"
+                                              ? "bg-[#ff990a] text-white"
                                               : original
-                                                ? "bg-emerald-100 text-emerald-950"
-                                                : "bg-[#fff7ed] hover:bg-[#ffedd5] text-black"
+                                                ? "bg-emerald-100 text-emerald-950 hover:bg-emerald-200"
+                                                : "bg-white hover:bg-[#fff7ed] text-black/70"
                                         }`}
                                       >
-                                        {blocked
-                                          ? "Busy"
-                                          : original && !selected
-                                            ? "Now"
-                                            : formatHHMMTo12h(cell.endTime)}
+                                        {blocked ? "Unavailable" : original && !selected ? "Current" : selected ? "Selected" : ""}
                                       </button>
                                     </td>
                                   );

@@ -2,7 +2,7 @@ import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
 import { INSHeader } from "../shared/INSHeader";
 import type { TeachingLoadCategoryGroup, TeachingLoadSummaryRow } from "@/lib/scheduling/teaching-load-summary";
 
-const NAVY = "#1e3a5f";
+const MAROON = "#780301";
 
 const s = StyleSheet.create({
   page: {
@@ -36,7 +36,7 @@ const s = StyleSheet.create({
   categoryTitle: {
     fontFamily: "Helvetica-Bold",
     fontSize: 8,
-    color: NAVY,
+    color: MAROON,
     marginTop: 8,
     marginBottom: 3,
     textTransform: "uppercase",
@@ -48,7 +48,7 @@ const s = StyleSheet.create({
   },
   theadRow: {
     flexDirection: "row",
-    backgroundColor: NAVY,
+    backgroundColor: MAROON,
   },
   tr: {
     flexDirection: "row",
@@ -165,7 +165,7 @@ function FacultyRow({ row, index, alt }: { row: TeachingLoadSummaryRow; index: n
 
 function CategoryTable({ group }: { group: TeachingLoadCategoryGroup }) {
   return (
-    <View wrap={false}>
+    <View>
       <Text style={s.categoryTitle}>{group.categoryLabel}</Text>
       <View style={s.table}>
         <View style={s.theadRow}>
@@ -216,7 +216,7 @@ export function TeachingLoadSummaryDocument({
 }: TeachingLoadSummaryDocumentProps) {
   return (
     <Document>
-      <Page size="A4" orientation="landscape" style={s.page}>
+      <Page size="A4" orientation="portrait" style={s.page}>
         <INSHeader
           formCode="Summary of Teaching Load"
           formTitle="Summary of Teaching Load"
