@@ -30,6 +30,8 @@ type Props = {
   plottedSubjectCodes: ReadonlySet<string>;
   /** Latest code the chairman just plotted — extra emphasis (pulse) in the summary. */
   lastPlottedSubjectCode?: string | null;
+  /** Catalog subjects when the program has no static prospectus (BIT / BSIE). */
+  fallbackSubjects?: { code: string; title: string }[];
   className?: string;
 };
 
@@ -45,6 +47,7 @@ export function ChairmanProgramProspectusSummaryTable({
   filterSemester = null,
   plottedSubjectCodes,
   lastPlottedSubjectCode = null,
+  fallbackSubjects = [],
   className = "",
 }: Props) {
   const [activeCode, setActiveCode] = useState<string | null>(null);
@@ -81,8 +84,36 @@ export function ChairmanProgramProspectusSummaryTable({
       {!programCode.trim() ? (
         <p className="text-sm text-black/55 px-2 py-4">No program code in scope.</p>
       ) : !hasProspectusForProgram(programCode) ? (
-        <div className="px-2 py-4 text-sm text-amber-950 bg-amber-50">
-          <p className="font-semibold">No static prospectus for program code &quot;{programCode}&quot;</p>
+        <div className="px-2 py-3">
+          <p className="text-[12px] text-black/60 mb-2">
+            No static prospectus for <strong>{programCode}</strong>. Subjects below come from the catalog for this
+            department.
+          </p>
+          {fallbackSubjects.length === 0 ? (
+            <p className="text-sm text-black/55">No catalog subjects for this department yet.</p>
+          ) : (
+            <table className="w-full border-collapse text-[11px]">
+              <thead>
+                <tr className="text-left text-black/55">
+                  <th className="py-1 pr-2">Code</th>
+                  <th className="py-1 pr-2">Title</th>
+                  <th className="py-1">Plotted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fallbackSubjects.map((s) => {
+                  const plotted = plottedSubjectCodes.has(normalizeProspectusCode(s.code));
+                  return (
+                    <tr key={s.code} className="border-t border-black/10">
+                      <td className="py-1 pr-2 font-semibold">{s.code}</td>
+                      <td className="py-1 pr-2">{s.title}</td>
+                      <td className="py-1">{plotted ? "Yes" : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       ) : yearLevelFilter === undefined ? (
         <p className="text-sm text-black/60 px-2 py-4">

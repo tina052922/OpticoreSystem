@@ -9,7 +9,7 @@ import {
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { isEvaluatorSlotPlottable, evaluatorTimeSlots, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
-import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
+import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import {
   clampPlotStartSlotIndex,
   maxPlotDurationSlots,
@@ -74,7 +74,6 @@ function buildCandidateBlock(
   const merged = { ...draft, ...overrides };
   if (!merged.subjectCode || !merged.day) return null;
   const pr = prospectusRowForProgram(programCodeForSummary, merged.subjectCode);
-  if (!pr) return null;
   const dur = plotRowDurationSlots(pr, merged);
   const maxS = slots.length - dur;
   const startIdx = clampPlotStartSlotIndex(
@@ -109,6 +108,7 @@ export type ChairmanPlotScheduleModalProps = {
   buildingValue: string;
   onBuildingChange: (building: string) => void;
   programCodeForSummary: string;
+  catalogSubjectRows?: ProspectusSubjectRow[];
   majorOptions: MajorOption[];
   programSections: Section[];
   instructorPlotOptions: InstructorPlotOption[];
@@ -144,6 +144,7 @@ export function ChairmanPlotScheduleModal({
   buildingValue,
   onBuildingChange,
   programCodeForSummary,
+  catalogSubjectRows,
   majorOptions,
   programSections,
   instructorPlotOptions,
@@ -195,8 +196,14 @@ export function ChairmanPlotScheduleModal({
   const pr = draft.subjectCode
     ? prospectusRowForProgram(programCodeForSummary, draft.subjectCode)
     : undefined;
-  const dur = pr ? plotRowDurationSlots(pr, draft) : 1;
-  const maxDur = pr ? maxPlotDurationSlots(pr) : 1;
+  const catalogMatch = !pr && draft.subjectCode
+    ? (catalogSubjectRows ?? []).find(
+        (s) => s.code.trim().toUpperCase() === draft.subjectCode.trim().toUpperCase(),
+      )
+    : undefined;
+  const durationSource = pr ?? catalogMatch;
+  const dur = plotRowDurationSlots(durationSource, draft);
+  const maxDur = durationSource ? maxPlotDurationSlots(durationSource) : Math.max(1, draft.durationSlots ?? 1);
   const maxStart = slots.length - dur;
   const effectiveStart = clampPlotStartSlotIndex(
     draft.startSlotIndex < 0 ? 0 : draft.startSlotIndex,
@@ -206,7 +213,7 @@ export function ChairmanPlotScheduleModal({
   const timeLine =
     !draft.day || draft.startSlotIndex < 0
       ? "Select subject, day, and time"
-      : pr
+      : draft.subjectCode
         ? formatTimeRangeFromSlots(effectiveStart, dur, slots)
         : "Select subject for duration";
   const sectionName = draft.sectionId
@@ -216,18 +223,18 @@ export function ChairmanPlotScheduleModal({
     ? yearLevelFromSchedulingSectionName(sectionName)
     : null;
 
-  const rawSubjectOptions = useMemo(
-    () =>
-      subjectRowsForPlotDropdown(
-        programCodeForSummary,
-        prospectusSubjectsForSectionPlot({
-          programCode: programCodeForSummary,
-          yearLevel,
-          termSemester: termProspectusSemester,
-        }),
-      ),
-    [programCodeForSummary, yearLevel, termProspectusSemester],
-  );
+  const rawSubjectOptions = useMemo(() => {
+    const fromProspectus = subjectRowsForPlotDropdown(
+      programCodeForSummary,
+      prospectusSubjectsForSectionPlot({
+        programCode: programCodeForSummary,
+        yearLevel,
+        termSemester: termProspectusSemester,
+      }),
+    );
+    if (fromProspectus.length > 0) return fromProspectus;
+    return catalogSubjectRows ?? [];
+  }, [programCodeForSummary, yearLevel, termProspectusSemester, catalogSubjectRows]);
 
   const subjectSelectValue = useMemo(() => {
     if (!draft.subjectCode) return "";
@@ -285,7 +292,7 @@ export function ChairmanPlotScheduleModal({
     conflictFlags.room === "Yes" ||
     conflictFlags.section === "Yes";
 
-  const draftDurationHours = pr ? dur : 0;
+  const draftDurationHours = draft.subjectCode ? dur : 0;
 
   const selectedInstructorLoad = draft.instructorId
     ? (instructorLoadById?.get(draft.instructorId) ?? null)
@@ -580,10 +587,10 @@ export function ChairmanPlotScheduleModal({
                   </option>
                 )}
               </select>
-              {pr ? (
+              {durationSource ? (
                 <p className="text-[10px] text-black/45 mt-0.5 tabular-nums">
-                  {pr.lecUnits}u/{pr.lecHours}h lec · {pr.labUnits}u/
-                  {pr.labHours}h lab
+                  {durationSource.lecUnits}u/{durationSource.lecHours}h lec · {durationSource.labUnits}u/
+                  {durationSource.labHours}h lab
                 </p>
               ) : null}
             </div>
@@ -704,7 +711,7 @@ export function ChairmanPlotScheduleModal({
                   normalizeProspectusCode(subjectSelectValue),
               ) ? (
                 <option value={subjectSelectValue}>
-                  {draft.subjectCode} — {pr?.title ?? "Current selection"}
+                  {draft.subjectCode} — {durationSource?.title ?? "Current selection"}
                 </option>
               ) : null}
             </select>
@@ -895,7 +902,7 @@ export function ChairmanPlotScheduleModal({
             </div>
           </div>
 
-          {pr && maxDur > 1 ? (
+          {durationSource && maxDur > 1 ? (
             <div>
               <label className={labelClass} htmlFor="plot-duration">
                 Duration (consecutive hours this meeting)
@@ -930,7 +937,7 @@ export function ChairmanPlotScheduleModal({
 
           <p className="text-[12px] font-medium text-black/60 rounded-lg bg-[#ff990a]/8 border border-[#ff990a]/25 px-3 py-2">
             Preview: <span className="text-black/85">{timeLine}</span>
-            {pr ? (
+            {draft.subjectCode ? (
               <span className="text-black/50">
                 {" "}
                 · {dur} consecutive hour{dur === 1 ? "" : "s"}

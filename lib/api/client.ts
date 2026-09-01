@@ -1222,6 +1222,12 @@ export const collegeApi = {
       body,
     });
   },
+  notifyGecReady(body: { academicPeriodId?: string; note?: string }) {
+    return apiFetch<{ ok: true; notified: number; message: string }>("/api/college/notify-gec-ready", {
+      method: "POST",
+      body,
+    });
+  },
 };
 
 export const facultyProfileApi = {
@@ -1399,7 +1405,7 @@ export const gecApi = {
     sectionName: string;
     rowCount?: number;
   }) {
-    return apiFetch<{ ok: true }>("/api/gec/evaluator-save-notify", {
+    return apiFetch<{ ok: true }>("/api/gec/schedule-save-notify", {
       method: "POST",
       body,
     });

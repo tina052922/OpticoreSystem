@@ -18,7 +18,7 @@ import {
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
-import { type BsitSemester } from "@/lib/chairman/bsit-prospectus";
+import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import { clampPlotStartSlotIndex, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
@@ -51,8 +51,8 @@ function rowTimeBounds(
   programCodeForSummary: string,
   slots: { label: string; startTime: string; endTime: string }[] = BSIT_ONE_HOUR_SLOTS,
 ): { startIdx: number; dur: number } | null {
-  const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
-  if (!p) return null;
+  if (row.startSlotIndex < 0 || !row.subjectCode) return null;
+  const p = prospectusRowForProgram(programCodeForSummary, row.subjectCode);
   const dur = plotRowDurationSlots(p, row);
   const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
   if (startIdx < 0 || startIdx + dur > slots.length) return null;
@@ -108,6 +108,8 @@ export type ChairmanGridPlottingActions = {
 export type BsitChairmanInteractiveWeekGridProps = {
   rows: PlotRow[];
   programCodeForSummary: string;
+  /** Catalog subjects when the program has no static prospectus (BIT / BSIE). */
+  catalogSubjectRows?: ProspectusSubjectRow[];
   programMode?: ProgramMode;
   weekdays?: readonly BsitEvaluatorWeekday[];
   timeSlots?: HourSlot[];
@@ -161,11 +163,12 @@ function PlotCellSummary({
   conflictFlags: RowConflictFlags;
   timeSlots?: { label: string; startTime: string; endTime: string }[];
 }) {
-  const pr = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
-  const dur = pr ? plotRowDurationSlots(pr, row) : 1;
+  const dur = plotRowDurationSlots(
+    row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined,
+    row,
+  );
   const slots = timeSlots;
-  const eff =
-    pr && slots ? clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length) : 0;
+  const eff = row.subjectCode && slots ? clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length) : 0;
   const sec = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "";
   const room = row.roomId ? (roomCodeById.get(row.roomId) ?? "") : "";
   const inst = row.instructorId ? (instructorDisplayById.get(row.instructorId) ?? "") : "";
@@ -193,7 +196,7 @@ function PlotCellSummary({
       {sec ? <span className="text-[8px] text-black/70 block truncate">{sec}</span> : null}
       {room ? <span className="text-[8px] text-black/55 block truncate">{room}</span> : null}
       {inst ? <span className="text-[8px] text-black/55 block truncate">{inst}</span> : null}
-      {pr ? (
+      {row.subjectCode && row.startSlotIndex >= 0 ? (
         <span className="text-[8px] text-black/45 tabular-nums">{formatTimeRangeFromSlots(eff, dur, slots)}</span>
       ) : null}
       {hasConflict ? (
@@ -209,6 +212,7 @@ function PlotCellSummary({
 export function BsitChairmanInteractiveWeekGrid({
   rows,
   programCodeForSummary,
+  catalogSubjectRows,
   programMode = "day",
   weekdays = BSIT_EVALUATOR_WEEKDAYS,
   timeSlots,
@@ -584,6 +588,7 @@ export function BsitChairmanInteractiveWeekGrid({
         buildingValue={modal?.buildingValue ?? ""}
         onBuildingChange={(b) => setModal((m) => (m ? { ...m, buildingValue: b } : m))}
         programCodeForSummary={programCodeForSummary}
+        catalogSubjectRows={catalogSubjectRows}
         majorOptions={majorOptions}
         programSections={programSections}
         instructorPlotOptions={instructorPlotOptions}

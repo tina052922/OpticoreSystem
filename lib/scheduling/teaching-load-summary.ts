@@ -20,7 +20,53 @@ export type TeachingLoadSummaryRow = {
   /** Arithmetic sum of Day + Evening columns for the printed form — not a merged policy total. */
   totalPreps: number;
   totalHoursPerWeek: number;
+  /** Home program (`User.chairmanProgramId`) when it belongs to this college. */
+  homeProgramId: string | null;
 };
+
+export type TeachingLoadProgramRef = {
+  id: string;
+  collegeId: string;
+  code?: string | null;
+  name?: string | null;
+};
+
+export type TeachingLoadCategoryGroup = {
+  programId: string;
+  categoryLabel: string;
+  rows: TeachingLoadSummaryRow[];
+};
+
+/** Institutional department order for College of Technology / Engineering summaries. */
+export const TEACHING_LOAD_CATEGORY_ORDER: { programId: string; label: string }[] = [
+  { programId: "prog-bsit", label: "BSIT" },
+  { programId: "prog-bsie", label: "BSIE" },
+  { programId: "prog-bit-dt", label: "BIT – Drafting" },
+  { programId: "prog-bit-gar", label: "BIT – Garments" },
+  { programId: "prog-bit-elx", label: "BIT – Electronics" },
+  { programId: "prog-bit-auto", label: "BIT – Automotive" },
+];
+
+export function categoryLabelForProgram(program: TeachingLoadProgramRef): string {
+  const known = TEACHING_LOAD_CATEGORY_ORDER.find((x) => x.programId === program.id);
+  if (known) return known.label;
+  const code = (program.code ?? "").trim();
+  const name = (program.name ?? "").trim();
+  if (code && name && !name.toUpperCase().includes(code.toUpperCase())) return `${code} — ${name}`;
+  return code || name || program.id;
+}
+
+export function sortProgramsForTeachingLoad<T extends TeachingLoadProgramRef>(programs: T[]): T[] {
+  const order = TEACHING_LOAD_CATEGORY_ORDER.map((x) => x.programId);
+  return [...programs].sort((a, b) => {
+    const ia = order.indexOf(a.id);
+    const ib = order.indexOf(b.id);
+    if (ia >= 0 && ib >= 0) return ia - ib;
+    if (ia >= 0) return -1;
+    if (ib >= 0) return 1;
+    return categoryLabelForProgram(a).localeCompare(categoryLabelForProgram(b));
+  });
+}
 
 const emptySlice = (): TeachingLoadModeSlice => ({ preps: 0, unitsPerWeek: 0, hoursPerWeek: 0 });
 
@@ -87,7 +133,7 @@ export function buildTeachingLoadSummary(args: {
   entries: ScheduleEntry[];
   users: User[];
   profiles: FacultyProfile[];
-  programs: Array<{ id: string; collegeId: string }>;
+  programs: TeachingLoadProgramRef[];
   sections: Section[];
   subjects: Subject[];
   justifications: ScheduleLoadJustification[];
@@ -124,6 +170,8 @@ export function buildTeachingLoadSummary(args: {
     const evening = mine.length === 0 ? emptySlice() : metricsForEntries(eveningEntries, subjectById);
     const profile = profileByUserId.get(instructorId);
     const user = userById.get(instructorId);
+    const homeProgramId =
+      user?.chairmanProgramId && programIds.has(user.chairmanProgramId) ? user.chairmanProgramId : null;
     rows.push({
       instructorId,
       facultyName: profile?.fullName?.trim() || user?.name?.trim() || instructorId,
@@ -135,11 +183,38 @@ export function buildTeachingLoadSummary(args: {
       justification: latestJustificationText(args.justifications, instructorId, args.academicPeriodId),
       totalPreps: day.preps + evening.preps,
       totalHoursPerWeek: Math.round((day.hoursPerWeek + evening.hoursPerWeek) * 100) / 100,
+      homeProgramId,
     });
   }
 
   rows.sort((a, b) => a.facultyName.localeCompare(b.facultyName));
   return rows;
+}
+
+function rowHasLoad(row: TeachingLoadSummaryRow): boolean {
+  return row.totalPreps > 0 || row.totalHoursPerWeek > 0;
+}
+
+/**
+ * One table per department/program under the college (BSIT, BSIE, BIT tracks, then any other programs).
+ * Metrics in each group use only that program's plotted `ScheduleEntry` rows. Day and Evening stay separate.
+ */
+export function buildTeachingLoadSummaryByCategory(
+  args: Parameters<typeof buildTeachingLoadSummary>[0],
+): TeachingLoadCategoryGroup[] {
+  const collegePrograms = sortProgramsForTeachingLoad(
+    args.programs.filter((p) => p.collegeId === args.collegeId),
+  );
+  return collegePrograms.map((program) => {
+    const rows = buildTeachingLoadSummary({ ...args, programs: [program] }).filter(
+      (r) => rowHasLoad(r) || r.homeProgramId === program.id,
+    );
+    return {
+      programId: program.id,
+      categoryLabel: categoryLabelForProgram(program),
+      rows,
+    };
+  });
 }
 
 /** Kept so callers can still inspect stored program mode on a row. */

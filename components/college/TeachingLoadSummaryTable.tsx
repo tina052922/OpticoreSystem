@@ -9,14 +9,19 @@ function fmt(n: number): string {
 export function TeachingLoadSummaryTable({
   rows,
   emptyHint,
+  categoryLabel,
 }: {
   rows: TeachingLoadSummaryRow[];
   emptyHint?: string;
+  /** Department / program heading (e.g. BSIT, BIT – Automotive). */
+  categoryLabel?: string;
 }) {
   return (
     <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
       <div className="p-4 border-b border-black/10">
-        <div className="text-[16px] font-semibold">Summary of Teaching Load</div>
+        <div className="text-[16px] font-semibold">
+          {categoryLabel ? `Summary of Teaching Load — ${categoryLabel}` : "Summary of Teaching Load"}
+        </div>
         <div className="text-[12px] text-black/60 mt-1">
           Day Program and Evening Program are listed separately. Hours and preps come from plotted schedule entries.
         </div>

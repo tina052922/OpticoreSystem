@@ -47,9 +47,8 @@ import {
 import { HubEvaluatorTabs } from "@/components/evaluator/HubEvaluatorTabs";
 import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
 import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
-import { EvaluatorTimetablingPanel } from "@/components/evaluator/EvaluatorTimetablingPanel";
 import { TeachingLoadSummaryTable } from "@/components/college/TeachingLoadSummaryTable";
-import { buildTeachingLoadSummary } from "@/lib/scheduling/teaching-load-summary";
+import { buildTeachingLoadSummaryByCategory } from "@/lib/scheduling/teaching-load-summary";
 import { hydrateScheduleEntries, filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEntryQuickEditDialog";
@@ -319,10 +318,10 @@ export function CentralHubEvaluatorView({
     [programs, scopeCollegeId],
   );
 
-  const teachingLoadRows = useMemo(() => {
+  const teachingLoadGroups = useMemo(() => {
     const cid = myCollegeId || scopeCollegeId;
     if (!cid || !academicPeriodId) return [];
-    return buildTeachingLoadSummary({
+    return buildTeachingLoadSummaryByCategory({
       collegeId: cid,
       academicPeriodId,
       entries: hydrateScheduleEntries(entries),
@@ -852,7 +851,20 @@ export function CentralHubEvaluatorView({
                   Summary of Teaching Load
                 </Link>
               </p>
-              <TeachingLoadSummaryTable rows={teachingLoadRows} />
+              {teachingLoadGroups.length === 0 ? (
+                <TeachingLoadSummaryTable rows={[]} />
+              ) : (
+                <div className="space-y-6">
+                  {teachingLoadGroups.map((g) => (
+                    <TeachingLoadSummaryTable
+                      key={g.programId}
+                      categoryLabel={g.categoryLabel}
+                      rows={g.rows}
+                      emptyHint={`No instructors with plotted load in ${g.categoryLabel} for the selected term.`}
+                    />
+                  ))}
+                </div>
+              )}
               <p className="text-[13px] text-black/55 mt-8 text-center">
                 <HubCollegesNavLink basePath={basePath} className="font-semibold text-[#780301] hover:underline">
                   ← Back to college selection
@@ -1109,12 +1121,12 @@ export function CentralHubEvaluatorView({
         {panel === "timetabling" ? (
           <>
             {hubAccessMode === "collegeAdmin" && !hubReadOnly && myCollegeId && hub?.collegeId === myCollegeId ? (
-              <div className="mb-8">
-                <p className="text-[13px] text-black/65 mb-3">
-                  Plot and edit schedules for departments in your college (same Evaluator tools as Program Chairman).
-                  Peer-college hubs stay view-only after access approval.
-                </p>
-                <EvaluatorTimetablingPanel chairmanCollegeId={myCollegeId} collegeWidePrograms />
+              <div className="mb-6 rounded-lg border border-black/10 bg-white px-4 py-3 text-[13px] text-black/70">
+                Plot departments in this college from the{" "}
+                <Link href="/admin/college/evaluator" className="font-semibold text-[#780301] hover:underline">
+                  Evaluator worksheet
+                </Link>{" "}
+                (same week-grid as Program Chairman). This hub stays for college tiles, overview, and peer-college view.
               </div>
             ) : null}
             {showDoiGovernance ? (
@@ -1433,7 +1445,20 @@ export function CentralHubEvaluatorView({
                 </Link>{" "}
                 page for the full college roster.
               </p>
-              <TeachingLoadSummaryTable rows={teachingLoadRows} />
+              {teachingLoadGroups.length === 0 ? (
+                <TeachingLoadSummaryTable rows={[]} />
+              ) : (
+                <div className="space-y-6">
+                  {teachingLoadGroups.map((g) => (
+                    <TeachingLoadSummaryTable
+                      key={g.programId}
+                      categoryLabel={g.categoryLabel}
+                      rows={g.rows}
+                      emptyHint={`No instructors with plotted load in ${g.categoryLabel} for the selected term.`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <HrsUnitsPrepsRemarksTable />

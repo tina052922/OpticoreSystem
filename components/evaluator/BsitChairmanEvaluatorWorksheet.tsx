@@ -45,6 +45,7 @@ import { filterRoomsForProgramPlot } from "@/lib/scheduling/program-plot-rooms";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
+import { sortProgramsForTeachingLoad } from "@/lib/scheduling/teaching-load-summary";
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { encodeDayForStorage, evaluatorTimeSlots, evaluatorWeekdaysForMode, filterByProgramMode, isEvaluatorSlotPlottable, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
@@ -131,9 +132,8 @@ function rowTimeBounds(
   programCodeForSummary: string,
   slots: { label: string; startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
 ): { startIdx: number; start: (typeof slots)[0]; endSlot: (typeof slots)[0] } | null {
-  if (row.startSlotIndex < 0) return null;
-  const p = row.subjectCode ? prospectusRowForProgram(programCodeForSummary, row.subjectCode) : undefined;
-  if (!p) return null;
+  if (row.startSlotIndex < 0 || !row.subjectCode) return null;
+  const p = prospectusRowForProgram(programCodeForSummary, row.subjectCode);
   const dur = plotRowDurationSlots(p, row);
   const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
   const start = slots[startIdx];
@@ -286,6 +286,8 @@ type BsitChairmanEvaluatorWorksheetProps = {
   /** Static prospectus / summary label (e.g. BSIT) — mirrors `getChairmanSession().programCode`. */
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
+  /** College Admin: plot every department in the college (program picker). Chairman stays locked to one program. */
+  collegeWidePrograms?: boolean;
   /** Live load summary for the Evaluator &quot;Hrs-Units-Preps-Remarks&quot; tab. */
   onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
 };
@@ -302,7 +304,6 @@ function rowFullyPlotted(row: PlotRow, programCodeForSummary: string): boolean {
  */
 function rowVisibleInSchedulePreview(row: PlotRow, programCodeForSummary: string): boolean {
   if (!row.sectionId || !row.subjectCode) return false;
-  if (!prospectusRowForProgram(programCodeForSummary, row.subjectCode)) return false;
   return rowTimeBounds(row, programCodeForSummary) != null;
 }
 
@@ -311,6 +312,7 @@ export function BsitChairmanEvaluatorWorksheet({
   chairmanProgramId,
   chairmanProgramCode = null,
   chairmanProgramName = null,
+  collegeWidePrograms = false,
   onPolicySnapshot,
 }: BsitChairmanEvaluatorWorksheetProps) {
   const toast = useOpticoreToast();
@@ -322,7 +324,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
   const maxFacultyHours = systemConfig?.defaultMaxFacultyHoursPerWeek;
   const [sections, setSections] = useState<Section[]>([]);
-  const [programsCatalog, setProgramsCatalog] = useState<Pick<Program, "id" | "collegeId">[]>([]);
+  const [programsCatalog, setProgramsCatalog] = useState<Pick<Program, "id" | "collegeId" | "code" | "name">[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [dbInstructors, setDbInstructors] = useState<User[]>([]);
@@ -357,6 +359,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const [justificationSaving, setJustificationSaving] = useState(false);
   const [justificationMsg, setJustificationMsg] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string>("");
+  const [pickedProgramId, setPickedProgramId] = useState("");
   /** Brief highlight in the prospectus summary when a new subject is plotted for the selected section. */
   const [lastPlottedSubjectFlash, setLastPlottedSubjectFlash] = useState<string | null>(null);
   const plottedSnapshotRef = useRef<string>("");
@@ -389,11 +392,35 @@ export function BsitChairmanEvaluatorWorksheet({
   const lockedEntryIdsRef = useRef<Set<string>>(new Set());
   const didHydrateFromDbRef = useRef(false);
 
+  const collegePrograms = useMemo(() => {
+    if (!collegeWidePrograms || !chairmanCollegeId) return [];
+    return sortProgramsForTeachingLoad(
+      programsCatalog.filter((p) => p.collegeId === chairmanCollegeId),
+    );
+  }, [collegeWidePrograms, chairmanCollegeId, programsCatalog]);
+
+  useEffect(() => {
+    if (!collegeWidePrograms) return;
+    if (pickedProgramId && collegePrograms.some((p) => p.id === pickedProgramId)) return;
+    setPickedProgramId(collegePrograms[0]?.id ?? "");
+  }, [collegeWidePrograms, collegePrograms, pickedProgramId]);
+
+  const activeCollegeProgram =
+    collegeWidePrograms
+      ? (collegePrograms.find((p) => p.id === pickedProgramId) ?? collegePrograms[0] ?? null)
+      : null;
+
   /** Prospectus registry key — aligns with `Program.code` in Supabase (e.g. BSIT, BSENVS). */
-  const programCodeForSummary = (chairmanProgramCode ?? "").trim() || DEFAULT_CHAIRMAN_PROGRAM_CODE;
-  const programId =
-    chairmanProgramId ??
-    (programCodeForSummary.toUpperCase() === BSENVS_PROGRAM_CODE.toUpperCase() ? BSENVS_PROGRAM_ID : "prog-bsit");
+  const programCodeForSummary = collegeWidePrograms
+    ? (activeCollegeProgram?.code ?? "").trim() || DEFAULT_CHAIRMAN_PROGRAM_CODE
+    : (chairmanProgramCode ?? "").trim() || DEFAULT_CHAIRMAN_PROGRAM_CODE;
+  const programId = collegeWidePrograms
+    ? pickedProgramId || activeCollegeProgram?.id || ""
+    : chairmanProgramId ??
+      (programCodeForSummary.toUpperCase() === BSENVS_PROGRAM_CODE.toUpperCase() ? BSENVS_PROGRAM_ID : "prog-bsit");
+  const activeProgramName = collegeWidePrograms
+    ? activeCollegeProgram?.name ?? chairmanProgramName
+    : chairmanProgramName;
 
 
 
@@ -481,11 +508,11 @@ export function BsitChairmanEvaluatorWorksheet({
     const global = new Map<string, string>();
     for (const s of subjects) {
       global.set(normalizeProspectusCode(s.code), s.id);
-      if (chairmanProgramId && s.programId !== chairmanProgramId) continue;
+      if (programId && s.programId !== programId) continue;
       scoped.set(normalizeProspectusCode(s.code), s.id);
     }
     return { scoped, global };
-  }, [subjects, chairmanProgramId]);
+  }, [subjects, programId]);
 
   const subjectCodeById = useMemo(() => {
     const m = new Map<string, string>();
@@ -498,8 +525,14 @@ export function BsitChairmanEvaluatorWorksheet({
   const lastFetchAtRef = useRef(0);
   const staticLoadedForPeriodRef = useRef<string | null>(null);
 
+  const lastLoadedProgramIdRef = useRef<string | null>(null);
   const loadAllData = useCallback(async () => {
     if (!academicPeriodId) return;
+
+    if (lastLoadedProgramIdRef.current !== programId) {
+      lastFetchAtRef.current = 0;
+      lastLoadedProgramIdRef.current = programId;
+    }
 
     const now = Date.now();
     if (lastFetchAtRef.current > 0 && now - lastFetchAtRef.current < 3000) {
@@ -523,7 +556,14 @@ export function BsitChairmanEvaluatorWorksheet({
 
       if (staticLoadedForPeriodRef.current !== academicPeriodId) {
         setSections(bundleSections);
-        setProgramsCatalog(bundle.programs?.map((p: any) => ({ id: p.id, collegeId: p.collegeId })) ?? []);
+        setProgramsCatalog(
+          bundle.programs?.map((p: any) => ({
+            id: p.id,
+            collegeId: p.collegeId,
+            code: p.code,
+            name: p.name,
+          })) ?? [],
+        );
         setSubjects(bundleSubjects);
         setRooms(bundle.rooms ?? []);
         staticLoadedForPeriodRef.current = academicPeriodId;
@@ -552,7 +592,7 @@ export function BsitChairmanEvaluatorWorksheet({
     }
 
     const localSectionIdSet = new Set(
-      bundleSections.filter((s) => s.programId === programId).map((s) => s.id),
+      bundleSections.filter((s) => Boolean(programId) && s.programId === programId).map((s) => s.id),
     );
     const localCodeById = new Map(bundleSubjects.map((s) => [s.id, s.code]));
 
@@ -663,7 +703,7 @@ export function BsitChairmanEvaluatorWorksheet({
     lastSyncedByModeRef.current.night = new Set(nightNext.map((r) => r.id));
     setDayRows((prev) => mergeHydrate(prev, dayNext));
     setNightRows((prev) => mergeHydrate(prev, nightNext));
-  }, [chairmanCollegeId, academicPeriodId, programCodeForSummary]);
+  }, [chairmanCollegeId, academicPeriodId, programCodeForSummary, programId]);
 
   useEffect(() => {
     void loadAllData();
@@ -759,12 +799,29 @@ export function BsitChairmanEvaluatorWorksheet({
     () => [
       {
         value: programCodeForSummary,
-        label: chairmanProgramName?.trim()
-          ? `${programCodeForSummary} — ${chairmanProgramName.trim()}`
+        label: activeProgramName?.trim()
+          ? `${programCodeForSummary} — ${activeProgramName.trim()}`
           : programCodeForSummary,
       },
     ],
-    [programCodeForSummary, chairmanProgramName],
+    [programCodeForSummary, activeProgramName],
+  );
+
+  const catalogSubjectRows = useMemo(
+    () =>
+      subjects
+        .filter((s) => !programId || s.programId === programId)
+        .map((s) => ({
+          code: s.code,
+          title: s.title,
+          lecUnits: s.lecUnits,
+          lecHours: s.lecHours,
+          labUnits: s.labUnits,
+          labHours: s.labHours,
+          yearLevel: s.yearLevel || 1,
+          semester: 1 as const,
+        })),
+    [subjects, programId],
   );
 
   const subjectById = useMemo(() => {
@@ -1853,6 +1910,32 @@ export function BsitChairmanEvaluatorWorksheet({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3 text-[13px] font-semibold text-black/75">
+        {collegeWidePrograms ? (
+          <>
+            <span>Department</span>
+            <select
+              className="h-10 min-w-[240px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
+              value={pickedProgramId}
+              disabled={schedulePublished || collegePrograms.length === 0}
+              onChange={(e) => {
+                setPickedProgramId(e.target.value);
+                setSelectedSectionId("");
+                setDayRows([]);
+                setNightRows([]);
+                locallyEditedRowIdsRef.current = new Set();
+                didHydrateFromDbRef.current = false;
+                lastFetchAtRef.current = 0;
+              }}
+            >
+              {collegePrograms.length === 0 ? <option value="">No programs in this college</option> : null}
+              {collegePrograms.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code ? `${p.code} — ${p.name}` : p.name}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : null}
         <span>Section</span>
         <select
           className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
@@ -1872,12 +1955,13 @@ export function BsitChairmanEvaluatorWorksheet({
 
       <ChairmanProgramProspectusSummaryTable
         programCode={programCodeForSummary}
-        programName={chairmanProgramName ?? undefined}
+        programName={activeProgramName ?? undefined}
         selectedSectionId={selectedSectionId}
         yearLevelFilter={summaryYearLevelFilter}
         filterSemester={termProspectusSemester}
         plottedSubjectCodes={plottedSubjectCodesForSection}
         lastPlottedSubjectCode={lastPlottedSubjectFlash}
+        fallbackSubjects={catalogSubjectRows}
       />
 
       {showJustification ? <PolicyViolationFaq /> : null}
@@ -1888,6 +1972,7 @@ export function BsitChairmanEvaluatorWorksheet({
         weekdays={[...evaluatorWeekdaysForMode(programMode)]}
         timeSlots={slotsForMode}
         programCodeForSummary={programCodeForSummary}
+        catalogSubjectRows={catalogSubjectRows}
         programSections={programSections}
         selectedSectionId={selectedSectionId}
         schedulePublished={schedulePublished}

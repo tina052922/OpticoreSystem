@@ -1,18 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
+import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
 import { BsitChairmanEvaluatorWorksheet } from "@/components/evaluator/BsitChairmanEvaluatorWorksheet";
 import { CentralHubEvaluatorView } from "@/components/evaluator/CentralHubEvaluatorView";
 import {
   ChairmanEvaluatorLoadPanel,
   type ChairmanPolicySnapshot,
 } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
+import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 
 export type EvaluatorPageProps = {
-  /** Chairman: full plotter. College / CAS / DOI: Central Hub (college tiles + hub table). GEC uses `GecCentralHubEvaluatorClient`. */
+  /** Chairman: program plotter. College: same plotter, college-wide. CAS / DOI: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
   variant?: "chairman" | "college" | "cas" | "doi";
-  /** Server-provided college scope for Chairman (no college picker; program filter only). */
+  /** Server-provided college scope for Chairman / College Admin. */
   chairmanCollegeId?: string | null;
   /** Locked program for chairman (`getChairmanSession` defaults BSIT for CTE when DB column unset). */
   chairmanProgramId?: string | null;
@@ -35,16 +39,21 @@ export function EvaluatorPage({
 }: EvaluatorPageProps) {
   const [tab, setTab] = useState<"timetabling" | "load">("timetabling");
   const [policySnapshot, setPolicySnapshot] = useState<ChairmanPolicySnapshot | null>(null);
+  const searchParams = useSearchParams();
+  const { selectedPeriodId, selectedPeriod } = useSemesterFilter();
+  const showCollegeHub = variant === "college" && searchParams.get("hub") === "1";
 
-  if (variant === "college" || variant === "cas" || variant === "doi") {
+  if (variant === "cas" || variant === "doi" || showCollegeHub) {
     return (
       <CentralHubEvaluatorView
-        basePath={centralHubBasePath(variant)}
+        basePath={centralHubBasePath(variant === "college" ? "college" : variant)}
         showDoiGovernance={variant === "doi"}
         hubAccessMode={variant === "college" ? "collegeAdmin" : "default"}
       />
     );
   }
+
+  const collegeWide = variant === "college";
 
   return (
     <div>
@@ -68,8 +77,29 @@ export function EvaluatorPage({
                 {t.label}
               </button>
             ))}
+            {collegeWide ? (
+              <Link
+                href="/admin/college/evaluator?hub=1"
+                className="h-10 px-4 rounded-[15px] font-bold text-[14px] bg-white text-black border border-black/10 inline-flex items-center"
+              >
+                College hub
+              </Link>
+            ) : null}
           </div>
+          {collegeWide ? (
+            <NotifyGecReadyButton
+              academicPeriodId={selectedPeriodId}
+              periodLabel={selectedPeriod?.name ?? null}
+            />
+          ) : null}
         </div>
+
+        {collegeWide ? (
+          <p className="text-[13px] text-black/65 mb-4">
+            Same week-grid as Program Chairman. Choose a department, then plot any section in this college. Conflict
+            check is campus-wide. Peer-college hubs remain view-only.
+          </p>
+        ) : null}
 
         <div className={tab !== "timetabling" ? "hidden" : ""}>
           <BsitChairmanEvaluatorWorksheet
@@ -77,6 +107,7 @@ export function EvaluatorPage({
             chairmanProgramId={chairmanProgramId}
             chairmanProgramCode={chairmanProgramCode}
             chairmanProgramName={chairmanProgramName}
+            collegeWidePrograms={collegeWide}
             onPolicySnapshot={setPolicySnapshot}
           />
         </div>

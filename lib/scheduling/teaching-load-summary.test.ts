@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { programModeLabel } from "./program-mode";
-import { buildTeachingLoadSummary, metricsForEntries } from "./teaching-load-summary";
+import {
+  buildTeachingLoadSummary,
+  buildTeachingLoadSummaryByCategory,
+  categoryLabelForProgram,
+  metricsForEntries,
+} from "./teaching-load-summary";
 import type { FacultyProfile, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 
 describe("programModeLabel", () => {
@@ -138,5 +143,59 @@ describe("buildTeachingLoadSummary", () => {
     const slice = metricsForEntries(entries, new Map([["sub-day", subjectDay]]));
     expect(slice.preps).toBe(1);
     expect(slice.hoursPerWeek).toBeCloseTo(4, 5);
+  });
+
+  it("groups faculty by department category (BSIT before BIT tracks)", () => {
+    const bsitSub: Subject = { ...subjectDay, id: "sub-bsit", code: "IT 101", programId: "prog-bsit" };
+    const autoSub: Subject = { ...subjectDay, id: "sub-auto", code: "AT 101", programId: "prog-bit-auto" };
+    const entries: ScheduleEntry[] = [
+      entry({ id: "a1", instructorId: "auto-1", subjectId: "sub-auto", programMode: "day", sectionId: "sec-auto" }),
+      entry({ id: "b1", instructorId: "bsit-1", subjectId: "sub-bsit", programMode: "day", sectionId: "sec-bsit" }),
+    ];
+    const mkUser = (id: string, name: string): User => ({
+      id,
+      employeeId: null,
+      email: `${id}@test.edu`,
+      name,
+      role: "instructor",
+      collegeId,
+      chairmanProgramId: id === "bsit-1" ? "prog-bsit" : "prog-bit-auto",
+      signatureImageUrl: null,
+      profileImageUrl: null,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    });
+    const groups = buildTeachingLoadSummaryByCategory({
+      collegeId,
+      academicPeriodId: periodId,
+      entries,
+      users: [mkUser("bsit-1", "BSIT Faculty"), mkUser("auto-1", "Auto Faculty")],
+      profiles: [],
+      programs: [
+        { id: "prog-bit-auto", collegeId, code: "BIT-AUTO", name: "Automotive" },
+        { id: "prog-bsit", collegeId, code: "BSIT", name: "Information Technology" },
+      ],
+      sections: [
+        { id: "sec-bsit", programId: "prog-bsit", name: "BSIT-1A", yearLevel: 1, studentCount: 40 },
+        { id: "sec-auto", programId: "prog-bit-auto", name: "BIT-AUTO-1A", yearLevel: 1, studentCount: 30 },
+      ],
+      subjects: [bsitSub, autoSub],
+      justifications: [],
+    });
+
+    expect(groups.map((g) => g.categoryLabel)).toEqual(["BSIT", "BIT – Automotive"]);
+    expect(groups[0].rows.map((r) => r.facultyName)).toEqual(["BSIT Faculty"]);
+    expect(groups[1].rows.map((r) => r.facultyName)).toEqual(["Auto Faculty"]);
+    expect(groups[0].rows[0].day.preps).toBe(1);
+    expect(groups[1].rows[0].day.preps).toBe(1);
+  });
+});
+
+describe("categoryLabelForProgram", () => {
+  it("uses institutional labels for known program ids", () => {
+    expect(categoryLabelForProgram({ id: "prog-bit-dt", collegeId: "c1", code: "BIT-DT" })).toBe("BIT – Drafting");
+    expect(categoryLabelForProgram({ id: "prog-other", collegeId: "c1", code: "BSENVS", name: "Env Sci" })).toMatch(
+      /BSENVS/,
+    );
   });
 });
