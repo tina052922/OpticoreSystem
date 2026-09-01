@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
-import {
-  instructorRegistrationsApi,
-  ApiClientError,
-  type InstructorRegistrationRow,
-} from "@/lib/api/client";
+import { formatInstructorDepartmentLabel } from "@/lib/auth/instructor-department-label";
+import { instructorRegistrationsApi, ApiClientError, invalidateApiCache, type InstructorRegistrationRow } from "@/lib/api/client";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 
@@ -44,6 +41,7 @@ export function ChairmanInstructorRegistrationsClient() {
     setBusyId(`${id}:${action}`);
     try {
       const res = await instructorRegistrationsApi.review(id, { action, note: note.trim() || undefined });
+      invalidateApiCache("/api/catalog");
       toast.success(action === "approve" ? "Instructor approved" : "Instructor rejected", res.message);
       setNote("");
       setRows((prev) => prev.filter((r) => r.id !== id));
@@ -105,7 +103,12 @@ export function ChairmanInstructorRegistrationsClient() {
                       <td className="border border-black/20 px-2 py-2 tabular-nums">{r.employeeId ?? "—"}</td>
                       <td className="border border-black/20 px-2 py-2">{r.email}</td>
                       <td className="border border-black/20 px-2 py-2">
-                        {r.programCode || r.programName || "College (no department)"}
+                        {formatInstructorDepartmentLabel({
+                          collegeCode: r.collegeCode,
+                          collegeName: r.collegeName,
+                          programCode: r.programCode,
+                          programName: r.programName,
+                        })}
                       </td>
                       <td className="border border-black/20 px-2 py-2">{r.profile?.designation || r.profile?.status || "—"}</td>
                       <td className="border border-black/20 px-2 py-2">

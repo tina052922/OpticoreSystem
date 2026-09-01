@@ -911,6 +911,8 @@ export type InstructorRegistrationRow = {
   name: string;
   employeeId: string | null;
   collegeId: string | null;
+  collegeCode: string | null;
+  collegeName: string | null;
   chairmanProgramId: string | null;
   instructorValidation: "pending" | "active" | "rejected";
   instructorValidatedAt: string | null;

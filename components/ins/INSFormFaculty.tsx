@@ -62,8 +62,10 @@ export type INSFormFacultyProps = {
   chairmanProgramName?: string | null;
   /** When set (e.g. College Admin), live schedule uses this college even without chairman session props. */
   viewerCollegeId?: string | null;
-  /** Logged-in faculty: read-only portal + request-change; search still lists college faculty when set. */
+  /** Logged-in faculty: lock the grid to this instructor. */
   lockedInstructorId?: string | null;
+  /** My Schedule: hide faculty search. Load Generator keeps search. */
+  hideInstructorSearch?: boolean;
   /** DOI / VPAA: load all colleges’ schedule rows for INS Form 5A. */
   campusWide?: boolean;
   /** DOI: VPAA approval + campus conflict scan (must be rendered here — Server Components cannot pass render props into this client component). */
@@ -80,6 +82,7 @@ export function INSFormFaculty({
   chairmanProgramName = null,
   viewerCollegeId = null,
   lockedInstructorId = null,
+  hideInstructorSearch = false,
   campusWide = false,
   doiFormalApprovalPanel = false,
   hideInnerInsTabs = false,
@@ -90,6 +93,7 @@ export function INSFormFaculty({
   /** Instructor shell (`/faculty/ins`, `/faculty/schedule`). */
   const facultyPortalIns = insBasePath.startsWith("/faculty");
   const instructorReadOnlyPortal = Boolean(facultyPortalIns && lockedInstructorId);
+  const showInstructorSearch = Boolean(useLiveData) && !hideInstructorSearch;
   const [changeModalOpen, setChangeModalOpen] = useState(false);
   const [changeModalEntryId, setChangeModalEntryId] = useState<string | null>(null);
   const facultyInnerActive = useInsInnerTabIsActive(insBasePath, "faculty");
@@ -112,8 +116,8 @@ export function INSFormFaculty({
     programId: chairmanProgramId,
     lockedInstructorId,
     campusWide,
-    /** Always full college `ScheduleEntry` set for 5A so hours/search match chairman INS (`ignoreProgramScope`). */
-    instructorPortalUserId: null,
+    /** My Schedule locks to this instructor; Load Generator may search college faculty. */
+    instructorPortalUserId: hideInstructorSearch ? lockedInstructorId : null,
   });
 
   /** College Admin + DOI: allow one-click GA apply; chairmen use the Evaluator for edits. */
@@ -341,25 +345,12 @@ export function INSFormFaculty({
                   {lockedInstructorId ? (
                     <div className="rounded-lg border border-[var(--color-opticore-orange)]/30 bg-[var(--color-opticore-orange)]/10 px-3 py-2">
                       <p className="text-xs font-semibold text-black/60 uppercase tracking-wide">
-                        {live.selectedInstructorId === lockedInstructorId ? "Your teaching load" : "Faculty preview"}
+                        Your teaching load
                       </p>
                       <p className="text-sm font-medium text-black">{displayFacultyName}</p>
-                      {instructorReadOnlyPortal && live.selectedInstructorId !== lockedInstructorId ? (
-                        <p className="text-[11px] text-black/55 mt-1">Request a change only from your own grid.</p>
-                      ) : null}
                     </div>
                   ) : null}
-                  {lockedInstructorId ? (
-                    <InsScheduleEntitySearch
-                      label="Faculty / instructor (search)"
-                      placeholder="Type name — schedule updates when one match"
-                      options={live.instructorOptions}
-                      selectedId={live.selectedInstructorId}
-                      onSelectedIdChange={live.setSelectedInstructorId}
-                      disabled={live.loading || live.instructorOptions.length === 0}
-                      listId="ins-faculty-list"
-                    />
-                  ) : (
+                  {showInstructorSearch ? (
                     <>
                       <InsScheduleEntitySearch
                         label="Faculty / instructor (search)"
@@ -376,9 +367,8 @@ export function INSFormFaculty({
                         </p>
                       ) : null}
                     </>
-                  )}
-                  {lockedInstructorId && !live.loading && live.instructorOptions.length === 0 ? (
-                    <p className="text-xs text-amber-800">No faculty rows for this term yet.</p>
+                  ) : lockedInstructorId && !live.loading && live.instructorOptions.length === 0 ? (
+                    <p className="text-xs text-amber-800">No classes assigned to you this term yet.</p>
                   ) : null}
                 </>
               ) : (

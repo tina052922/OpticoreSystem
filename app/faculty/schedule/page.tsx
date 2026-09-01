@@ -35,6 +35,7 @@ export default async function FacultySchedulePage() {
               insBasePath="/faculty/ins"
               viewerCollegeId={profile.collegeId}
               lockedInstructorId={profile.id}
+              hideInstructorSearch
               hideInnerInsTabs
             />
           </Suspense>

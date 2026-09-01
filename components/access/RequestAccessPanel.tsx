@@ -10,14 +10,9 @@ import {
   accessRequestsApi,
   catalogApi,
 } from "@/lib/api/client";
+import { GEC_COLLEGE_ACCESS_SCOPES } from "@/lib/access/gec-college-scopes";
 import type { AccessRequestRow, AccessScope, College } from "@/types/db";
-import { KeyRound, Lock } from "lucide-react";
-
-const SCOPE_OPTIONS: { id: AccessScope; label: string }[] = [
-  { id: "evaluator", label: "Central Hub Evaluator" },
-  { id: "ins_forms", label: "INS Forms (schedule views)" },
-  { id: "gec_vacant_slots", label: "Vacant GEC slots (edit only)" },
-];
+import { KeyRound } from "lucide-react";
 
 function statusBadge(status: string) {
   const base = "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold";
@@ -89,12 +84,9 @@ type Props = {
 export function RequestAccessPanel({ variant = "full", requestsOverride }: Props) {
   const { requests: fetched, reload: load } = useAccessRequests(requestsOverride === undefined);
   const requests = requestsOverride ?? fetched;
-  const [scopes, setScopes] = useState<AccessScope[]>(["gec_vacant_slots"]);
-  const [note, setNote] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [colleges, setColleges] = useState<Pick<College, "id" | "name" | "code">[]>([]);
-  const [targetCollegeId, setTargetCollegeId] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -102,9 +94,7 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
       try {
         const { colleges } = await catalogApi.colleges();
         if (cancelled) return;
-        const list = colleges as Pick<College, "id" | "name" | "code">[];
-        setColleges(list);
-        setTargetCollegeId((prev) => prev || list[0]?.id || "");
+        setColleges(colleges as Pick<College, "id" | "name" | "code">[]);
       } catch {
         if (!cancelled) setColleges([]);
       }
@@ -114,20 +104,15 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
     };
   }, []);
 
-  async function submit() {
-    setLoading(true);
+  async function submit(collegeId: string) {
+    setLoadingId(collegeId);
     setMsg(null);
     try {
-      if (!targetCollegeId) {
-        throw new Error("Choose a college for this request.");
-      }
       await accessRequestsApi.create({
-        scopes,
-        note: note.trim() || undefined,
-        targetCollegeId,
+        targetCollegeId: collegeId,
+        scopes: [...GEC_COLLEGE_ACCESS_SCOPES],
       });
       setMsg("Request submitted.");
-      setNote("");
       if (!requestsOverride) await load();
     } catch (e) {
       setMsg(
@@ -138,15 +123,9 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
             : "Failed",
       );
     } finally {
-      setLoading(false);
+      setLoadingId(null);
     }
   }
-
-  function toggleScope(id: AccessScope) {
-    setScopes((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
-  }
-
-  const canSubmit = scopes.length > 0 && !loading && Boolean(targetCollegeId);
 
   if (variant === "compact") {
     return (
@@ -177,57 +156,53 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
   }
 
   return (
-    <DashboardCard title="Request access (GEC Chairman)">
+    <DashboardCard title="Request access">
       <p className="text-sm text-black/75 mb-4">
-        Choose the <strong>college</strong> you need (e.g. COTE, then separately CAFE). Approving one college does not
-        grant access to others. Optional scopes: Evaluator, INS, vacant GEC slots.
+        Choose a college and submit <strong>Request Access</strong>. One request covers plotting access for that college.
       </p>
 
-      <label className="block text-xs font-medium text-black/60 mb-1">College for this request</label>
-      <select
-        className="w-full rounded-md border border-black/15 px-3 py-2 text-sm mb-4 bg-white"
-        value={targetCollegeId}
-        onChange={(e) => setTargetCollegeId(e.target.value)}
-      >
-        <option value="">Select college…</option>
-        {colleges.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name} ({c.code})
-          </option>
-        ))}
-      </select>
-
-      <div className="space-y-2 mb-4">
-        {SCOPE_OPTIONS.map((opt) => (
-          <label key={opt.id} className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={scopes.includes(opt.id)}
-              onChange={() => toggleScope(opt.id)}
-              className="rounded border-black/20"
-            />
-            {opt.label}
-          </label>
-        ))}
-      </div>
-
-      <label className="block text-xs font-medium text-black/60 mb-1">Note (optional)</label>
-      <textarea
-        className="w-full rounded-md border border-black/15 px-3 py-2 text-sm min-h-[80px] mb-4"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Context for the approver…"
-      />
-
-      <Button
-        type="button"
-        onClick={() => void submit()}
-        disabled={!canSubmit}
-        className="bg-[#780301] hover:bg-[#5a0201]"
-      >
-        <Lock className="w-4 h-4 mr-2" />
-        {loading ? "Submitting…" : "Submit request"}
-      </Button>
+      {colleges.length === 0 ? (
+        <p className="text-sm text-black/55">No colleges available.</p>
+      ) : (
+        <div className="space-y-3">
+          {colleges.map((c) => {
+            const state = getGecVacantSlotApprovalUiState(requests, c.id);
+            const busy = loadingId === c.id;
+            return (
+              <div
+                key={c.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-black/10 bg-white px-3 py-3"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-black">{c.name}</p>
+                  <p className="text-xs text-black/55">{c.code}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {state.status === "approved" ? (
+                    <span className={statusBadge("approved")}>Approved</span>
+                  ) : state.status === "pending" ? (
+                    <span className={statusBadge("pending")}>Pending</span>
+                  ) : state.status === "rejected" ? (
+                    <span className={statusBadge("rejected")}>Not approved</span>
+                  ) : null}
+                  {state.status === "approved" || state.status === "pending" ? null : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void submit(c.id)}
+                      disabled={busy || Boolean(loadingId)}
+                      className="bg-[#780301] hover:bg-[#5a0201]"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 mr-1" />
+                      {busy ? "Submitting…" : state.status === "rejected" ? "Request Access" : "Request Access"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {msg ? <p className="text-sm text-black/70 mt-3">{msg}</p> : null}
 
       <div className="mt-8 border-t border-black/10 pt-6">
@@ -241,25 +216,22 @@ export function RequestAccessPanel({ variant = "full", requestsOverride }: Props
                 <tr className="bg-black/[0.04]">
                   <th className="p-2">When</th>
                   <th className="p-2">College</th>
-                  <th className="p-2">Scopes</th>
                   <th className="p-2">Status</th>
-                  <th className="p-2">Expires</th>
                 </tr>
               </thead>
               <tbody>
-                {requests.map((r) => (
-                  <tr key={r.id} className="border-t border-black/10">
-                    <td className="p-2 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
-                    <td className="p-2 font-mono text-[11px]">{r.collegeId}</td>
-                    <td className="p-2">{(r.scopes ?? []).join(", ")}</td>
-                    <td className="p-2">
-                      <span className={statusBadge(r.status)}>{r.status}</span>
-                    </td>
-                    <td className="p-2">
-                      {r.status === "approved" && r.expiresAt ? new Date(r.expiresAt).toLocaleString() : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {requests.map((r) => {
+                  const college = colleges.find((c) => c.id === r.collegeId);
+                  return (
+                    <tr key={r.id} className="border-t border-black/10">
+                      <td className="p-2 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
+                      <td className="p-2">{college ? `${college.name} (${college.code})` : r.collegeId}</td>
+                      <td className="p-2">
+                        <span className={statusBadge(r.status)}>{r.status}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -24,6 +24,7 @@ import {
 
 export type FacultyProfileWorkspaceProps = {
   chairmanCollegeId?: string | null;
+  chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   viewerCollegeId?: string | null;
   /** From `FacultyProfileWithScope` + CampusScopeFilters */
@@ -46,6 +47,7 @@ type ListRow = {
 
 export function FacultyProfileWorkspace({
   chairmanCollegeId = null,
+  chairmanProgramId = null,
   chairmanProgramCode = null,
   viewerCollegeId = null,
   scopeCollegeId = null,
@@ -112,12 +114,22 @@ export function FacultyProfileWorkspace({
     let users: Pick<User, "id" | "name" | "employeeId">[] = [];
     try {
       const { apiFetch } = await import("@/lib/api/client");
-      const data = await apiFetch<{ users: Pick<User, "id" | "name" | "employeeId" | "role" | "instructorValidation">[] }>(
+      const data = await apiFetch<{
+        users: Array<
+          Pick<User, "id" | "name" | "employeeId" | "role" | "chairmanProgramId" | "instructorValidation">
+        >;
+      }>(
         `/api/catalog/users?collegeId=${collegeId}`,
-        { method: "GET" },
+        { method: "GET", forceRefresh: true },
       );
       users = data.users
-        .filter((u) => u.role === "instructor" && isPlottableFacultyUser(u))
+        .filter((u) => {
+          if (u.role !== "instructor" || !isPlottableFacultyUser(u)) return false;
+          const home = String(u.chairmanProgramId ?? "").trim();
+          const locked = String(chairmanProgramId ?? "").trim();
+          if (locked && home && home !== locked) return false;
+          return true;
+        })
         .map((u) => ({ id: u.id, name: u.name, employeeId: u.employeeId }));
     } catch {
       setLoadingList(false);
@@ -199,7 +211,7 @@ export function FacultyProfileWorkspace({
         profile: byUser.get(u.id) ?? null,
       })),
     );
-  }, [collegeId, scopeProgramId]);
+  }, [collegeId, scopeProgramId, chairmanProgramId]);
 
   useEffect(() => {
     void loadFaculty();
@@ -348,6 +360,8 @@ export function FacultyProfileWorkspace({
         role: "instructor",
         collegeId,
         employeeId: employeeId.trim() || null,
+        chairmanProgramId: chairmanProgramId || null,
+        instructorValidation: "active",
       });
     } catch (err: any) {
       setSaving(false);

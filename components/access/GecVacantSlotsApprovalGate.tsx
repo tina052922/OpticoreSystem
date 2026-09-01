@@ -5,6 +5,7 @@ import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { accessRequestsApi, ApiClientError } from "@/lib/api/client";
+import { GEC_COLLEGE_ACCESS_SCOPES } from "@/lib/access/gec-college-scopes";
 import type { GecVacantSlotApprovalUiState } from "@/components/access/RequestAccessPanel";
 
 type Props = {
@@ -25,8 +26,7 @@ export function GecVacantSlotsApprovalGate({ state, loading, collegeId, onSubmit
     try {
       await accessRequestsApi.create({
         targetCollegeId: collegeId,
-        scopes: ["gec_vacant_slots"],
-        note: "Central Hub Evaluator — vacant GEC slots for this college",
+        scopes: [...GEC_COLLEGE_ACCESS_SCOPES],
       });
       onSubmitted?.();
     } catch (e) {
@@ -91,7 +91,7 @@ export function GecVacantSlotsApprovalGate({ state, loading, collegeId, onSubmit
           onClick={() => void submit()}
         >
           <KeyRound className="w-3.5 h-3.5 mr-1 inline" />
-          {busy ? "Submitting…" : state.status === "rejected" ? "Request again" : "Request access"}
+          {busy ? "Submitting…" : "Request Access"}
         </Button>
       </div>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
