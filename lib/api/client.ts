@@ -1222,8 +1222,14 @@ export const collegeApi = {
       body,
     });
   },
-  notifyGecReady(body: { academicPeriodId?: string; note?: string }) {
+  notifyGecReady(body: { academicPeriodId?: string; programId?: string; note?: string }) {
     return apiFetch<{ ok: true; notified: number; message: string }>("/api/college/notify-gec-ready", {
+      method: "POST",
+      body,
+    });
+  },
+  notifyProgramPlotted(body: { academicPeriodId?: string; programId?: string; note?: string }) {
+    return apiFetch<{ ok: true; notified: number; message: string }>("/api/college/notify-program-plotted", {
       method: "POST",
       body,
     });

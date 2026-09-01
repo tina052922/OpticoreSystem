@@ -118,7 +118,11 @@ export function CollegeTeachingLoadSummaryClient() {
           <Button type="button" disabled={loading || groups.length === 0} onClick={() => setPdfOpen(true)}>
             Preview / Download PDF
           </Button>
-          <NotifyGecReadyButton academicPeriodId={selectedPeriodId} periodLabel={semesterLabel} />
+          <NotifyGecReadyButton
+            academicPeriodId={selectedPeriodId}
+            periodLabel={semesterLabel}
+            programs={collegeId ? programs.filter((p) => p.collegeId === collegeId) : []}
+          />
         </div>
         {error ? (
           <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>

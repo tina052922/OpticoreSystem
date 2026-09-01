@@ -29,10 +29,9 @@ import {
 } from "@/lib/chairman/bsit-prospectus";
 import { BSENVS_PROGRAM_CODE, BSENVS_PROGRAM_ID } from "@/lib/chairman/bs-envsci-prospectus";
 import {
+  catalogSubjectsToProspectusRows,
   getProspectusSubjectsForProgram,
   prospectusRowForProgram,
-  prospectusSubjectsForProgramYearAndSemester,
-  prospectusSubjectsForProgramYearLevel,
 } from "@/lib/chairman/prospectus-registry";
 import { yearLevelFromSchedulingSectionName } from "@/lib/chairman/section-year-level";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
@@ -808,19 +807,7 @@ export function BsitChairmanEvaluatorWorksheet({
   );
 
   const catalogSubjectRows = useMemo(
-    () =>
-      subjects
-        .filter((s) => !programId || s.programId === programId)
-        .map((s) => ({
-          code: s.code,
-          title: s.title,
-          lecUnits: s.lecUnits,
-          lecHours: s.lecHours,
-          labUnits: s.labUnits,
-          labHours: s.labHours,
-          yearLevel: s.yearLevel || 1,
-          semester: 1 as const,
-        })),
+    () => catalogSubjectsToProspectusRows(subjects.filter((s) => !programId || s.programId === programId)),
     [subjects, programId],
   );
 

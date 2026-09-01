@@ -31,7 +31,12 @@ type Props = {
   /** Latest code the chairman just plotted — extra emphasis (pulse) in the summary. */
   lastPlottedSubjectCode?: string | null;
   /** Catalog subjects when the program has no static prospectus (BIT / BSIE). */
-  fallbackSubjects?: { code: string; title: string }[];
+  fallbackSubjects?: Array<{
+    code: string;
+    title: string;
+    yearLevel?: number;
+    semester?: 1 | 2;
+  }>;
   className?: string;
 };
 
@@ -53,14 +58,25 @@ export function ChairmanProgramProspectusSummaryTable({
   const [activeCode, setActiveCode] = useState<string | null>(null);
 
   const groups = useMemo(() => {
-    const rows = getProspectusSubjectsForProgram(programCode);
+    const rows = hasProspectusForProgram(programCode)
+      ? getProspectusSubjectsForProgram(programCode)
+      : fallbackSubjects.map((s) => ({
+          code: s.code,
+          title: s.title,
+          lecUnits: 0,
+          lecHours: 0,
+          labUnits: 0,
+          labHours: 0,
+          yearLevel: s.yearLevel && s.yearLevel >= 1 && s.yearLevel <= 4 ? s.yearLevel : 1,
+          semester: (s.semester === 2 ? 2 : 1) as 1 | 2,
+        }));
     if (yearLevelFilter == null) return [];
     let list = rows.filter((r) => r.yearLevel === yearLevelFilter);
     if (filterSemester != null) {
       list = list.filter((r) => r.semester === filterSemester);
     }
     return groupProspectusByYearAndSemester(list);
-  }, [programCode, yearLevelFilter, filterSemester]);
+  }, [programCode, yearLevelFilter, filterSemester, fallbackSubjects]);
 
   useEffect(() => {
     setActiveCode(null);
@@ -80,41 +96,14 @@ export function ChairmanProgramProspectusSummaryTable({
         {scopeDescription ? (
           <div className="text-[11px] text-black/55">{scopeDescription}</div>
         ) : null}
+        {!hasProspectusForProgram(programCode) && programCode.trim() ? (
+          <div className="text-[11px] text-black/50 mt-0.5">
+            Curriculum for {programCode} uses catalog subjects (no static CMO prospectus file).
+          </div>
+        ) : null}
       </div>
       {!programCode.trim() ? (
         <p className="text-sm text-black/55 px-2 py-4">No program code in scope.</p>
-      ) : !hasProspectusForProgram(programCode) ? (
-        <div className="px-2 py-3">
-          <p className="text-[12px] text-black/60 mb-2">
-            No static prospectus for <strong>{programCode}</strong>. Subjects below come from the catalog for this
-            department.
-          </p>
-          {fallbackSubjects.length === 0 ? (
-            <p className="text-sm text-black/55">No catalog subjects for this department yet.</p>
-          ) : (
-            <table className="w-full border-collapse text-[11px]">
-              <thead>
-                <tr className="text-left text-black/55">
-                  <th className="py-1 pr-2">Code</th>
-                  <th className="py-1 pr-2">Title</th>
-                  <th className="py-1">Plotted</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fallbackSubjects.map((s) => {
-                  const plotted = plottedSubjectCodes.has(normalizeProspectusCode(s.code));
-                  return (
-                    <tr key={s.code} className="border-t border-black/10">
-                      <td className="py-1 pr-2 font-semibold">{s.code}</td>
-                      <td className="py-1 pr-2">{s.title}</td>
-                      <td className="py-1">{plotted ? "Yes" : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
       ) : yearLevelFilter === undefined ? (
         <p className="text-sm text-black/60 px-2 py-4">
           <strong>Select a section</strong> above (e.g. BSIT 3A). The summary will list only subjects for that section’s

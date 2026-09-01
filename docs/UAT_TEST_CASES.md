@@ -2,8 +2,10 @@
 
 **Capstone Project Title:** OptiCore: A Campus Intelligence System for Academic Scheduling and Room Navigation
 **Team:** TEAM CLUTCHERS
-**Build / Version:** Current development build (Night Program integration)
+**Build / Version:** Current development build (Evening Program integration)
 **Testing Date:** August 26, 2026
+
+> **Label:** the product UI uses **Evening Program**. Storage remains `programMode: "night"`. Older cases below may still say “Night Program”; treat that as Evening Program when executing.
 
 > Copy each test case block into one page / row of the official UAT Word template.
 

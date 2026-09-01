@@ -13,8 +13,6 @@ import {
   BSIT_PROGRAM_CODE,
   BSIT_PROSPECTUS_SUBJECTS,
   normalizeProspectusCode,
-  prospectusSubjectsForYearAndSemester,
-  prospectusSubjectsForYearLevel,
   scheduleDurationSlots,
   type BsitSemester,
   type ProspectusSubjectRow,
@@ -22,8 +20,6 @@ import {
 import {
   BSENVS_PROGRAM_CODE,
   BSENVS_PROSPECTUS_SUBJECTS,
-  prospectusSubjectsForBsenvsYearAndSemester,
-  prospectusSubjectsForBsenvsYearLevel,
 } from "@/lib/chairman/bs-envsci-prospectus";
 import type { Subject } from "@/types/db";
 
@@ -76,22 +72,45 @@ export function prospectusSubjectsForProgramYearAndSemester(
   yearLevel: number,
   semester: BsitSemester,
 ): ProspectusSubjectRow[] {
-  const k = normalizeProgramKey(programCode);
-  if (k === BSENVS_PROGRAM_CODE.toUpperCase()) {
-    return prospectusSubjectsForBsenvsYearAndSemester(yearLevel, semester);
-  }
-  return prospectusSubjectsForYearAndSemester(yearLevel, semester);
+  return getProspectusSubjectsForProgram(programCode).filter(
+    (s) => s.yearLevel === yearLevel && s.semester === semester,
+  );
 }
 
 export function prospectusSubjectsForProgramYearLevel(
   programCode: string | null | undefined,
   yearLevel: number,
 ): ProspectusSubjectRow[] {
-  const k = normalizeProgramKey(programCode);
-  if (k === BSENVS_PROGRAM_CODE.toUpperCase()) {
-    return prospectusSubjectsForBsenvsYearLevel(yearLevel);
+  return getProspectusSubjectsForProgram(programCode).filter((s) => s.yearLevel === yearLevel);
+}
+
+/**
+ * Map catalog `Subject` rows into prospectus-shaped curriculum (BIT / BSIE and any program
+ * without a static CMO file). Year and semester come from the catalog when present.
+ */
+export function catalogSubjectsToProspectusRows(subjects: Subject[]): ProspectusSubjectRow[] {
+  const out: ProspectusSubjectRow[] = [];
+  const seen = new Set<string>();
+  for (const s of subjects) {
+    const code = (s.code ?? "").trim();
+    if (!code) continue;
+    const key = normalizeProspectusCode(code);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const semester: BsitSemester = s.semester === 2 ? 2 : 1;
+    const yearLevel = Number.isFinite(s.yearLevel) ? Math.max(1, Math.min(4, Math.round(s.yearLevel))) : 1;
+    out.push({
+      code,
+      title: (s.title ?? "").trim() || code,
+      lecUnits: s.lecUnits ?? 0,
+      lecHours: s.lecHours ?? 0,
+      labUnits: s.labUnits ?? 0,
+      labHours: s.labHours ?? 0,
+      yearLevel,
+      semester,
+    });
   }
-  return prospectusSubjectsForYearLevel(yearLevel);
+  return out.sort((a, b) => a.code.localeCompare(b.code));
 }
 
 /**

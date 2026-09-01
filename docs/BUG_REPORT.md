@@ -2,7 +2,7 @@
 
 **Project / System:** OptiCore: A Campus Intelligence System for Academic Scheduling and Room Navigation
 **Team:** Team Clutchers
-**Build / Version:** Current development build (Night Program integration)
+**Build / Version:** Current development build (Evening Program integration)
 **Date Prepared:** August 26, 2026
 **Date Verified:** August 26, 2026
 

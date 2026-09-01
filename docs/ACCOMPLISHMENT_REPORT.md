@@ -3,7 +3,7 @@
 **Project Title:** OptiCore: A Campus Intelligence System for Academic Scheduling and Room Navigation
 **Team:** Team Clutchers
 **Reporting Period:** Development and internal testing up to August 26, 2026
-**Build / Version:** Current development build (Night Program integration)
+**Build / Version:** Current development build (Evening Program integration)
 
 ---
 
@@ -13,7 +13,7 @@ OptiCore is a web-based Campus Intelligence System that centralizes academic sch
 
 The system serves multiple roles with scoped access: Chairman, College Admin, CAS Admin, GEC Chairman, Director of Instruction / VPAA, and Instructor. Each role sees only the modules and data within its authority. The platform is built on Next.js 15 for the web application with an Express API layer for secured operations, and Supabase for data persistence, authentication, and realtime updates.
 
-The current reporting period focused on completing the core scheduling workflow and integrating the **Night Program** as a second, independent offering alongside the existing Day Program.
+The current reporting period focused on completing the core scheduling workflow and integrating the **Evening Program** as a second, independent offering alongside the existing Day Program. End-to-end role flow is documented in [`SYSTEM_FLOW.md`](./SYSTEM_FLOW.md).
 
 ---
 
@@ -30,9 +30,9 @@ The current reporting period focused on completing the core scheduling workflow 
 - Print-ready output with the official header, academic period details, and configurable signatory block.
 - Search and filter tools for locating a faculty member, section, or room and generating the corresponding load sheet.
 
-**2.3 Night Program Mode**
-- Introduced the Night Program as a distinct offering with its own time windows: Monday–Friday 4:00 PM – 10:00 PM and Saturday–Sunday 7:00 AM – 10:00 PM.
-- Added a Day / Night program switch inside the Evaluator, with the selected mode persisted across sessions.
+**2.3 Evening Program Mode**
+- Introduced the Evening Program as a distinct offering with its own time windows: Monday–Friday 4:00 PM – 10:00 PM and Saturday–Sunday 7:00 AM – 10:00 PM.
+- Added a Day / Evening program switch inside the Evaluator, with the selected mode persisted across sessions.
 - Extended the scheduling grid to render the correct time range and day set for each mode.
 
 **2.4 Conflict Checker**

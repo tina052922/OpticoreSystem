@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
+import { NotifyProgramPlottedButton } from "@/components/chairman/NotifyProgramPlottedButton";
 import { BsitChairmanEvaluatorWorksheet } from "@/components/evaluator/BsitChairmanEvaluatorWorksheet";
 import { CentralHubEvaluatorView } from "@/components/evaluator/CentralHubEvaluatorView";
 import {
@@ -91,7 +92,14 @@ export function EvaluatorPage({
               academicPeriodId={selectedPeriodId}
               periodLabel={selectedPeriod?.name ?? null}
             />
-          ) : null}
+          ) : (
+            <NotifyProgramPlottedButton
+              academicPeriodId={selectedPeriodId}
+              periodLabel={selectedPeriod?.name ?? null}
+              programId={chairmanProgramId}
+              programLabel={chairmanProgramName || chairmanProgramCode}
+            />
+          )}
         </div>
 
         {collegeWide ? (
