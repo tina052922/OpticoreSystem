@@ -34,8 +34,8 @@ export const CHAIRMAN_NAV: AdminNavItem[] = [
   { label: LOAD_GENERATOR_NAV_LABEL, href: "/chairman/ins?tab=faculty", icon: "BookOpen" },
   { label: "Evaluator", href: "/chairman/evaluator", icon: "ClipboardList" },
   { label: "Schedule change requests", href: "/chairman/schedule-change-requests", icon: "Inbox" },
-  { label: "Instructor registrations", href: "/chairman/instructor-registrations", icon: "UserPlus" },
   { label: "Faculty Profile", href: "/chairman/faculty-profile", icon: "UserCircle" },
+  { label: "Pending Instructors", href: "/chairman/pending-instructors", icon: "UserPlus" },
   { label: "Subject Codes", href: "/chairman/subject-codes", icon: "Layers" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];

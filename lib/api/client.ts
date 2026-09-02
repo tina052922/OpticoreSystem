@@ -759,31 +759,133 @@ export const authApi = {
       retryOn401: false,
     });
   },
+  /**
+   * Step 1 of password reset: emails a 6-digit code.
+   *
+   * ⚠️ Resolves identically whether or not an account exists — that is
+   * deliberate (anti-enumeration), so the UI must NOT treat success as proof
+   * the address is registered.
+   */
   forgotPassword(email: string) {
-    return apiFetch<{ sent: true }>("/api/auth/forgot-password", {
+    return apiFetch<{
+      ok: true;
+      otpRequired: true;
+      expiresInMinutes: number;
+      message: string;
+    }>("/api/auth/forgot-password", {
       method: "POST",
       body: { email },
       retryOn401: false,
     });
   },
-};
-
-export const registerApi = {
-  instructor(input: {
-    fullName: string;
-    email: string;
-    employeeId: string;
-    collegeId: string;
-    [key: string]: unknown; // Allow additional profile fields safely
-  }) {
-    return apiFetch<{ ok: true; pending?: boolean; message: string; temporaryPassword: string }>(
-      "/api/auth/register-instructor",
+  /** Issues a NEW reset code, invalidating the previous one. Throttled. */
+  resendPasswordResetCode(email: string) {
+    return apiFetch<{
+      ok: true;
+      otpRequired: true;
+      expiresInMinutes: number;
+      message: string;
+    }>("/api/auth/forgot-password/resend", {
+      method: "POST",
+      body: { email },
+      retryOn401: false,
+    });
+  },
+  /**
+   * Step 2: exchanges a correct code for a single-use `resetTicket`.
+   *
+   * 🔒 The ticket authorises a password change — keep it in component state
+   * only. Never write it to localStorage or a URL.
+   *
+   * Throws `ApiClientError` with `code: "EXPIRED"` or `"TOO_MANY_ATTEMPTS"`
+   * when the request is gone server-side and retrying is pointless.
+   */
+  verifyPasswordResetCode(input: { email: string; code: string }) {
+    return apiFetch<{
+      ok: true;
+      resetTicket: string;
+      expiresInMinutes: number;
+    }>("/api/auth/forgot-password/verify", {
+      method: "POST",
+      body: input,
+      retryOn401: false,
+    });
+  },
+  /** Step 3: redeems the ticket and sets the new password. */
+  resetPassword(input: { resetTicket: string; newPassword: string }) {
+    return apiFetch<{ ok: true; message: string }>(
+      "/api/auth/forgot-password/reset",
       {
         method: "POST",
         body: input,
         retryOn401: false,
       },
     );
+  },
+};
+
+export const registerApi = {
+  /**
+   * Instructor signup, step 1: emails a 6-digit code to the CTU address.
+   *
+   * ⚠️ Creates NO account. Even after the code is verified the applicant only
+   * enters the chairman's approval queue — they cannot sign in until a chairman
+   * approves and assigns an Employee ID.
+   *
+   * `employeeId` is advisory: the chairman sets the authoritative value at
+   * approval, so do not present it to the user as final.
+   *
+   * Throws `ApiClientError` with `code`:
+   *   `INVALID_EMAIL_DOMAIN` (400) — not an @ctu.edu.ph address
+   *   `EMAIL_EXISTS` (409)         — already registered
+   *   `ALREADY_PENDING` (409)      — a request is already awaiting review
+   */
+  instructor(input: {
+    fullName: string;
+    email: string;
+    password: string;
+    collegeId: string;
+    employeeId?: string;
+    [key: string]: unknown; // Additional faculty profile fields (server allowlists)
+  }) {
+    return apiFetch<{
+      ok: true;
+      otpRequired: true;
+      email: string;
+      expiresInMinutes: number;
+      message: string;
+    }>("/api/auth/register-instructor", {
+      method: "POST",
+      body: input,
+      retryOn401: false,
+    });
+  },
+  /** Instructor signup, step 2: confirms the code and queues for chairman review. */
+  verifyInstructor(input: { email: string; code: string }) {
+    return apiFetch<{
+      ok: true;
+      pendingApproval: true;
+      email: string;
+      message: string;
+    }>("/api/auth/verify-instructor", {
+      method: "POST",
+      body: input,
+      retryOn401: false,
+    });
+  },
+  /** Issues a NEW instructor code, invalidating the previous one. */
+  resendInstructorVerification(email: string) {
+    return apiFetch<{
+      ok: true;
+      otpRequired: true;
+      email: string;
+      expiresInMinutes: number;
+      message: string;
+    }>("/api/auth/resend-instructor-verification", {
+      method: "POST",
+      body: { email },
+      retryOn401: false,
+    });
   },
   student(input: {
     fullName: string;
@@ -848,6 +950,82 @@ export const registerApi = {
   },
 };
 
+/** A verified instructor signup awaiting chairman approval. */
+export type InstructorRequest = {
+  id: string;
+  email: string;
+  deliveryEmail: string;
+  fullName: string;
+  collegeId: string;
+  /** What the applicant typed. Advisory only — the chairman sets the real one. */
+  claimedEmployeeId: string | null;
+  /** Faculty profile fields from the registration form. */
+  profile: Record<string, string | null> | null;
+  status: "pending" | "approved" | "rejected";
+  verifiedAt: string;
+  reviewedAt: string | null;
+  reviewerNotes: string | null;
+  linkedUserId: string | null;
+  createdAt: string;
+};
+
+/** An unclaimed placeholder faculty row a chairman can adopt at approval. */
+export type LinkableFaculty = {
+  id: string;
+  name: string | null;
+  email: string;
+  employeeId: string | null;
+};
+
+/**
+ * Chairman review queue for instructor self-registrations.
+ *
+ * 🔒 Scope is enforced server-side from the session's college — there is no
+ * collegeId parameter to pass, deliberately.
+ */
+export const instructorRequestsApi = {
+  list(status: "pending" | "approved" | "rejected" | "all" = "pending") {
+    return apiFetch<{ requests: InstructorRequest[] }>(
+      `/api/instructor-requests${qs({ status })}`,
+      { method: "GET" },
+    );
+  },
+  count() {
+    return apiFetch<{ pending: number }>("/api/instructor-requests/count", {
+      method: "GET",
+    });
+  },
+  /** Placeholder faculty rows (created via Faculty Profile, never signed in). */
+  linkableFaculty() {
+    return apiFetch<{ candidates: LinkableFaculty[] }>(
+      "/api/instructor-requests/linkable-faculty",
+      { method: "GET" },
+    );
+  },
+  /**
+   * Creates the account.
+   *
+   * Pass `linkUserId` to adopt an existing placeholder — strongly preferred
+   * when one exists, because already-plotted `ScheduleEntry` rows point at that
+   * id and minting a new one would strand them. Otherwise pass `employeeId` to
+   * create a fresh record.
+   */
+  approve(id: string, body: { employeeId?: string; linkUserId?: string }) {
+    return apiFetch<{
+      ok: true;
+      userId: string;
+      employeeId: string;
+      message: string;
+    }>(`/api/instructor-requests/${id}/approve`, { method: "POST", body });
+  },
+  reject(id: string, body: { reviewerNotes?: string } = {}) {
+    return apiFetch<{ ok: true; message: string }>(
+      `/api/instructor-requests/${id}/reject`,
+      { method: "POST", body },
+    );
+  },
+};
+
 export const accessRequestsApi = {
   create(body: {
     targetCollegeId?: string;
@@ -902,54 +1080,6 @@ export const accessRequestsApi = {
         forceRefresh: opts.forceRefresh,
       },
     );
-  },
-};
-
-export type InstructorRegistrationRow = {
-  id: string;
-  email: string;
-  name: string;
-  employeeId: string | null;
-  collegeId: string | null;
-  collegeCode: string | null;
-  collegeName: string | null;
-  chairmanProgramId: string | null;
-  instructorValidation: "pending" | "active" | "rejected";
-  instructorValidatedAt: string | null;
-  instructorValidationNote: string | null;
-  createdAt: string | null;
-  programCode: string | null;
-  programName: string | null;
-  profile: {
-    fullName?: string | null;
-    aka?: string | null;
-    designation?: string | null;
-    status?: string | null;
-    bsDegree?: string | null;
-    msDegree?: string | null;
-    doctoralDegree?: string | null;
-  } | null;
-};
-
-export const instructorRegistrationsApi = {
-  list(params: { status?: "pending" | "active" | "rejected" | "all" } = {}) {
-    return apiFetch<{ registrations: InstructorRegistrationRow[] }>(
-      `/api/instructor-registrations${qs(params)}`,
-      { method: "GET" },
-    );
-  },
-  review(id: string, body: { action: "approve" | "reject"; note?: string }) {
-    return apiFetch<{ ok: true; message: string; registration: InstructorRegistrationRow }>(
-      `/api/instructor-registrations/${encodeURIComponent(id)}`,
-      { method: "PATCH", body },
-    );
-  },
-  pendingCount(opts: { forceRefresh?: boolean } = {}) {
-    return apiFetch<{ pending: number }>("/api/instructor-registrations/pending-count", {
-      method: "GET",
-      cacheTtlMs: API_CACHE_TTL.BADGE_COUNT,
-      forceRefresh: opts.forceRefresh,
-    });
   },
 };
 

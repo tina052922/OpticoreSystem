@@ -19,6 +19,27 @@ type Props = {
   onResent: (next: { lastSentAt: number; expiresAt: number }) => void;
   /** Abandon this signup and return to the form. */
   onStartOver: () => void;
+
+  /**
+   * Endpoint overrides so the instructor flow can reuse this panel.
+   *
+   * Default to the STUDENT endpoints, which keeps every existing call site
+   * working unchanged. The instructor variants differ in what success means —
+   * a student's account is created on verify, an instructor's request merely
+   * enters the chairman's queue — so the caller owns the copy shown afterwards.
+   */
+  verify?: (input: {
+    email: string;
+    code: string;
+  }) => Promise<{ message: string }>;
+  resend?: (email: string) => Promise<{ expiresInMinutes: number }>;
+
+  /** Headline above the code input. */
+  title?: string;
+  /** Replaces the default "Verify email" button label. */
+  submitLabel?: string;
+  /** Where "Register again" / "Use a different email" should send the user. */
+  startOverLabel?: string;
 };
 
 const secondsLeft = (lastSentAt: number) =>
@@ -33,6 +54,11 @@ export function OtpVerificationPanel({
   onVerified,
   onResent,
   onStartOver,
+  verify = registerApi.verifyEmail,
+  resend = registerApi.resendVerification,
+  title = "Enter your code",
+  submitLabel = "Verify email",
+  startOverLabel = "Register again",
 }: Props) {
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -64,7 +90,7 @@ export function OtpVerificationPanel({
     setError(null);
     setNotice(null);
     try {
-      const res = await registerApi.verifyEmail({ email, code: value });
+      const res = await verify({ email, code: value });
       clearPendingRegistration();
       onVerified(res.message);
     } catch (err) {
@@ -102,7 +128,7 @@ export function OtpVerificationPanel({
     setError(null);
     setNotice(null);
     try {
-      const res = await registerApi.resendVerification(email);
+      const res = await resend(email);
       const now = Date.now();
       onResent({
         lastSentAt: now,
@@ -146,7 +172,7 @@ export function OtpVerificationPanel({
       </div>
 
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-black">Enter your code</h1>
+        <h1 className="text-2xl font-bold text-black">{title}</h1>
         <p className="text-base text-black/80">
           We sent a {CODE_LENGTH}-digit code to <strong>{email}</strong>.
         </p>
@@ -199,7 +225,7 @@ export function OtpVerificationPanel({
           onClick={onStartOver}
           className="w-full h-14 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg text-lg font-semibold"
         >
-          Register again
+          {startOverLabel}
         </Button>
       ) : (
         <>
@@ -209,7 +235,7 @@ export function OtpVerificationPanel({
             disabled={code.length !== CODE_LENGTH || submitting}
             className="w-full h-14 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg text-lg font-semibold disabled:opacity-60"
           >
-            {submitting ? "Verifying…" : "Verify email"}
+            {submitting ? "Verifying…" : submitLabel}
           </Button>
 
           <Button

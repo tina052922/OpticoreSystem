@@ -34,12 +34,14 @@ export type RealtimeEventName =
   | "config.changed"
   | "period.changed";
 
+/** Must stay in sync with `BadgeKind` in the backend's `realtime/events.ts`. */
 export type RealtimeBadgeKind =
   | "access_requests"
   | "schedule_change_requests"
   | "policy_reviews"
   | "audit_log"
-  | "instructor_registrations";
+  /** Instructor self-registrations awaiting chairman approval. */
+  | "instructor_requests";
 
 export type RealtimeEventPayload = {
   academicPeriodId?: string;

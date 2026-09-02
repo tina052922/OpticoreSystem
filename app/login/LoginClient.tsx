@@ -97,19 +97,17 @@ export function LoginClient() {
     }
   }
 
-  async function onForgotPassword() {
+  /**
+   * Carries whatever the user already typed into the reset flow, so they don't
+   * retype it. Only prefilled when it looks like an address — passing a partial
+   * string would just show a validation error on arrival.
+   */
+  const forgotPasswordHref = useMemo(() => {
     const trimmed = email.trim().toLowerCase();
-    if (!trimmed) {
-      toast.error("No email entered", "Enter your email first, then click Forgot password.");
-      return;
-    }
-    try {
-      await authApi.forgotPassword(trimmed);
-    } catch {
-      // Swallow error to prevent email enumeration
-    }
-    toast.success("Reset link sent", "If an account exists for that email, a reset link has been sent.");
-  }
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+      ? `/forgot-password?email=${encodeURIComponent(trimmed)}`
+      : "/forgot-password";
+  }, [email]);
 
   return (
     <LoginContainer>
@@ -210,13 +208,12 @@ export function LoginClient() {
                 Remember me
               </label>
             </div>
-            <button
-              type="button"
-              onClick={() => void onForgotPassword()}
+            <Link
+              href={forgotPasswordHref}
               className="text-sm text-[#181818] hover:underline font-medium"
             >
               Forgot password
-            </button>
+            </Link>
           </div>
 
           <Button

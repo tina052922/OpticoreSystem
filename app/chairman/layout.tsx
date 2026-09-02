@@ -17,7 +17,7 @@ export default async function ChairmanLayout({ children }: { children: React.Rea
       profileHref="/chairman/profile"
       scheduleChangeRequestsBadgeCollegeId={session.collegeId}
       scheduleChangeRequestsBadgeProgramId={session.programId}
-      instructorRegistrationsBadge
+      instructorRequestsBadge
     >
       {children}
     </CampusIntelligenceShell>
