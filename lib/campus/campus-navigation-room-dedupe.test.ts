@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { alignCampusNavigationRoomCatalog } from "@/lib/campus/campus-navigation-room-dedupe";
+import { alignCampusNavigationRoomCatalog, roomsAreSamePhysicalSpace } from "@/lib/campus/campus-navigation-room-dedupe";
 import type { Room } from "@/types/db";
 
 const r = (partial: Partial<Room> & Pick<Room, "id" | "code">): Room => ({
@@ -32,5 +32,16 @@ describe("alignCampusNavigationRoomCatalog", () => {
   it("keeps legacy rows when canonical campus navigation rows are absent", () => {
     const list = [r({ id: "room-it-lab-1", code: "IT LAB 1", building: "COTE Building" })];
     expect(alignCampusNavigationRoomCatalog(list)).toHaveLength(1);
+  });
+});
+
+describe("roomsAreSamePhysicalSpace", () => {
+  it("treats COTE 305 and legacy IT LAB 4 as the same lab", () => {
+    expect(roomsAreSamePhysicalSpace("room-cote-305", "room-it-lab-4")).toBe(true);
+  });
+
+  it("does not treat IT Lab 4 as the same room as IT Lab 1", () => {
+    expect(roomsAreSamePhysicalSpace("room-cote-305", "room-cote-302")).toBe(false);
+    expect(roomsAreSamePhysicalSpace("room-cote-305", "room-it-lab-1")).toBe(false);
   });
 });

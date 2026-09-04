@@ -230,3 +230,55 @@ describe("Day vs Night program isolation", () => {
     expect(intervalsOverlap("Night::Saturday", "07:00", "08:00", "Saturday", "07:00", "08:00")).toBe(true);
   });
 });
+
+describe("IT lab room aliases", () => {
+  it("flags a room conflict when one class uses COTE 305 and the other uses legacy IT LAB 4", () => {
+    const a = {
+      id: "a",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "08:00",
+      endTime: "09:00",
+      instructorId: "i1",
+      sectionId: "s1",
+      roomId: "room-cote-305",
+    };
+    const b = {
+      id: "b",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "08:00",
+      endTime: "09:00",
+      instructorId: "i2",
+      sectionId: "s2",
+      roomId: "room-it-lab-4",
+    };
+    const hits = detectConflictsSparse(a, [a, b]);
+    expect(hits.some((h) => h.type === "room" && h.withEntryId === "b")).toBe(true);
+  });
+
+  it("does not flag IT Lab 4 against a class in IT Lab 1", () => {
+    const a = {
+      id: "a",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "08:00",
+      endTime: "09:00",
+      instructorId: "i1",
+      sectionId: "s1",
+      roomId: "room-cote-305",
+    };
+    const b = {
+      id: "b",
+      academicPeriodId: "ap1",
+      day: "Monday",
+      startTime: "08:00",
+      endTime: "09:00",
+      instructorId: "i2",
+      sectionId: "s2",
+      roomId: "room-cote-302",
+    };
+    const hits = detectConflictsSparse(a, [a, b]);
+    expect(hits.some((h) => h.type === "room")).toBe(false);
+  });
+});

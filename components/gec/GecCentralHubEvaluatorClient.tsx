@@ -158,6 +158,7 @@ export function GecCentralHubEvaluatorClient() {
   /** Local rows not yet in Supabase — same “Add schedule row” flow as Program Chairman (`BsitChairmanEvaluatorWorksheet`). */
   const [extraEntries, setExtraEntries] = useState<ScheduleEntry[]>([]);
   const skipPeriodEntryFetchRef = useRef(true);
+  const pendingDeletedIdsRef = useRef<Set<string>>(new Set());
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutosaveToastAtRef = useRef<number>(0);
   /** Inline status beside controls (complements global connection toasts). */
@@ -219,6 +220,15 @@ export function GecCentralHubEvaluatorClient() {
     };
   }, []);
 
+  const applyFetchedEntries = useCallback((raw: ScheduleEntry[]) => {
+    const gone = pendingDeletedIdsRef.current;
+    const fetched = new Set(raw.map((e) => e.id));
+    for (const id of [...gone]) {
+      if (!fetched.has(id)) gone.delete(id);
+    }
+    setEntries(hydrateScheduleEntries(raw.filter((e) => !gone.has(e.id))));
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -236,13 +246,13 @@ export function GecCentralHubEvaluatorClient() {
       setRooms(bundle.rooms ?? []);
       setUsers(bundle.users ?? []);
       setFacultyProfiles(bundle.facultyProfiles ?? []);
-      setEntries(hydrateScheduleEntries(bundle.entries ?? []));
+      applyFetchedEntries(bundle.entries ?? []);
       setLoading(false);
     } catch {
       setLoadError("Failed to load evaluator data.");
       setLoading(false);
     }
-  }, [academicPeriodId]);
+  }, [academicPeriodId, applyFetchedEntries]);
 
   useEffect(() => {
     void load();
@@ -258,9 +268,9 @@ export function GecCentralHubEvaluatorClient() {
       const data = await catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(
         academicPeriodId,
       );
-      setEntries(hydrateScheduleEntries(data.entries ?? []));
+      applyFetchedEntries(data.entries ?? []);
     } catch {}
-  }, [academicPeriodId]);
+  }, [academicPeriodId, applyFetchedEntries]);
 
   /** Program Chairman / hub saves + Realtime: GEC grid & previews stay aligned with INS campus-wide. */
   useScheduleEntryCrossReload(reloadScheduleEntriesSoft, { academicPeriodId, enabled: Boolean(academicPeriodId) });
@@ -277,7 +287,7 @@ export function GecCentralHubEvaluatorClient() {
         const data = await catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(
           academicPeriodId,
         );
-        if (!cancelled) setEntries(hydrateScheduleEntries(data.entries ?? []));
+        if (!cancelled) applyFetchedEntries(data.entries ?? []);
       } catch (e: any) {
         if (!cancelled) setLoadError(e?.message ?? "Failed to load entries");
       }
@@ -998,15 +1008,18 @@ export function GecCentralHubEvaluatorClient() {
       return next;
     });
     if (pendingNewEntryIds.has(entryId)) return;
+    pendingDeletedIdsRef.current.add(entryId);
+    setEntries((prev) => prev.filter((e) => e.id !== entryId));
     try {
       await apiFetch(`/api/catalog/schedule-entries/${entryId}`, { method: "DELETE" });
-      setEntries((prev) => prev.filter((e) => e.id !== entryId));
       dispatchInsCatalogReload();
       toast.success("Schedule removed");
     } catch (e: unknown) {
+      pendingDeletedIdsRef.current.delete(entryId);
       const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Could not remove schedule";
       setSaveMsg(msg);
       toast.error("Failed to remove schedule", msg);
+      void reloadScheduleEntriesSoft();
     }
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, authApi, recordScheduleWrite } from "@/lib/api/client";
+import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/api/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useSearchParams } from "next/navigation";
@@ -408,6 +408,12 @@ export function BsitChairmanEvaluatorWorksheet({
    * triggers an immediate reload that often returns read-your-writes stale times; clearing here caused saves to “revert”.
    */
   const locallyEditedRowIdsRef = useRef<Set<string>>(new Set());
+  /**
+   * Rows the user removed in the grid. Hydrate / Realtime must not put them back, and campus
+   * conflict scans must not treat them as still occupying a room until DELETE is confirmed.
+   */
+  const pendingDeletedIdsRef = useRef<Set<string>>(new Set());
+  const [pendingDeletedIds, setPendingDeletedIds] = useState<Set<string>>(() => new Set());
   /** Plot row whose overload still needs a DOI justification record (assignment is already applied). */
   const policyAssignGateRef = useRef<PlotRow | null>(null);
   /**
@@ -685,11 +691,13 @@ export function BsitChairmanEvaluatorWorksheet({
     };
 
     const mergeHydrate = (prev: PlotRow[], nextRows: PlotRow[]): PlotRow[] => {
-      const dbIds = new Set(nextRows.map((r) => r.id));
-      const pending = prev.filter((r) => !dbIds.has(r.id) && !r.lockedByDoiAt);
+      const deleted = pendingDeletedIdsRef.current;
+      const nextKeep = nextRows.filter((r) => !deleted.has(r.id));
+      const dbIds = new Set(nextKeep.map((r) => r.id));
+      const pending = prev.filter((r) => !dbIds.has(r.id) && !r.lockedByDoiAt && !deleted.has(r.id));
       const guard = postPersistUiMergeRef.current;
       const now = Date.now();
-      const mergedDb = nextRows.map((nr) => {
+      const mergedDb = nextKeep.map((nr) => {
         const local = prev.find((p) => p.id === nr.id);
         if (local && !local.lockedByDoiAt && locallyEditedRowIdsRef.current.has(nr.id)) {
           const samePlot =
@@ -744,6 +752,22 @@ export function BsitChairmanEvaluatorWorksheet({
     didHydrateFromDbRef.current = true;
     lastSyncedByModeRef.current.day = new Set(dayNext.map((r) => r.id));
     lastSyncedByModeRef.current.night = new Set(nightNext.map((r) => r.id));
+    const fetchedIds = new Set((entries as ScheduleEntry[]).map((e) => e.id));
+    const pending = pendingDeletedIdsRef.current;
+    if (pending.size > 0) {
+      let changed = false;
+      const nextPending = new Set(pending);
+      for (const id of pending) {
+        if (!fetchedIds.has(id)) {
+          nextPending.delete(id);
+          changed = true;
+        }
+      }
+      if (changed) {
+        pendingDeletedIdsRef.current = nextPending;
+        setPendingDeletedIds(nextPending);
+      }
+    }
     setDayRows((prev) => mergeHydrate(prev, dayNext));
     setNightRows((prev) => mergeHydrate(prev, nightNext));
   }, [chairmanCollegeId, academicPeriodId, programCodeForSummary, programId]);
@@ -834,9 +858,11 @@ export function BsitChairmanEvaluatorWorksheet({
    */
   const roomCodeById = useMemo(() => {
     const m = new Map<string, string>();
-    roomsForEvaluatorGrid.forEach((r) => m.set(r.id, r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code));
+    for (const r of rooms) {
+      m.set(r.id, r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code);
+    }
     return m;
-  }, [roomsForEvaluatorGrid]);
+  }, [rooms]);
 
   const majorOptions = useMemo(
     () => [
@@ -944,6 +970,7 @@ export function BsitChairmanEvaluatorWorksheet({
       if (academicPeriodId && e.academicPeriodId !== academicPeriodId) continue;
       if (resolveProgramMode(e) !== programMode) continue;
       if (!programSectionIdSet.has(e.sectionId)) continue;
+      if (pendingDeletedIds.has(e.id)) continue;
       const code = subjectCodeById.get(e.subjectId) ?? "";
       if (code) add(e.sectionId, code);
     }
@@ -953,7 +980,7 @@ export function BsitChairmanEvaluatorWorksheet({
       add(r.sectionId, r.subjectCode);
     }
     return m;
-  }, [allTermScheduleEntries, academicPeriodId, programSectionIdSet, rows, subjectCodeById, programCodeForSummary]);
+  }, [allTermScheduleEntries, academicPeriodId, programSectionIdSet, rows, subjectCodeById, programCodeForSummary, pendingDeletedIds, programMode]);
 
   /**
    * Full `ScheduleBlock` set for the term: DB snapshot + worksheet overlay. Drives the explicit
@@ -966,6 +993,7 @@ export function BsitChairmanEvaluatorWorksheet({
     for (const e of allTermScheduleEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
       if (resolveProgramMode(e) !== programMode) continue;
+      if (pendingDeletedIds.has(e.id)) continue;
       if (worksheetIds.has(e.id)) continue;
       const b = scheduleEntryToBlock(e);
       if (b) byId.set(e.id, b);
@@ -982,7 +1010,7 @@ export function BsitChairmanEvaluatorWorksheet({
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows, programId, programCodeForSummary, programMode, slotsForMode]);
+  }, [allTermScheduleEntries, academicPeriodId, rows, programId, programCodeForSummary, programMode, slotsForMode, pendingDeletedIds]);
 
   /**
    * Campus-wide sparse blocks: every term `ScheduleEntry` (partial rows included) + worksheet overlay.
@@ -995,6 +1023,7 @@ export function BsitChairmanEvaluatorWorksheet({
     for (const e of allTermScheduleEntries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
       if (resolveProgramMode(e) !== programMode) continue;
+      if (pendingDeletedIds.has(e.id)) continue;
       if (worksheetIds.has(e.id)) continue;
       const b = scheduleEntryToSparseBlock(e);
       if (b) byId.set(e.id, b);
@@ -1004,7 +1033,7 @@ export function BsitChairmanEvaluatorWorksheet({
       if (b) byId.set(row.id, b);
     }
     return [...byId.values()];
-  }, [allTermScheduleEntries, academicPeriodId, rows, programCodeForSummary, programMode, slotsForMode]);
+  }, [allTermScheduleEntries, academicPeriodId, rows, programCodeForSummary, programMode, slotsForMode, pendingDeletedIds]);
 
   const conflictForRow = useCallback(
     (row: PlotRow): { faculty: string; room: string; section: string } => {
@@ -1622,17 +1651,55 @@ export function BsitChairmanEvaluatorWorksheet({
   );
 
   function removeRow(id: string) {
+    const existing = rows.find((r) => r.id === id);
+    if (existing?.lockedByDoiAt) return;
+    const nextPending = new Set(pendingDeletedIdsRef.current);
+    nextPending.add(id);
+    pendingDeletedIdsRef.current = nextPending;
+    setPendingDeletedIds(nextPending);
     locallyEditedRowIdsRef.current.delete(id);
-    setRows((prev) => {
-      if (prev.some((r) => r.id === id && r.lockedByDoiAt)) return prev;
-      return prev.filter((r) => r.id !== id);
-    });
+    setRows((prev) => prev.filter((r) => r.id !== id));
+
+    const knownInDb =
+      lastSyncedByModeRef.current[programMode].has(id) ||
+      allTermScheduleEntries.some((e) => e.id === id);
+    if (!knownInDb) return;
+
+    void (async () => {
+      try {
+        await apiFetch(`/api/catalog/schedule-entries/${id}`, { method: "DELETE" });
+        lastSyncedByModeRef.current.day.delete(id);
+        lastSyncedByModeRef.current.night.delete(id);
+        setAllTermScheduleEntries((prev) => prev.filter((e) => e.id !== id));
+        dispatchInsCatalogReload({ academicPeriodId: academicPeriodId ?? undefined });
+      } catch (e: unknown) {
+        const status = e instanceof ApiClientError ? e.status : 0;
+        if (status === 404) {
+          lastSyncedByModeRef.current.day.delete(id);
+          lastSyncedByModeRef.current.night.delete(id);
+          setAllTermScheduleEntries((prev) => prev.filter((e) => e.id !== id));
+          return;
+        }
+        const restored = new Set(pendingDeletedIdsRef.current);
+        restored.delete(id);
+        pendingDeletedIdsRef.current = restored;
+        setPendingDeletedIds(restored);
+        if (existing) {
+          setRows((prev) => (prev.some((r) => r.id === id) ? prev : [...prev, existing]));
+        }
+        const msg =
+          e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Could not remove schedule";
+        toast.error("Failed to remove schedule", msg);
+      }
+    })();
   }
 
   useEffect(() => {
     didHydrateFromDbRef.current = false;
     lastSyncedByModeRef.current = { day: new Set(), night: new Set() };
     locallyEditedRowIdsRef.current.clear();
+    pendingDeletedIdsRef.current = new Set();
+    setPendingDeletedIds(new Set());
     setDayRows([]);
     setNightRows([]);
   }, [academicPeriodId]);
@@ -1750,6 +1817,8 @@ export function BsitChairmanEvaluatorWorksheet({
     if (backup.collegeId !== chairmanCollegeId) return;
     if (backup.programId !== chairmanProgramId) return;
     if (didHydrateFromDbRef.current && rows.length === 0 && backup.rows.length > 0) {
+      if (pendingDeletedIdsRef.current.size > 0) return;
+      if (lastSyncedByModeRef.current[programMode].size > 0) return;
       setRows(
         backup.rows.map((r) =>
           normalizePlotRow(
@@ -1860,9 +1929,12 @@ export function BsitChairmanEvaluatorWorksheet({
 
         const currentIds = new Set(rows.map((r) => r.id));
         const prevIds = lastSyncedByModeRef.current[programMode];
-        const removedIds = Array.from(prevIds).filter(
-          (id) => !currentIds.has(id) && !lockedEntryIdsRef.current.has(id),
-        );
+        const removedIds = [
+          ...new Set([
+            ...Array.from(prevIds).filter((id) => !currentIds.has(id)),
+            ...pendingDeletedIdsRef.current,
+          ]),
+        ].filter((id) => !currentIds.has(id) && !lockedEntryIdsRef.current.has(id));
 
         const buildSkippedDigest = () => {
           const top = skipped.slice(0, 3).map((s) => {
@@ -1886,6 +1958,29 @@ export function BsitChairmanEvaluatorWorksheet({
           }
         };
 
+        if (removedIds.length > 0) {
+          try {
+            for (const id of removedIds) {
+              await apiFetch(`/api/catalog/schedule-entries/${id}`, { method: "DELETE" });
+            }
+            for (const id of removedIds) {
+              locallyEditedRowIdsRef.current.delete(id);
+              lastSyncedByModeRef.current.day.delete(id);
+              lastSyncedByModeRef.current.night.delete(id);
+            }
+            const stillPending = new Set(pendingDeletedIdsRef.current);
+            for (const id of removedIds) stillPending.delete(id);
+            pendingDeletedIdsRef.current = stillPending;
+            setPendingDeletedIds(stillPending);
+            setAllTermScheduleEntries((prev) => prev.filter((e) => !removedIds.includes(e.id)));
+          } catch (e: any) {
+            setLoadError(e?.message ?? "Delete failed");
+            if (source === "manual") setSaveScheduleMsg(e?.message ?? "Delete failed");
+            if (source === "manual") toast.error("Failed to save. Please try again.", e?.message ?? "Delete failed");
+            return;
+          }
+        }
+
         const conflictScan = scanAllSparseScheduleConflicts(sparseCampusUniverse);
         if (conflictScan.issues.length > 0) {
           const preview = conflictScan.issueSummaries.slice(0, 3).join(" · ");
@@ -1895,8 +1990,15 @@ export function BsitChairmanEvaluatorWorksheet({
               : "";
           const msg = `${preview}${more}`;
           if (source === "manual") {
-            setSaveScheduleMsg(`Resolve timetable conflicts before saving: ${msg}`);
-            toast.error("Cannot save until conflicts are resolved", msg);
+            if (removedIds.length > 0) {
+              setSaveScheduleMsg(
+                `Removed plots were saved. Resolve remaining timetable conflicts before saving other changes: ${msg}`,
+              );
+              toast.error("Cannot save remaining plots until conflicts are resolved", msg);
+            } else {
+              setSaveScheduleMsg(`Resolve timetable conflicts before saving: ${msg}`);
+              toast.error("Cannot save until conflicts are resolved", msg);
+            }
           }
           return;
         }
@@ -1945,22 +2047,6 @@ export function BsitChairmanEvaluatorWorksheet({
               setSaveScheduleMsg(msg);
               toast.error("Cannot save: subject hours exceeded", msg);
             }
-            return;
-          }
-        }
-
-        if (removedIds.length > 0) {
-          try {
-            for (const id of removedIds) {
-              await apiFetch(`/api/catalog/schedule-entries/${id}`, { method: "DELETE" });
-            }
-            for (const id of removedIds) {
-              locallyEditedRowIdsRef.current.delete(id);
-            }
-          } catch (e: any) {
-            setLoadError(e?.message ?? "Delete failed");
-            if (source === "manual") setSaveScheduleMsg(e?.message ?? "Delete failed");
-            if (source === "manual") toast.error("Failed to save. Please try again.", e?.message ?? "Delete failed");
             return;
           }
         }

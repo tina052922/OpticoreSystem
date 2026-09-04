@@ -1,6 +1,7 @@
 import type { ScheduleEntry } from "@/types/db";
 import type { ConflictHit, ScheduleBlock } from "./types";
 import { resolveProgramMode, stripNightDayPrefix, type ProgramMode } from "./program-mode";
+import { roomsAreSamePhysicalSpace } from "@/lib/campus/campus-navigation-room-dedupe";
 
 /** Parse HH:MM or HH:MM:SS with optional AM/PM into minutes from midnight. */
 export function toMinutes(t: string): number {
@@ -107,7 +108,7 @@ export function detectConflictsForEntry(
         withEntryId: o.id,
       });
     }
-    if (o.roomId === candidate.roomId) {
+    if (roomsAreSamePhysicalSpace(o.roomId, candidate.roomId)) {
       hits.push({
         type: "room",
         message: "Room is already occupied.",
@@ -167,7 +168,7 @@ export function detectConflictsSparse(
         withEntryId: o.id,
       });
     }
-    if (candidate.roomId && o.roomId && candidate.roomId === o.roomId) {
+    if (roomsAreSamePhysicalSpace(candidate.roomId, o.roomId)) {
       hits.push({
         type: "room",
         message: "Room is already occupied.",
