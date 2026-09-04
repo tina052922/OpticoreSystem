@@ -34,12 +34,6 @@ import type {
   User,
 } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
-import { useAccessRequests } from "@/hooks/use-access-requests";
-import {
-  getGecVacantSlotApprovalUiState,
-  hasActiveScopeGrant,
-} from "@/components/access/RequestAccessPanel";
-import { GecVacantSlotsApprovalGate } from "@/components/access/GecVacantSlotsApprovalGate";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
@@ -48,6 +42,7 @@ import { evaluatorTimeSlots, evaluatorWeekdays, type BsitEvaluatorWeekday } from
 import { clampPlotStartSlotIndex, inferDurationSlotsFromTimes, plotEntryDurationSlots, timesFromSlotRange } from "@/lib/evaluator/plot-duration";
 import {
   hoursExceedSubjectRequirement,
+  plottedHoursBySubjectCode,
   plottedHoursForSubjectSection,
   requiredWeeklyContactHours,
   subjectHoursOverLimitMessage,
@@ -55,7 +50,6 @@ import {
 import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode, stampProgramMode } from "@/lib/scheduling/program-mode";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
-import { WorkflowReadinessBanner } from "@/components/notifications/WorkflowReadinessBanner";
 import {
   GEC_VACANT_INSTRUCTOR_USER_ID,
   isGecCurriculumScheduleEntry,
@@ -85,10 +79,15 @@ import {
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "@/lib/scheduling/facultyPolicies";
+import {
+  JUSTIFICATION_GEC_PROMPT,
+  JUSTIFICATION_MIN_LENGTH,
+} from "@/lib/scheduling/justification-copy";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { PolicyJustificationModal } from "@/components/evaluator/PolicyJustificationModal";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
+import { AlertTriangle } from "lucide-react";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -111,7 +110,8 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  * 2) Department + Section — same `ScheduleEntry` data College Admin sees in the hub.
  * 3) Layout (matches College Admin hub): prospectus summary by year level (top) → chairman-style plotting grid
  *    (vacant GEC in light green) → live INS weekly preview (bottom).
- * Vacant GEC placeholders are editable only after one-time `gec_vacant_slots` approval.
+ * Vacant GEC placeholders are editable in the selected college / department (no access-request queue).
+ * Major (non-GEC) rows stay read-only. DOI lock still pauses plotting.
  */
 export function GecCentralHubEvaluatorClient() {
   const toast = useOpticoreToast();
@@ -127,8 +127,6 @@ export function GecCentralHubEvaluatorClient() {
     : searchParams.get("college")?.trim() ?? "";
   const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
   const isCampusWide = collegeParam === CAMPUS_WIDE_COLLEGE_SLUG;
-
-  const { requests, loading: accessLoading, reload: reloadAccess } = useAccessRequests();
 
   const [colleges, setColleges] = useState<College[]>([]);
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
@@ -394,18 +392,17 @@ export function GecCentralHubEvaluatorClient() {
     return plotCollegeId;
   }, [isCampusWide, collegeParam, plotCollegeId]);
 
+  const termPublishLocked = useMemo(
+    () => entries.some((e) => e.academicPeriodId === academicPeriodId && Boolean(e.lockedByDoiAt)),
+    [entries, academicPeriodId],
+  );
+
   const canEditVacant = useMemo(
-    () =>
-      grantScopeCollegeId ? hasActiveScopeGrant(requests, "gec_vacant_slots", grantScopeCollegeId) : false,
-    [requests, grantScopeCollegeId],
+    () => Boolean(grantScopeCollegeId) && !termPublishLocked,
+    [grantScopeCollegeId, termPublishLocked],
   );
 
-  const approvalState = useMemo(
-    () => getGecVacantSlotApprovalUiState(requests, grantScopeCollegeId),
-    [requests, grantScopeCollegeId],
-  );
-
-  /** GEC/GEE curriculum rows GEC may edit after grant (vacant origin + newly added). */
+  /** GEC/GEE curriculum rows GEC may edit in the current college / department (vacant origin + newly added). */
   const gecOwnedIds = useMemo(() => {
     const ids = new Set<string>();
     for (const e of entries) {
@@ -821,6 +818,8 @@ export function GecCentralHubEvaluatorClient() {
         const required = requiredWeeklyContactHours({
           programCode: programById.get(sectionById.get(e.sectionId)?.programId ?? "")?.code,
           subjectCode: sub.code,
+          lecUnits: sub.lecUnits,
+          labUnits: sub.labUnits,
           lecHours: sub.lecHours,
           labHours: sub.labHours,
         });
@@ -886,17 +885,7 @@ export function GecCentralHubEvaluatorClient() {
         policyConstants,
       );
       const needsJust = policy.hasTeachingLoadJustificationViolation;
-      if (needsJust && !opts?.skipJustificationPrompt) {
-        setJustModalOpen(true);
-        setSaveMsg("Enter a justification for College Admin and DOI review (min. 12 characters).");
-        return;
-      }
-      if (needsJust && justificationText.trim().length < 12) {
-        setJustModalOpen(true);
-        setSaveMsg("Enter a justification for DOI/VPAA review (min. 12 characters).");
-        return;
-      }
-      if (needsJust) {
+      if (needsJust && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) {
         const { user } = await authApi.me();
         if (!user) {
           setSaveMsg("Not signed in.");
@@ -962,11 +951,17 @@ export function GecCentralHubEvaluatorClient() {
           },
         });
       await load();
-      await reloadAccess();
       /** Second pulse after local state matches DB so any listener that batched with the first event still picks up the same commit. */
       dispatchInsCatalogReload();
       router.refresh();
-      setSaveMsg(`Saved ${toSave.length} vacant GEC row(s).`);
+      setSaveMsg(
+        needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH
+          ? `Saved ${toSave.length} vacant GEC row(s). Enter a justification for DOI to record the overload.`
+          : `Saved ${toSave.length} vacant GEC row(s).`,
+      );
+      if (needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH) {
+        setJustModalOpen(true);
+      }
       toast.success("Vacant slots updated successfully");
       runConflictCheck();
 
@@ -1017,7 +1012,7 @@ export function GecCentralHubEvaluatorClient() {
 
   function addGecScheduleRowAt(day: BsitEvaluatorWeekday, startIdx: number) {
     if (!canEditVacant || !sectionIdFilter || !academicPeriodId || !plotCollegeId) {
-      setSaveMsg("Select a section and ensure vacant-slot access is approved before plotting.");
+      setSaveMsg("Select a college and section before plotting vacant GEC slots.");
       return;
     }
     const sec = sectionById.get(sectionIdFilter);
@@ -1061,6 +1056,40 @@ export function GecCentralHubEvaluatorClient() {
     };
     setExtraEntries((prev) => [...prev, row]);
     setFocusPlotEntryId(id);
+    setSaveMsg(null);
+  }
+
+  function addGecMeetingsFromPlot(
+    meetings: Array<{
+      subjectId: string;
+      instructorId: string;
+      roomId: string;
+      day: string;
+      startTime: string;
+      endTime: string;
+    }>,
+  ) {
+    if (!canEditVacant || !sectionIdFilter || !academicPeriodId) return;
+    const rows: ScheduleEntry[] = meetings.map((m) => {
+      const id =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `gec-${Date.now()}-${Math.random()}`;
+      return {
+        id,
+        academicPeriodId,
+        subjectId: m.subjectId,
+        instructorId: m.instructorId,
+        sectionId: sectionIdFilter,
+        roomId: m.roomId,
+        day: m.day,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        status: "draft",
+        programMode,
+      };
+    });
+    setExtraEntries((prev) => [...prev, ...rows]);
     setSaveMsg(null);
   }
 
@@ -1124,6 +1153,45 @@ export function GecCentralHubEvaluatorClient() {
     }
     return set;
   }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
+
+  const gecPlottedHoursBySubjectCode = useMemo(() => {
+    if (!sectionIdFilter || !academicPeriodId) return new Map<string, number>();
+    return plottedHoursBySubjectCode({
+      sectionId: sectionIdFilter,
+      meetings: modeMergedEntries
+        .filter((e) => e.sectionId === sectionIdFilter && e.academicPeriodId === academicPeriodId)
+        .map((e) => {
+          const sub = subjectById.get(e.subjectId);
+          return {
+            id: e.id,
+            sectionId: e.sectionId,
+            subjectCode: sub?.code ? normalizeProspectusCode(sub.code) : "",
+            hours: inferDurationSlotsFromTimes(e.startTime, e.endTime),
+          };
+        }),
+    });
+  }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
+
+  const gecOverLimitSubjectCodes = useMemo(() => {
+    const over = new Set<string>();
+    if (!sectionIdFilter) return over;
+    const programCode = sectionProgram?.code ?? "";
+    for (const [code, plotted] of gecPlottedHoursBySubjectCode) {
+      const catalog = [...subjectById.values()].find((s) => normalizeProspectusCode(s.code) === code);
+      const required = requiredWeeklyContactHours({
+        programCode,
+        subjectCode: code,
+        lecUnits: catalog?.lecUnits,
+        labUnits: catalog?.labUnits,
+        lecHours: catalog?.lecHours,
+        labHours: catalog?.labHours,
+      });
+      if (hoursExceedSubjectRequirement({ requiredHours: required, alreadyPlottedHours: plotted, additionalHours: 0 })) {
+        over.add(code);
+      }
+    }
+    return over;
+  }, [gecPlottedHoursBySubjectCode, sectionIdFilter, sectionProgram?.code, subjectById]);
 
   /** GEC subject ids on this section (enables “add another time slot” in the plot modal). */
   const gecPlottedSubjectIdsForSection = useMemo(() => {
@@ -1289,11 +1357,8 @@ export function GecCentralHubEvaluatorClient() {
     <div>
       <ChairmanPageHeader
         title="Central Hub Evaluator"
-        subtitle="Vacant GEC slots only after one-time access approval for this college."
+        subtitle="Plot vacant GEC slots in the selected college and department. Major subjects stay read-only."
       />
-      <div className="px-4 md:px-8 pt-2 max-w-[1400px] mx-auto">
-        <WorkflowReadinessBanner variant="gec" evaluatorHref="/admin/gec/evaluator" />
-      </div>
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1304,12 +1369,15 @@ export function GecCentralHubEvaluatorClient() {
 
         <GecHubEvaluatorTabs collegeParam={collegeParam} panel="timetabling" />
 
-        <GecVacantSlotsApprovalGate
-          state={approvalState}
-          loading={accessLoading}
-          collegeId={grantScopeCollegeId}
-          onSubmitted={() => void reloadAccess()}
-        />
+        {termPublishLocked ? (
+          <div
+            className="rounded-xl border border-sky-200 bg-sky-50/90 px-4 py-3 text-[13px] text-sky-950 leading-relaxed"
+            role="status"
+          >
+            <span className="font-semibold">Published schedule (read-only).</span> DOI has locked this term. Vacant GEC
+            edits are paused until DOI unpublishes / unlocks.
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <label className="block min-w-[200px]">
@@ -1446,9 +1514,25 @@ export function GecCentralHubEvaluatorClient() {
                     yearLevel={selectedYearLevel}
                     semester={termProspectusSemesterForSummary}
                     plottedSubjectCodes={gecPlottedSubjectCodesForSection}
+                    plottedHoursBySubjectCode={gecPlottedHoursBySubjectCode}
                     onSelectSubjectCode={setPickedSummaryCode}
                   />
                 )}
+                {gecOverLimitSubjectCodes.size > 0 ? (
+                  <div
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-900 flex gap-2"
+                    role="alert"
+                  >
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+                    <p>
+                      Over limit: {gecOverLimitSubjectCodes.size} GEC subject
+                      {gecOverLimitSubjectCodes.size === 1 ? "" : "s"} plotted beyond prospectus weekly hours
+                      ({[...gecOverLimitSubjectCodes].slice(0, 6).join(", ")}
+                      {gecOverLimitSubjectCodes.size > 6 ? "…" : ""}). Reduce duration or remove extra meetings
+                      before saving.
+                    </p>
+                  </div>
+                ) : null}
 
                 {plotCollegeId && academicPeriodId ? (
                   <GecInteractiveWeekGrid
@@ -1471,6 +1555,7 @@ export function GecCentralHubEvaluatorClient() {
                     roomBuildingByEntryId={roomBuildingByEntryId}
                     setRoomBuildingByEntryId={setRoomBuildingByEntryId}
                     canEditVacant={canEditVacant}
+                    termPublishLocked={termPublishLocked}
                     conflictForEntry={conflictForEntry}
                     conflictDetailForEntry={conflictDetailForEntry}
                     plottedGecSubjectIds={gecPlottedSubjectIdsForSection}
@@ -1479,6 +1564,7 @@ export function GecCentralHubEvaluatorClient() {
                     pickedSubjectId={pickedSubjectId}
                     onPatchEntry={(entryId, patch) => patchEdit(entryId, patch)}
                     onCreateVacantAtCell={addGecScheduleRowAt}
+                    onAddVacantMeetings={addGecMeetingsFromPlot}
                     focusEntryId={focusPlotEntryId}
                     onFocusEntryHandled={() => setFocusPlotEntryId(null)}
                     onRemovePendingEntry={removeGecEntry}
@@ -1561,10 +1647,9 @@ export function GecCentralHubEvaluatorClient() {
     </div>
     <PolicyJustificationModal
       open={justModalOpen}
-      title="Policy justification"
-      promptText="Assigning this GEC slot exceeds faculty load policy (weekly hours and/or 4 or more subject preparations). Enter a justification for College Admin and DOI review."
+      promptText={JUSTIFICATION_GEC_PROMPT}
       value={justificationText}
-      minLength={12}
+      minLength={JUSTIFICATION_MIN_LENGTH}
       saving={saveBusy}
       onChange={setJustificationText}
       onCancel={() => setJustModalOpen(false)}

@@ -248,6 +248,19 @@ describe("realtime push", () => {
     expect(scheduleEntries).toHaveBeenCalledTimes(1);
   });
 
+  it("reacts to schedule.unpublished so editors unlock promptly", async () => {
+    installDocument("visible");
+    subscribe("term-1", () => {});
+
+    realtimeHandler?.({
+      name: "schedule.unpublished",
+      payload: { academicPeriodId: "term-1" },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(scheduleEntries).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores events for terms this client is not showing", async () => {
     installDocument("visible");
     subscribe("term-1", () => {});

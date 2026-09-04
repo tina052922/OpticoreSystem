@@ -1,5 +1,6 @@
-import { CollegeScheduleChangeRequestsClient } from "@/components/college/CollegeScheduleChangeRequestsClient";
+import { redirect } from "next/navigation";
 
-export default function ChairmanScheduleChangeRequestsPage() {
-  return <CollegeScheduleChangeRequestsClient />;
+/** Schedule change requests were removed. */
+export default function ChairmanScheduleChangeRequestsRedirect() {
+  redirect("/chairman/evaluator");
 }

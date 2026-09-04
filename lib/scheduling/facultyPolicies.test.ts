@@ -76,7 +76,7 @@ const userRow: User = {
 };
 
 describe("evaluateFacultyLoadsForCollege / teaching-load justification gate", () => {
-  it("does not treat “department” in appointment status as part-time (avoids false overload at ~15h)", () => {
+  it("does not treat “department” in appointment status as non-resident (avoids false overload at ~15h)", () => {
     const entries: ScheduleEntry[] = [
       makeEntry("e1", "07:00", "10:00", "Monday"),
       makeEntry("e2", "07:00", "10:00", "Tuesday"),
@@ -105,13 +105,16 @@ describe("evaluateFacultyLoadsForCollege / teaching-load justification gate", ()
     expect(rowNeedsTeachingLoadJustification(rows[0])).toBe(false);
   });
 
-  it("flags part-time faculty when weekly contact exceeds the part-time cap", () => {
+  it.each([
+    ["Non-resident", "current label"],
+    ["Part-time", "rows saved before the Resident / Non-resident rename"],
+  ])("flags %s faculty over the non-resident cap (%s)", (status) => {
     const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
     const entries: ScheduleEntry[] = days.map((day, i) => makeEntry(`e${i}`, "07:00", "10:00", day));
 
     const subjects = new Map<string, Subject>([[subjectId, baseSubject]]);
     const users = new Map<string, User>([[instructorId, userRow]]);
-    const profiles = new Map<string, FacultyProfile>([[instructorId, profile("Part-time", null)]]);
+    const profiles = new Map<string, FacultyProfile>([[instructorId, profile(status, null)]]);
 
     const { rows, hasTeachingLoadJustificationViolation } = evaluateFacultyLoadsForCollege(
       entries,
@@ -126,6 +129,21 @@ describe("evaluateFacultyLoadsForCollege / teaching-load justification gate", ()
     expect(hasTeachingLoadJustificationViolation).toBe(true);
     expect(rowNeedsTeachingLoadJustification(rows[0])).toBe(true);
     expect(rows[0].violations.some((v) => v.code === "PARTTIME_WEEKLY_OVER_CAP")).toBe(true);
+  });
+
+  it("keeps Resident faculty on the standard cap, not the non-resident one", () => {
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Monday", "Tuesday", "Wednesday"];
+    const entries: ScheduleEntry[] = days.map((day, i) => makeEntry(`e${i}`, "07:00", "10:00", day));
+
+    const subjects = new Map<string, Subject>([[subjectId, baseSubject]]);
+    const users = new Map<string, User>([[instructorId, userRow]]);
+    const profiles = new Map<string, FacultyProfile>([[instructorId, profile("Resident", null)]]);
+
+    const { rows } = evaluateFacultyLoadsForCollege(entries, subjects, users, profiles, "c1", () => null);
+
+    // 24 h/wk sits above the 24 h standard only by rounding, so the standard cap is what applies here.
+    expect(rows[0].effectiveTeachingCap).toBe(24);
+    expect(rows[0].violations.some((v) => v.code === "PARTTIME_WEEKLY_OVER_CAP")).toBe(false);
   });
 
   it("flags regular faculty without designation when contact exceeds the standard 24h/week", () => {
@@ -240,5 +258,48 @@ describe("evaluateFacultyLoadsForCollege / teaching-load justification gate", ()
     const { rows } = evaluateFacultyLoadsForCollege(entries, subjects, users, profiles, "c1", () => "c1");
     expect(rows[0].preparations).toBe(1);
     expect(rows[0].violations.some((v) => v.code === "OVER_PREP_LIMIT")).toBe(false);
+  });
+});
+
+describe("weekly contact reference bound (resident 40 vs non-resident 49)", () => {
+  /** 14 three-hour meetings = 42 hrs/wk: past the resident bound, still under the non-resident one. */
+  function rowsAt42Hours(status: string) {
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Monday"];
+    const entries: ScheduleEntry[] = [...days, ...days].map((day, i) =>
+      makeEntry(`e${i}`, i % 2 === 0 ? "07:00" : "13:00", i % 2 === 0 ? "10:00" : "16:00", day),
+    );
+    const subjects = new Map<string, Subject>([[subjectId, baseSubject]]);
+    const users = new Map<string, User>([[instructorId, userRow]]);
+    const profiles = new Map<string, FacultyProfile>([[instructorId, profile(status, null)]]);
+    return evaluateFacultyLoadsForCollege(entries, subjects, users, profiles, "c1", () => "c1").rows;
+  }
+
+  it("flags resident faculty past 40 hrs/wk", () => {
+    const rows = rowsAt42Hours("Resident");
+    expect(rows[0].weeklyTotalContactHours).toBeCloseTo(42, 5);
+    expect(rows[0].violations.some((v) => v.code === "WEEKLY_CONTACT_OVER_RESIDENT_MAX")).toBe(true);
+  });
+
+  it("leaves non-resident faculty unflagged at the same hours, since their bound is 49", () => {
+    const rows = rowsAt42Hours("Non-resident");
+    expect(rows[0].weeklyTotalContactHours).toBeCloseTo(42, 5);
+    expect(rows[0].violations.some((v) => v.code === "WEEKLY_CONTACT_OVER_RESIDENT_MAX")).toBe(false);
+    expect(rows[0].violations.some((v) => v.code === "WEEKLY_CONTACT_OVER_NON_RESIDENT_MAX")).toBe(false);
+  });
+
+  it("flags non-resident faculty once they pass 49 hrs/wk", () => {
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const entries: ScheduleEntry[] = [
+      ...days.map((day, i) => makeEntry(`a${i}`, "07:00", "12:00", day)),
+      ...days.map((day, i) => makeEntry(`b${i}`, "13:00", "17:00", day)),
+    ];
+    const subjects = new Map<string, Subject>([[subjectId, baseSubject]]);
+    const users = new Map<string, User>([[instructorId, userRow]]);
+    const profiles = new Map<string, FacultyProfile>([[instructorId, profile("Non-resident", null)]]);
+
+    const { rows } = evaluateFacultyLoadsForCollege(entries, subjects, users, profiles, "c1", () => "c1");
+
+    expect(rows[0].weeklyTotalContactHours).toBeCloseTo(54, 5);
+    expect(rows[0].violations.some((v) => v.code === "WEEKLY_CONTACT_OVER_NON_RESIDENT_MAX")).toBe(true);
   });
 });

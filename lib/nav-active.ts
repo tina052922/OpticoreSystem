@@ -12,7 +12,7 @@ export function navHrefPathname(href: string): string {
  * Instructor home is `/faculty` while other shell pages live under `/faculty/ins`, `/faculty/schedule`, …
  * Without an exact-only rule, `/faculty` would stay highlighted on every child route (pathname still starts with `/faculty/`).
  */
-const NAV_PATHNAME_EXACT_ONLY = new Set<string>(["/faculty"]);
+const NAV_PATHNAME_EXACT_ONLY = new Set<string>(["/faculty", "/student"]);
 
 /**
  * True if this nav href is the best match for `pathname`: longest matching base path wins; query strings on `href` ignored.

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { registerApi, apiFetch, ApiClientError } from "@/lib/api/client";
 import { OtpVerificationPanel } from "@/components/register/OtpVerificationPanel";
 import {
@@ -19,6 +20,7 @@ type ProgramRow = { id: string; code: string; name: string; collegeId: string };
 type SectionRow = { id: string; name: string; programId: string; yearLevel: number };
 
 export function RegisterClient() {
+  const branding = useCampusBranding();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -229,8 +231,8 @@ export function RegisterClient() {
           <div className="w-32 h-32 sm:w-36 sm:h-36 shrink-0 rounded-full overflow-hidden ring-2 ring-black/[0.06] shadow-sm bg-white">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={CTU_LOGO_PNG}
-              alt="Cebu Technological University"
+              src={branding.logoUrl || CTU_LOGO_PNG}
+              alt={branding.universityName}
               width={144}
               height={144}
               className="w-full h-full object-cover object-center"
@@ -244,11 +246,11 @@ export function RegisterClient() {
 
         <div className="text-center space-y-2">
           <h1 className="text-2xl sm:text-3xl font-medium text-[#181818] tracking-tight">
-            Cebu Technological University
+            {branding.universityName}
           </h1>
           <h2 className="text-xl sm:text-2xl font-bold text-black">Create account</h2>
           <p className="text-base sm:text-lg text-black/90">
-            to continue OptiCore–Campus Intelligence System
+            to continue {branding.headerTitle}–Campus Intelligence System
           </p>
         </div>
 

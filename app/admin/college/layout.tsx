@@ -17,7 +17,6 @@ export default async function CollegeAdminLayout({ children }: { children: React
       profileHref="/admin/college/profile"
       settingsHref="/admin/college/system-configuration"
       accessRequestsBadgeCollegeId={profile.collegeId}
-      policyJustificationsBadgeCollegeId={profile.collegeId}
       auditLogUnreadScope="college"
     >
       {children}

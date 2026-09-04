@@ -8,6 +8,7 @@ import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { Button } from "@/components/ui/button";
 import { apiFetch, authApi, catalogApi, ApiClientError } from "@/lib/api/client";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { hydrateScheduleEntries } from "@/lib/scheduling/program-mode";
 import { buildTeachingLoadSummaryByCategory } from "@/lib/scheduling/teaching-load-summary";
 import type { FacultyProfile, Program, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
@@ -28,6 +29,7 @@ type BundlePayload = {
 
 export function CollegeTeachingLoadSummaryClient() {
   const { selectedPeriodId, selectedPeriod } = useSemesterFilter();
+  const branding = useCampusBranding();
   const [collegeId, setCollegeId] = useState<string | null>(null);
   const [collegeName, setCollegeName] = useState("College");
   const [loading, setLoading] = useState(true);
@@ -164,7 +166,9 @@ export function CollegeTeachingLoadSummaryClient() {
       <div className="px-4 md:px-8 pb-10 max-w-[1400px] mx-auto space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[13px] text-black/65">
-            Instructors grouped by department. Day and Evening loads stay separate. Numbers come from plotted schedules.
+            Instructors grouped by department. Day and Evening loads stay separate. Numbers come from plotted
+            schedules. The Justification column is the recorded overload reason for DOI (notification only — no
+            approval).
           </p>
           <Button type="button" disabled={showInitialLoading || groups.length === 0} onClick={() => setPdfOpen(true)}>
             Download PDF
@@ -236,6 +240,8 @@ export function CollegeTeachingLoadSummaryClient() {
             collegeName={collegeName}
             semesterLabel={semesterLabel}
             groups={visibleGroups}
+            headerBanner={branding.insHeaderBannerUrl}
+            insFooterText={branding.insFooterText}
           />
         }
       />

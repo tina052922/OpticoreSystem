@@ -45,19 +45,22 @@ type Props = {
   renderCell: (items: InsTimedCell[], day: NightDay) => ReactNode;
   /** Occupies the L-shape under the weekday grid (to the right of weekend afternoon). */
   summary?: ReactNode;
+  /** Form 5B paper: three signers sit to the right of Friday. */
+  rightRail?: ReactNode;
 };
 
 /**
  * Official Night Program INS grid: Sat/Sun 7:00 AM–10:00 PM beside Mon–Fri 4:00 PM–10:00 PM.
  * Weekday 4:00–5:00 aligns with weekend 7:00–8:00 (paper form, not chronological).
  */
-export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary }: Props) {
+export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary, rightRail }: Props) {
   const weekendSkip = new Set<string>();
   const weekdaySkip = new Set<string>();
 
   return (
     <div className="overflow-x-auto print:overflow-visible">
-      <table className={`w-full table-fixed border-collapse ${border} text-[10px] print:text-[6.5pt]`}>
+      <div className={`flex min-w-0 items-stretch ${rightRail ? "gap-0" : ""}`}>
+      <table className={`w-full min-w-0 table-fixed border-collapse ${border} text-[10px] print:text-[6.5pt]`}>
         <thead>
           <tr className="bg-neutral-50">
             <th className={`${border} px-1 py-1 font-bold uppercase`}>TIME</th>
@@ -144,7 +147,7 @@ export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary 
                     colSpan={6}
                     rowSpan={NIGHT_FULL_DAY_SLOTS.length - NIGHT_WEEKDAY_SLOTS.length}
                   >
-                    {summary ?? <div className="min-h-[4rem] text-[9px] font-bold uppercase">Summary of Courses</div>}
+                    {summary ?? <div className="min-h-[4rem]" />}
                   </td>
                 ) : null}
               </tr>
@@ -152,6 +155,8 @@ export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary 
           })}
         </tbody>
       </table>
+      {rightRail}
+      </div>
     </div>
   );
 }

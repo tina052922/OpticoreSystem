@@ -4,12 +4,14 @@ import Link from "next/link";
 import { BarChart3, Calendar, Cloud, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CTU_LOGO_PNG } from "@/lib/branding";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 
 /**
  * Public home: unauthenticated landing.
  * Updated to match the Figma Landingpage layout (Home / About / Features + CTA), adapted to Next.js.
  */
 export function PublicLandingPage() {
+  const branding = useCampusBranding();
   return (
     <div className="min-h-dvh w-full max-w-[100%] bg-white overflow-x-hidden supports-[overflow:clip]:overflow-x-clip">
       <nav
@@ -24,14 +26,14 @@ export function PublicLandingPage() {
             <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full overflow-hidden bg-white ring-1 ring-black/10 shrink-0 grid place-items-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={CTU_LOGO_PNG}
-                alt="CTU logo"
+                src={branding.logoUrl || CTU_LOGO_PNG}
+                alt={`${branding.universityName} logo`}
                 width={88}
                 height={88}
                 className="h-full w-full object-contain scale-105"
               />
             </div>
-            <span className="font-bold text-lg sm:text-xl text-[#a30000] truncate">OptiCore</span>
+            <span className="font-bold text-lg sm:text-xl text-[#a30000] truncate">{branding.headerTitle}</span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3 lg:gap-6 min-w-0 w-full sm:w-auto justify-between sm:justify-end">
             <div className="flex items-center gap-3 sm:gap-5 lg:gap-8 min-w-0 flex-1 sm:flex-initial overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] pr-2 sm:pr-0 pb-px [&::-webkit-scrollbar]:hidden">
@@ -216,7 +218,7 @@ export function PublicLandingPage() {
       </section>
 
       <footer className="border-t border-black/10 py-6 sm:py-8 px-4 max-w-6xl mx-auto w-full text-center text-xs sm:text-sm text-black/55 leading-relaxed">
-        © {new Date().getFullYear()} Cebu Technological University · OptiCore Campus Intelligence System
+        © {new Date().getFullYear()} {branding.footerText}
       </footer>
     </div>
   );

@@ -6,6 +6,8 @@ import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/
 import { groupProspectusByYearLevelOnly } from "@/lib/gec/prospectus-summary";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
+import { weeklyContactHoursFromUnits } from "@/lib/subjects/contact-hours";
+import { SubjectWeeklyHoursChip } from "@/components/evaluator/SubjectWeeklyHoursBanner";
 
 type Props = {
   /** Must match `Program.code` for the selected section (drives which static curriculum is shown). */
@@ -18,6 +20,8 @@ type Props = {
   semester?: 1 | 2 | null;
   /** When provided, show a Status column — GEC codes already scheduled for the active section/term. */
   plottedSubjectCodes?: ReadonlySet<string>;
+  /** Plotted weekly contact hours for the selected section, keyed by normalized subject code. */
+  plottedHoursBySubjectCode?: ReadonlyMap<string, number>;
   /** When user picks a code, vacant-row subject dropdowns can prefill from this. */
   onSelectSubjectCode?: (code: string | null) => void;
   className?: string;
@@ -34,6 +38,7 @@ export function BsitProspectusSummaryTable({
   yearLevel = null,
   semester = null,
   plottedSubjectCodes,
+  plottedHoursBySubjectCode,
   onSelectSubjectCode,
   className = "",
 }: Props) {
@@ -82,6 +87,9 @@ export function BsitProspectusSummaryTable({
         <div className="text-[11px] text-black/55">
           Program: <span className="font-medium text-black/70">{label}</span> · Scope: {scopeLabel}
         </div>
+        <div className="text-[10px] text-black/45 mt-0.5">
+          Weekly hours: lecture 1 unit = 1 hour · lab 1 unit = 3 hours
+        </div>
       </div>
       {!programCode.trim() ? (
         <p className="text-sm text-black/55 px-2 py-4">Select a section to load that program&apos;s prospectus.</p>
@@ -106,20 +114,37 @@ export function BsitProspectusSummaryTable({
               <table className="w-full border-collapse text-[11px]">
                 <tbody>
                   {g.subjects.slice(0, 14).map((s) => {
-                    const plotted = Boolean(plottedSubjectCodes?.has(normalizeProspectusCode(s.code)));
+                    const n = normalizeProspectusCode(s.code);
+                    const plotted = Boolean(plottedSubjectCodes?.has(n));
+                    const requiredHours =
+                      weeklyContactHoursFromUnits(s.lecUnits, s.labUnits) ||
+                      (s.lecHours ?? 0) + (s.labHours ?? 0);
+                    const plottedHours = plottedHoursBySubjectCode?.get(n) ?? 0;
+                    const overLimit = plotted && requiredHours > 0 && plottedHours > requiredHours + 1e-6;
                     return (
-                      <tr key={`${s.code}-${s.semester}`} className="border-b border-black/5 last:border-b-0">
+                      <tr
+                        key={`${s.code}-${s.semester}`}
+                        className={`border-b border-black/5 last:border-b-0 ${overLimit ? "bg-red-50/80" : ""}`}
+                      >
                         <td className="py-1 pr-2 font-mono font-semibold text-[#780301] whitespace-nowrap">{s.code}</td>
                         <td className="py-1 pr-2 text-black/60 whitespace-nowrap">{s.semester === 1 ? "1st" : "2nd"} sem</td>
                         <td className="py-1 text-black/75">{s.title}</td>
                         <td className="py-1 pl-2 text-right whitespace-nowrap">
-                          {plotted ? (
+                          {plotted && !overLimit ? (
                             <span className="inline-flex items-center gap-1 text-emerald-900 font-semibold">
                               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                              Plotted
+                              <SubjectWeeklyHoursChip
+                                plotted
+                                plottedHours={plottedHours}
+                                requiredHours={requiredHours}
+                              />
                             </span>
                           ) : (
-                            <span className="text-black/35">—</span>
+                            <SubjectWeeklyHoursChip
+                              plotted={plotted}
+                              plottedHours={plottedHours}
+                              requiredHours={requiredHours}
+                            />
                           )}
                         </td>
                       </tr>

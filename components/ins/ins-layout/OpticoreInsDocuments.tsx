@@ -14,9 +14,10 @@ import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import { resolveInsPrintedSigners } from "@/lib/ins/ins-pdf-adapters";
 import { insTotalStudents } from "@/components/pdf/types/insTypes";
 import type { InsDay } from "./opticore-ins-constants";
-import { OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
+import { InsSignatureStrip, OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
 import { programModeLabel } from "@/lib/scheduling/program-mode";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { OpticoreInsNightScheduleTable } from "./OpticoreInsNightScheduleTable";
 
 /** INS Form 5A (draft / unpublished): official vertical signature columns — matches CTU paper layout; fills when VPAA publishes. */
@@ -51,6 +52,32 @@ const formDate = () =>
     year: "numeric",
   }).format(new Date());
 
+function InsPaperLetterhead({ formCode }: { formCode: string }) {
+  const { universityName } = useCampusBranding();
+  return (
+    <div className="flex flex-col gap-4 print:gap-0.5 border-b border-neutral-300 pb-6 print:pb-0.5 sm:flex-row sm:items-start sm:justify-between">
+      <h3 className="order-2 text-center text-base font-bold uppercase tracking-wide sm:order-1 sm:text-left sm:text-lg print:text-[8pt] print:leading-none">
+        {universityName}
+      </h3>
+      <div className="order-1 text-right text-sm sm:order-2 print:text-[6.5pt]">
+        <div className="font-semibold">{formCode}</div>
+        <div>{formDate()}</div>
+        <div>Revision: 2</div>
+      </div>
+    </div>
+  );
+}
+
+function InsPrintFooter() {
+  const { insFooterText } = useCampusBranding();
+  if (!insFooterText.trim()) return null;
+  return (
+    <p className="hidden print:block text-center text-[6.5pt] text-neutral-600 pt-1">
+      {insFooterText}
+    </p>
+  );
+}
+
 function CredLine({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex items-end gap-3 text-sm">
@@ -64,15 +91,9 @@ function CredLine({ label, value }: { label: string; value?: string | null }) {
 
 function FacultyScheduleRequestCells({
   items,
-  readOnly,
-  clickableScheduleEntryCells,
-  onScheduleEntryClick,
   compact,
 }: {
   items: InsTimedCell[];
-  readOnly?: boolean;
-  clickableScheduleEntryCells?: boolean;
-  onScheduleEntryClick?: (scheduleEntryId: string) => void;
   compact?: boolean;
 }) {
   return (
@@ -97,28 +118,9 @@ function FacultyScheduleRequestCells({
             <span className="text-neutral-600 truncate">{classAtTime.room}</span>
           </div>
         );
-        const entryId = classAtTime.scheduleEntryId;
-        const canRequest =
-          Boolean(readOnly) &&
-          Boolean(clickableScheduleEntryCells) &&
-          typeof onScheduleEntryClick === "function" &&
-          Boolean(entryId) &&
-          !classAtTime.vacantGec;
-        const body = canRequest ? (
-          <button
-            type="button"
-            className="w-full text-left rounded-md p-0.5 -m-0.5 transition-[box-shadow,background] hover:bg-[#ff990a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50 cursor-pointer"
-            title="Request schedule change for this class"
-            onClick={() => entryId && onScheduleEntryClick(entryId)}
-          >
-            {inner}
-          </button>
-        ) : (
-          inner
-        );
         return (
           <div key={classAtTime.scheduleEntryId ?? `${classAtTime.time}-${idx}`} className="min-w-0">
-            {body}
+            {inner}
           </div>
         );
       })}
@@ -245,9 +247,6 @@ export type OpticoreInsForm5AProps = {
   } | null;
   /** Populated from schedule totals + Faculty Profile when live data is available. */
   facultyFormSummary?: InsFacultyFormSummary | null;
-  /** My Schedule (faculty portal): cells with `scheduleEntryId` become buttons to request a change. */
-  clickableScheduleEntryCells?: boolean;
-  onScheduleEntryClick?: (scheduleEntryId: string) => void;
   /** Term-wide conflict scan: matching cells get a light red highlight on screen. */
   conflictingScheduleEntryIds?: ReadonlySet<string> | null;
 };
@@ -263,23 +262,12 @@ export function OpticoreInsForm5A({
   insSignatureSlots = null,
   facultyCredentials = null,
   facultyFormSummary = null,
-  clickableScheduleEntryCells = false,
-  onScheduleEntryClick,
   conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5AProps) {
   const { programMode } = useProgramMode();
   return (
-    <div className="space-y-5 print:space-y-0.5 text-neutral-900 print:text-[7pt] print:leading-snug">
-      <div className="flex flex-col gap-4 print:gap-0.5 border-b border-neutral-300 pb-6 print:pb-0.5 sm:flex-row sm:items-start sm:justify-between">
-        <h3 className="order-2 text-center text-base font-bold uppercase tracking-wide sm:order-1 sm:text-left sm:text-lg print:text-[8pt] print:leading-none">
-          Cebu Technological University
-        </h3>
-        <div className="order-1 text-right text-sm sm:order-2 print:text-[6.5pt]">
-          <div className="font-semibold">INS FORM 5A</div>
-          <div>{formDate()}</div>
-          <div>Revision: 2</div>
-        </div>
-      </div>
+      <div className="space-y-5 print:space-y-0.5 text-neutral-900 print:text-[7pt] print:leading-snug">
+      <InsPaperLetterhead formCode="INS FORM 5A" />
 
       <div className="space-y-2 print:space-y-0 text-center">
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[8pt] print:leading-none">
@@ -409,16 +397,15 @@ export function OpticoreInsForm5A({
           renderCell={(items) => (
             <FacultyScheduleRequestCells
               items={items}
-              readOnly={readOnly}
-              clickableScheduleEntryCells={clickableScheduleEntryCells}
-              onScheduleEntryClick={onScheduleEntryClick}
               compact
             />
           )}
-          summary={
-            <InsSummaryOfCourses
-              courses={courses}
-              emptyMessage="No courses plotted for this faculty in the selected term. Use Evaluator to add schedule rows."
+          rightRail={
+            <InsSignatureStrip
+              signatureSlots={insSignatureSlots ?? FORM_5A_DRAFT_SIGNATURE_SLOTS}
+              scheduleApproved={scheduleApproved}
+              variant="full"
+              compactPrint
             />
           }
         />
@@ -456,24 +443,6 @@ export function OpticoreInsForm5A({
                     </div>
                   );
                   const entryId = classAtTime.scheduleEntryId;
-                  const canRequest =
-                    readOnly &&
-                    clickableScheduleEntryCells &&
-                    typeof onScheduleEntryClick === "function" &&
-                    Boolean(entryId) &&
-                    !classAtTime.vacantGec;
-                  const body = canRequest ? (
-                    <button
-                      type="button"
-                      className="w-full text-left rounded-md p-0.5 -m-0.5 transition-[box-shadow,background] hover:bg-[#ff990a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50 cursor-pointer"
-                      title="Request schedule change for this class"
-                      onClick={() => entryId && onScheduleEntryClick(entryId)}
-                    >
-                      {inner}
-                    </button>
-                  ) : (
-                    inner
-                  );
                   return (
                     <div
                       key={
@@ -485,7 +454,7 @@ export function OpticoreInsForm5A({
                         entryId={entryId}
                         conflictingIds={conflictingScheduleEntryIds}
                       >
-                        {body}
+                        {inner}
                       </InsConflictCellShell>
                     </div>
                   );
@@ -622,6 +591,7 @@ export function OpticoreInsForm5A({
           <SigBlock title="Approved:" subtitle="Campus Director" />
         </div>
       ) : null}
+      <InsPrintFooter />
     </div>
   );
 }
@@ -714,6 +684,8 @@ export type OpticoreInsForm5BProps = {
   degreeAndYear: string;
   adviser: string;
   assignment: string;
+  /** Evening Form 5B paper: Major sits on the right of the header row. */
+  major?: string;
   schedule: SectionSchedule;
   courses: Array<{
     students: number;
@@ -733,6 +705,7 @@ export function OpticoreInsForm5B({
   degreeAndYear,
   adviser,
   assignment,
+  major,
   schedule,
   courses,
   readOnly = false,
@@ -744,16 +717,7 @@ export function OpticoreInsForm5B({
   const { programMode } = useProgramMode();
   return (
     <div className="space-y-5 print:space-y-1 text-neutral-900 print:text-[7.5pt] print:leading-tight">
-      <div className="flex flex-col gap-4 print:gap-0.5 border-b border-neutral-300 pb-6 print:pb-1 sm:flex-row sm:items-start sm:justify-between">
-        <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
-          Cebu Technological University
-        </h3>
-        <div className="text-right text-sm print:text-[7.5pt]">
-          <div className="font-semibold">INS FORM 5B</div>
-          <div>{formDate()}</div>
-          <div>Revision: 2</div>
-        </div>
-      </div>
+      <InsPaperLetterhead formCode="INS FORM 5B" />
 
       <div className="space-y-2 print:space-y-0 text-center">
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
@@ -776,6 +740,68 @@ export function OpticoreInsForm5B({
       </div>
 
       <div className="space-y-4 print:space-y-1 text-sm print:text-[7.5pt]">
+        {programMode === "night" ? (
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end sm:gap-4">
+              <div className="flex items-end gap-2 min-w-0">
+                <span className="shrink-0">Degree and Year:</span>
+                {readOnly ? (
+                  <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">
+                    {degreeAndYear}
+                  </span>
+                ) : (
+                  <input
+                    type="text"
+                    defaultValue={degreeAndYear}
+                    className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
+                  />
+                )}
+              </div>
+              <div className="flex items-end justify-center min-w-0">
+                {readOnly ? (
+                  <span className="min-h-[1.5rem] min-w-[8rem] border-b border-neutral-900 px-3 py-0.5 text-center font-semibold text-neutral-900">
+                    {assignment || "—"}
+                  </span>
+                ) : (
+                  <input
+                    type="text"
+                    defaultValue={assignment}
+                    className="min-h-[1.5rem] w-full max-w-[14rem] border-0 border-b border-neutral-900 bg-transparent text-center font-semibold outline-none"
+                  />
+                )}
+              </div>
+              <div className="flex items-end gap-2 min-w-0 sm:justify-end">
+                <span className="shrink-0">Major:</span>
+                {readOnly ? (
+                  <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900 sm:text-right">
+                    {major || "—"}
+                  </span>
+                ) : (
+                  <input
+                    type="text"
+                    defaultValue={major ?? ""}
+                    className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none sm:text-right"
+                  />
+                )}
+              </div>
+            </div>
+            <div className="flex items-end gap-3">
+              <span className="shrink-0">Adviser:</span>
+              {readOnly ? (
+                <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">
+                  {adviser || "—"}
+                </span>
+              ) : (
+                <input
+                  type="text"
+                  defaultValue={adviser}
+                  className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          <>
         <div className="flex items-end gap-3">
           <span className="shrink-0">Degree and Year:</span>
           {readOnly ? (
@@ -818,6 +844,8 @@ export function OpticoreInsForm5B({
             />
           )}
         </div>
+          </>
+        )}
       </div>
 
       {programMode === "night" ? (
@@ -834,7 +862,14 @@ export function OpticoreInsForm5B({
               ))}
             </div>
           )}
-          summary={<InsSummaryOfCourses courses={courses} />}
+          rightRail={
+            <InsSignatureStrip
+              signatureSlots={insSignatureSlots}
+              scheduleApproved={scheduleApproved}
+              variant="full"
+              compactPrint
+            />
+          }
         />
       ) : (
       <OpticoreInsScheduleTableWithSignatures
@@ -892,7 +927,7 @@ export function OpticoreInsForm5B({
       />
       )}
 
-      {programMode === "night" ? null : <InsSummaryOfCourses courses={courses} />}
+      <InsSummaryOfCourses courses={courses} />
 
       <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
         <div className="text-sm font-semibold text-neutral-900">Approved</div>
@@ -922,6 +957,7 @@ export function OpticoreInsForm5B({
           </div>
         )}
       </div>
+      <InsPrintFooter />
     </div>
   );
 }
@@ -958,16 +994,7 @@ export function OpticoreInsForm5C({
 
   return (
     <div className="space-y-5 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
-      <div className="flex flex-col gap-4 print:gap-1 border-b border-neutral-300 pb-6 print:pb-1.5 sm:flex-row sm:items-start sm:justify-between">
-        <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-left sm:text-lg print:text-[9pt] print:leading-none">
-          Cebu Technological University
-        </h3>
-        <div className="text-right text-sm print:text-[7.5pt]">
-          <div className="font-semibold">INS FORM 5C</div>
-          <div>{formDate()}</div>
-          <div>Revision: 2</div>
-        </div>
-      </div>
+      <InsPaperLetterhead formCode="INS FORM 5C" />
 
       <div className="space-y-2 print:space-y-0 text-center">
         <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
@@ -1130,6 +1157,7 @@ export function OpticoreInsForm5C({
           <div className="text-[10px] text-neutral-700">Campus Director</div>
         </div>
       </div>
+      <InsPrintFooter />
     </div>
   );
 }

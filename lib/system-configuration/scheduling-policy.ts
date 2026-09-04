@@ -7,6 +7,7 @@ export type SchedulingPolicyConfig = {
   maxWeeklyLabContactHours?: number;
   maxWeeklyLectureOverloadHours?: number;
   maxWeeklyResidentContactHours?: number;
+  maxWeeklyNonResidentContactHours?: number;
   /** Soft cap for GA / suggestions (hours/week). */
   defaultMaxFacultyHoursPerWeek?: number;
   /** Merit-system hourly rates (undergraduate), editable campus-wide. */
@@ -29,6 +30,7 @@ export type ResolvedFacultyPolicyConstants = {
   MAX_WEEKLY_LAB_CONTACT_HOURS: number;
   MAX_WEEKLY_LECTURE_OVERLOAD_HOURS: number;
   MAX_WEEKLY_RESIDENT_CONTACT_HOURS: number;
+  MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS: number;
 };
 
 export const DEFAULT_SCHEDULING_POLICY: SchedulingPolicyConfig = {
@@ -37,6 +39,7 @@ export const DEFAULT_SCHEDULING_POLICY: SchedulingPolicyConfig = {
   maxWeeklyLabContactHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LAB_CONTACT_HOURS,
   maxWeeklyLectureOverloadHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS,
   maxWeeklyResidentContactHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_RESIDENT_CONTACT_HOURS,
+  maxWeeklyNonResidentContactHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS,
   defaultMaxFacultyHoursPerWeek: 24,
   ratePerHourDoctorate: 250,
   ratePerHourMasters: 225,
@@ -58,6 +61,10 @@ export function resolveFacultyPolicyConstants(
     MAX_WEEKLY_LAB_CONTACT_HOURS: num(raw?.maxWeeklyLabContactHours, d.maxWeeklyLabContactHours!),
     MAX_WEEKLY_LECTURE_OVERLOAD_HOURS: num(raw?.maxWeeklyLectureOverloadHours, d.maxWeeklyLectureOverloadHours!),
     MAX_WEEKLY_RESIDENT_CONTACT_HOURS: num(raw?.maxWeeklyResidentContactHours, d.maxWeeklyResidentContactHours!),
+    MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS: num(
+      raw?.maxWeeklyNonResidentContactHours,
+      d.maxWeeklyNonResidentContactHours!,
+    ),
   };
 }
 
@@ -68,6 +75,7 @@ export function schedulingPolicyFromResolved(c: ResolvedFacultyPolicyConstants):
     maxWeeklyLabContactHours: c.MAX_WEEKLY_LAB_CONTACT_HOURS,
     maxWeeklyLectureOverloadHours: c.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS,
     maxWeeklyResidentContactHours: c.MAX_WEEKLY_RESIDENT_CONTACT_HOURS,
+    maxWeeklyNonResidentContactHours: c.MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS,
     defaultMaxFacultyHoursPerWeek: DEFAULT_SCHEDULING_POLICY.defaultMaxFacultyHoursPerWeek,
   };
 }

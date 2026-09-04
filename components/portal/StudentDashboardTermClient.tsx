@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 import { MapPin, ChevronRight, Clock } from "lucide-react";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import type { Program, Section } from "@/types/db";
+import type { ProgramMode } from "@/lib/scheduling/program-mode";
 
 type StudentPayload = {
   rows: ScheduleRowView[];
@@ -14,12 +16,25 @@ type StudentPayload = {
   program: Program | null;
 };
 
+async function fetchStudentTermData(
+  periodId: string,
+  programMode: ProgramMode,
+): Promise<StudentPayload> {
+  const res = await fetch(
+    `/api/portal/student-term-data?periodId=${encodeURIComponent(periodId)}&programMode=${encodeURIComponent(programMode)}`,
+  );
+  const j = (await res.json()) as StudentPayload & { error?: string };
+  if (!res.ok) throw new Error(j.error ?? "Could not load schedule.");
+  return j;
+}
+
 export function StudentDashboardTermClient({
   profileName,
 }: {
   profileName: string;
 }) {
   const { selectedPeriodId, selectedPeriod, ready } = useSemesterFilter();
+  const { programMode, setProgramMode } = useProgramMode();
   const [data, setData] = useState<StudentPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -31,15 +46,21 @@ export function StudentDashboardTermClient({
     setErr(null);
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/portal/student-term-data?periodId=${encodeURIComponent(selectedPeriodId)}`,
-        );
-        const j = (await res.json()) as StudentPayload & { error?: string };
-        if (!res.ok) {
-          if (!cancelled) setErr(j.error ?? "Could not load schedule.");
+        const primary = await fetchStudentTermData(selectedPeriodId, programMode);
+        if (cancelled) return;
+        if ((primary.rows?.length ?? 0) > 0) {
+          setData(primary);
           return;
         }
-        if (!cancelled) setData(j);
+        const other: ProgramMode = programMode === "night" ? "day" : "night";
+        const fallback = await fetchStudentTermData(selectedPeriodId, other);
+        if (cancelled) return;
+        if ((fallback.rows?.length ?? 0) > 0) {
+          setData(fallback);
+          setProgramMode(other);
+          return;
+        }
+        setData(primary);
       } catch (e: unknown) {
         if (!cancelled) setErr(e instanceof Error ? e.message : "Could not load schedule.");
       } finally {
@@ -49,7 +70,7 @@ export function StudentDashboardTermClient({
     return () => {
       cancelled = true;
     };
-  }, [ready, selectedPeriodId]);
+  }, [ready, selectedPeriodId, programMode, setProgramMode]);
 
   const rows = data?.rows ?? [];
   const section = data?.section;
@@ -115,6 +136,13 @@ export function StudentDashboardTermClient({
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-2.5 text-sm font-semibold shadow-sm hover:opacity-95"
               >
                 View full schedule
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+              <Link
+                href="/student/ins?tab=section"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-4 py-2.5 text-sm font-semibold hover:bg-black/[0.03]"
+              >
+                Browse by section or room
                 <ChevronRight className="w-4 h-4" />
               </Link>
               <Link

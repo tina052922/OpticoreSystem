@@ -6,6 +6,8 @@ import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/
 import { groupProspectusByYearAndSemester } from "@/lib/gec/prospectus-summary";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
+import { weeklyContactHoursFromUnits } from "@/lib/subjects/contact-hours";
+import { SubjectWeeklyHoursChip } from "@/components/evaluator/SubjectWeeklyHoursBanner";
 
 type Props = {
   /** Must match `Program.code` for the chairman’s locked program (e.g. BSIT). */
@@ -28,12 +30,18 @@ type Props = {
    * (section + subject + instructor + room + time) for the selected section.
    */
   plottedSubjectCodes: ReadonlySet<string>;
+  /** Plotted weekly contact hours for the selected section, keyed by normalized subject code. */
+  plottedHoursBySubjectCode?: ReadonlyMap<string, number>;
   /** Latest code the chairman just plotted — extra emphasis (pulse) in the summary. */
   lastPlottedSubjectCode?: string | null;
   /** Catalog subjects when the program has no static prospectus (BIT / BSIE). */
   fallbackSubjects?: Array<{
     code: string;
     title: string;
+    lecUnits?: number;
+    labUnits?: number;
+    lecHours?: number;
+    labHours?: number;
     yearLevel?: number;
     semester?: 1 | 2;
   }>;
@@ -51,6 +59,7 @@ export function ChairmanProgramProspectusSummaryTable({
   yearLevelFilter,
   filterSemester = null,
   plottedSubjectCodes,
+  plottedHoursBySubjectCode,
   lastPlottedSubjectCode = null,
   fallbackSubjects = [],
   className = "",
@@ -63,10 +72,10 @@ export function ChairmanProgramProspectusSummaryTable({
       : fallbackSubjects.map((s) => ({
           code: s.code,
           title: s.title,
-          lecUnits: 0,
-          lecHours: 0,
-          labUnits: 0,
-          labHours: 0,
+          lecUnits: s.lecUnits ?? 0,
+          lecHours: s.lecHours ?? 0,
+          labUnits: s.labUnits ?? 0,
+          labHours: s.labHours ?? 0,
           yearLevel: s.yearLevel && s.yearLevel >= 1 && s.yearLevel <= 4 ? s.yearLevel : 1,
           semester: (s.semester === 2 ? 2 : 1) as 1 | 2,
         }));
@@ -96,6 +105,9 @@ export function ChairmanProgramProspectusSummaryTable({
         {scopeDescription ? (
           <div className="text-[11px] text-black/55">{scopeDescription}</div>
         ) : null}
+        <div className="text-[10px] text-black/45 mt-0.5">
+          Weekly hours: lecture 1 unit = 1 hour · lab 1 unit = 3 hours
+        </div>
         {!hasProspectusForProgram(programCode) && programCode.trim() ? (
           <div className="text-[11px] text-black/50 mt-0.5">
             Curriculum for {programCode} uses catalog subjects (no static CMO prospectus file).
@@ -132,22 +144,35 @@ export function ChairmanProgramProspectusSummaryTable({
                     const n = normalizeProspectusCode(s.code);
                     const plotted = Boolean(selectedSectionId) && plottedSubjectCodes.has(n);
                     const isGec = isGecCurriculumSubjectCode(s.code);
+                    const requiredHours =
+                      weeklyContactHoursFromUnits(s.lecUnits, s.labUnits) ||
+                      (s.lecHours ?? 0) + (s.labHours ?? 0);
+                    const plottedHours = plottedHoursBySubjectCode?.get(n) ?? 0;
+                    const overLimit = plotted && requiredHours > 0 && plottedHours > requiredHours + 1e-6;
                     return (
                       <tr
                         key={`${g.key}-${s.code}`}
-                        className="border-b border-black/5 last:border-b-0"
+                        className={`border-b border-black/5 last:border-b-0 ${overLimit ? "bg-red-50/80" : ""}`}
                       >
                         <td className="py-1 pr-2 font-mono font-semibold text-[#780301] whitespace-nowrap">{s.code}</td>
                         <td className="py-1 pr-2 text-black/70">{isGec ? "GEC" : "Major"}</td>
                         <td className="py-1 text-black/75">{s.title}</td>
                         <td className="py-1 pl-2 text-right whitespace-nowrap">
-                          {selectedSectionId && plotted ? (
+                          {selectedSectionId && plotted && !overLimit ? (
                             <span className="inline-flex items-center gap-1 text-emerald-900 font-semibold">
                               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                              Plotted
+                              <SubjectWeeklyHoursChip
+                                plotted
+                                plottedHours={plottedHours}
+                                requiredHours={requiredHours}
+                              />
                             </span>
                           ) : (
-                            <span className="text-black/35">—</span>
+                            <SubjectWeeklyHoursChip
+                              plotted={Boolean(selectedSectionId) && plotted}
+                              plottedHours={plottedHours}
+                              requiredHours={requiredHours}
+                            />
                           )}
                         </td>
                       </tr>

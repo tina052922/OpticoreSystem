@@ -46,7 +46,7 @@ export default async function DoiInsIndexPage({
 
   return (
     <div>
-      <ChairmanPageHeader title={LOAD_GENERATOR_NAV_LABEL} subtitle="Schedule view" />
+      <ChairmanPageHeader title={LOAD_GENERATOR_NAV_LABEL} subtitle="Campus-wide faculty, section, and room schedules" />
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-4">
         <div className="flex flex-wrap gap-2">

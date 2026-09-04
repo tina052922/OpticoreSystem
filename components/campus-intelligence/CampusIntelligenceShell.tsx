@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { CTU_LOGO_PNG } from "@/lib/branding";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi } from "@/lib/api/client";
 import type { AdminNavItem, NavIconKey } from "@/lib/admin-nav";
 import { isNavItemActive } from "@/lib/nav-active";
@@ -43,9 +44,8 @@ import { ProgramModeProvider } from "@/contexts/ProgramModeContext";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
-import { usePendingScheduleChangeRequestsCount } from "@/hooks/use-pending-schedule-change-requests-count";
-import { usePendingPolicyReviewsCount } from "@/hooks/use-pending-policy-reviews-count";
 import { usePendingAccessRequestsCount } from "@/hooks/use-pending-access-requests-count";
+import { usePendingPolicyReviewsCount } from "@/hooks/use-pending-policy-reviews-count";
 import { useAuditLogUnreadCount } from "@/hooks/use-audit-log-unread-count";
 import { usePendingInstructorRequestsCount } from "@/hooks/use-pending-instructor-requests-count";
 
@@ -67,11 +67,6 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   Settings,
 };
 
-/** Sidebar link that shows a numeric badge (pending schedule change requests). */
-const SCHEDULE_CHANGE_REQUESTS_HREFS = new Set([
-  "/admin/college/schedule-change-requests",
-  "/chairman/schedule-change-requests",
-]);
 const COLLEGE_ACCESS_REQUESTS_HREF = "/admin/college/access-requests";
 const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
 /** College Admin: same data as DOI queue, scoped by RLS to their college. */
@@ -95,18 +90,12 @@ export type CampusIntelligenceShellProps = {
   settingsHref?: string;
   /** Kept for layouts that pass it; inbox is only in the sidebar, not the avatar menu. */
   inboxHref?: string;
-  /**
-   * When set, shows a pending count badge on "Schedule change requests"
-   * (Program Chairman queue) and keeps it updated via Realtime + polling.
-   */
-  scheduleChangeRequestsBadgeCollegeId?: string | null;
-  scheduleChangeRequestsBadgeProgramId?: string | null;
   /** College Admin: pending access requests for this college hub. */
   accessRequestsBadgeCollegeId?: string | null;
-  /** DOI layout: shows a badge on "Policy reviews" when items are waiting for review. */
+  /** DOI layout: unused for justification (record + notify only, no review queue). */
   policyReviewsBadge?: boolean;
   /**
-   * College Admin: badge on "Policy justifications" for submissions still awaiting VPAA/DOI (same row set as `/doi/reviews`, RLS-scoped).
+   * College Admin: unused for justification (record + notify only, no review queue).
    */
   policyJustificationsBadgeCollegeId?: string | null;
   /**
@@ -134,8 +123,6 @@ export function CampusIntelligenceShell({
   roleLabel,
   profileHref,
   settingsHref,
-  scheduleChangeRequestsBadgeCollegeId = null,
-  scheduleChangeRequestsBadgeProgramId = null,
   accessRequestsBadgeCollegeId = null,
   policyReviewsBadge = false,
   policyJustificationsBadgeCollegeId = null,
@@ -144,12 +131,9 @@ export function CampusIntelligenceShell({
 }: CampusIntelligenceShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const branding = useCampusBranding();
   const navHrefs = navItems.map((i) => i.href);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const pendingScrCount = usePendingScheduleChangeRequestsCount(
-    scheduleChangeRequestsBadgeCollegeId,
-    scheduleChangeRequestsBadgeProgramId,
-  );
   const pendingAccessCount = usePendingAccessRequestsCount(accessRequestsBadgeCollegeId);
   const pendingDoiPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
   const showDoiPolicyBadge = policyReviewsBadge && pendingDoiPolicyReviews > 0;
@@ -223,15 +207,15 @@ export function CampusIntelligenceShell({
           <div className="w-[52px] h-[52px] sm:w-[64px] sm:h-[64px] md:w-[70px] md:h-[70px] rounded-full overflow-hidden bg-white/10 flex items-center justify-center shrink-0 p-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={CTU_LOGO_PNG}
-              alt="Cebu Technological University"
+              src={branding.logoUrl || CTU_LOGO_PNG}
+              alt={branding.universityName}
               className="max-h-full max-w-full object-contain"
             />
           </div>
           <div className="min-w-0">
-            <h1 className="font-bold text-[18px] md:text-[22px] text-white truncate">OptiCore</h1>
+            <h1 className="font-bold text-[18px] md:text-[22px] text-white truncate">{branding.headerTitle}</h1>
             <p className="font-normal text-[13px] md:text-[16px] text-white truncate">
-              Campus Intelligence System – CTU Argao
+              {branding.headerSubtitle}
             </p>
           </div>
         </div>
@@ -327,8 +311,6 @@ export function CampusIntelligenceShell({
             {navItems.map((item) => {
               const active = isNavItemActive(pathname, item.href, navHrefs);
               const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
-              const scrBadge =
-                SCHEDULE_CHANGE_REQUESTS_HREFS.has(item.href) && pendingScrCount > 0 ? pendingScrCount : null;
               const accessBadge =
                 item.href === COLLEGE_ACCESS_REQUESTS_HREF && pendingAccessCount > 0 ? pendingAccessCount : null;
               const doiPolicyBadge =
@@ -348,7 +330,6 @@ export function CampusIntelligenceShell({
               const badge =
                 doiPolicyBadge ??
                 collegePolicyBadge ??
-                scrBadge ??
                 accessBadge ??
                 auditBadge ??
                 instructorBadge ??
@@ -375,10 +356,8 @@ export function CampusIntelligenceShell({
                       }`}
                       title={
                         doiPolicyBadge !== null || collegePolicyBadge !== null
-                          ? `${badge} justification${badge === 1 ? "" : "s"} awaiting VPAA/DOI review`
-                          : scrBadge !== null
-                            ? `${badge} pending schedule change request${badge === 1 ? "" : "s"}`
-                            : accessBadge !== null
+                          ? `${badge} recorded teaching-load justification${badge === 1 ? "" : "s"}`
+                          : accessBadge !== null
                               ? `${badge} pending access request${badge === 1 ? "" : "s"}`
                               : instructorBadge !== null
                                 ? `${badge} instructor registration${badge === 1 ? "" : "s"} awaiting approval`
@@ -386,10 +365,8 @@ export function CampusIntelligenceShell({
                       }
                       aria-label={
                         doiPolicyBadge !== null || collegePolicyBadge !== null
-                          ? `${badge} policy justifications pending VPAA review`
-                          : scrBadge !== null
-                            ? `${badge} pending schedule change requests`
-                            : accessBadge !== null
+                          ? `${badge} recorded teaching-load justification${badge === 1 ? "" : "s"}`
+                          : accessBadge !== null
                               ? `${badge} pending access requests`
                               : instructorBadge !== null
                                 ? `${badge} instructor registrations awaiting approval`

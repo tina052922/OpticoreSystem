@@ -50,7 +50,7 @@ export default async function CollegePolicyReviewsPage() {
 
   return (
     <div>
-      <ChairmanPageHeader title="Policy reviews" />
+      <ChairmanPageHeader title="Load justifications" subtitle="Recorded teaching-load justifications for this college" />
       <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-5xl mx-auto">
         <CollegePolicyReviewsClient rows={vms} realtimeCollegeId={profile.collegeId} />
       </div>

@@ -90,6 +90,16 @@ export const ins = StyleSheet.create({
     objectFit: "contain",
   },
 
+  pageFooter: {
+    position: "absolute",
+    bottom: 12,
+    left: 30,
+    right: 30,
+    fontSize: 7,
+    color: GRAY_600,
+    textAlign: "center",
+  },
+
   /** Title block, centered now that the flanking logos are gone. */
   formTitleRow: {
     flexDirection: "row",
@@ -141,6 +151,7 @@ export const ins = StyleSheet.create({
   columnContainerHeader:{
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-end",
     width: "40%",
     marginBottom: 4,
   },

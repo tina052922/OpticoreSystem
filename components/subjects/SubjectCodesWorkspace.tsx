@@ -7,6 +7,7 @@ import { BSIT_PROGRAM_CODE } from "@/lib/chairman/bsit-prospectus";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { normalizeSubjectCodeForCompare } from "@/lib/subjects/normalize-subject-code";
+import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
 import { subjectCodesApi } from "@/lib/api/client";
 import type { Subject } from "@/types/db";
 
@@ -76,20 +77,13 @@ export function SubjectCodesWorkspace({
   const prospectusRows = useMemo(() => {
     if (!effectiveProgramCode) return [];
     const raw = getProspectusSubjectsForProgram(effectiveProgramCode);
-    const filtered = gecCurriculumOnly ? raw.filter((row) => isGecCurriculumSubjectCode(row.code)) : raw;
-    return filtered.map((row) => ({
-      ...row,
-      subcode: "" as const,
-    }));
+    return gecCurriculumOnly ? raw.filter((row) => isGecCurriculumSubjectCode(row.code)) : raw;
   }, [effectiveProgramCode, gecCurriculumOnly]);
 
   const [code, setCode] = useState("");
-  const [subcode, setSubcode] = useState("");
   const [title, setTitle] = useState("");
   const [lecUnits, setLecUnits] = useState("");
-  const [lecHours, setLecHours] = useState("");
   const [labUnits, setLabUnits] = useState("");
-  const [labHours, setLabHours] = useState("");
   const [yearLevel, setYearLevel] = useState("1");
 
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
@@ -126,8 +120,7 @@ export function SubjectCodesWorkspace({
     return base.filter(
       (s) =>
         s.code.toLowerCase().includes(q) ||
-        (s.title && s.title.toLowerCase().includes(q)) ||
-        (s.subcode && s.subcode.toLowerCase().includes(q)),
+        (s.title && s.title.toLowerCase().includes(q)),
     );
   }, [dbSubjects, subjectSearch, gecCurriculumOnly]);
 
@@ -139,7 +132,6 @@ export function SubjectCodesWorkspace({
       return (
         String(row.code).toLowerCase().includes(q) ||
         row.title.toLowerCase().includes(q) ||
-        (row.subcode && String(row.subcode).toLowerCase().includes(q)) ||
         semText.includes(q) ||
         String(row.semester).includes(q)
       );
@@ -176,14 +168,15 @@ export function SubjectCodesWorkspace({
 
     setSaving(true);
     try {
+      const lec = parseFloat(lecUnits) || 0;
+      const lab = parseFloat(labUnits) || 0;
       await subjectCodesApi.create({
         code: trimmedCode,
-        subcode: subcode.trim() || null,
         title: trimmedTitle,
-        lecUnits: parseFloat(lecUnits) || 0,
-        lecHours: parseFloat(lecHours) || 0,
-        labUnits: parseFloat(labUnits) || 0,
-        labHours: parseFloat(labHours) || 0,
+        lecUnits: lec,
+        lecHours: lectureHoursFromUnits(lec),
+        labUnits: lab,
+        labHours: labHoursFromUnits(lab),
         programId,
         yearLevel: Math.min(4, Math.max(1, parseInt(yearLevel, 10) || 1)),
       });
@@ -201,12 +194,9 @@ export function SubjectCodesWorkspace({
 
     setSuccess("Subject saved.");
     setCode("");
-    setSubcode("");
     setTitle("");
     setLecUnits("");
-    setLecHours("");
     setLabUnits("");
-    setLabHours("");
     setYearLevel("1");
     void loadSubjects();
   }
@@ -251,11 +241,7 @@ export function SubjectCodesWorkspace({
             <div className="text-sm font-medium">Subject Code</div>
             <Input placeholder="e.g. CC-111" value={code} onChange={(e) => setCode(e.target.value)} disabled={!programId} />
           </div>
-          <div className="space-y-1">
-            <div className="text-sm font-medium">Subcode</div>
-            <Input placeholder="Optional" value={subcode} onChange={(e) => setSubcode(e.target.value)} disabled={!programId} />
-          </div>
-          <div className="space-y-1">
+          <div className="space-y-1 lg:col-span-2">
             <div className="text-sm font-medium">Descriptive Title</div>
             <Input placeholder="Course title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!programId} />
           </div>
@@ -270,40 +256,16 @@ export function SubjectCodesWorkspace({
               onChange={(e) => setLecUnits(e.target.value)}
               disabled={!programId}
             />
+            <p className="text-[11px] text-black/50">1 unit = 1 hour</p>
           </div>
           <div className="space-y-1">
             <div className="text-sm font-medium">Lec Hours</div>
             <Input
               type="number"
-              min={0}
-              step={0.5}
-              placeholder="0"
-              value={lecHours}
-              onChange={(e) => setLecHours(e.target.value)}
-              disabled={!programId}
-            />
-          </div>
-          <div className="space-y-1">
-            <div className="text-sm font-medium">Lab Units</div>
-            <Input
-              type="number"
-              min={0}
-              step={0.5}
-              placeholder="0"
-              value={labUnits}
-              onChange={(e) => setLabUnits(e.target.value)}
-              disabled={!programId}
-            />
-          </div>
-          <div className="space-y-1">
-            <div className="text-sm font-medium">Lab Hours</div>
-            <Input
-              type="number"
-              min={0}
-              step={0.5}
-              placeholder="0"
-              value={labHours}
-              onChange={(e) => setLabHours(e.target.value)}
+              readOnly
+              tabIndex={-1}
+              className="bg-black/[0.04] text-black/70"
+              value={lecUnits === "" ? "" : lectureHoursFromUnits(parseFloat(lecUnits) || 0)}
               disabled={!programId}
             />
           </div>
@@ -320,6 +282,30 @@ export function SubjectCodesWorkspace({
               <option value="3">3</option>
               <option value="4">4</option>
             </select>
+          </div>
+          <div className="space-y-1">
+            <div className="text-sm font-medium">Lab Units</div>
+            <Input
+              type="number"
+              min={0}
+              step={0.5}
+              placeholder="0"
+              value={labUnits}
+              onChange={(e) => setLabUnits(e.target.value)}
+              disabled={!programId}
+            />
+            <p className="text-[11px] text-black/50">1 unit = 3 hours</p>
+          </div>
+          <div className="space-y-1">
+            <div className="text-sm font-medium">Lab Hours</div>
+            <Input
+              type="number"
+              readOnly
+              tabIndex={-1}
+              className="bg-black/[0.04] text-black/70"
+              value={labUnits === "" ? "" : labHoursFromUnits(parseFloat(labUnits) || 0)}
+              disabled={!programId}
+            />
           </div>
         </div>
       </div>
@@ -350,7 +336,6 @@ export function SubjectCodesWorkspace({
               <tr className="bg-[#ff990a] text-white text-[11px]">
                 <th className="border border-black/10 px-2 py-2 text-left">Yr</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Subject Code</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Subcode</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Descriptive Title</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lec Units</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
@@ -361,13 +346,13 @@ export function SubjectCodesWorkspace({
             <tbody className="text-[12px]">
               {!programId ? (
                 <tr>
-                  <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={7} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     No program selected.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={7} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     {dbSubjects.length === 0
                       ? "No subjects in the database for this program yet."
                       : "No saved subjects match your search."}
@@ -378,12 +363,11 @@ export function SubjectCodesWorkspace({
                   <tr key={s.id}>
                     <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
                     <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                    <td className="border border-black/10 px-2 py-2">{s.subcode ?? "—"}</td>
                     <td className="border border-black/10 px-2 py-2">{s.title}</td>
                     <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                    <td className="border border-black/10 px-2 py-2">{s.lecHours}</td>
+                    <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
                     <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                    <td className="border border-black/10 px-2 py-2">{s.labHours}</td>
+                    <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
                   </tr>
                 ))
               )}
@@ -423,7 +407,6 @@ export function SubjectCodesWorkspace({
                   <th className="border border-black/10 px-2 py-2 text-left">Yr</th>
                   <th className="border border-black/10 px-2 py-2 text-left">Sem</th>
                   <th className="border border-black/10 px-2 py-2 text-left">Subject Code</th>
-                  <th className="border border-black/10 px-2 py-2 text-left">Subcode</th>
                   <th className="border border-black/10 px-2 py-2 text-left">Descriptive Title</th>
                   <th className="border border-black/10 px-2 py-2 text-left">Lec Units</th>
                   <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
@@ -434,7 +417,7 @@ export function SubjectCodesWorkspace({
               <tbody className="text-[12px]">
                 {filteredProspectus.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                    <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
                       No prospectus rows match &quot;{subjectSearch.trim()}&quot;.
                     </td>
                   </tr>
@@ -444,12 +427,11 @@ export function SubjectCodesWorkspace({
                       <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
                       <td className="border border-black/10 px-2 py-2">{formatProspectusSemester(s.semester)}</td>
                       <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.subcode || "—"}</td>
                       <td className="border border-black/10 px-2 py-2">{s.title}</td>
                       <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.lecHours}</td>
+                      <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
                       <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.labHours}</td>
+                      <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
                     </tr>
                   ))
                 )}

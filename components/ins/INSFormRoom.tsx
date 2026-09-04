@@ -26,8 +26,11 @@ import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5CDocument } from "@/components/pdf/forms/INS5CDocument";
 import { roomScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
+import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding";
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import type { INS5CProps } from "@/components/pdf/types/insTypes";
+import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@/lib/ins/schedule-visibility";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -68,9 +71,11 @@ export function INSFormRoom({
   hideInnerInsTabs = false,
 }: INSFormRoomProps) {
   const { programMode } = useProgramMode();
+  const branding = useCampusBranding();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
-  const instructorFacultyPortal = insBasePath.startsWith("/faculty/ins");
+  const readOnlyPortal = isInsReadOnlyPortal(insBasePath);
+  const studentPortal = isStudentInsPortal(insBasePath);
 
   const catalog = useInsCatalog({
     collegeId: effectiveCollegeId,
@@ -153,6 +158,7 @@ export function INSFormRoom({
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      doiSignatureImageUrl: catalog.doiSignatureImageUrl,
       campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
       collegeInsSignerDisplay: collegeRow?.insSignerDisplay ?? null,
     });
@@ -169,6 +175,7 @@ export function INSFormRoom({
     catalog.userById,
     catalog.termPublishLocked,
     catalog.campusWideDirectorSignatureUrl,
+    catalog.doiSignatureImageUrl,
     catalog.campusInsSettings?.insSignerDisplay,
     chairmanProgramId,
   ]);
@@ -179,7 +186,8 @@ export function INSFormRoom({
     schedule: roomScheduleToPdfGrid(displaySchedule, programMode),
     signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
     programMode,
-  }), [displayRoom, displaySchedule, useLiveData, catalog.periodLabel, insSignatureSlots, programMode]);
+    ...insPdfBrandingProps(branding),
+  }), [displayRoom, displaySchedule, useLiveData, catalog.periodLabel, insSignatureSlots, programMode, branding]);
 
   const roomConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedRoomId) return 0;
@@ -267,7 +275,7 @@ export function INSFormRoom({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       <div className="no-print">
-        {!campusWide ? (
+        {!campusWide && !studentPortal ? (
           <div className="mb-6 max-w-[1200px] mx-auto">
             <CampusScopeFilters
               variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
@@ -289,12 +297,16 @@ export function INSFormRoom({
 
         {!hideInnerInsTabs ? (
           <div className="flex gap-2 border-b border-gray-200 flex-wrap no-print">
-            {(
-              [
-                { label: "Faculty view", href: insTabHref(insBasePath, "faculty"), active: facultyInnerActive },
-                { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
-                { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
-              ] as const
+            {(studentPortal
+              ? ([
+                  { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
+                  { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
+                ] as const)
+              : ([
+                  { label: "Faculty view", href: insTabHref(insBasePath, "faculty"), active: facultyInnerActive },
+                  { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
+                  { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
+                ] as const)
             ).map((t) => (
               <Link
                 key={t.label}
@@ -336,7 +348,7 @@ export function INSFormRoom({
           </div>
         ) : null}
 
-        {useLiveData && roomConflictCount > 0 && !instructorFacultyPortal ? (
+        {useLiveData && roomConflictCount > 0 && !readOnlyPortal ? (
           <div
             className="rounded-lg border border-red-300/80 bg-red-50/90 px-3 py-2 text-sm text-red-950 space-y-1.5 no-print"
             role="status"
@@ -376,10 +388,10 @@ export function INSFormRoom({
           )}
 
           <div className="flex flex-wrap items-center gap-3 justify-end">
-            {instructorFacultyPortal ? (
+            {readOnlyPortal ? (
               <>
                 <Button variant="outline" className="bg-white" asChild>
-                  <Link href="/faculty/schedule">My schedule</Link>
+                  <Link href={portalMyScheduleHref(insBasePath)}>My schedule</Link>
                 </Button>
                 <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
                   <Eye className="w-4 h-4 mr-2" />
@@ -458,7 +470,7 @@ export function INSFormRoom({
             schedule={displaySchedule}
             scheduleApproved={useLiveData && catalog.termPublishLocked}
             insSignatureSlots={useLiveData ? insSignatureSlots : null}
-            readOnly={Boolean((useLiveData && catalog.termPublishLocked) || instructorFacultyPortal)}
+            readOnly={Boolean((useLiveData && catalog.termPublishLocked) || readOnlyPortal)}
             semesterLabel={useLiveData ? catalog.periodLabel ?? undefined : undefined}
             conflictingScheduleEntryIds={useLiveData ? catalog.insConflictingEntryIds : null}
           />

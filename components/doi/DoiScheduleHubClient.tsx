@@ -94,8 +94,14 @@ export function DoiScheduleHubClient() {
     }
   }
 
-  async function submitDecision(action: "approve" | "reject") {
+  async function submitDecision(action: "approve" | "reject" | "unpublish") {
     if (!periodId) return;
+    if (action === "unpublish") {
+      const ok = window.confirm(
+        "Unpublish and unlock this term? Editors can resume case-to-case plotting until DOI locks again.",
+      );
+      if (!ok) return;
+    }
     setDecisionBusy(action);
     setDecisionError(null);
     try {
@@ -111,6 +117,10 @@ export function DoiScheduleHubClient() {
         setSignedAck(false);
         setSignedByName("");
         toast.success("Schedule published and locked successfully");
+      } else if (action === "unpublish") {
+        setSignedAck(false);
+        setSignedByName("");
+        toast.success("Schedule unpublished and unlocked");
       } else {
         toast.success("Schedule decision saved");
       }
@@ -215,10 +225,14 @@ export function DoiScheduleHubClient() {
         </section>
 
         <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm space-y-4">
-          <h2 className="text-lg font-bold text-black">Formal approval (VPAA)</h2>
+          <h2 className="text-lg font-bold text-black">Formal approval (DOI lock)</h2>
+          <p className="text-sm text-black/65">
+            Schedules stay editable case-to-case while unlocked. Only DOI can lock. After publish, unpublish / unlock
+            so edits can continue.
+          </p>
           {finalization?.status === "approved" ? (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-950">
-              <p className="font-semibold">Approved</p>
+              <p className="font-semibold">Published / locked</p>
               <p>
                 Signed by <strong>{finalization.signedByName}</strong>
                 {finalization.signedAt ? ` on ${new Date(finalization.signedAt).toLocaleString()}` : ""}.
@@ -231,68 +245,92 @@ export function DoiScheduleHubClient() {
               {finalization.notes ? <p>Notes: {finalization.notes}</p> : null}
             </div>
           ) : (
-            <p className="text-sm text-black/65">No decision recorded for this term yet.</p>
+            <p className="text-sm text-black/65">Unlocked — no current publication for this term.</p>
           )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-black" htmlFor="doi-name">
-              Sign as DOI Admin (full name)
-            </label>
-            <input
-              id="doi-name"
-              className="w-full max-w-md h-10 rounded-lg border border-black/15 px-3 text-sm"
-              value={signedByName}
-              onChange={(e) => setSignedByName(e.target.value)}
-              placeholder="e.g. Dr. Maria Elena Reyes"
-            />
-            <label className="flex items-start gap-2 text-sm text-black/80 cursor-pointer">
-              <input
-                type="checkbox"
-                className="mt-1 rounded border-black/20"
-                checked={signedAck}
-                onChange={(e) => setSignedAck(e.target.checked)}
-              />
-              I confirm this electronic acknowledgment represents my approval as DOI / VPAA for this term&apos;s master
-              schedules.
-            </label>
-            <label className="text-sm font-medium text-black" htmlFor="doi-notes">
-              Notes (optional)
-            </label>
-            <textarea
-              id="doi-notes"
-              className="w-full min-h-[72px] rounded-lg border border-black/15 px-3 py-2 text-sm"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
+          {finalization?.status === "approved" ? (
+            <>
+              {decisionError ? (
+                <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{decisionError}</p>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-amber-400 text-amber-950 bg-amber-50 hover:bg-amber-100"
+                  disabled={decisionBusy !== null || !periodId}
+                  onClick={() => void submitDecision("unpublish")}
+                >
+                  {decisionBusy === "unpublish" ? "Unlocking…" : "Unpublish / unlock"}
+                </Button>
+              </div>
+              <p className="text-xs text-black/45">
+                Unlocking clears the DOI lock so plotting can resume. Approve again when the term should be final.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-black" htmlFor="doi-name">
+                  Sign as DOI Admin (full name)
+                </label>
+                <input
+                  id="doi-name"
+                  className="w-full max-w-md h-10 rounded-lg border border-black/15 px-3 text-sm"
+                  value={signedByName}
+                  onChange={(e) => setSignedByName(e.target.value)}
+                  placeholder="e.g. Dr. Maria Elena Reyes"
+                />
+                <label className="flex items-start gap-2 text-sm text-black/80 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-black/20"
+                    checked={signedAck}
+                    onChange={(e) => setSignedAck(e.target.checked)}
+                  />
+                  I confirm this electronic acknowledgment represents my approval as DOI / VPAA for this term&apos;s
+                  master schedules.
+                </label>
+                <label className="text-sm font-medium text-black" htmlFor="doi-notes">
+                  Notes (optional)
+                </label>
+                <textarea
+                  id="doi-notes"
+                  className="w-full min-h-[72px] rounded-lg border border-black/15 px-3 py-2 text-sm"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
 
-          {decisionError ? (
-            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{decisionError}</p>
-          ) : null}
+              {decisionError ? (
+                <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{decisionError}</p>
+              ) : null}
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              className="bg-emerald-700 hover:bg-emerald-800 text-white"
-              disabled={decisionBusy !== null || !periodId}
-              onClick={() => void submitDecision("approve")}
-            >
-              {decisionBusy === "approve" ? "Saving…" : "Approve schedules (mark final)"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="border-red-300 text-red-800"
-              disabled={decisionBusy !== null || !periodId}
-              onClick={() => void submitDecision("reject")}
-            >
-              {decisionBusy === "reject" ? "Saving…" : "Reject"}
-            </Button>
-          </div>
-          <p className="text-xs text-black/45">
-            Approving sets all schedule rows in this term to <strong>final</strong> where they are not already final.
-            Rejection records a VPAA decision without changing plotted rows.
-          </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white"
+                  disabled={decisionBusy !== null || !periodId}
+                  onClick={() => void submitDecision("approve")}
+                >
+                  {decisionBusy === "approve" ? "Saving…" : "Approve schedules (mark final)"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-red-300 text-red-800"
+                  disabled={decisionBusy !== null || !periodId}
+                  onClick={() => void submitDecision("reject")}
+                >
+                  {decisionBusy === "reject" ? "Saving…" : "Reject"}
+                </Button>
+              </div>
+              <p className="text-xs text-black/45">
+                Approving locks all schedule rows in this term (DOI only). Rejection records a decision without changing
+                plotted rows.
+              </p>
+            </>
+          )}
         </section>
       </div>
     </div>

@@ -14,11 +14,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CTU_LOGO_PNG } from "@/lib/branding";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi } from "@/lib/api/client";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { ProgramModeProvider } from "@/contexts/ProgramModeContext";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
+import { isNavItemActive } from "@/lib/nav-active";
 
 export type PortalNavItem = { label: string; href: string };
 
@@ -50,6 +52,7 @@ export function PortalShell({
 }: PortalShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const branding = useCampusBranding();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -74,6 +77,8 @@ export function PortalShell({
     router.refresh();
   }
 
+  const navHrefs = navItems.map((n) => n.href);
+
   return (
     <ProgramModeProvider>
     <SemesterFilterProvider>
@@ -96,8 +101,8 @@ export function PortalShell({
           <div className="w-[52px] h-[52px] sm:w-[64px] sm:h-[64px] md:w-[70px] md:h-[70px] rounded-full overflow-hidden bg-white/10 flex items-center justify-center shrink-0 p-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={CTU_LOGO_PNG}
-              alt="Cebu Technological University"
+              src={branding.logoUrl || CTU_LOGO_PNG}
+              alt={branding.universityName}
               className="max-h-full max-w-full object-contain"
               onError={(e) => {
                 const el = e.currentTarget;
@@ -106,9 +111,9 @@ export function PortalShell({
             />
           </div>
           <div className="min-w-0">
-            <h1 className="font-bold text-[18px] md:text-[22px] text-white truncate">OptiCore</h1>
+            <h1 className="font-bold text-[18px] md:text-[22px] text-white truncate">{branding.headerTitle}</h1>
             <p className="font-normal text-[13px] md:text-[16px] text-white truncate">
-              Campus Intelligence System – CTU Argao
+              {branding.headerSubtitle}
             </p>
           </div>
         </div>
@@ -193,7 +198,7 @@ export function PortalShell({
 
           <nav className="flex-1 px-2 pb-2 space-y-1 no-print overflow-y-auto">
             {navItems.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              const active = isNavItemActive(pathname, item.href, navHrefs);
               return (
                 <Link
                   key={item.href}

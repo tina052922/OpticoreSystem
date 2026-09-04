@@ -41,4 +41,21 @@ describe("isNavItemActive", () => {
     expect(isNavItemActive("/faculty/schedule", "/faculty/schedule", instructorNav)).toBe(true);
     expect(isNavItemActive("/faculty/profile", "/faculty", instructorNav)).toBe(false);
   });
+
+  const studentNav = [
+    "/student",
+    "/student/schedule",
+    "/student/ins?tab=section",
+    "/student/profile",
+    "/campus-navigation",
+  ];
+
+  it("treats /student as exact-only so nested portal routes do not highlight Dashboard", () => {
+    expect(isNavItemActive("/student", "/student", studentNav)).toBe(true);
+    expect(isNavItemActive("/student/ins", "/student", studentNav)).toBe(false);
+    expect(isNavItemActive("/student/ins", "/student/ins?tab=section", studentNav)).toBe(true);
+    expect(isNavItemActive("/student/ins", "/student/ins?tab=room", studentNav)).toBe(true);
+    expect(isNavItemActive("/student/schedule", "/student/schedule", studentNav)).toBe(true);
+    expect(isNavItemActive("/student/schedule", "/student", studentNav)).toBe(false);
+  });
 });

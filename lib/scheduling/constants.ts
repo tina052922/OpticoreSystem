@@ -30,10 +30,12 @@ export const FACULTY_POLICY_CONSTANTS = {
   MAX_WEEKLY_LAB_CONTACT_HOURS: 30,
   /** Lecture-equivalent weekly contact beyond official time (overload track). */
   MAX_WEEKLY_LECTURE_OVERLOAD_HOURS: 21,
-  /** Part-time faculty weekly teaching ceiling. */
+  /** Non-resident faculty weekly teaching ceiling (key name predates the Resident / Non-resident labels). */
   PARTTIME_MAX_WEEKLY_HOURS: 27,
   /** Resident faculty — total reference contact bound for heavy overload flag. */
   MAX_WEEKLY_RESIDENT_CONTACT_HOURS: 40,
+  /** Non-resident faculty — same heavy-overload reference bound, which runs higher than the resident week. */
+  MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS: 49,
 } as const;
 
 /** Majors keyed by program id (COTE prospectus — example data). */

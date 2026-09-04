@@ -1,5 +1,6 @@
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ProfileAvatarUpload } from "@/components/profile/ProfileAvatarUpload";
+import { STUDENT_PORTAL_NAV } from "@/lib/admin-nav";
 import { requireRoles } from "@/lib/auth/require-role";
 import { API_BASE_URL } from "@/lib/api/client";
 
@@ -24,13 +25,6 @@ async function fetchStudentProfileData(userId: string) {
 export default async function StudentProfilePage() {
   const profile = await requireRoles(["student"]);
 
-  const navItems = [
-    { label: "Dashboard", href: "/student" },
-    { label: "My schedule", href: "/student/schedule" },
-    { label: "Profile", href: "/student/profile" },
-    { label: "Campus navigation", href: "/campus-navigation" },
-  ];
-
   const studentProfile = profile.studentProfile as
     | { programId?: string; sectionId?: string; yearLevel?: number }
     | null
@@ -44,7 +38,7 @@ export default async function StudentProfilePage() {
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       sidebarBadge="Student"
-      navItems={navItems}
+      navItems={STUDENT_PORTAL_NAV}
       periodLabel="Current semester"
     >
       <div className="p-4 sm:p-6 lg:p-8 max-w-lg space-y-6">

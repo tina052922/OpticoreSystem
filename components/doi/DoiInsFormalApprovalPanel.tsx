@@ -117,8 +117,14 @@ export function DoiInsFormalApprovalPanel({
     }
   }
 
-  async function submitDecision(action: "approve" | "reject") {
+  async function submitDecision(action: "approve" | "reject" | "unpublish") {
     if (!periodId) return;
+    if (action === "unpublish") {
+      const ok = window.confirm(
+        "Unpublish and unlock this term? Program Chairmen, College Admins, and GEC can resume case-to-case edits until you lock again.",
+      );
+      if (!ok) return;
+    }
     setDecisionBusy(action);
     setDecisionError(null);
     try {
@@ -130,7 +136,7 @@ export function DoiInsFormalApprovalPanel({
         notes: notes.trim() || null,
       });
       setFinalization(data.finalization ?? null);
-      if (action === "approve") {
+      if (action === "approve" || action === "unpublish") {
         setSignedAck(false);
         setSignedByName("");
         await reloadCatalog?.();
@@ -379,10 +385,14 @@ export function DoiInsFormalApprovalPanel({
         ) : null}
 
         <div className="border-t border-gray-200 pt-4 space-y-3">
-          <h4 className="text-sm font-bold text-gray-800">Digital signature (VPAA)</h4>
+          <h4 className="text-sm font-bold text-gray-800">Lock, publish, and signature</h4>
+          <p className="text-xs text-gray-600">
+            Schedules stay editable case-to-case while unlocked. Only DOI can lock. After approve/publish, use
+            Unpublish / unlock so edits can continue when needed.
+          </p>
           {finalization?.status === "approved" ? (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-950">
-              <p className="font-semibold">Published / approved</p>
+              <p className="font-semibold">Published / locked</p>
               <p>
                 Signed by <strong>{finalization.signedByName}</strong>
                 {finalization.signedAt ? ` · ${new Date(finalization.signedAt).toLocaleString()}` : ""}
@@ -396,79 +406,108 @@ export function DoiInsFormalApprovalPanel({
               {finalization.notes ? <p>Notes: {finalization.notes}</p> : null}
             </div>
           ) : (
-            <p className="text-sm text-gray-600">No decision recorded for this term yet.</p>
+            <p className="text-sm text-gray-600">Unlocked — no current publication for this term.</p>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700" htmlFor="doi-sign-name">
-                Signer name (printed)
-              </label>
-              <input
-                id="doi-sign-name"
-                className="w-full h-10 rounded-lg border border-gray-200 px-3 text-sm"
-                value={signedByName}
-                onChange={(e) => setSignedByName(e.target.value)}
-                placeholder="Full name as DOI / VPAA"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">Date / time</label>
-              <p className="h-10 flex items-center text-sm text-gray-700 tabular-nums">
-                {signaturePreviewAt ?? "—"}
-                <span className="ml-2 text-xs text-gray-500">(captured on submit)</span>
+          {finalization?.status === "approved" ? (
+            <>
+              {decisionError ? (
+                <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                  {decisionError}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-amber-400 text-amber-950 bg-amber-50 hover:bg-amber-100"
+                  disabled={decisionBusy !== null || !periodId}
+                  onClick={() => void submitDecision("unpublish")}
+                >
+                  {decisionBusy === "unpublish" ? "Unlocking…" : "Unpublish / unlock"}
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Unlocking clears the DOI lock so Program Chairmen, College Admins, and GEC can resume plotting.
+                Approve &amp; publish again when the term should be final.
               </p>
-            </div>
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-700" htmlFor="doi-sign-name">
+                    Signer name (printed)
+                  </label>
+                  <input
+                    id="doi-sign-name"
+                    className="w-full h-10 rounded-lg border border-gray-200 px-3 text-sm"
+                    value={signedByName}
+                    onChange={(e) => setSignedByName(e.target.value)}
+                    placeholder="Full name as DOI / VPAA"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-700">Date / time</label>
+                  <p className="h-10 flex items-center text-sm text-gray-700 tabular-nums">
+                    {signaturePreviewAt ?? "—"}
+                    <span className="ml-2 text-xs text-gray-500">(captured on submit)</span>
+                  </p>
+                </div>
+              </div>
 
-          <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
-            <input
-              type="checkbox"
-              className="mt-1 rounded border-gray-300"
-              checked={signedAck}
-              onChange={(e) => setSignedAck(e.target.checked)}
-            />
-            I certify this electronic signature as the authorized DOI / VPAA representative for CTU Argao.
-          </label>
+              <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 rounded border-gray-300"
+                  checked={signedAck}
+                  onChange={(e) => setSignedAck(e.target.checked)}
+                />
+                I certify this electronic signature as the authorized DOI / VPAA representative for CTU Argao.
+              </label>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-700" htmlFor="doi-notes">
-              Notes (optional)
-            </label>
-            <textarea
-              id="doi-notes"
-              className="w-full min-h-[72px] rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700" htmlFor="doi-notes">
+                  Notes (optional)
+                </label>
+                <textarea
+                  id="doi-notes"
+                  className="w-full min-h-[72px] rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
 
-          {decisionError ? (
-            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{decisionError}</p>
-          ) : null}
+              {decisionError ? (
+                <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                  {decisionError}
+                </p>
+              ) : null}
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              className="bg-[#FF990A] hover:bg-[#e88909] text-white"
-              disabled={decisionBusy !== null || !periodId}
-              onClick={() => void submitDecision("approve")}
-            >
-              {decisionBusy === "approve" ? "Saving…" : "Approve & publish schedule"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="border-red-300 text-red-800"
-              disabled={decisionBusy !== null || !periodId}
-              onClick={() => void submitDecision("reject")}
-            >
-              {decisionBusy === "reject" ? "Saving…" : "Reject"}
-            </Button>
-          </div>
-          <p className="text-xs text-gray-500">
-            Approve: marks term rows final with VPAA lock. Reject: logs only — no timetable change.
-          </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  className="bg-[#FF990A] hover:bg-[#e88909] text-white"
+                  disabled={decisionBusy !== null || !periodId}
+                  onClick={() => void submitDecision("approve")}
+                >
+                  {decisionBusy === "approve" ? "Saving…" : "Approve & publish schedule"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-red-300 text-red-800"
+                  disabled={decisionBusy !== null || !periodId}
+                  onClick={() => void submitDecision("reject")}
+                >
+                  {decisionBusy === "reject" ? "Saving…" : "Reject"}
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Approve: DOI lock — all term rows become final. Reject: logs only — no timetable change.
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

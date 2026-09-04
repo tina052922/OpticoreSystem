@@ -2,6 +2,8 @@ import type { FacultyProfile, ScheduleEntry, Subject, User } from "@/types/db";
 import { FACULTY_POLICY_CONSTANTS } from "./constants";
 import type { ResolvedFacultyPolicyConstants } from "@/lib/system-configuration/scheduling-policy";
 import { designationTeachingCapHours } from "@/lib/faculty/designation-system";
+import { isNonResidentFacultyStatus } from "@/lib/faculty/employment-status";
+import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
 import { subjectPrepKey } from "./prep-key";
 
 function parseTimeToMinutes(t: string): number {
@@ -19,8 +21,9 @@ export function slotDurationHours(startTime: string, endTime: string): number {
 /** Split slot hours into lecture vs lab portions using subject contact-hour mix. */
 export function lectureLabSplitHours(subject: Subject | undefined, durationHours: number): { lec: number; lab: number } {
   if (!subject) return { lec: durationHours, lab: 0 };
-  const lh = Math.max(0, subject.lecHours);
-  const sh = Math.max(0, subject.labHours);
+  const fromUnits = lectureHoursFromUnits(subject.lecUnits) + labHoursFromUnits(subject.labUnits);
+  const lh = fromUnits > 0 ? lectureHoursFromUnits(subject.lecUnits) : Math.max(0, subject.lecHours);
+  const sh = fromUnits > 0 ? labHoursFromUnits(subject.labUnits) : Math.max(0, subject.labHours);
   const sum = lh + sh;
   if (sum <= 0) return { lec: durationHours, lab: 0 };
   const lecRatio = lh / sum;
@@ -78,7 +81,7 @@ function buildFacultyContext(
   };
 }
 
-/** Violation codes that mean “teaching hours exceed this person’s allowed weekly load” (designation / regular / part-time). */
+/** Violation codes that mean “teaching hours exceed this person’s allowed weekly load” (designation / resident / non-resident). */
 export const TEACHING_LOAD_JUSTIFICATION_CODES = new Set<string>([
   "PARTTIME_WEEKLY_OVER_CAP",
   "OVER_DESIGNATION_TEACHING_CAP",
@@ -91,32 +94,21 @@ export function rowNeedsTeachingLoadJustification(row: FacultyLoadRow): boolean 
 }
 
 /**
- * Part-time detection must NOT use a naive `.includes("part")` — that matches the substring inside “**depart**ment”
- * and wrongly flags Organic faculty, which then triggers false overload / justification flows.
- */
-function isPartTimeFacultyStatus(status: string | null | undefined): boolean {
-  const s = (status ?? "").trim().toLowerCase();
-  if (!s) return false;
-  if (s === "part-time" || s === "part time") return true;
-  return /^part[-\s]?time\b/i.test(s);
-}
-
-/**
  * Numeric weekly teaching-contact cap for UI summaries (portal "remaining hours").
- * Mirrors {@link collectTeachingLoadCapViolations} ceilings only (part-time → 27 h, designation max, else 24 h typical).
+ * Mirrors {@link collectTeachingLoadCapViolations} ceilings only (non-resident → 27 h, designation max, else 24 h typical).
  */
 export function instructorMaxWeeklyTeachingCapFromProfile(
   profile: Pick<FacultyProfile, "designation" | "status"> | null,
   policyConstants: ResolvedFacultyPolicyConstants = FACULTY_POLICY_CONSTANTS as ResolvedFacultyPolicyConstants,
 ): number {
   const C = policyConstants;
-  const partTime = isPartTimeFacultyStatus(profile?.status);
-  if (partTime) return C.PARTTIME_MAX_WEEKLY_HOURS;
+  const nonResident = isNonResidentFacultyStatus(profile?.status);
+  if (nonResident) return C.PARTTIME_MAX_WEEKLY_HOURS;
   const desCap = designationTeachingCapHours(profile?.designation ?? null);
   return desCap ?? C.STANDARD_WEEKLY_TEACHING_HOURS;
 }
 
-/** Weekly teaching-contact cap violations only — these gate the VPAA justification modal. */
+/** Weekly teaching-contact cap violations only — these gate the DOI justification prompt. */
 function collectTeachingLoadCapViolations(
   ctx: FacultyContext,
   weeklyTotal: number,
@@ -126,12 +118,12 @@ function collectTeachingLoadCapViolations(
   const C = policyConstants;
 
   const desCap = designationTeachingCapHours(ctx.designation);
-  const partTime = isPartTimeFacultyStatus(ctx.status);
+  const nonResident = isNonResidentFacultyStatus(ctx.status);
 
-  if (partTime && weeklyTotal > C.PARTTIME_MAX_WEEKLY_HOURS + 1e-6) {
+  if (nonResident && weeklyTotal > C.PARTTIME_MAX_WEEKLY_HOURS + 1e-6) {
     v.push({
       code: "PARTTIME_WEEKLY_OVER_CAP",
-      message: `Part-time teaching exceeds ${C.PARTTIME_MAX_WEEKLY_HOURS} hrs/week (Faculty Manual).`,
+      message: `Non-resident teaching exceeds ${C.PARTTIME_MAX_WEEKLY_HOURS} hrs/week (Faculty Manual).`,
     });
   }
 
@@ -140,7 +132,7 @@ function collectTeachingLoadCapViolations(
       code: "OVER_DESIGNATION_TEACHING_CAP",
       message: `Teaching contact (${weeklyTotal.toFixed(1)} hrs/wk) exceeds designation cap (${desCap} hrs/wk).`,
     });
-  } else if (!partTime && desCap == null && weeklyTotal > C.STANDARD_WEEKLY_TEACHING_HOURS + 1e-6) {
+  } else if (!nonResident && desCap == null && weeklyTotal > C.STANDARD_WEEKLY_TEACHING_HOURS + 1e-6) {
     v.push({
       code: "OVER_STANDARD_TEACHING_LOAD",
       message: `Teaching contact (${weeklyTotal.toFixed(1)} hrs/wk) exceeds standard ${C.STANDARD_WEEKLY_TEACHING_HOURS} hrs/week (undergraduate norm).`,
@@ -150,11 +142,12 @@ function collectTeachingLoadCapViolations(
   return v;
 }
 
-/** Secondary checks (lab/lecture mix, resident reference) — informative only; do not force load justification. */
+/** Secondary checks (lab/lecture mix, workload reference) — informative only; do not force load justification. */
 function collectSecondaryPolicyViolations(
   weeklyTotal: number,
   weeklyLec: number,
   weeklyLab: number,
+  nonResident: boolean,
   policyConstants: ResolvedFacultyPolicyConstants,
 ): FacultyPolicyViolation[] {
   const v: FacultyPolicyViolation[] = [];
@@ -174,10 +167,16 @@ function collectSecondaryPolicyViolations(
     });
   }
 
-  if (weeklyTotal > C.MAX_WEEKLY_RESIDENT_CONTACT_HOURS + 1e-6) {
+  // Non-resident faculty are not bound by the resident working week, so they carry their own reference bound.
+  const contactBound = nonResident
+    ? C.MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS
+    : C.MAX_WEEKLY_RESIDENT_CONTACT_HOURS;
+  if (weeklyTotal > contactBound + 1e-6) {
     v.push({
-      code: "WEEKLY_CONTACT_OVER_RESIDENT_MAX",
-      message: `Scheduled teaching contact (${weeklyTotal.toFixed(1)} hrs/wk) exceeds ${C.MAX_WEEKLY_RESIDENT_CONTACT_HOURS} hrs/week (resident faculty workload reference).`,
+      code: nonResident ? "WEEKLY_CONTACT_OVER_NON_RESIDENT_MAX" : "WEEKLY_CONTACT_OVER_RESIDENT_MAX",
+      message: `Scheduled teaching contact (${weeklyTotal.toFixed(1)} hrs/wk) exceeds ${contactBound} hrs/week (${
+        nonResident ? "non-resident" : "resident"
+      } faculty workload reference).`,
     });
   }
 
@@ -257,7 +256,13 @@ export function evaluateFacultyLoadsForCollege(
         message: `Preparations (${preparations} distinct subjects) reach or exceed the allowed ${MAX_WEEKLY_PREPS_WITHOUT_JUSTIFICATION} without justification.`,
       });
     }
-    const secondary = collectSecondaryPolicyViolations(hrs.total, hrs.lec, hrs.lab, policyConstants);
+    const secondary = collectSecondaryPolicyViolations(
+      hrs.total,
+      hrs.lec,
+      hrs.lab,
+      isNonResidentFacultyStatus(ctx.status),
+      policyConstants,
+    );
     const violations = [...teaching, ...secondary];
     if (violations.length > 0) hasAnyViolation = true;
     if (teaching.length > 0) hasTeachingLoadJustificationViolation = true;

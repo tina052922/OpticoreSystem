@@ -68,6 +68,8 @@ import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/Ch
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
+import { inferDurationSlotsFromTimes } from "@/lib/evaluator/plot-duration";
+import { plottedHoursBySubjectCode } from "@/lib/scheduling/subject-semester-hours";
 import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
@@ -438,6 +440,24 @@ export function CentralHubEvaluatorView({
       if (sub?.code) set.add(normalizeProspectusCode(sub.code));
     }
     return set;
+  }, [modeEntries, academicPeriodId, sectionFilterId, subjectById]);
+
+  const plottedHoursBySubjectCodeForHub = useMemo(() => {
+    if (!sectionFilterId.trim() || !academicPeriodId) return new Map<string, number>();
+    return plottedHoursBySubjectCode({
+      sectionId: sectionFilterId,
+      meetings: modeEntries
+        .filter((e) => e.academicPeriodId === academicPeriodId && e.sectionId === sectionFilterId)
+        .map((e) => {
+          const sub = subjectById.get(e.subjectId);
+          return {
+            id: e.id,
+            sectionId: e.sectionId,
+            subjectCode: sub?.code ? normalizeProspectusCode(sub.code) : "",
+            hours: inferDurationSlotsFromTimes(e.startTime, e.endTime),
+          };
+        }),
+    });
   }, [modeEntries, academicPeriodId, sectionFilterId, subjectById]);
 
   useEffect(() => {
@@ -1238,6 +1258,7 @@ export function CentralHubEvaluatorView({
                     yearLevelFilter={summaryYearLevelFilter}
                     filterSemester={prospectusSemesterFromAcademicPeriod(currentPeriod)}
                     plottedSubjectCodes={plottedSubjectCodesForHub}
+                    plottedHoursBySubjectCode={plottedHoursBySubjectCodeForHub}
                   />
                 ) : null}
               </div>

@@ -13,5 +13,6 @@ describe("role home", () => {
     expect(getDefaultHomeForRole("student")).toBe("/student");
     expect(pathAllowedForRole("student", "/admin/college")).toBe(false);
     expect(pathAllowedForRole("student", "/student/profile")).toBe(true);
+    expect(pathAllowedForRole("student", "/student/ins")).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
 import { INSHeader } from "../shared/INSHeader";
+import { INSBrandedFooter } from "../shared/INSBrandedFooter";
 import type { TeachingLoadCategoryGroup, TeachingLoadSummaryRow } from "@/lib/scheduling/teaching-load-summary";
 
 const MAROON = "#780301";
@@ -207,12 +208,16 @@ export type TeachingLoadSummaryDocumentProps = {
   collegeName: string;
   semesterLabel: string;
   groups: TeachingLoadCategoryGroup[];
+  headerBanner?: string | null;
+  insFooterText?: string;
 };
 
 export function TeachingLoadSummaryDocument({
   collegeName,
   semesterLabel,
   groups,
+  headerBanner,
+  insFooterText,
 }: TeachingLoadSummaryDocumentProps) {
   return (
     <Document>
@@ -222,6 +227,7 @@ export function TeachingLoadSummaryDocument({
           formTitle="Summary of Teaching Load"
           semesterLabel={semesterLabel}
           programMode="both"
+          headerBanner={headerBanner}
         />
         <Text style={s.collegeTitle}>{collegeName}</Text>
         <Text style={s.formTitle}>Summary of Teaching Load</Text>
@@ -249,6 +255,7 @@ export function TeachingLoadSummaryDocument({
             <Text style={s.signLine}>Campus Director</Text>
           </View>
         </View>
+        <INSBrandedFooter text={insFooterText} />
       </Page>
     </Document>
   );

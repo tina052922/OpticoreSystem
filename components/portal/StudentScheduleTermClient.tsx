@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { useProgramMode } from "@/contexts/ProgramModeContext";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import type { Program, Section } from "@/types/db";
 import { buildPortalStudentIns5B } from "@/lib/portal/build-portal-ins-forms";
+import type { ProgramMode } from "@/lib/scheduling/program-mode";
 
 type StudentPayload = {
   rows: ScheduleRowView[];
@@ -15,9 +17,22 @@ type StudentPayload = {
   program: Program | null;
 };
 
+async function fetchStudentTermData(
+  periodId: string,
+  programMode: ProgramMode,
+): Promise<StudentPayload> {
+  const res = await fetch(
+    `/api/portal/student-term-data?periodId=${encodeURIComponent(periodId)}&programMode=${encodeURIComponent(programMode)}`,
+  );
+  const j = (await res.json()) as StudentPayload & { error?: string };
+  if (!res.ok) throw new Error(j.error ?? "Could not load schedule.");
+  return j;
+}
+
 /** INS 5B for the student’s section, filtered by the global semester selection. */
 export function StudentScheduleTermClient() {
   const { selectedPeriodId, selectedPeriod, ready } = useSemesterFilter();
+  const { programMode, setProgramMode } = useProgramMode();
   const [data, setData] = useState<StudentPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -29,15 +44,21 @@ export function StudentScheduleTermClient() {
     setErr(null);
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/portal/student-term-data?periodId=${encodeURIComponent(selectedPeriodId)}`,
-        );
-        const j = (await res.json()) as StudentPayload & { error?: string };
-        if (!res.ok) {
-          if (!cancelled) setErr(j.error ?? "Could not load schedule.");
+        const primary = await fetchStudentTermData(selectedPeriodId, programMode);
+        if (cancelled) return;
+        if ((primary.rows?.length ?? 0) > 0) {
+          setData(primary);
           return;
         }
-        if (!cancelled) setData(j);
+        const other: ProgramMode = programMode === "night" ? "day" : "night";
+        const fallback = await fetchStudentTermData(selectedPeriodId, other);
+        if (cancelled) return;
+        if ((fallback.rows?.length ?? 0) > 0) {
+          setData(fallback);
+          setProgramMode(other);
+          return;
+        }
+        setData(primary);
       } catch (e: unknown) {
         if (!cancelled) setErr(e instanceof Error ? e.message : "Could not load schedule.");
       } finally {
@@ -47,7 +68,7 @@ export function StudentScheduleTermClient() {
     return () => {
       cancelled = true;
     };
-  }, [ready, selectedPeriodId]);
+  }, [ready, selectedPeriodId, programMode, setProgramMode]);
 
   const rows = data?.rows ?? [];
   const section = data?.section;
@@ -56,9 +77,11 @@ export function StudentScheduleTermClient() {
   const { schedule, courses } = useMemo(() => buildPortalStudentIns5B(rows), [rows]);
 
   const degreeAndYear =
-    program && section
-      ? `${program.name} · Year level ${section.yearLevel}`
-      : program?.name ?? "—";
+    programMode === "night"
+      ? (section != null ? `Year ${section.yearLevel}` : "—")
+      : program && section
+        ? `${program.name} · Year level ${section.yearLevel}`
+        : program?.name ?? "—";
   const assignment = section?.name ?? "—";
   const semesterLabel = selectedPeriod?.name ?? "—";
 
@@ -72,19 +95,24 @@ export function StudentScheduleTermClient() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto space-y-4">
-      <Link
-        href="/student"
-        className="inline-flex items-center gap-2 text-sm font-medium text-black/70 hover:text-black"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to dashboard
-      </Link>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Link
+          href="/student"
+          className="inline-flex items-center gap-2 text-sm font-medium text-black/70 hover:text-black"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to dashboard
+        </Link>
+        <Link href="/student/ins?tab=section" className="text-sm font-medium text-[#780301] hover:underline">
+          Browse by section or room
+        </Link>
+      </div>
 
       <div>
         <h1 className="text-2xl font-bold text-gray-800">My schedule</h1>
         <p className="text-gray-600 text-sm mt-1">
           INS Form 5B — Program by Section (your section only). Matches the official grid format used in Campus
-          Intelligence.
+          Intelligence. To look up other sections or rooms, open Load Generator.
           {loading ? <span className="ml-2 text-black/40">Updating…</span> : null}
         </p>
       </div>
@@ -101,6 +129,7 @@ export function StudentScheduleTermClient() {
           degreeAndYear={degreeAndYear}
           adviser="—"
           assignment={assignment}
+          major={program?.name ?? ""}
           schedule={schedule}
           courses={courses}
           readOnly

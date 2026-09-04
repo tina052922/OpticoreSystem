@@ -5,22 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
 import { DoiCampusDirectorSignatureCard } from "@/components/doi/DoiCampusDirectorSignatureCard";
+import { SystemConfigBrandingCard } from "@/components/admin/SystemConfigBrandingCard";
+import { SystemConfigElectronicSignatureCard } from "@/components/admin/SystemConfigElectronicSignatureCard";
 import {
   adminApi,
   semestersApi,
-  systemConfigApi,
   ApiClientError,
 } from "@/lib/api/client";
-import {
-  DEFAULT_SCHEDULING_POLICY,
-  mergeSchedulingPolicyDraft,
-  type SchedulingPolicyConfig,
-} from "@/lib/system-configuration/scheduling-policy";
-import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
-import {
-  notifySystemConfigurationSaved,
-  useSystemConfiguration,
-} from "@/contexts/SystemConfigurationContext";
+import { notifySystemConfigurationSaved } from "@/contexts/SystemConfigurationContext";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { AcademicPeriod } from "@/types/db";
 
@@ -40,21 +32,12 @@ function SectionCard({ title, children }: { title: string; children: React.React
 }
 
 export function SystemConfigurationClient({ mode, collegeId = null, collegeName = null }: SystemConfigurationClientProps) {
-  const { schedulingPolicy, policyConstants, reload: reloadPolicy } = useSystemConfiguration();
   const canWriteCampusPolicy = mode === "doi" || mode === "college";
-
-  const [policyDraft, setPolicyDraft] = useState<SchedulingPolicyConfig>(DEFAULT_SCHEDULING_POLICY);
-  const [policySaving, setPolicySaving] = useState(false);
-  const [policyMsg, setPolicyMsg] = useState<string | null>(null);
 
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
   const [periodLoading, setPeriodLoading] = useState(true);
   const [periodMsg, setPeriodMsg] = useState<string | null>(null);
   const [newPeriod, setNewPeriod] = useState({ name: "", semester: "1", academicYear: "", startDate: "", endDate: "" });
-
-  useEffect(() => {
-    setPolicyDraft(mergeSchedulingPolicyDraft(schedulingPolicy, policyConstants));
-  }, [schedulingPolicy, policyConstants]);
 
   const loadPeriods = useCallback(async () => {
     setPeriodLoading(true);
@@ -71,21 +54,6 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
   useEffect(() => {
     void loadPeriods();
   }, [loadPeriods]);
-
-  async function savePolicy() {
-    setPolicySaving(true);
-    setPolicyMsg(null);
-    try {
-      await systemConfigApi.update({ schedulingPolicy: policyDraft });
-      setPolicyMsg("Teaching load policy saved. All users will see updated limits immediately.");
-      await reloadPolicy();
-      notifySystemConfigurationSaved("schedulingPolicy");
-    } catch (e) {
-      setPolicyMsg(e instanceof ApiClientError ? e.message : "Save failed");
-    } finally {
-      setPolicySaving(false);
-    }
-  }
 
   async function setCurrentPeriod(periodId: string) {
     setPeriodMsg(null);
@@ -120,25 +88,24 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
     }
   }
 
-  const policyFields: { key: Exclude<keyof SchedulingPolicyConfig, "ratePerHourByDesignation">; label: string; hint?: string }[] = [
-    { key: "standardWeeklyTeachingHours", label: "Standard weekly teaching hours (organic faculty)" },
-    { key: "parttimeMaxWeeklyHours", label: "Part-time weekly maximum" },
-    { key: "maxWeeklyLabContactHours", label: "Weekly lab contact maximum" },
-    { key: "maxWeeklyLectureOverloadHours", label: "Weekly lecture overload maximum" },
-    { key: "maxWeeklyResidentContactHours", label: "Resident faculty weekly reference maximum" },
-    { key: "defaultMaxFacultyHoursPerWeek", label: "Default GA / optimizer soft cap (hrs/week)" },
-  ];
-
-  const rateFields: { key: Exclude<keyof SchedulingPolicyConfig, "ratePerHourByDesignation">; label: string }[] = [
-    { key: "ratePerHourDoctorate", label: "Rate per hour — Doctorate (₱)" },
-    { key: "ratePerHourMasters", label: "Rate per hour — Master’s (₱)" },
-    { key: "ratePerHourBaccalaureate", label: "Rate per hour — Baccalaureate (₱)" },
-  ];
-
-  const designationOptions = DESIGNATION_POLICIES.filter((d) => d.key !== "Regular Faculty");
-
   return (
     <div className="px-4 md:px-8 pb-12 max-w-3xl space-y-6">
+      <SectionCard title="Branding">
+        <SystemConfigBrandingCard />
+      </SectionCard>
+
+      <SectionCard title="INS form layout">
+        <p className="text-sm text-black/65 leading-relaxed">
+          Printed INS Forms 5A, 5B, and 5C stay aligned with the official CTU paper layout
+          (grid, signatures, and field order). A free-form layout editor is not enabled: if
+          the official form changes, staff would otherwise rebuild OptiCore to match — or
+          go back to Excel / SPA.
+        </p>
+        <p className="text-sm text-black/65 leading-relaxed">
+          Letterhead image, university name, and an optional print footer are under Branding.
+          Confirm with the team before adding layout knobs such as margins or banner size.
+        </p>
+      </SectionCard>
       <SectionCard title="INS form signatories">
         {mode === "doi" ? (
           <div className="space-y-4">
@@ -150,6 +117,7 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
                 dispatchInsCatalogReload();
               }}
             />
+            <SystemConfigElectronicSignatureCard kind="doi" />
             <DoiCampusDirectorSignatureCard />
           </div>
         ) : (
@@ -166,123 +134,9 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
                 dispatchInsCatalogReload();
               }}
             />
+            {collegeId ? <SystemConfigElectronicSignatureCard kind="college" collegeId={collegeId} /> : null}
           </div>
         )}
-      </SectionCard>
-
-      <SectionCard title="Teaching load & policy rules">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {policyFields.map((f) => (
-            <label key={f.key} className="block text-sm">
-              <span className="font-medium text-black/80">{f.label}</span>
-              <Input
-                type="number"
-                min={1}
-                step={0.5}
-                className="mt-1 h-10"
-                value={policyDraft[f.key] ?? ""}
-                onChange={(e) =>
-                  setPolicyDraft((prev) => ({
-                    ...prev,
-                    [f.key]: parseFloat(e.target.value) || undefined,
-                  }))
-                }
-              />
-            </label>
-          ))}
-        </div>
-        {canWriteCampusPolicy ? (
-        <Button
-          type="button"
-          className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold"
-          disabled={policySaving}
-          onClick={() => void savePolicy()}
-        >
-          {policySaving ? "Saving…" : "Save teaching load policy"}
-        </Button>
-        ) : (
-          <p className="text-xs text-black/55">Campus-wide teaching load policy is set by VPAA / DOI or College Admin.</p>
-        )}
-        {policyMsg ? <p className="text-sm text-emerald-800">{policyMsg}</p> : null}
-      </SectionCard>
-
-      <SectionCard title="Faculty rate per hour">
-        <div className="grid gap-3 sm:grid-cols-3">
-          {rateFields.map((f) => (
-            <label key={f.key} className="block text-sm">
-              <span className="font-medium text-black/80">{f.label}</span>
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                className="mt-1 h-10"
-                value={policyDraft[f.key] ?? ""}
-                onChange={(e) =>
-                  setPolicyDraft((prev) => ({
-                    ...prev,
-                    [f.key]: parseFloat(e.target.value) || undefined,
-                  }))
-                }
-              />
-            </label>
-          ))}
-        </div>
-        {canWriteCampusPolicy ? (
-        <Button
-          type="button"
-          className="mt-3 bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold"
-          disabled={policySaving}
-          onClick={() => void savePolicy()}
-        >
-          {policySaving ? "Saving…" : "Save rates & policy"}
-        </Button>
-        ) : null}
-      </SectionCard>
-
-      <SectionCard title="Rate per hour by designation">
-        <p className="text-sm text-black/60">
-          Optional override for faculty holding a designation (e.g. Campus Director, Department Chairperson).
-          When set, this rate is used instead of the degree-based rate above. Leave blank to use the degree rate.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {designationOptions.map((d) => (
-            <label key={d.key} className="block text-sm">
-              <span className="font-medium text-black/80">{d.label} (₱/hr)</span>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                className="mt-1 h-10"
-                placeholder="Use degree-based rate"
-                value={policyDraft.ratePerHourByDesignation?.[d.label] ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setPolicyDraft((prev) => {
-                    const next = { ...(prev.ratePerHourByDesignation ?? {}) };
-                    if (!v) {
-                      delete next[d.label];
-                    } else {
-                      const n = parseFloat(v);
-                      if (Number.isFinite(n) && n > 0) next[d.label] = n;
-                    }
-                    return { ...prev, ratePerHourByDesignation: next };
-                  });
-                }}
-              />
-            </label>
-          ))}
-        </div>
-        {canWriteCampusPolicy ? (
-        <Button
-          type="button"
-          className="mt-3 bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold"
-          disabled={policySaving}
-          onClick={() => void savePolicy()}
-        >
-          {policySaving ? "Saving…" : "Save designation rates"}
-        </Button>
-        ) : null}
-        {policyMsg ? <p className="text-sm text-emerald-800">{policyMsg}</p> : null}
       </SectionCard>
 
       <SectionCard title="Academic year & semester">

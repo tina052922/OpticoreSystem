@@ -1,16 +1,10 @@
 import { PortalShell } from "@/components/portal/PortalShell";
 import { StudentScheduleTermClient } from "@/components/portal/StudentScheduleTermClient";
+import { STUDENT_PORTAL_NAV } from "@/lib/admin-nav";
 import { requireRoles } from "@/lib/auth/require-role";
 
 export default async function StudentSchedulePage() {
   const profile = await requireRoles(["student"]);
-
-  const navItems = [
-    { label: "Dashboard", href: "/student" },
-    { label: "My schedule", href: "/student/schedule" },
-    { label: "Profile", href: "/student/profile" },
-    { label: "Campus navigation", href: "/campus-navigation" },
-  ];
 
   return (
     <PortalShell
@@ -18,7 +12,7 @@ export default async function StudentSchedulePage() {
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       sidebarBadge="Student"
-      navItems={navItems}
+      navItems={STUDENT_PORTAL_NAV}
       periodLabel="Current semester"
     >
       <StudentScheduleTermClient />

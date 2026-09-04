@@ -87,7 +87,7 @@ describe("buildTeachingLoadSummary", () => {
         extension: null,
         production: null,
         specialTraining: null,
-        status: "Organic",
+        status: "Resident",
         designation: "Program Chair",
         ratePerHour: null,
       },

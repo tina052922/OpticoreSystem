@@ -29,6 +29,7 @@ import { API_BASE_URL } from "@/lib/api/client";
 export type RealtimeEventName =
   | "schedule.changed"
   | "schedule.published"
+  | "schedule.unpublished"
   | "notification.changed"
   | "badge.changed"
   | "config.changed"
@@ -37,7 +38,6 @@ export type RealtimeEventName =
 /** Must stay in sync with `BadgeKind` in the backend's `realtime/events.ts`. */
 export type RealtimeBadgeKind =
   | "access_requests"
-  | "schedule_change_requests"
   | "policy_reviews"
   | "audit_log"
   /** Instructor self-registrations awaiting chairman approval. */
@@ -63,6 +63,7 @@ type StatusHandler = (status: RealtimeStatus) => void;
 const EVENT_NAMES: RealtimeEventName[] = [
   "schedule.changed",
   "schedule.published",
+  "schedule.unpublished",
   "notification.changed",
   "badge.changed",
   "config.changed",

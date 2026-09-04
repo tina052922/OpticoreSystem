@@ -8,11 +8,12 @@ import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { OtpVerificationPanel } from "@/components/register/OtpVerificationPanel";
 import { CTU_LOGO_PNG } from "@/lib/branding";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { apiFetch, registerApi, ApiClientError } from "@/lib/api/client";
 import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
 import {
-  FACULTY_EMPLOYMENT_ORGANIC,
-  FACULTY_EMPLOYMENT_PART_TIME,
+  FACULTY_EMPLOYMENT_NON_RESIDENT,
+  FACULTY_EMPLOYMENT_RESIDENT,
 } from "@/lib/faculty/employment-status";
 
 type CollegeRow = { id: string; code: string; name: string };
@@ -37,6 +38,7 @@ function isCtuEmail(value: string): boolean {
 }
 
 export function InstructorRegisterClient() {
+  const branding = useCampusBranding();
   const [phase, setPhase] = useState<"register" | "otp" | "submitted">("register");
   const [fullName, setFullName] = useState("");
   const [aka, setAka] = useState("");
@@ -60,8 +62,8 @@ export function InstructorRegisterClient() {
   const [extension, setExtension] = useState("");
   const [production, setProduction] = useState("");
   const [specialTraining, setSpecialTraining] = useState("");
-  const [status, setStatus] = useState<typeof FACULTY_EMPLOYMENT_ORGANIC | typeof FACULTY_EMPLOYMENT_PART_TIME>(
-    FACULTY_EMPLOYMENT_ORGANIC,
+  const [status, setStatus] = useState<typeof FACULTY_EMPLOYMENT_RESIDENT | typeof FACULTY_EMPLOYMENT_NON_RESIDENT>(
+    FACULTY_EMPLOYMENT_RESIDENT,
   );
   const [designation, setDesignation] = useState("");
   const [colleges, setColleges] = useState<CollegeRow[]>([]);
@@ -257,8 +259,8 @@ export function InstructorRegisterClient() {
           <div className="w-28 h-28 shrink-0 rounded-full overflow-hidden ring-2 ring-black/[0.06] shadow-sm bg-white">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={CTU_LOGO_PNG}
-              alt="Cebu Technological University"
+              src={branding.logoUrl || CTU_LOGO_PNG}
+              alt={branding.universityName}
               width={112}
               height={112}
               className="w-full h-full object-cover object-center"
@@ -271,7 +273,7 @@ export function InstructorRegisterClient() {
         </div>
 
         <div className="text-center space-y-1">
-          <h1 className="text-xl font-medium text-[#181818]">Cebu Technological University</h1>
+          <h1 className="text-xl font-medium text-[#181818]">{branding.universityName}</h1>
           <h2 className="text-lg font-bold text-black">Instructor registration</h2>
           <p className="text-[13px] text-black/55">
             Register with your CTU email and home department. We&apos;ll email you a
@@ -446,15 +448,15 @@ export function InstructorRegisterClient() {
                   value={status}
                   onChange={(e) =>
                     setStatus(
-                      e.target.value === FACULTY_EMPLOYMENT_PART_TIME
-                        ? FACULTY_EMPLOYMENT_PART_TIME
-                        : FACULTY_EMPLOYMENT_ORGANIC,
+                      e.target.value === FACULTY_EMPLOYMENT_NON_RESIDENT
+                        ? FACULTY_EMPLOYMENT_NON_RESIDENT
+                        : FACULTY_EMPLOYMENT_RESIDENT,
                     )
                   }
                   className={fieldClass}
                 >
-                  <option value={FACULTY_EMPLOYMENT_ORGANIC}>{FACULTY_EMPLOYMENT_ORGANIC}</option>
-                  <option value={FACULTY_EMPLOYMENT_PART_TIME}>{FACULTY_EMPLOYMENT_PART_TIME}</option>
+                  <option value={FACULTY_EMPLOYMENT_RESIDENT}>{FACULTY_EMPLOYMENT_RESIDENT}</option>
+                  <option value={FACULTY_EMPLOYMENT_NON_RESIDENT}>{FACULTY_EMPLOYMENT_NON_RESIDENT}</option>
                 </select>
               </div>
               <div>

@@ -19,20 +19,20 @@ import {
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
-import { clampPlotStartSlotIndex, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
+import { clampPlotStartSlotIndex, plotRowDurationSlots, plottedDurationHours } from "@/lib/evaluator/plot-duration";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import {
   hoursExceedSubjectRequirement,
   plottedHoursForSubjectSection,
   requiredWeeklyContactHours,
-  subjectHoursOverLimitMessage,
 } from "@/lib/scheduling/subject-semester-hours";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
 import type { PlotRow, RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
-import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
+import { emptyPlotRow, newPlotRowId, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { formatLecLabDisplay } from "@/lib/evaluator/chairman-plot-leclab";
 import type { MajorOption } from "@/components/evaluator/ChairmanPlotScheduleModal";
+import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
 import type { InstructorPlotOption } from "@/lib/evaluator/instructor-employee-id";
 import type { Room, Section } from "@/types/db";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
@@ -69,6 +69,7 @@ function cellConflictClasses(
   cf: RowConflictFlags,
   scanHit: boolean,
   policyHit: boolean,
+  hoursHit: boolean,
   selected: boolean,
 ): string {
   const parts: string[] = [
@@ -77,7 +78,7 @@ function cellConflictClasses(
   if (selected) {
     parts.push("ring-2 ring-[#ff990a] ring-inset bg-[#ff990a]/12 shadow-sm");
   }
-  if (scanHit || policyHit) {
+  if (scanHit || policyHit || hoursHit) {
     parts.push("bg-red-50/95 ring-2 ring-inset ring-red-400/90");
     return parts.join(" ");
   }
@@ -144,7 +145,7 @@ export type BsitChairmanInteractiveWeekGridProps = {
   academicPeriodId: string;
   /** Sparse blocks of all existing schedule entries (for availability checks). */
   sparseCampusUniverse: SparseScheduleBlock[];
-  onApplyPlot: (draft: PlotRow, buildingValue: string) => void;
+  onApplyPlot: (draft: PlotRow, buildingValue: string, extras?: PlotRow[]) => void;
   onRemoveRow: (id: string) => void;
   insFormBasePath?: string;
   /** Run conflict check + Save schedule beside Generate INS Form. */
@@ -160,6 +161,7 @@ function PlotCellSummary({
   roomCodeById,
   instructorDisplayById,
   conflictFlags,
+  hoursOverLimit,
   timeSlots = BSIT_ONE_HOUR_SLOTS,
 }: {
   row: PlotRow;
@@ -168,6 +170,7 @@ function PlotCellSummary({
   roomCodeById: Map<string, string>;
   instructorDisplayById: Map<string, string>;
   conflictFlags: RowConflictFlags;
+  hoursOverLimit: boolean;
   timeSlots?: { label: string; startTime: string; endTime: string }[];
 }) {
   const dur = plotRowDurationSlots(
@@ -186,7 +189,7 @@ function PlotCellSummary({
     <div
       id={`chairman-eval-row-${row.id}`}
       className={`w-full text-left rounded-md px-1.5 py-1.5 leading-tight transition-colors ${
-        hasConflict ? "border border-red-300/80 bg-red-50/40" : "border border-transparent"
+        hasConflict || hoursOverLimit ? "border border-red-300/80 bg-red-50/40" : "border border-transparent"
       }`}
     >
       <div className="flex items-center justify-between gap-1">
@@ -208,6 +211,9 @@ function PlotCellSummary({
       ) : null}
       {hasConflict ? (
         <span className="text-[7px] font-bold text-red-800 mt-0.5 block">Conflict</span>
+      ) : null}
+      {hoursOverLimit ? (
+        <span className="text-[7px] font-bold text-red-800 mt-0.5 block">Over limit</span>
       ) : null}
     </div>
   );
@@ -270,6 +276,59 @@ export function BsitChairmanInteractiveWeekGrid({
     () => (selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : rows),
     [rows, selectedSectionId],
   );
+
+  const overLimitRowIds = useMemo(() => {
+    const ids = new Set<string>();
+    const meetings = rows
+      .filter((r) => r.sectionId && r.subjectCode)
+      .map((r) => ({
+        id: r.id,
+        sectionId: r.sectionId,
+        subjectCode: r.subjectCode,
+        hours: plottedDurationHours(r.durationSlots),
+      }));
+    const seen = new Set<string>();
+    for (const row of rows) {
+      if (!row.sectionId || !row.subjectCode) continue;
+      const key = `${row.sectionId}::${row.subjectCode.trim().toUpperCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const catalog = catalogSubjectRows?.find(
+        (s) => s.code.trim().toUpperCase() === row.subjectCode.trim().toUpperCase(),
+      );
+      const required = requiredWeeklyContactHours({
+        programCode: programCodeForSummary,
+        subjectCode: row.subjectCode,
+        lecUnits: catalog?.lecUnits,
+        labUnits: catalog?.labUnits,
+        lecHours: catalog?.lecHours,
+        labHours: catalog?.labHours,
+      });
+      const plotted = plottedHoursForSubjectSection({
+        meetings,
+        sectionId: row.sectionId,
+        subjectCode: row.subjectCode,
+      });
+      if (
+        !hoursExceedSubjectRequirement({
+          requiredHours: required,
+          alreadyPlottedHours: plotted,
+          additionalHours: 0,
+        })
+      ) {
+        continue;
+      }
+      for (const x of rows) {
+        if (
+          x.sectionId === row.sectionId &&
+          x.subjectCode.trim().toUpperCase() === row.subjectCode.trim().toUpperCase()
+        ) {
+          ids.add(x.id);
+        }
+      }
+    }
+    return ids;
+  }, [rows, catalogSubjectRows, programCodeForSummary]);
 
   const skipSlot = useMemo(() => {
     const m = new Set<string>();
@@ -337,11 +396,35 @@ export function BsitChairmanInteractiveWeekGrid({
     setHighlightedCell(null);
   }, []);
 
-  const handleApply = useCallback(() => {
-    if (!modal) return;
-    onApplyPlot(modal.draft, modal.buildingValue);
-    closeModal();
-  }, [modal, onApplyPlot, closeModal]);
+  const handleApply = useCallback(
+    (meetings: ResolvedPlotMeeting[]) => {
+      if (!modal || meetings.length === 0) return;
+      const [first, ...rest] = meetings;
+      if (!first) return;
+      const primary: PlotRow = {
+        ...modal.draft,
+        day: first.day,
+        startSlotIndex: first.startSlotIndex,
+        durationSlots: first.durationSlots,
+      };
+      const extras: PlotRow[] = rest.map((m) => ({
+        ...emptyPlotRow(),
+        id: newPlotRowId(),
+        sectionId: primary.sectionId,
+        students: primary.students,
+        subjectCode: primary.subjectCode,
+        lecLabMode: primary.lecLabMode,
+        instructorId: primary.instructorId,
+        roomId: primary.roomId,
+        day: m.day,
+        startSlotIndex: m.startSlotIndex,
+        durationSlots: m.durationSlots,
+      }));
+      onApplyPlot(primary, modal.buildingValue, extras);
+      closeModal();
+    },
+    [modal, onApplyPlot, closeModal],
+  );
 
   const handleRemove = useCallback(() => {
     if (!modal || modal.isNew) return;
@@ -502,6 +585,7 @@ export function BsitChairmanInteractiveWeekGrid({
                           { faculty: "No", room: "No", section: "No" },
                           false,
                           false,
+                          false,
                           selected,
                         )}`}
                       >
@@ -529,6 +613,7 @@ export function BsitChairmanInteractiveWeekGrid({
                   const policyHit = atHere.some(
                     (r) => Boolean(r.instructorId) && overloadedInstructorIds.has(r.instructorId),
                   );
+                  const hoursHit = atHere.some((r) => overLimitRowIds.has(r.id));
                   const mergedCf: RowConflictFlags = {
                     faculty: cfMerged.some((c) => c.faculty === "Yes") ? "Yes" : "No",
                     room: cfMerged.some((c) => c.room === "Yes") ? "Yes" : "No",
@@ -539,7 +624,7 @@ export function BsitChairmanInteractiveWeekGrid({
                     <td
                       key={day}
                       rowSpan={rowspan}
-                      className={`px-0.5 py-0.5 min-w-[100px] ${cellConflictClasses(mergedCf, scanHit, policyHit, selected)}`}
+                      className={`px-0.5 py-0.5 min-w-[100px] ${cellConflictClasses(mergedCf, scanHit, policyHit, hoursHit, selected)}`}
                     >
                       <ul className="space-y-1">
                         {atHere.map((r) => {
@@ -584,6 +669,7 @@ export function BsitChairmanInteractiveWeekGrid({
                                   roomCodeById={roomCodeById}
                                   instructorDisplayById={instructorDisplayById}
                                   conflictFlags={conflictForRow(r)}
+                                  hoursOverLimit={overLimitRowIds.has(r.id)}
                                   timeSlots={slots}
                                 />
                               </div>
@@ -633,6 +719,8 @@ export function BsitChairmanInteractiveWeekGrid({
                 const required = requiredWeeklyContactHours({
                   programCode: programCodeForSummary,
                   subjectCode: modal.draft.subjectCode,
+                  lecUnits: catalog?.lecUnits,
+                  labUnits: catalog?.labUnits,
                   lecHours: catalog?.lecHours,
                   labHours: catalog?.labHours,
                 });
@@ -642,7 +730,7 @@ export function BsitChairmanInteractiveWeekGrid({
                     id: r.id,
                     sectionId: r.sectionId,
                     subjectCode: r.subjectCode,
-                    hours: plotRowDurationSlots(prospectusRowForProgram(programCodeForSummary, r.subjectCode), r),
+                    hours: plottedDurationHours(r.durationSlots),
                   }));
                 const already = plottedHoursForSubjectSection({
                   meetings,

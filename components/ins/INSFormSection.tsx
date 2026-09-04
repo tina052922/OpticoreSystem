@@ -25,8 +25,11 @@ import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5BDocument } from "@/components/pdf/forms/INS5BDocument";
 import { sectionScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
+import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding";
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import type { INS5BProps } from "@/components/pdf/types/insTypes";
+import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@/lib/ins/schedule-visibility";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -80,10 +83,12 @@ export function INSFormSection({
   printOnLoad = false,
 }: INSFormSectionProps) {
   const { programMode } = useProgramMode();
+  const branding = useCampusBranding();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
-  /** Faculty portal: read-only INS; no conflict run or automated fixes. */
-  const instructorFacultyPortal = insBasePath.startsWith("/faculty/ins");
+  /** Faculty / student portals: read-only INS; no conflict run or automated fixes. */
+  const readOnlyPortal = isInsReadOnlyPortal(insBasePath);
+  const studentPortal = isStudentInsPortal(insBasePath);
 
   const catalog = useInsCatalog({
     collegeId: effectiveCollegeId,
@@ -159,6 +164,20 @@ export function INSFormSection({
   const displaySchedule = schedule;
   const displayCourses = courses;
   const displayAssignment = useLiveData ? selectedSectionName : "BSIT 2A (demo)";
+  const selectedSection = selectedSectionId ? catalog.sectionById.get(selectedSectionId) : undefined;
+  const selectedProgram = selectedSection ? catalog.programById.get(selectedSection.programId) : undefined;
+  const formMajor =
+    chairmanProgramName?.trim() || selectedProgram?.name || "";
+  const formDegreeAndYear =
+    programMode === "night"
+      ? [
+          chairmanProgramCode?.trim() || selectedProgram?.code || "",
+          selectedSection?.yearLevel != null ? String(selectedSection.yearLevel) : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : displayAssignment;
+  const formAssignment = programMode === "night" ? displayAssignment : "";
 
   const insSignatureSlots = useMemo(() => {
     if (!useLiveData || !selectedSectionId) return null;
@@ -173,6 +192,7 @@ export function INSFormSection({
       scheduleApproved: catalog.termPublishLocked,
       mode: "full",
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      doiSignatureImageUrl: catalog.doiSignatureImageUrl,
       campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
       collegeInsSignerDisplay: collegeRow?.insSignerDisplay ?? null,
     });
@@ -186,19 +206,22 @@ export function INSFormSection({
     catalog.userById,
     catalog.termPublishLocked,
     catalog.campusWideDirectorSignatureUrl,
+    catalog.doiSignatureImageUrl,
     catalog.campusInsSettings?.insSignerDisplay,
   ]);
 
   const pdfData = useMemo((): INS5BProps => ({
-    degreeAndYear: displayAssignment,
+    degreeAndYear: formDegreeAndYear,
+    major: formMajor || undefined,
     adviser: "",
-    assignment: "",
+    assignment: formAssignment,
     semesterLabel: catalog.periodLabel ?? "____ Semester, AY ____",
     schedule: sectionScheduleToPdfGrid(displaySchedule, programMode),
     courses: displayCourses,
     signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
     programMode,
-  }), [displayAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots, programMode]);
+    ...insPdfBrandingProps(branding),
+  }), [formDegreeAndYear, formMajor, formAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots, programMode, branding]);
 
   const sectionConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;
@@ -286,7 +309,7 @@ export function INSFormSection({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       <div className="no-print">
-        {!campusWide ? (
+        {!campusWide && !studentPortal ? (
           <div className="mb-6 max-w-[1200px] mx-auto">
             <CampusScopeFilters
               variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
@@ -308,12 +331,16 @@ export function INSFormSection({
 
         {!hideInnerInsTabs ? (
           <div className="flex gap-2 border-b border-gray-200 flex-wrap no-print">
-            {(
-              [
-                { label: "Faculty view", href: insTabHref(insBasePath, "faculty"), active: facultyInnerActive },
-                { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
-                { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
-              ] as const
+            {(studentPortal
+              ? ([
+                  { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
+                  { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
+                ] as const)
+              : ([
+                  { label: "Faculty view", href: insTabHref(insBasePath, "faculty"), active: facultyInnerActive },
+                  { label: "Section view", href: insTabHref(insBasePath, "section"), active: sectionInnerActive },
+                  { label: "Room view", href: insTabHref(insBasePath, "room"), active: roomInnerActive },
+                ] as const)
             ).map((t) => (
               <Link
                 key={t.label}
@@ -355,7 +382,7 @@ export function INSFormSection({
           </div>
         ) : null}
 
-        {useLiveData && sectionConflictCount > 0 && !instructorFacultyPortal ? (
+        {useLiveData && sectionConflictCount > 0 && !readOnlyPortal ? (
           <div
             className="rounded-lg border border-red-300/80 bg-red-50/90 px-3 py-2 text-sm text-red-950 space-y-1.5 no-print"
             role="status"
@@ -397,10 +424,10 @@ export function INSFormSection({
           )}
 
           <div className="flex flex-wrap items-center gap-3 justify-end">
-            {instructorFacultyPortal ? (
+            {readOnlyPortal ? (
               <>
                 <Button variant="outline" className="bg-white" asChild>
-                  <Link href="/faculty/schedule">My schedule</Link>
+                  <Link href={portalMyScheduleHref(insBasePath)}>My schedule</Link>
                 </Button>
                 <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
                   <Eye className="w-4 h-4 mr-2" />
@@ -475,12 +502,13 @@ export function INSFormSection({
 
         <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 shadow-sm print-paper print:shadow-none">
           <OpticoreInsForm5B
-            degreeAndYear={displayAssignment}
+            degreeAndYear={formDegreeAndYear}
             adviser=""
-            assignment=""
+            assignment={formAssignment}
+            major={formMajor}
             schedule={displaySchedule}
             courses={displayCourses}
-            readOnly={Boolean((useLiveData && catalog.termPublishLocked) || instructorFacultyPortal)}
+            readOnly={Boolean((useLiveData && catalog.termPublishLocked) || readOnlyPortal)}
             semesterLabel={catalog.periodLabel}
             scheduleApproved={useLiveData && catalog.termPublishLocked}
             insSignatureSlots={useLiveData ? insSignatureSlots : null}
@@ -492,9 +520,10 @@ export function INSFormSection({
       {/* `ins-print-form-5b`: print CSS in globals.css — single bond page for section grid + summary + signatures */}
       <div className="print-only hidden print:block print-paper ins-print-one-page ins-print-form-5b ins-print-avoid-break">
         <OpticoreInsForm5B
-          degreeAndYear={displayAssignment}
+          degreeAndYear={formDegreeAndYear}
           adviser=""
-          assignment=""
+          assignment={formAssignment}
+          major={formMajor}
           schedule={displaySchedule}
           courses={displayCourses}
           readOnly

@@ -23,6 +23,14 @@ function campusDirectorSignatureUrl(
   return campusDirectorUser?.signatureImageUrl?.trim() || null;
 }
 
+function firstUrl(...urls: Array<string | null | undefined>): string | null {
+  for (const u of urls) {
+    const t = u?.trim();
+    if (t) return t;
+  }
+  return null;
+}
+
 /**
  * INS vertical signature strip — order (full mode):
  * 1 Approved by (DOI)
@@ -43,8 +51,18 @@ export function buildInsSignatureSlots(args: {
   mode?: InsSignatureSlotMode;
   /** Singleton from `CampusInsSettings` — same image for every college. */
   campusWideDirectorSignatureUrl?: string | null;
+  /** DOI / VPAA electronic signature from System Configuration. */
+  doiSignatureImageUrl?: string | null;
 }): InsSignatureSlot[] | null {
-  const { college, programId, users, userById, mode = "full", campusWideDirectorSignatureUrl } = args;
+  const {
+    college,
+    programId,
+    users,
+    userById,
+    mode = "full",
+    campusWideDirectorSignatureUrl,
+    doiSignatureImageUrl,
+  } = args;
   const collegeId = college?.id ?? null;
 
   const campusDirectorUser = college?.campusDirectorUserId
@@ -105,13 +123,19 @@ export function buildInsSignatureSlots(args: {
     imageUrl: imageOverride ?? u?.signatureImageUrl?.trim() ?? null,
   });
 
+  const doiImg = firstUrl(doiSignatureImageUrl, doi?.signatureImageUrl);
+  const preparedImg = firstUrl(
+    college?.collegeAdminSignatureImageUrl,
+    collegeAdmin?.signatureImageUrl,
+  );
+
   return [
-    slot("approved", "Approved by", "Director of Instruction / VPAA", doi),
+    slot("approved", "Approved by", "Director of Instruction / VPAA", doi, doiImg),
     slot("campus", "Campus Director", "Campus", campusDirectorUser, campusImg),
     slot("dean", "Dean", "College Dean", null),
     slot("review", "Reviewed & Certified by", "Program Chairman", chairman),
     slot("contract", "Contract", "Authorized signatory", null),
-    slot("prepared", "Prepared by", "College Admin", collegeAdmin),
+    slot("prepared", "Prepared by", "College Admin", collegeAdmin, preparedImg),
   ];
 }
 
@@ -127,6 +151,7 @@ export function resolveInsSignatureSlots(args: {
   scheduleApproved: boolean;
   mode?: InsSignatureSlotMode;
   campusWideDirectorSignatureUrl?: string | null;
+  doiSignatureImageUrl?: string | null;
   campusInsSignerDisplay?: CollegeInsSignerDisplay | null;
   collegeInsSignerDisplay?: CollegeInsSignerDisplay | null;
 }): InsSignatureSlot[] | null {
@@ -138,6 +163,7 @@ export function resolveInsSignatureSlots(args: {
     scheduleApproved: true,
     mode: args.mode,
     campusWideDirectorSignatureUrl: args.campusWideDirectorSignatureUrl,
+    doiSignatureImageUrl: args.doiSignatureImageUrl,
   });
   const merged = mergeInsSignerDisplay(
     built,

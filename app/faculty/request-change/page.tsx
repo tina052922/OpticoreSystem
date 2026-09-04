@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Legacy URL — opens My schedule (INS Form) with the request modal once. */
+/** Schedule change requests were removed. */
 export default function FacultyRequestChangeRedirectPage() {
-  redirect("/faculty/schedule?requestChange=1");
+  redirect("/faculty/schedule");
 }

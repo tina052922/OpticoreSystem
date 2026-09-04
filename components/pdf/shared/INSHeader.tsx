@@ -1,5 +1,8 @@
+"use client";
+
 import { View, Text, Image } from "@react-pdf/renderer";
 import { ins } from "../styles/insStyles";
+import { DEFAULT_INS_HEADER_BANNER } from "@/lib/system-configuration/campus-branding";
 
 /* react-pdf's <Image> is a PDF primitive, not an HTML <img> — it has no `alt` prop. */
 /* eslint-disable jsx-a11y/alt-text */
@@ -15,7 +18,6 @@ import { ins } from "../styles/insStyles";
  * absolute filesystem path or a Buffer via the `headerBanner` prop instead —
  * Node cannot resolve a bare "/images/..." URL.
  */
-const CTU_HEADER_BANNER = "/images/logos/ctu-header-with-logo.png";
 
 type INSHeaderProps = {
   formCode: string;
@@ -40,9 +42,10 @@ export function INSHeader({
     day: "numeric",
   }),
   revision = "2",
-  headerBanner = CTU_HEADER_BANNER,
+  headerBanner,
   programMode = "day",
 }: INSHeaderProps) {
+  const bannerSrc = headerBanner === undefined ? DEFAULT_INS_HEADER_BANNER : headerBanner;
   return (
     <View>
       {/*
@@ -52,9 +55,9 @@ export function INSHeader({
         page-centred rather than centred in the space left beside it.
       */}
       <View style={ins.headerBlock}>
-        {headerBanner ? (
+        {bannerSrc ? (
           <View style={ins.headerBannerRow}>
-            <Image src={headerBanner} style={ins.headerBanner} />
+            <Image src={bannerSrc} style={ins.headerBanner} />
           </View>
         ) : null}
 

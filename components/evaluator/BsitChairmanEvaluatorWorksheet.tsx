@@ -12,6 +12,18 @@ import {
 } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification, instructorMaxWeeklyTeachingCapFromProfile } from "@/lib/scheduling/facultyPolicies";
+import {
+  JUSTIFICATION_ASSIGN_PROMPT,
+  JUSTIFICATION_MIN_LENGTH,
+  JUSTIFICATION_MODAL_TITLE,
+  JUSTIFICATION_PANEL_HELP,
+  JUSTIFICATION_PANEL_TITLE,
+  JUSTIFICATION_PLACEHOLDER,
+  JUSTIFICATION_PROMPT,
+  JUSTIFICATION_SAVED_MSG,
+  JUSTIFICATION_SUBMIT_LABEL,
+  JUSTIFICATION_TOO_SHORT,
+} from "@/lib/scheduling/justification-copy";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
@@ -19,6 +31,7 @@ import { slotDurationHours } from "@/lib/scheduling/time";
 import type { FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 import { isFacultyStaffRole, isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { Button } from "@/components/ui/button";
+import { AlertTriangle } from "lucide-react";
 import {
   normalizeScheduleEntryDayForEvaluator,
   normalizeSlotHHMM,
@@ -34,6 +47,7 @@ import {
   getProspectusSubjectsForProgram,
   prospectusRowForProgram,
 } from "@/lib/chairman/prospectus-registry";
+import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
 import { yearLevelFromSchedulingSectionName } from "@/lib/chairman/section-year-level";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import {
@@ -88,13 +102,14 @@ const daySelectClass =
   "w-full min-h-10 min-w-0 rounded-md border border-black/25 bg-white px-2 text-[11px] font-medium text-neutral-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
 import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
-import { clampPlotStartSlotIndex, inferDurationSlotsFromTimes, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
+import { clampPlotStartSlotIndex, inferDurationSlotsFromTimes, plotRowDurationSlots, plottedDurationHours } from "@/lib/evaluator/plot-duration";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import {
   hoursExceedSubjectRequirement,
+  plottedHoursBySubjectCode,
   plottedHoursForSubjectSection,
   requiredWeeklyContactHours,
   subjectHoursOverLimitMessage,
@@ -126,9 +141,9 @@ function subjectFromProspectus(code: string, programId: string, programCodeForSu
     subcode: null,
     title: p.title,
     lecUnits: p.lecUnits,
-    lecHours: p.lecHours,
+    lecHours: lectureHoursFromUnits(p.lecUnits),
     labUnits: p.labUnits,
-    labHours: p.labHours,
+    labHours: labHoursFromUnits(p.labUnits),
     programId,
     yearLevel: p.yearLevel,
   };
@@ -380,7 +395,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const [lastPlottedSubjectFlash, setLastPlottedSubjectFlash] = useState<string | null>(null);
   const plottedSnapshotRef = useRef<string>("");
   const [policyJustificationModalOpen, setPolicyJustificationModalOpen] = useState(false);
-  /** Distinguish save-time vs in-grid assignment gate when load policy requires VPAA justification. */
+  /** Save-time vs in-grid assignment: still ask for a DOI record; the plot is already kept. */
   const [policyModalReason, setPolicyModalReason] = useState<"save" | "assign">("save");
   /**
    * After upsert, same-tab `dispatchInsCatalogReload` + Realtime can return stale `ScheduleEntry` rows for many
@@ -393,7 +408,7 @@ export function BsitChairmanEvaluatorWorksheet({
    * triggers an immediate reload that often returns read-your-writes stale times; clearing here caused saves to “revert”.
    */
   const locallyEditedRowIdsRef = useRef<Set<string>>(new Set());
-  /** Plot row waiting for VPAA justification before applying instructor/day/slot overload. */
+  /** Plot row whose overload still needs a DOI justification record (assignment is already applied). */
   const policyAssignGateRef = useRef<PlotRow | null>(null);
   /**
    * Two-step Building → Room UX (not persisted — `ScheduleEntry` still stores `roomId` only).
@@ -444,7 +459,7 @@ export function BsitChairmanEvaluatorWorksheet({
 
 
   /**
-   * Load saved VPAA justification text only when term/college scope changes — not on every schedule refetch
+   * Load saved DOI justification text only when term/college scope changes — not on every schedule refetch
    * (Realtime / cross-reload), and never while the policy modal is open, so typing is not overwritten.
    */
   const justificationHydrateKeyRef = useRef<string | null>(null);
@@ -870,6 +885,43 @@ export function BsitChairmanEvaluatorWorksheet({
     return set;
   }, [rows, selectedSectionId, programCodeForSummary]);
 
+  const plottedHoursBySubjectCodeForSection = useMemo(() => {
+    if (!selectedSectionId) return new Map<string, number>();
+    return plottedHoursBySubjectCode({
+      sectionId: selectedSectionId,
+      meetings: rows
+        .filter((r) => r.sectionId && r.subjectCode)
+        .map((r) => ({
+          id: r.id,
+          sectionId: r.sectionId,
+          subjectCode: normalizeProspectusCode(r.subjectCode),
+          hours: plottedDurationHours(r.durationSlots),
+        })),
+    });
+  }, [rows, selectedSectionId]);
+
+  const overLimitSubjectCodesForSection = useMemo(() => {
+    const over = new Set<string>();
+    if (!selectedSectionId) return over;
+    for (const [code, plotted] of plottedHoursBySubjectCodeForSection) {
+      const catalog = subjects.find(
+        (s) => normalizeProspectusCode(s.code) === code,
+      );
+      const required = requiredWeeklyContactHours({
+        programCode: programCodeForSummary,
+        subjectCode: code,
+        lecUnits: catalog?.lecUnits,
+        labUnits: catalog?.labUnits,
+        lecHours: catalog?.lecHours,
+        labHours: catalog?.labHours,
+      });
+      if (hoursExceedSubjectRequirement({ requiredHours: required, alreadyPlottedHours: plotted, additionalHours: 0 })) {
+        over.add(code);
+      }
+    }
+    return over;
+  }, [plottedHoursBySubjectCodeForSection, selectedSectionId, subjects, programCodeForSummary]);
+
   /**
    * Per-section plotted codes (DB + worksheet). Used to keep subject dropdowns clear:
    * - show remaining (unplotted) subjects as selectable
@@ -1274,21 +1326,19 @@ export function BsitChairmanEvaluatorWorksheet({
     });
   }, [policyRows, facultyProfiles, onPolicySnapshot]);
 
-  /** VPAA justification modal only when weekly teaching contact exceeds this instructor’s allowed load. */
-  const acceptedFacultyIds = useMemo(() => {
+  /** Instructors who already have a recorded justification this term — no approval; still may re-record. */
+  const recordedFacultyIds = useMemo(() => {
     const ids = new Set<string>();
     for (const j of loadJustifications) {
-      if (j.doiDecision !== "accepted") continue;
       if (academicPeriodId && j.academicPeriodId !== academicPeriodId) continue;
+      if (!(j.justification ?? "").trim()) continue;
       const fid = (j.facultyUserId ?? "").trim();
       if (fid) ids.add(fid);
     }
     return ids;
   }, [loadJustifications, academicPeriodId]);
 
-  const showJustification = policyRows.rows.some(
-    (r) => rowNeedsTeachingLoadJustification(r) && !acceptedFacultyIds.has(r.instructorId),
-  );
+  const showJustification = policyRows.rows.some((r) => rowNeedsTeachingLoadJustification(r));
 
   /** Live "hours so far / cap" snapshot for the plot modal's instructor-select warning. */
   const instructorLoadById = useMemo(() => {
@@ -1304,12 +1354,12 @@ export function BsitChairmanEvaluatorWorksheet({
   const overloadedInstructorIds = useMemo(() => {
     const ids = new Set<string>();
     for (const r of policyRows.rows) {
-      if (rowNeedsTeachingLoadJustification(r) && !acceptedFacultyIds.has(r.instructorId)) {
+      if (rowNeedsTeachingLoadJustification(r)) {
         ids.add(r.instructorId);
       }
     }
     return ids;
-  }, [policyRows.rows, acceptedFacultyIds]);
+  }, [policyRows.rows]);
 
   /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
   const saveLoadJustificationForDoi = useCallback(
@@ -1319,8 +1369,8 @@ export function BsitChairmanEvaluatorWorksheet({
       return false;
     }
     const t = justificationText.trim();
-    if (t.length < 12) {
-      setJustificationMsg("Enter at least 12 characters for VPAA review.");
+    if (t.length < JUSTIFICATION_MIN_LENGTH) {
+      setJustificationMsg(JUSTIFICATION_TOO_SHORT);
       return false;
     }
     const rowsForJustif = rowsSnapshot ?? rows;
@@ -1393,7 +1443,7 @@ export function BsitChairmanEvaluatorWorksheet({
           academicPeriodId,
           details: { source: "bsit_evaluator_worksheet" },
         });
-      setJustificationMsg("Justification saved for DOI / VPAA review.");
+      setJustificationMsg(JUSTIFICATION_SAVED_MSG);
       return true;
     } finally {
       setJustificationSaving(false);
@@ -1445,8 +1495,8 @@ export function BsitChairmanEvaluatorWorksheet({
   }
 
   /**
-   * Before applying instructor/day/slot/subject/room changes on a fully plotted row, ensure overload policy:
-   * if the hypothetical campus-wide load violates caps, require justification (same modal as Save).
+   * Before applying instructor/day/slot/subject/room changes on a fully plotted row, if the hypothetical
+   * campus-wide load exceeds hours or preparations, keep the assignment and ask for a DOI justification record.
    */
   function commitRowPatch(id: string, patch: Partial<PlotRow>, baseRow?: PlotRow) {
     const row = baseRow ?? rows.find((r) => r.id === id);
@@ -1484,7 +1534,8 @@ export function BsitChairmanEvaluatorWorksheet({
       const hit = pol.rows.find(
         (x) => x.instructorId === candidate.instructorId && rowNeedsTeachingLoadJustification(x),
       );
-      if (hit && justificationText.trim().length < 12) {
+      if (hit && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH && !recordedFacultyIds.has(candidate.instructorId)) {
+        updateRow(id, patch);
         policyAssignGateRef.current = candidate;
         setPolicyModalReason("assign");
         setPolicyJustificationModalOpen(true);
@@ -1495,8 +1546,9 @@ export function BsitChairmanEvaluatorWorksheet({
   }
 
   const applyPlotFromModal = useCallback(
-    (draft: PlotRow, buildingValue: string) => {
+    (draft: PlotRow, buildingValue: string, extras: PlotRow[] = []) => {
       if (schedulePublished || viewOnly || draft.lockedByDoiAt) return;
+      const allMeetings = [draft, ...extras];
       if (draft.sectionId && draft.subjectCode) {
         const catalog = subjects.find(
           (s) => normalizeProspectusCode(s.code) === normalizeProspectusCode(draft.subjectCode),
@@ -1504,6 +1556,8 @@ export function BsitChairmanEvaluatorWorksheet({
         const required = requiredWeeklyContactHours({
           programCode: programCodeForSummary,
           subjectCode: draft.subjectCode,
+          lecUnits: catalog?.lecUnits,
+          labUnits: catalog?.labUnits,
           lecHours: catalog?.lecHours,
           labHours: catalog?.labHours,
         });
@@ -1513,7 +1567,7 @@ export function BsitChairmanEvaluatorWorksheet({
             id: r.id,
             sectionId: r.sectionId,
             subjectCode: r.subjectCode,
-            hours: plotRowDurationSlots(prospectusRowForProgram(programCodeForSummary, r.subjectCode), r),
+            hours: plottedDurationHours(r.durationSlots),
           }));
         const already = plottedHoursForSubjectSection({
           meetings,
@@ -1521,9 +1575,9 @@ export function BsitChairmanEvaluatorWorksheet({
           subjectCode: draft.subjectCode,
           excludeId: draft.id,
         });
-        const additional = plotRowDurationSlots(
-          prospectusRowForProgram(programCodeForSummary, draft.subjectCode),
-          draft,
+        const additional = allMeetings.reduce(
+          (sum, row) => sum + plottedDurationHours(row.durationSlots),
+          0,
         );
         if (hoursExceedSubjectRequirement({ requiredHours: required, alreadyPlottedHours: already, additionalHours: additional })) {
           toast.error(
@@ -1538,28 +1592,31 @@ export function BsitChairmanEvaluatorWorksheet({
           return;
         }
       }
-      if (buildingValue) {
-        setRoomBuildingByRowId((prev) => ({ ...prev, [draft.id]: buildingValue }));
-      }
-      const exists = rows.some((r) => r.id === draft.id);
-      const plotPatch: Partial<PlotRow> = {
-        sectionId: draft.sectionId,
-        subjectCode: draft.subjectCode,
-        lecLabMode: draft.lecLabMode,
-        instructorId: draft.instructorId,
-        roomId: draft.roomId,
-        day: draft.day,
-        startSlotIndex: draft.startSlotIndex,
-        durationSlots: draft.durationSlots ?? 1,
+      const applyOne = (row: PlotRow) => {
+        if (buildingValue) {
+          setRoomBuildingByRowId((prev) => ({ ...prev, [row.id]: buildingValue }));
+        }
+        const exists = rows.some((r) => r.id === row.id);
+        const plotPatch: Partial<PlotRow> = {
+          sectionId: row.sectionId,
+          subjectCode: row.subjectCode,
+          lecLabMode: row.lecLabMode,
+          instructorId: row.instructorId,
+          roomId: row.roomId,
+          day: row.day,
+          startSlotIndex: row.startSlotIndex,
+          durationSlots: row.durationSlots ?? 1,
+        };
+        if (!exists) {
+          flushSync(() => {
+            locallyEditedRowIdsRef.current.add(row.id);
+            setRows((prev) => [...prev, row]);
+          });
+        }
+        commitRowPatch(row.id, plotPatch, exists ? undefined : row);
+        updateRow(row.id, { students: row.students });
       };
-      if (!exists) {
-        flushSync(() => {
-          locallyEditedRowIdsRef.current.add(draft.id);
-          setRows((prev) => [...prev, draft]);
-        });
-      }
-      commitRowPatch(draft.id, plotPatch, exists ? undefined : draft);
-      updateRow(draft.id, { students: draft.students });
+      for (const row of allMeetings) applyOne(row);
     },
     [rows, schedulePublished, viewOnly, commitRowPatch, updateRow, subjects, programCodeForSummary, toast],
   );
@@ -1851,15 +1908,12 @@ export function BsitChairmanEvaluatorWorksheet({
 
         const hourMeetings = rows
           .filter((r) => r.sectionId && r.subjectCode)
-          .map((r) => {
-            const p = prospectusRowForProgram(programCodeForSummary, r.subjectCode);
-            return {
-              id: r.id,
-              sectionId: r.sectionId,
-              subjectCode: r.subjectCode,
-              hours: plotRowDurationSlots(p, r),
-            };
-          });
+          .map((r) => ({
+            id: r.id,
+            sectionId: r.sectionId,
+            subjectCode: r.subjectCode,
+            hours: plottedDurationHours(r.durationSlots),
+          }));
         for (const row of rows) {
           if (!row.sectionId || !row.subjectCode) continue;
           const catalog = subjects.find(
@@ -1868,6 +1922,8 @@ export function BsitChairmanEvaluatorWorksheet({
           const required = requiredWeeklyContactHours({
             programCode: programCodeForSummary,
             subjectCode: row.subjectCode,
+            lecUnits: catalog?.lecUnits,
+            labUnits: catalog?.labUnits,
             lecHours: catalog?.lecHours,
             labHours: catalog?.labHours,
           });
@@ -2034,9 +2090,9 @@ export function BsitChairmanEvaluatorWorksheet({
           className="rounded-xl border border-sky-200 bg-sky-50/90 px-4 py-3 text-[13px] text-sky-950 leading-relaxed"
           role="status"
         >
-          <span className="font-semibold">Published schedule (read-only).</span> DOI/VPAA has published this term&apos;s
-          master schedule. Plotted slots cannot be edited here; changes require a schedule change request workflow if
-          your campus uses one.
+          <span className="font-semibold">Published schedule (read-only).</span> DOI has published and locked this
+          term&apos;s master schedule. Plotting is paused until DOI unpublishes / unlocks so case-to-case edits can
+          continue.
         </div>
       ) : null}
 
@@ -2093,9 +2149,25 @@ export function BsitChairmanEvaluatorWorksheet({
         yearLevelFilter={summaryYearLevelFilter}
         filterSemester={termProspectusSemester}
         plottedSubjectCodes={plottedSubjectCodesForSection}
+        plottedHoursBySubjectCode={plottedHoursBySubjectCodeForSection}
         lastPlottedSubjectCode={lastPlottedSubjectFlash}
         fallbackSubjects={catalogSubjectRows}
       />
+      {overLimitSubjectCodesForSection.size > 0 && !viewOnly ? (
+        <div
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-900 flex gap-2"
+          role="alert"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+          <p>
+            Over limit: {overLimitSubjectCodesForSection.size} subject
+            {overLimitSubjectCodesForSection.size === 1 ? "" : "s"} plotted beyond prospectus weekly hours
+            ({[...overLimitSubjectCodesForSection].slice(0, 6).join(", ")}
+            {overLimitSubjectCodesForSection.size > 6 ? "…" : ""}). Reduce duration or remove extra meetings
+            before saving.
+          </p>
+        </div>
+      ) : null}
 
       {showJustification && !viewOnly ? <PolicyViolationFaq /> : null}
 
@@ -2138,20 +2210,20 @@ export function BsitChairmanEvaluatorWorksheet({
               clearTimeout(autosaveTimerRef.current);
               autosaveTimerRef.current = null;
             }
-            if (policyRows.hasTeachingLoadJustificationViolation) {
+            void performSchedulePersist("manual").then(() => {
+              if (!policyRows.hasTeachingLoadJustificationViolation) return;
               const t = justificationText.trim();
-              if (t.length < 12) {
-                setPolicyModalReason("save");
-                setPolicyJustificationModalOpen(true);
+              if (t.length >= JUSTIFICATION_MIN_LENGTH) {
+                void saveLoadJustificationForDoi();
                 return;
               }
-              void saveLoadJustificationForDoi().then((ok) => {
-                if (!ok) return;
-                return performSchedulePersist("manual");
-              });
-              return;
-            }
-            void performSchedulePersist("manual");
+              const needsRecord = policyRows.rows.some(
+                (r) => rowNeedsTeachingLoadJustification(r) && !recordedFacultyIds.has(r.instructorId),
+              );
+              if (!needsRecord) return;
+              setPolicyModalReason("save");
+              setPolicyJustificationModalOpen(true);
+            });
           },
           runConflictCheckDisabled: !academicPeriodId || mergedBlocksForCampusScan.length === 0,
           saveScheduleDisabled: schedulePublished || viewOnly,
@@ -2208,17 +2280,14 @@ export function BsitChairmanEvaluatorWorksheet({
 
       {showJustification && !viewOnly ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 space-y-2">
-          <div className="text-[14px] font-semibold text-amber-950">Justification (DOI / VPAA review)</div>
-          <p className="text-[12px] text-amber-950/85 leading-relaxed">
-            Faculty load rules are exceeded for this draft ({policyConstants.STANDARD_WEEKLY_TEACHING_HOURS}{" "}
-            hrs/wk reference). Enter a reason below; it will be available to DOI Admin for inspection and approval.
-          </p>
+          <div className="text-[14px] font-semibold text-amber-950">{JUSTIFICATION_PANEL_TITLE}</div>
+          <p className="text-[12px] text-amber-950/85 leading-relaxed">{JUSTIFICATION_PANEL_HELP}</p>
           <textarea
             className="w-full min-h-[100px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
             value={justificationText}
             disabled={schedulePublished || viewOnly}
             onChange={(e) => setJustificationText(e.target.value)}
-            placeholder="e.g. Approved overload; temporary faculty shortage; consolidated sections…"
+            placeholder={JUSTIFICATION_PLACEHOLDER}
           />
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -2227,11 +2296,11 @@ export function BsitChairmanEvaluatorWorksheet({
               disabled={schedulePublished || viewOnly || justificationSaving}
               onClick={() => void saveLoadJustificationForDoi()}
             >
-              {justificationSaving ? "Saving…" : "Submit justification for VPAA (DOI)"}
+              {justificationSaving ? "Saving…" : JUSTIFICATION_SUBMIT_LABEL}
             </Button>
             <span className="text-[11px] text-amber-950/70">
-              Draft rows still sync to the hub automatically; this button records the written overload reason for Policy
-              reviews.
+              Draft rows still sync automatically. This button records the overload reason for DOI (notification only)
+              and on Summary of Teaching Load.
             </span>
           </div>
           {justificationMsg ? <p className="text-[12px] text-amber-950">{justificationMsg}</p> : null}
@@ -2242,15 +2311,11 @@ export function BsitChairmanEvaluatorWorksheet({
         open={
           !viewOnly && policyJustificationModalOpen && (policyModalReason === "assign" || showJustification)
         }
-        title={policyModalReason === "assign" ? "Overload: justify before assigning" : "Policy justification"}
-        promptText={
-          policyModalReason === "assign"
-            ? "This assignment pushes the instructor past faculty load policy (weekly hours and/or 4 or more subject preparations). Enter a justification for College Admin and DOI/VPAA review, then the assignment will be kept and saved."
-            : "This assignment exceeds faculty load policy (weekly hours and/or 4 or more subject preparations). Do you want to proceed with justification?"
-        }
-        confirmButtonLabel={policyModalReason === "assign" ? "Record justification & apply assignment" : undefined}
+        title={policyModalReason === "assign" ? JUSTIFICATION_MODAL_TITLE : JUSTIFICATION_MODAL_TITLE}
+        promptText={policyModalReason === "assign" ? JUSTIFICATION_ASSIGN_PROMPT : JUSTIFICATION_PROMPT}
+        confirmButtonLabel={JUSTIFICATION_SUBMIT_LABEL}
         value={justificationText}
-        minLength={12}
+        minLength={JUSTIFICATION_MIN_LENGTH}
         saving={justificationSaving || saveScheduleBusy}
         onChange={setJustificationText}
         onCancel={() => {
@@ -2259,21 +2324,18 @@ export function BsitChairmanEvaluatorWorksheet({
         }}
         onSave={async () => {
           const pendingAssign = policyAssignGateRef.current;
+          policyAssignGateRef.current = null;
           if (pendingAssign) {
-            policyAssignGateRef.current = null;
             locallyEditedRowIdsRef.current.add(pendingAssign.id);
             const nextRows = rows.map((r) => (r.id === pendingAssign.id ? pendingAssign : r));
-            setRows(nextRows);
             const ok = await saveLoadJustificationForDoi(nextRows);
             if (!ok) return;
             setPolicyJustificationModalOpen(false);
-            await performSchedulePersist("manual");
             return;
           }
           const ok = await saveLoadJustificationForDoi();
           if (!ok) return;
           setPolicyJustificationModalOpen(false);
-          await performSchedulePersist("manual");
         }}
       />
     </div>

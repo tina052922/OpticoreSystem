@@ -1,13 +1,31 @@
 import { BSIT_EVALUATOR_TIME_SLOTS } from "@/lib/chairman/bsit-evaluator-constants";
 import type { ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
+import { weeklyContactHoursFromUnits } from "@/lib/subjects/contact-hours";
 import type { Subject } from "@/types/db";
 
-/** Max consecutive 1-hour slots allowed for one plotted meeting (prospectus weekly contact). */
+const MAX_CONSECUTIVE_PLOT_SLOTS = 10;
+
+function clampConsecutiveHours(hours: number): number {
+  return Math.min(MAX_CONSECUTIVE_PLOT_SLOTS, Math.max(1, Math.round(hours)));
+}
+
+/**
+ * Max consecutive 1-hour slots for one meeting.
+ * Lecture: 1 unit = 1 hour. Laboratory: 1 unit = 3 hours.
+ */
 export function maxPlotDurationSlots(p: ProspectusSubjectRow): number {
-  if (p.labUnits > 0) return Math.min(10, Math.max(1, Math.round(p.labUnits)));
-  if (p.lecHours > 0) return Math.min(10, Math.max(1, Math.round(p.lecHours)));
+  const fromUnits = weeklyContactHoursFromUnits(p.lecUnits, p.labUnits);
+  if (fromUnits > 0) return clampConsecutiveHours(fromUnits);
+  const fromHours = (p.lecHours ?? 0) + (p.labHours ?? 0);
+  if (fromHours > 0) return clampConsecutiveHours(fromHours);
   return 1;
+}
+
+/** Hours actually plotted for a meeting (not clamped to prospectus). Used for over-limit totals. */
+export function plottedDurationHours(durationSlots?: number | null): number {
+  if (durationSlots == null || !Number.isFinite(Number(durationSlots))) return 1;
+  return Math.max(1, Math.round(Number(durationSlots)));
 }
 
 export type PlotDurationRow = { durationSlots?: number };
@@ -48,7 +66,10 @@ export function maxPlotDurationSlotsForSubject(
   if (!subject?.code) return 1;
   const row = prospectusRowForProgram(programCode, subject.code);
   if (row) return maxPlotDurationSlots(row);
-  return Math.min(10, Math.max(1, Math.round(subject.lecHours ?? 1)));
+  const fromUnits = weeklyContactHoursFromUnits(subject.lecUnits, subject.labUnits);
+  if (fromUnits > 0) return clampConsecutiveHours(fromUnits);
+  const fromHours = (subject.lecHours ?? 0) + (subject.labHours ?? 0);
+  return clampConsecutiveHours(fromHours || 1);
 }
 
 /** Default 1 slot per meeting so GEC / chairman can split contact across rows. */

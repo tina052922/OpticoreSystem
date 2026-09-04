@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import {
   clampPlotStartSlotIndex,
   inferDurationSlotsFromTimes,
+  maxPlotDurationSlots,
+  maxPlotDurationSlotsForSubject,
+  plottedDurationHours,
   timesFromSlotRange,
 } from "./plot-duration";
 import { DAY_ONE_HOUR_SLOTS, NIGHT_FULL_DAY_SLOTS } from "@/lib/scheduling/program-mode";
@@ -56,5 +60,47 @@ describe("timesFromSlotRange night placement", () => {
 describe("inferDurationSlotsFromTimes", () => {
   it("reads a 2-hour Night meeting from saved times", () => {
     expect(inferDurationSlotsFromTimes("18:00", "20:00")).toBe(2);
+  });
+});
+
+describe("maxPlotDurationSlots", () => {
+  it("converts lecture units 1:1 into hours", () => {
+    const row = prospectusRowForProgram("BSIT", "GEC-US");
+    expect(row).toBeDefined();
+    expect(maxPlotDurationSlots(row!)).toBe(3);
+  });
+
+  it("converts lab units 1 unit = 3 hours", () => {
+    const row = prospectusRowForProgram("BSIT", "CC-112L");
+    expect(row).toBeDefined();
+    expect(row!.labUnits).toBe(3);
+    expect(maxPlotDurationSlots(row!)).toBe(9);
+  });
+});
+
+describe("maxPlotDurationSlotsForSubject", () => {
+  it("uses catalog lab units when there is no prospectus row", () => {
+    expect(
+      maxPlotDurationSlotsForSubject("UNKNOWN", {
+        id: "x",
+        programId: "p",
+        code: "LAB-1",
+        title: "Lab",
+        subcode: null,
+        lecUnits: 0,
+        labUnits: 1,
+        lecHours: 0,
+        labHours: 3,
+        yearLevel: 1,
+        semester: 1,
+      }),
+    ).toBe(3);
+  });
+});
+
+describe("plottedDurationHours", () => {
+  it("keeps actual plotted hours even when they exceed a subject cap", () => {
+    expect(plottedDurationHours(9)).toBe(9);
+    expect(plottedDurationHours(undefined)).toBe(1);
   });
 });

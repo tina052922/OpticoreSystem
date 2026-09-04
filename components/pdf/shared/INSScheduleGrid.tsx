@@ -139,10 +139,25 @@ function GridTable({ schedule }: { schedule: PDFScheduleGrid }) {
   );
 }
 
-function SignatureRail({ slots }: { slots: PDFSignatureSlot[] }) {
+export function SignatureRail({
+  slots,
+  railHeight = GRID_H,
+}: {
+  slots: PDFSignatureSlot[];
+  railHeight?: number;
+}) {
   return (
-    <View style={gs.rail}>
-      <View style={gs.rotatedStrip}>
+    <View style={[gs.rail, { height: railHeight }]}>
+      <View
+        style={[
+          gs.rotatedStrip,
+          {
+            top: railHeight / 2 - RAIL_W / 2,
+            left: -(railHeight / 2 - 50 / 2),
+            width: railHeight,
+          },
+        ]}
+      >
         {slots.map((slot, idx) => (
           <View
             key={slot.key}

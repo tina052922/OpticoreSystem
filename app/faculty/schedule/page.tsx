@@ -4,8 +4,7 @@ import { INSFormFaculty } from "@/components/ins/INSFormFaculty";
 import { requireRoles } from "@/lib/auth/require-role";
 
 /**
- * My schedule = official INS Form 5A (Faculty): `ScheduleEntry` grid, print, and
- * cell clicks → Request schedule change (`INSFormFaculty` instructor mode).
+ * My schedule = official INS Form 5A (Faculty): `ScheduleEntry` grid and print.
  */
 export default async function FacultySchedulePage() {
   const profile = await requireRoles(["instructor"]);

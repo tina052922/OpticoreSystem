@@ -4,7 +4,7 @@ const BROADCAST = "opticore-system-config-sync";
 
 export type SystemConfigReloadDetail = {
   t: number;
-  source?: "schedulingPolicy" | "academicPeriod" | "collegeSigners" | "insSigners";
+  source?: "schedulingPolicy" | "academicPeriod" | "collegeSigners" | "insSigners" | "branding";
 };
 
 export function dispatchSystemConfigReload(detail?: Omit<SystemConfigReloadDetail, "t">): void {

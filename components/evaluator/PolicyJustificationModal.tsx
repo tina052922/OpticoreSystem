@@ -1,13 +1,19 @@
 "use client";
 
 /**
- * Shown when saving a schedule would violate faculty load rules (Evaluator / Chairman worksheet).
- * **Trigger:** weekly contact hours exceed the policy cap, or distinct subject preparations reach 4 or more.
- * Enter at least `minLength` characters, confirm, then save proceeds and `ScheduleLoadJustification` rows are written.
+ * Shown when hours or preparations exceed policy. Justification is recorded and DOI is notified.
+ * The plotted schedule still saves; there is no approval step.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  JUSTIFICATION_MIN_LENGTH,
+  JUSTIFICATION_MODAL_TITLE,
+  JUSTIFICATION_PLACEHOLDER,
+  JUSTIFICATION_PROMPT,
+  JUSTIFICATION_TOO_SHORT,
+} from "@/lib/scheduling/justification-copy";
 
 export type PolicyJustificationModalProps = {
   open: boolean;
@@ -25,11 +31,11 @@ export type PolicyJustificationModalProps = {
 
 export function PolicyJustificationModal({
   open,
-  title = "Policy justification",
-  promptText = "This assignment exceeds faculty load policy (weekly hours and/or 4 or more subject preparations). Do you want to proceed with justification?",
+  title = JUSTIFICATION_MODAL_TITLE,
+  promptText = JUSTIFICATION_PROMPT,
   confirmButtonLabel,
   value,
-  minLength = 12,
+  minLength = JUSTIFICATION_MIN_LENGTH,
   saving = false,
   onChange,
   onCancel,
@@ -80,13 +86,13 @@ export function PolicyJustificationModal({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onBlur={() => setTouched(true)}
-            placeholder="e.g. Temporary faculty shortage; VPAA-approved overload; consolidated sections…"
+            placeholder={JUSTIFICATION_PLACEHOLDER}
           />
         </label>
 
         {touched && invalid ? (
           <p className="text-xs text-red-800">
-            Enter at least {minLength} characters so DOI/VPAA can review the rationale.
+            {JUSTIFICATION_TOO_SHORT}
           </p>
         ) : null}
 
@@ -100,7 +106,7 @@ export function PolicyJustificationModal({
             disabled={saving || invalid}
             onClick={() => void onSave()}
           >
-            {saving ? "Saving…" : confirmButtonLabel ?? "Save with justification"}
+            {saving ? "Saving…" : confirmButtonLabel ?? "Record for DOI"}
           </Button>
         </div>
       </div>

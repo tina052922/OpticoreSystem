@@ -3,18 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { facultyProfileApi, userAdminApi } from "@/lib/api/client";
+import { facultyProfileApi, userAdminApi, apiFetch } from "@/lib/api/client";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
-import type { FacultyProfile, Program, Section, User } from "@/types/db";
+import type { FacultyProfile, Program, ScheduleLoadJustification, Section, User } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { computeRatePerHour, DESIGNATION_POLICIES, getDesignationPolicyByLabel } from "@/lib/faculty/designation-system";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { resolveHourlyRates } from "@/lib/system-configuration/scheduling-policy";
 import {
-  FACULTY_EMPLOYMENT_ORGANIC,
-  FACULTY_EMPLOYMENT_PART_TIME,
+  FACULTY_EMPLOYMENT_NON_RESIDENT,
+  FACULTY_EMPLOYMENT_RESIDENT,
   normalizeFacultyProfileStatus,
 } from "@/lib/faculty/employment-status";
+import { FacultyLoadJustificationRecord } from "@/components/faculty/FacultyLoadJustificationRecord";
+import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 
 /**
  * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
@@ -46,6 +48,12 @@ type ListRow = {
   profile: FacultyProfile | null;
 };
 
+/**
+ * Designation is free text. These are suggestions only — typing a Merit System label exactly is what
+ * links the profile to a teaching-hour cap; anything else is stored as-is and uses the standard load.
+ */
+const DESIGNATION_SUGGESTIONS_ID = "faculty-designation-suggestions";
+
 export function FacultyProfileWorkspace({
   chairmanCollegeId = null,
   chairmanProgramId = null,
@@ -64,6 +72,8 @@ export function FacultyProfileWorkspace({
     return { doctorate: r.DOCTORATE, masters: r.MASTERS, baccalaureate: r.BACCALAUREATE };
   }, [systemConfig?.schedulingPolicy]);
   const ratePerHourByDesignation = systemConfig?.schedulingPolicy?.ratePerHourByDesignation ?? null;
+  const semester = useSemesterFilterOptional();
+  const selectedPeriodId = semester?.selectedPeriodId ?? "";
 
   const [tab, setTab] = useState<"profile" | "designation" | "advisory">("profile");
 
@@ -83,8 +93,8 @@ export function FacultyProfileWorkspace({
   const [extension, setExtension] = useState("");
   const [production, setProduction] = useState("");
   const [specialTraining, setSpecialTraining] = useState("");
-  const [status, setStatus] = useState<typeof FACULTY_EMPLOYMENT_ORGANIC | typeof FACULTY_EMPLOYMENT_PART_TIME>(
-    FACULTY_EMPLOYMENT_ORGANIC,
+  const [status, setStatus] = useState<typeof FACULTY_EMPLOYMENT_RESIDENT | typeof FACULTY_EMPLOYMENT_NON_RESIDENT>(
+    FACULTY_EMPLOYMENT_RESIDENT,
   );
   const [designation, setDesignation] = useState("");
   const [advisorySectionId, setAdvisorySectionId] = useState("");
@@ -103,6 +113,7 @@ export function FacultyProfileWorkspace({
   const [success, setSuccess] = useState<string | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [justificationByUserId, setJustificationByUserId] = useState<Record<string, string>>({});
 
   const loadFaculty = useCallback(async () => {
     if (!collegeId) {
@@ -245,6 +256,38 @@ export function FacultyProfileWorkspace({
       return name.includes(q) || st.includes(q) || des.includes(q) || eid.includes(q);
     });
   }, [rows, facultyListSearch]);
+
+  useEffect(() => {
+    if (!collegeId) {
+      setJustificationByUserId({});
+      return;
+    }
+    let cancelled = false;
+    const qs = new URLSearchParams();
+    qs.set("collegeId", collegeId);
+    if (selectedPeriodId) qs.set("academicPeriodId", selectedPeriodId);
+    void apiFetch<{ justifications: ScheduleLoadJustification[] }>(
+      `/api/catalog/schedule-load-justifications?${qs.toString()}`,
+      { method: "GET" },
+    )
+      .then((data) => {
+        if (cancelled) return;
+        const latest: Record<string, string> = {};
+        for (const j of data.justifications ?? []) {
+          const fid = (j.facultyUserId ?? "").trim();
+          if (!fid || latest[fid]) continue;
+          const text = (j.justification ?? "").trim();
+          if (text) latest[fid] = text;
+        }
+        setJustificationByUserId(latest);
+      })
+      .catch(() => {
+        if (!cancelled) setJustificationByUserId({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [collegeId, selectedPeriodId]);
 
   async function saveFacultyEdits(userId: string) {
     setError(null);
@@ -503,7 +546,7 @@ export function FacultyProfileWorkspace({
     setExtension("");
     setProduction("");
     setSpecialTraining("");
-    setStatus(FACULTY_EMPLOYMENT_ORGANIC);
+    setStatus(FACULTY_EMPLOYMENT_RESIDENT);
     setDesignation("");
     setAdvisorySectionId("");
   }
@@ -566,6 +609,14 @@ export function FacultyProfileWorkspace({
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6 max-h-[min(85vh,1200px)] overflow-y-auto">
+      <datalist id={DESIGNATION_SUGGESTIONS_ID}>
+        {DESIGNATION_POLICIES.filter((d) => d.key !== "Regular Faculty").map((d) => (
+          <option key={d.key} value={d.label}>
+            {d.hoursPerWeekMin}–{d.hoursPerWeekMax} hrs/wk
+          </option>
+        ))}
+      </datalist>
+
       {gecFacultyFilter ? (
         <div className="rounded-xl border border-[var(--color-opticore-orange)]/35 bg-orange-50/90 px-4 py-3 text-sm text-black/80">
           <strong className="text-[var(--color-opticore-orange)]">GEC scope.</strong> Listed faculty either have no
@@ -724,27 +775,23 @@ export function FacultyProfileWorkspace({
                 onChange={(e) => setStatus(normalizeFacultyProfileStatus(e.target.value))}
                 disabled={!collegeId}
               >
-                <option value={FACULTY_EMPLOYMENT_ORGANIC}>{FACULTY_EMPLOYMENT_ORGANIC}</option>
-                <option value={FACULTY_EMPLOYMENT_PART_TIME}>{FACULTY_EMPLOYMENT_PART_TIME}</option>
+                <option value={FACULTY_EMPLOYMENT_RESIDENT}>{FACULTY_EMPLOYMENT_RESIDENT}</option>
+                <option value={FACULTY_EMPLOYMENT_NON_RESIDENT}>{FACULTY_EMPLOYMENT_NON_RESIDENT}</option>
               </select>
             </div>
             <div className="space-y-1">
               <div className="text-sm font-medium">Administrative Designation</div>
-              <select
-                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+              <Input
+                list={DESIGNATION_SUGGESTIONS_ID}
+                placeholder="Regular Faculty (no designation)"
                 value={designation}
                 onChange={(e) => setDesignation(e.target.value)}
                 disabled={!collegeId}
-              >
-                <option value="">Regular Faculty (no designation)</option>
-                {DESIGNATION_POLICIES.filter((d) => d.key !== "Regular Faculty").map((d) => (
-                  <option key={d.key} value={d.label}>
-                    {d.label} ({d.hoursPerWeekMin}–{d.hoursPerWeekMax} hrs/wk)
-                  </option>
-                ))}
-              </select>
+              />
               {(() => {
-                const pol = getDesignationPolicyByLabel(designation) ?? DESIGNATION_POLICIES.find((d) => d.key === "Regular Faculty")!;
+                const matched = getDesignationPolicyByLabel(designation);
+                const pol = matched ?? DESIGNATION_POLICIES.find((d) => d.key === "Regular Faculty")!;
+                const custom = Boolean(designation.trim()) && !matched;
                 const rate = computeRatePerHour(
                   {
                     bsDegree: bsDegree.trim() || null,
@@ -760,6 +807,12 @@ export function FacultyProfileWorkspace({
                     Teaching load: <strong>{pol.hoursPerWeekMin}–{pol.hoursPerWeekMax} hrs/week</strong>
                     {" · "}
                     Rate/hour (highest degree): <strong>{rate != null ? `₱${rate}` : "—"}</strong>
+                    {custom ? (
+                      <>
+                        <br />
+                        Custom designation — no Merit System cap matches this text, so the standard load applies.
+                      </>
+                    ) : null}
                   </div>
                 );
               })()}
@@ -785,12 +838,18 @@ export function FacultyProfileWorkspace({
             </div>
           </div>
 
+          {editingUserId ? (
+            <div className="mt-6">
+              <FacultyLoadJustificationRecord facultyUserId={editingUserId} collegeId={collegeId} />
+            </div>
+          ) : null}
+
           <div className="mt-8 space-y-3">
             <div className="text-[16px] font-semibold">Faculty List {loadingList ? "· Loading…" : ""}</div>
             {enableFacultyListEdit ? (
               <p className="text-[12px] text-black/55">
-                Status (Organic / Part-time) and designation drive teaching caps in the Evaluator policy engine (part-time
-                weekly limits and designation-based caps).
+                Status (Resident / Non-resident) and designation drive teaching caps in the Evaluator policy engine
+                (non-resident weekly limits and designation-based caps).
               </p>
             ) : null}
             <div className="overflow-auto rounded-xl border border-black/10">
@@ -802,6 +861,7 @@ export function FacultyProfileWorkspace({
                     <th className="border border-black/10 px-2 py-2 text-left">Status</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Designation</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Advisory</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Justification</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Program</th>
                     {enableFacultyListEdit ? (
                       <th className="border border-black/10 px-2 py-2 text-left w-28">Save</th>
@@ -815,7 +875,7 @@ export function FacultyProfileWorkspace({
                   {!collegeId ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 8 : 6}
+                        colSpan={enableFacultyListEdit ? 9 : 7}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No college in scope.
@@ -824,7 +884,7 @@ export function FacultyProfileWorkspace({
                   ) : rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 8 : 6}
+                        colSpan={enableFacultyListEdit ? 9 : 7}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No instructors in the database for this college yet.
@@ -833,7 +893,7 @@ export function FacultyProfileWorkspace({
                   ) : filteredRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 8 : 6}
+                        colSpan={enableFacultyListEdit ? 9 : 7}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No faculty match &quot;{facultyListSearch.trim()}&quot;.
@@ -862,8 +922,8 @@ export function FacultyProfileWorkspace({
                                   }))
                                 }
                               >
-                                <option value={FACULTY_EMPLOYMENT_ORGANIC}>{FACULTY_EMPLOYMENT_ORGANIC}</option>
-                                <option value={FACULTY_EMPLOYMENT_PART_TIME}>{FACULTY_EMPLOYMENT_PART_TIME}</option>
+                                <option value={FACULTY_EMPLOYMENT_RESIDENT}>{FACULTY_EMPLOYMENT_RESIDENT}</option>
+                                <option value={FACULTY_EMPLOYMENT_NON_RESIDENT}>{FACULTY_EMPLOYMENT_NON_RESIDENT}</option>
                               </select>
                             ) : (
                               (profile ? normalizeFacultyProfileStatus(profile.status) : "—")
@@ -871,8 +931,10 @@ export function FacultyProfileWorkspace({
                           </td>
                           <td className="border border-black/10 px-2 py-2 align-top">
                             {enableFacultyListEdit ? (
-                              <select
+                              <input
                                 className="w-full min-h-9 rounded-md border border-gray-300 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+                                list={DESIGNATION_SUGGESTIONS_ID}
+                                placeholder="Regular Faculty (no designation)"
                                 value={draft.designation}
                                 onChange={(e) =>
                                   setEditState((s) => ({
@@ -880,14 +942,7 @@ export function FacultyProfileWorkspace({
                                     [user.id]: { ...draft, designation: e.target.value },
                                   }))
                                 }
-                              >
-                                <option value="">Regular Faculty (no designation)</option>
-                                {DESIGNATION_POLICIES.filter((d) => d.key !== "Regular Faculty").map((d) => (
-                                  <option key={d.key} value={d.label}>
-                                    {d.label}
-                                  </option>
-                                ))}
-                              </select>
+                              />
                             ) : (
                               (profile?.designation ?? "—")
                             )}
@@ -913,6 +968,15 @@ export function FacultyProfileWorkspace({
                               </select>
                             ) : profile?.advisorySectionId ? (
                               (sectionNameById.get(profile.advisorySectionId) ?? "—")
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="border border-black/10 px-2 py-2 max-w-[220px]">
+                            {justificationByUserId[user.id] ? (
+                              <span className="line-clamp-3 whitespace-pre-wrap text-black/80">
+                                {justificationByUserId[user.id]}
+                              </span>
                             ) : (
                               "—"
                             )}

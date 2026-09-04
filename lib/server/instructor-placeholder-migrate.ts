@@ -38,9 +38,6 @@ export async function migrateInstructorPlaceholderToAuthUser(
   const { error: seErr } = await admin.from("ScheduleEntry").update({ instructorId: newUserId }).eq("instructorId", oldUserId);
   if (seErr) return { error: seErr.message };
 
-  const { error: scrErr } = await admin.from("ScheduleChangeRequest").update({ instructorId: newUserId }).eq("instructorId", oldUserId);
-  if (scrErr) return { error: scrErr.message };
-
   const { error: nErr } = await admin.from("Notification").update({ userId: newUserId }).eq("userId", oldUserId);
   if (nErr) return { error: nErr.message };
 

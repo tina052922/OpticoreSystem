@@ -287,12 +287,6 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
               INS Form — all views
               <ChevronRight className="w-4 h-4" />
             </Link>
-            <Link
-              href="/faculty/ins?tab=faculty&requestChange=1"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-4 py-2.5 text-sm font-semibold"
-            >
-              Request schedule change
-            </Link>
           </div>
         </DashboardCard>
 

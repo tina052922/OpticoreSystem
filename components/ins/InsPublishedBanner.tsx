@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Shown when the VPAA has published the master schedule for the selected term (ScheduleEntry.lockedByDoiAt set).
- * Keeps the same neutral INS card styling as the rest of the form.
+ * Shown when DOI has published and locked the master schedule for the selected term
+ * (`ScheduleEntry.lockedByDoiAt` set). Editors stay read-only until DOI unpublishes / unlocks.
  */
 export function InsPublishedBanner({ periodLabel }: { periodLabel: string }) {
   return (
@@ -12,8 +12,8 @@ export function InsPublishedBanner({ periodLabel }: { periodLabel: string }) {
     >
       <p className="font-semibold">Published master schedule</p>
       <p className="mt-0.5 text-emerald-900/90">
-        VPAA has published and locked schedules for <strong>{periodLabel}</strong>. Timetable data below is final;
-        edits are disabled until a new planning cycle.
+        DOI has published and locked schedules for <strong>{periodLabel}</strong>. Timetable data below is
+        final. Case-to-case edits resume only after DOI unpublishes / unlocks this term.
       </p>
     </div>
   );

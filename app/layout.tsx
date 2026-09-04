@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ChunkLoadRecovery } from "@/components/ChunkLoadRecovery";
 import { PathSaver } from "@/components/PathSaver";
 import { OpticoreToastProvider } from "@/components/alerts/OpticoreToastProvider";
+import { CampusBrandingProvider } from "@/contexts/CampusBrandingContext";
 import { ConnectionToastsMount } from "@/components/alerts/ConnectionToastsMount";
 import "./globals.css";
 
@@ -22,10 +23,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <OpticoreToastProvider>
+          <CampusBrandingProvider>
           <ConnectionToastsMount />
           <ChunkLoadRecovery />
           <PathSaver />
           {children}
+          </CampusBrandingProvider>
         </OpticoreToastProvider>
       </body>
     </html>

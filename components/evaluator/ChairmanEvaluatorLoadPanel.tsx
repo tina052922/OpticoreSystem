@@ -43,7 +43,7 @@ export function ChairmanEvaluatorLoadPanel({ snapshot }: { snapshot: ChairmanPol
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden p-6">
         <p className="text-[13px] text-black/60">
           Open the Timetabling tab once to load faculty load data. Load totals use your Faculty Profile status and
-          designation (designation caps and part-time rules from the Faculty Manual policy engine).
+          designation (designation caps and non-resident rules from the Faculty Manual policy engine).
         </p>
       </div>
     );

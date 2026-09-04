@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi, ApiClientError } from "@/lib/api/client";
 import {
   getDefaultHomeForRole,
@@ -22,6 +23,7 @@ export function LoginClient() {
   const errorParam = params.get("error");
 
   const toast = useOpticoreToast();
+  const branding = useCampusBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -115,8 +117,8 @@ export function LoginClient() {
         <div className="flex justify-center">
           <div className="w-32 h-32 sm:w-36 sm:h-36 shrink-0 rounded-full overflow-hidden ring-2 ring-black/[0.06] shadow-sm bg-white">
             <img
-              src={CTU_LOGO_PNG}
-              alt="Cebu Technological University"
+              src={branding.logoUrl || CTU_LOGO_PNG}
+              alt={branding.universityName}
               width={144}
               height={144}
               className="w-full h-full object-cover object-center"
@@ -131,11 +133,11 @@ export function LoginClient() {
 
         <div className="text-center space-y-2">
           <h1 className="text-xl sm:text-2xl font-bold text-[#181818] tracking-tight">
-            Cebu Technological University
+            {branding.universityName}
           </h1>
           <h2 className="text-lg sm:text-xl font-bold text-black">Sign in</h2>
           <p className="text-sm sm:text-base text-neutral-600">
-            to continue OptiCore–Campus Intelligence System
+            to continue {branding.headerTitle}–Campus Intelligence System
           </p>
         </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   buildInsFacultyView,
   type InsFacultyFormSummary,
@@ -28,14 +28,26 @@ export function useInsLiveSchedule(args: {
 }) {
   /** Form 5A totals must match faculty portal + Evaluator (cross-program teaching in one college). */
   const catalog = useInsCatalog({ ...args, ignoreProgramScope: true });
-  const [selectedInstructorId, setSelectedInstructorId] = useState(args.lockedInstructorId ?? "");
+  const [selectedInstructorId, setSelectedInstructorIdState] = useState(args.lockedInstructorId ?? "");
   const [facultyProfile, setFacultyProfile] = useState<FacultyProfile | null>(null);
 
   useEffect(() => {
     if (args.lockedInstructorId) {
-      setSelectedInstructorId(args.lockedInstructorId);
+      setSelectedInstructorIdState(args.lockedInstructorId);
     }
   }, [args.lockedInstructorId]);
+
+  /** Faculty cannot switch Form 5A to another instructor when the grid is locked to self. */
+  const setSelectedInstructorId = useCallback(
+    (id: string) => {
+      if (args.lockedInstructorId) {
+        setSelectedInstructorIdState(args.lockedInstructorId);
+        return;
+      }
+      setSelectedInstructorIdState(id);
+    },
+    [args.lockedInstructorId],
+  );
 
   useEffect(() => {
     if (!selectedInstructorId) {
@@ -96,6 +108,7 @@ export function useInsLiveSchedule(args: {
       userById: catalog.userById,
       scheduleApproved: catalog.termPublishLocked,
       campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      doiSignatureImageUrl: catalog.doiSignatureImageUrl,
       campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
       collegeInsSignerDisplay: resolvedCollegeAndProgram.collegeRow?.insSignerDisplay ?? null,
     });
@@ -106,6 +119,7 @@ export function useInsLiveSchedule(args: {
     catalog.userById,
     catalog.termPublishLocked,
     catalog.campusWideDirectorSignatureUrl,
+    catalog.doiSignatureImageUrl,
     catalog.campusInsSettings?.insSignerDisplay,
   ]);
 
@@ -206,7 +220,9 @@ export function useInsLiveSchedule(args: {
     periods: catalog.periods,
     academicPeriodId: catalog.academicPeriodId,
     setAcademicPeriodId: catalog.setAcademicPeriodId,
-    instructorOptions: catalog.instructorOptions,
+    instructorOptions: args.lockedInstructorId
+      ? catalog.instructorOptions.filter((o) => o.id === args.lockedInstructorId)
+      : catalog.instructorOptions,
     sectionOptions: catalog.sectionOptions,
     roomOptions: catalog.roomOptions,
     selectedInstructorId,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Eye, MoreHorizontal, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,6 @@ import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
 import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
 import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
-import { FacultyScheduleChangeModal } from "@/components/faculty/FacultyScheduleChangeModal";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
@@ -27,7 +26,10 @@ import { INS5ADocument } from "@/components/pdf/forms/INS5ADocument";
 import { facultyScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf-adapters";
 import type { INS5AProps } from "@/components/pdf/types/insTypes";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
+import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding";
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
+import { isFacultyInsPortal } from "@/lib/ins/schedule-visibility";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -64,7 +66,7 @@ export type INSFormFacultyProps = {
   viewerCollegeId?: string | null;
   /** Logged-in faculty: lock the grid to this instructor. */
   lockedInstructorId?: string | null;
-  /** My Schedule: hide faculty search. Load Generator keeps search. */
+  /** Hide faculty search. Faculty portal always hides it when `lockedInstructorId` is set. */
   hideInstructorSearch?: boolean;
   /** DOI / VPAA: load all colleges’ schedule rows for INS Form 5A. */
   campusWide?: boolean;
@@ -88,36 +90,25 @@ export function INSFormFaculty({
   hideInnerInsTabs = false,
 }: INSFormFacultyProps) {
   const { programMode } = useProgramMode();
+  const branding = useCampusBranding();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Instructor shell (`/faculty/ins`, `/faculty/schedule`). */
-  const facultyPortalIns = insBasePath.startsWith("/faculty");
+  const facultyPortalIns = isFacultyInsPortal(insBasePath);
   const instructorReadOnlyPortal = Boolean(facultyPortalIns && lockedInstructorId);
-  const showInstructorSearch = Boolean(useLiveData) && !hideInstructorSearch;
-  const [changeModalOpen, setChangeModalOpen] = useState(false);
-  const [changeModalEntryId, setChangeModalEntryId] = useState<string | null>(null);
+  const showInstructorSearch =
+    Boolean(useLiveData) && !hideInstructorSearch && !instructorReadOnlyPortal;
   const facultyInnerActive = useInsInnerTabIsActive(insBasePath, "faculty");
   const sectionInnerActive = useInsInnerTabIsActive(insBasePath, "section");
   const roomInnerActive = useInsInnerTabIsActive(insBasePath, "room");
-
-  useEffect(() => {
-    if (!instructorReadOnlyPortal || typeof window === "undefined") return;
-    const q = new URLSearchParams(window.location.search);
-    if (q.get("requestChange") !== "1") return;
-    setChangeModalEntryId(null);
-    setChangeModalOpen(true);
-    q.delete("requestChange");
-    const qs = q.toString();
-    window.history.replaceState({}, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
-  }, [instructorReadOnlyPortal]);
 
   const live = useInsLiveSchedule({
     collegeId: effectiveCollegeId,
     programId: chairmanProgramId,
     lockedInstructorId,
     campusWide,
-    /** My Schedule locks to this instructor; Load Generator may search college faculty. */
-    instructorPortalUserId: hideInstructorSearch ? lockedInstructorId : null,
+    /** Faculty portal Form 5A is always this instructor — never another faculty’s personal schedule. */
+    instructorPortalUserId: instructorReadOnlyPortal || hideInstructorSearch ? lockedInstructorId : null,
   });
 
   /** College Admin + DOI: allow one-click GA apply; chairmen use the Evaluator for edits. */
@@ -147,7 +138,8 @@ export function INSFormFaculty({
     summary: useLiveData ? live.facultyFormSummary : null,
     signatureSlots: signatureSlotsToPdf(useLiveData ? live.insSignatureSlots : null),
     programMode,
-  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots, programMode]);
+    ...insPdfBrandingProps(branding),
+  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots, programMode, branding]);
 
   async function onShare() {
     try {
@@ -235,15 +227,6 @@ export function INSFormFaculty({
             <h2 className="text-2xl font-bold text-gray-800 mb-0">INS Form</h2>
             <ProgramModeToggle size="sm" />
           </div>
-
-          {instructorReadOnlyPortal && live.academicPeriodId ? (
-            <FacultyScheduleChangeModal
-              open={changeModalOpen}
-              onOpenChange={setChangeModalOpen}
-              academicPeriodId={live.academicPeriodId}
-              initialScheduleEntryId={changeModalEntryId}
-            />
-          ) : null}
 
           {doiFormalApprovalPanel ? (
             <DoiInsFormalApprovalPanel
@@ -378,24 +361,10 @@ export function INSFormFaculty({
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
               {instructorReadOnlyPortal ? (
-                <>
-                  {live.selectedInstructorId === lockedInstructorId ? (
-                    <Button
-                      type="button"
-                      className="bg-[#780301] hover:bg-[#5c0201] text-white font-semibold"
-                      onClick={() => {
-                        setChangeModalEntryId(null);
-                        setChangeModalOpen(true);
-                      }}
-                    >
-                      Request schedule change
-                    </Button>
-                  ) : null}
-                  <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
                     <Eye className="w-4 h-4 mr-2" />
                     Preview PDF
                   </Button>
-                </>
               ) : (
                 <>
                   {enableInsAltApply && live.insConflictLinesForFaculty.length > 0 ? (
@@ -479,17 +448,6 @@ export function INSFormFaculty({
               facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
               facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
               conflictingScheduleEntryIds={useLiveData ? live.insConflictingEntryIds : null}
-              clickableScheduleEntryCells={
-                instructorReadOnlyPortal && live.selectedInstructorId === lockedInstructorId
-              }
-              onScheduleEntryClick={
-                instructorReadOnlyPortal && live.selectedInstructorId === lockedInstructorId
-                  ? (id) => {
-                      setChangeModalEntryId(id);
-                      setChangeModalOpen(true);
-                    }
-                  : undefined
-              }
             />
           </div>
         </div>

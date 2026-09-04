@@ -872,7 +872,9 @@ export function useInsCatalog(args: {
     async (entryId: string): Promise<{ ok: boolean; message: string }> => {
       const entry = entries.find((e) => e.id === entryId);
       if (!entry) return { ok: false, message: "Schedule row not found." };
-      if (entry.lockedByDoiAt) return { ok: false, message: "Schedule is locked after VPAA publication." };
+      if (entry.lockedByDoiAt) {
+        return { ok: false, message: "Schedule is locked by DOI. Unpublish / unlock is required before edits can continue." };
+      }
       const periodId = entry.academicPeriodId;
       const termRows = entries.filter((e) => e.academicPeriodId === periodId);
       const roomIds = rooms.map((r) => r.id);
@@ -929,6 +931,7 @@ export function useInsCatalog(args: {
   }, [modeEntries, academicPeriodId]);
 
   const campusWideDirectorSignatureUrl = campusInsSettings?.campusDirectorSignatureImageUrl?.trim() || null;
+  const doiSignatureImageUrl = campusInsSettings?.doiSignatureImageUrl?.trim() || null;
 
   return {
     loading,
@@ -968,5 +971,6 @@ export function useInsCatalog(args: {
     reload: load,
     campusInsSettings,
     campusWideDirectorSignatureUrl,
+    doiSignatureImageUrl,
   };
 }

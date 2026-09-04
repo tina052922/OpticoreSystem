@@ -91,7 +91,11 @@ let realtimeUnsubscribe: (() => void) | null = null;
 function bindRealtime() {
   if (realtimeUnsubscribe) return;
   realtimeUnsubscribe = subscribeRealtime((event) => {
-    if (event.name !== "schedule.changed" && event.name !== "schedule.published") {
+    if (
+      event.name !== "schedule.changed" &&
+      event.name !== "schedule.published" &&
+      event.name !== "schedule.unpublished"
+    ) {
       return;
     }
     const periodId = event.payload?.academicPeriodId?.trim();

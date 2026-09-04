@@ -5,15 +5,15 @@ import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
 export const POLICY_VIOLATION_FAQ = [
   {
     q: "Why did I get a teaching load violation?",
-    a: "Weekly contact hours for an instructor exceeded the cap for their employment status (organic vs part-time) or designation teaching load range from the faculty merit system.",
+    a: "Weekly contact hours for an instructor exceeded the cap for their employment status (resident vs non-resident) or designation teaching load range from the faculty merit system.",
   },
   {
     q: "Does a violation block saving?",
-    a: "You can keep plotting, but Save and certain assignments require a written justification so DOI / VPAA can review the overload in Policy Reviews.",
+    a: "No. The plotted schedule still saves when hours or preparations exceed policy. You are asked for a written justification so DOI is notified and the reason is recorded on Summary of Teaching Load and the instructor’s Faculty Profile.",
   },
   {
     q: "What happens after I submit justification?",
-    a: "College Admin and DOI see the submission. The DOI Admin accepts or rejects it; accepted overloads remain on record for the term, and the submitting chairman is notified of the decision.",
+    a: "College Admin and DOI are notified. The text is stored as a record only — there is no accept/reject step.",
   },
   {
     q: "Why do conflicts and policy checks differ?",
@@ -21,23 +21,23 @@ export const POLICY_VIOLATION_FAQ = [
   },
   {
     q: "What are faculty designations and how do they affect load?",
-    a: "Designations (Dean, Chairperson, Campus Director, etc.) set a weekly teaching-hour cap from the CTU Faculty Merit System. Regular faculty without a designation use the campus standard load (organic / part-time rules). Violations appear when plotted hours exceed the designation cap or employment status limit.",
+    a: "Designations (Dean, Chairperson, Campus Director, etc.) set a weekly teaching-hour cap from the CTU Faculty Merit System. Regular faculty without a designation use the campus standard load (resident / non-resident rules). Violations appear when plotted hours exceed the designation cap or employment status limit.",
   },
   {
     q: "How will I know an instructor is about to become overloaded while plotting?",
     a: "The instructor picker shows a running total (hours plotted so far / maximum hours per week). It turns amber when the instructor is close to their cap, and red once the assignment being plotted would push them over — before you even save.",
   },
   {
-    q: "What is the maximum weekly load for a part-time instructor?",
-    a: "Part-time instructors are capped separately from organic faculty (see System Configuration → Teaching load & policy rules for the current campus-wide value). Plotting beyond this cap requires a DOI-reviewed justification, same as any other overload.",
+    q: "What is the maximum weekly load for a non-resident instructor?",
+    a: "Non-resident instructors are capped separately from resident faculty, using the campus-wide value from the CTU Faculty Manual policy defaults. Plotting beyond this cap still saves; a justification for DOI is requested so the overload is recorded.",
   },
   {
-    q: "Who approves overload justifications and what counts as valid?",
-    a: "The DOI Admin reviews justifications in Policy Reviews. A valid justification typically explains why the overload is necessary (e.g., lack of available instructors for the subject/section) — at least 12 characters describing the reason is required before it can be submitted.",
+    q: "Who receives overload justifications and what counts as valid?",
+    a: "DOI is the submit target (College Admin is also notified). A valid justification explains why the overload is necessary (e.g., lack of available instructors) — at least 12 characters. It is a record only; DOI does not accept or reject it.",
   },
   {
-    q: "Does rate per hour change based on designation?",
-    a: "By default, rate per hour is based on the instructor's highest degree (Doctorate, Master's, Baccalaureate). DOI Admin can optionally configure a specific rate per hour for a designation (e.g., Campus Director, Department Chairperson) in System Configuration; when set, it overrides the degree-based rate for that designation.",
+    q: "How is rate per hour determined?",
+    a: "Rate per hour comes from the instructor's highest degree (Doctorate, Master's, Baccalaureate) using the Faculty Merit System rates. It is shown on the Faculty Profile alongside the designation teaching load.",
   },
 ] as const;
 

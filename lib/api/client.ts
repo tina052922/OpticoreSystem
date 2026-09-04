@@ -27,6 +27,7 @@ import {
   trackInFlight,
   writeApiCache,
 } from "./request-cache";
+import type { CampusBrandingConfig, ResolvedCampusBranding } from "@/lib/system-configuration/campus-branding";
 
 export {
   API_CACHE_TTL,
@@ -208,42 +209,12 @@ export type AccessRequest = {
   updatedAt: string;
 };
 
-export type ScheduleChangeStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "approved_with_solution";
-
-export type ScheduleChangeRequest = {
-  id: string;
-  academicPeriodId: string;
-  scheduleEntryId: string;
-  instructorId: string;
-  instructorName?: string;
-  subjectCode?: string;
-  sectionName?: string;
-  currentDay?: string;
-  currentStartTime?: string;
-  currentEndTime?: string;
-  collegeId: string;
-  requestedDay: string;
-  requestedStartTime: string;
-  requestedEndTime: string;
-  reason: string;
-  status: ScheduleChangeStatus;
-  conflictSeverity: "none" | "small" | "large" | null;
-  conflictDetails: unknown;
-  adminSuggestion: string | null;
-  reviewedById: string | null;
-  reviewedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type SystemConfiguration = {
   id: string;
   campusDirectorSignatureImageUrl: string | null;
+  doiSignatureImageUrl?: string | null;
   schedulingPolicy: unknown;
+  branding?: CampusBrandingConfig | null;
   updatedAt: string;
 };
 
@@ -621,14 +592,49 @@ export const systemConfigApi = {
   update(body: {
     campusDirectorSignatureImageUrl?: string | null;
     schedulingPolicy?: unknown;
+    branding?: CampusBrandingConfig;
   }) {
     return apiFetch<{ config: SystemConfiguration }>(
       "/api/admin/system-configuration",
       {
         method: "PATCH",
         body,
+        invalidates: ["/api/admin/system-configuration", "/api/public/branding"],
       },
     );
+  },
+  uploadLogo(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiFetch<{ url: string; branding: CampusBrandingConfig }>("/api/admin/branding/logo", {
+      method: "POST",
+      body: formData,
+      invalidates: ["/api/admin/system-configuration", "/api/public/branding"],
+    });
+  },
+  clearLogo() {
+    return apiFetch<{ ok: true; branding: CampusBrandingConfig }>("/api/admin/branding/logo", {
+      method: "DELETE",
+      invalidates: ["/api/admin/system-configuration", "/api/public/branding"],
+    });
+  },
+  uploadInsHeaderBanner(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiFetch<{ url: string; branding: CampusBrandingConfig }>(
+      "/api/admin/branding/ins-header",
+      {
+        method: "POST",
+        body: formData,
+        invalidates: ["/api/admin/system-configuration", "/api/public/branding"],
+      },
+    );
+  },
+  clearInsHeaderBanner() {
+    return apiFetch<{ ok: true; branding: CampusBrandingConfig }>("/api/admin/branding/ins-header", {
+      method: "DELETE",
+      invalidates: ["/api/admin/system-configuration", "/api/public/branding"],
+    });
   },
 };
 
@@ -1083,106 +1089,6 @@ export const accessRequestsApi = {
   },
 };
 
-export const scheduleChangeApi = {
-  facultyRequest(body: {
-    scheduleEntryId: string;
-    requestedDay: string;
-    requestedStartTime: string;
-    requestedEndTime: string;
-    requestedRoomId?: string;
-    reason: string;
-  }) {
-    return apiFetch<{ ok: true; id: string }>("/api/schedule-change/faculty", {
-      method: "POST",
-      body,
-    });
-  },
-  create(body: {
-    scheduleEntryId: string;
-    requestedDay: string;
-    requestedStartTime: string;
-    requestedEndTime: string;
-    requestedRoomId?: string;
-    reason: string;
-  }) {
-    return apiFetch<{ ok: true; id: string }>("/api/schedule-change/faculty", {
-      method: "POST",
-      body,
-    });
-  },
-  instructorEntries(params: { periodId: string }) {
-    return apiFetch<{ entries: { id: string; subject: string; day: string; startTime: string; endTime: string; section: string }[]; periodName?: string }>(
-      `/api/schedule-change/instructor-entries?periodId=${encodeURIComponent(params.periodId)}`,
-      { method: "GET" },
-    );
-  },
-  requestGrid(params: { periodId: string; scheduleEntryId: string }) {
-    return apiFetch<{
-      entry: { id: string; day: string; startTime: string; endTime: string; durationMinutes: number };
-      weekdays: string[];
-      cells: Array<{
-        day: string;
-        startTime: string;
-        endTime: string;
-        status: "original" | "available" | "busy" | "no_room";
-        reason: string | null;
-        freeRooms: { id: string; code: string }[];
-      }>;
-    }>(
-      `/api/schedule-change/request-grid?periodId=${encodeURIComponent(params.periodId)}&scheduleEntryId=${encodeURIComponent(params.scheduleEntryId)}`,
-      { method: "GET" },
-    );
-  },
-  list() {
-    return apiFetch<{ requests: ScheduleChangeRequest[]; collegeId?: string }>(
-      "/api/schedule-change/chairman",
-      { method: "GET" },
-    );
-  },
-  collegeList() {
-    return apiFetch<{ requests: ScheduleChangeRequest[] }>(
-      "/api/schedule-change/chairman",
-      { method: "GET" },
-    );
-  },
-  checkConflicts(id: string) {
-    return apiFetch<{
-      severity?: string;
-      summary?: string;
-      hits?: Array<{ type?: string; message?: string; detail?: string; withEntryId?: string }>;
-      suggestedMitigation?: { roomId?: string; roomCode?: string; label?: string } | null;
-      alternativeSolutions?: Array<{ kind?: string; label?: string; day?: string; startTime?: string; endTime?: string; roomId?: string; roomCode?: string }>;
-      error?: string;
-    }>(`/api/schedule-change/${id}/check-conflicts`, { method: "POST" });
-  },
-  review(
-    id: string,
-    body: { action: "approve" | "reject"; adminSuggestion?: string },
-  ) {
-    return apiFetch<{ ok: true; status: "approved" | "rejected" }>(
-      `/api/schedule-change/${id}`,
-      {
-        method: "PATCH",
-        body,
-      },
-    );
-  },
-  pendingCount(
-    params: { collegeId?: string; programId?: string } = {},
-    opts: { cookieHeader?: string; forceRefresh?: boolean } = {},
-  ) {
-    return apiFetch<{ pending: number }>(
-      `/api/schedule-change/pending-count${qs(params)}`,
-      {
-        method: "GET",
-        cookieHeader: opts.cookieHeader,
-        cacheTtlMs: API_CACHE_TTL.BADGE_COUNT,
-        forceRefresh: opts.forceRefresh,
-      },
-    );
-  },
-};
-
 export const doiApi = {
   uploadCampusDirectorSignature(file: File) {
     const formData = new FormData();
@@ -1190,11 +1096,28 @@ export const doiApi = {
     return apiFetch<{ url: string }>("/api/doi/signature", {
       method: "POST",
       body: formData,
+      invalidates: ["/api/admin/system-configuration", "/api/catalog"],
     });
   },
   clearCampusDirectorSignature() {
     return apiFetch<{ ok: true }>("/api/doi/signature", {
       method: "DELETE",
+      invalidates: ["/api/admin/system-configuration", "/api/catalog"],
+    });
+  },
+  uploadElectronicSignature(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiFetch<{ url: string }>("/api/doi/electronic-signature", {
+      method: "POST",
+      body: formData,
+      invalidates: ["/api/admin/system-configuration", "/api/catalog"],
+    });
+  },
+  clearElectronicSignature() {
+    return apiFetch<{ ok: true }>("/api/doi/electronic-signature", {
+      method: "DELETE",
+      invalidates: ["/api/admin/system-configuration", "/api/catalog"],
     });
   },
   getFinalization(academicPeriodId: string) {
@@ -1204,14 +1127,16 @@ export const doiApi = {
     );
   },
   getScheduleConflicts(academicPeriodId: string) {
-    return apiFetch<CampusConflictScanResult>(
-      `/api/scheduling/scope-conflict-scan?academicPeriodId=${encodeURIComponent(academicPeriodId)}&mode=doi_campus`,
-      { method: "GET" },
-    );
+    return schedulingApi.scopeConflictScan({
+      academicPeriodId,
+      mode: "doi_campus",
+      collegeId: null,
+      programId: null,
+    });
   },
   patchFinalization(body: {
     academicPeriodId: string;
-    action: "approve" | "reject";
+    action: "approve" | "reject" | "unpublish" | "unlock";
     signedByName?: string | null;
     signedAcknowledged?: boolean;
     notes?: string | null;
@@ -1221,6 +1146,7 @@ export const doiApi = {
       {
         method: "PATCH",
         body,
+        invalidates: ["/api/doi/schedule-finalization", "/api/catalog"],
       },
     );
   },
@@ -1238,6 +1164,7 @@ export const adminApi = {
   updateSystemConfiguration(body: {
     campusDirectorSignatureImageUrl?: string;
     schedulingPolicy?: unknown;
+    branding?: CampusBrandingConfig;
   }) {
     return apiFetch<{ ok: true; config: SystemConfiguration }>(
       "/api/admin/system-configuration",
@@ -1388,6 +1315,7 @@ export const collegeApi = {
       settings: { insSignerDisplay: Record<string, unknown> | null };
       campusDirectorUserId?: string | null;
       contractSignerUserId?: string | null;
+      collegeAdminSignatureImageUrl?: string | null;
       users?: { id: string; name: string; email: string; role: string }[];
     }>(
       `/api/college/signer-settings${qs(params)}`,
@@ -1399,6 +1327,27 @@ export const collegeApi = {
       method: "PATCH",
       body,
     });
+  },
+  uploadElectronicSignature(file: File, params: { collegeId?: string } = {}) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiFetch<{ url: string }>(
+      `/api/college/electronic-signature${qs(params)}`,
+      {
+        method: "POST",
+        body: formData,
+        invalidates: ["/api/college", "/api/catalog"],
+      },
+    );
+  },
+  clearElectronicSignature(params: { collegeId?: string } = {}) {
+    return apiFetch<{ ok: true }>(
+      `/api/college/electronic-signature${qs(params)}`,
+      {
+        method: "DELETE",
+        invalidates: ["/api/college", "/api/catalog"],
+      },
+    );
   },
   notifyGecReady(body: { academicPeriodId?: string; programId?: string; note?: string }) {
     return apiFetch<{ ok: true; notified: number; message: string }>("/api/college/notify-gec-ready", {
@@ -1478,6 +1427,14 @@ export const publicApi = {
     }>("/api/public/campus-navigation", {
       method: "GET",
       retryOn401: false,
+    });
+  },
+  getBranding(opts: { forceRefresh?: boolean } = {}) {
+    return apiFetch<{ branding: ResolvedCampusBranding }>("/api/public/branding", {
+      method: "GET",
+      retryOn401: false,
+      cacheTtlMs: API_CACHE_TTL.SYSTEM_CONFIG,
+      forceRefresh: opts.forceRefresh,
     });
   },
 };

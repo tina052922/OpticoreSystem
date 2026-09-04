@@ -2,10 +2,10 @@ import { Document, Page, View, Text } from "@react-pdf/renderer";
 import { ins } from "../styles/insStyles";
 import type { INS5AProps } from "../types/insTypes";
 import { INSHeader } from "../shared/INSHeader";
+import { INSBrandedFooter } from "../shared/INSBrandedFooter";
 import { INSScheduleGrid } from "../shared/INSScheduleGrid";
 import { INSNightScheduleGrid } from "../shared/INSNightScheduleGrid";
 import { INSSummaryTable } from "../shared/INSSummaryTable";
-import { INSSignatureBlock } from "../shared/INSSignatureBlock";
 
 function FieldRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -26,6 +26,8 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
     courses,
     summary,
     signatureSlots,
+    headerBanner,
+    insFooterText,
   } = data;
 
   return (
@@ -36,6 +38,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
           formTitle="Program by Teacher"
           semesterLabel={semesterLabel}
           programMode={data.programMode}
+          headerBanner={headerBanner}
         />
 
         <View style={ins.fieldRow}>
@@ -115,7 +118,11 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
         {data.programMode === "night" ? (
           <INSNightScheduleGrid
             schedule={schedule}
-            summary={<INSSummaryTable courses={courses} />}
+            rightSignatureSlots={signatureSlots ?? [
+              { key: "prepared", lineTitle: "Prepared by:", lineSubtitle: "Program Coordinator/Chair", signerName: "", imageUrl: null },
+              { key: "reviewed", lineTitle: "Reviewed, Certified True and Correct:", lineSubtitle: "Director/Dean", signerName: "", imageUrl: null },
+              { key: "approved", lineTitle: "Approved:", lineSubtitle: "Campus Director", signerName: "", imageUrl: null },
+            ]}
           />
         ) : (
           <INSScheduleGrid
@@ -128,7 +135,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
           />
         )}
 
-        {data.programMode === "night" ? null : <INSSummaryTable courses={courses} />}
+        <INSSummaryTable courses={courses} />
 
         <View style={ins.metricsContainer}>
           <View style={ins.metricsGrid}>
@@ -170,16 +177,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
           </View>
         </View>
 
-        {data.programMode === "night" ? (
-          <INSSignatureBlock
-            slots={signatureSlots ?? [
-              { key: "prepared", lineTitle: "Prepared by:", lineSubtitle: "Program Coordinator/Chair", signerName: "", imageUrl: null },
-              { key: "reviewed", lineTitle: "Reviewed, Certified True and Correct:", lineSubtitle: "Director/Dean", signerName: "", imageUrl: null },
-              { key: "approved", lineTitle: "Approved:", lineSubtitle: "Campus Director", signerName: "", imageUrl: null },
-            ]}
-            layout="horizontal"
-          />
-        ) : null}
+        <INSBrandedFooter text={insFooterText} />
       </Page>
     </Document>
   );

@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { GecCentralHubEvaluatorClient } from "@/components/gec/GecCentralHubEvaluatorClient";
 
-/** GEC Chairman: college tiles → Central Hub Evaluator; vacant GEC rows editable per college after College Admin approval. */
+/** GEC Chairman: college tiles → Central Hub Evaluator; vacant GEC rows are editable in the selected college / department. */
 export default function GecChairmanEvaluatorPage() {
   return (
     <Suspense

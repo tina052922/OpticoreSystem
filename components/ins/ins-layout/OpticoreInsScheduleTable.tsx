@@ -221,7 +221,7 @@ const FALLBACK_CAMPUS_ONLY: InsSignatureSlot[] = [
   },
 ];
 
-function InsSignatureStrip({
+export function InsSignatureStrip({
   signatureSlots,
   scheduleApproved,
   variant = "full",

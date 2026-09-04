@@ -2,7 +2,7 @@
  * Notification filtering for Instructor/Student roles.
  *
  * Project requirement: for these roles, the Notification bell must show only
- * functional updates (schedule changes / updates + upcoming class reminders),
+ * functional updates (published timetable / class updates + upcoming class reminders),
  * and hide general administrative announcements.
  *
  * There is currently no dedicated DB column for “notification category”, so
@@ -16,24 +16,14 @@ function norm(message: string): string {
 export function isScheduleRelatedNotificationMessage(message: string): boolean {
   const m = norm(message);
 
-  // Schedule updates / changes:
-  // - Triggered by Instructor schedule change workflow
+  // Schedule updates:
   // - Triggered by College/DOI publication workflow fan-out
   const schedulePatterns = [
     "master schedule for",
-    "your schedule change was approved",
-    "schedule change approved",
     "your class has been changed",
     "your class is now scheduled",
-    "your schedule change request",
-    "sent to program chairman",
-    "approved.",
-    "approved (with solution)",
-    "rejected.",
-    "applied slot",
     "view your final timetable",
     "view your section timetable",
-    "approved (with solution)",
   ];
 
   // Upcoming reminders (future-proof: currently may not be used by message templates).

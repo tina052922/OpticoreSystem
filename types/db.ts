@@ -1,4 +1,5 @@
 import type { SchedulingPolicyConfig } from "@/lib/system-configuration/scheduling-policy";
+import type { CampusBrandingConfig } from "@/lib/system-configuration/campus-branding";
 
 export type UserRole =
   | "chairman_admin"
@@ -37,18 +38,24 @@ export interface College {
   contractSignerUserId?: string | null;
   /** Printed INS form: optional signer name / role line overrides for this college. */
   insSignerDisplay?: CollegeInsSignerDisplay | null;
+  /** College Admin electronic signature uploaded in System Configuration. */
+  collegeAdminSignatureImageUrl?: string | null;
 }
 
 /** Singleton (id = default): campus-wide INS settings — not per college. */
 export interface CampusInsSettings {
   id: string;
   campusDirectorSignatureImageUrl?: string | null;
+  /** DOI / VPAA electronic signature uploaded in System Configuration. */
+  doiSignatureImageUrl?: string | null;
   /** DOI: optional overrides for campus-wide INS lines (typically VPAA / approved). */
   insSignerDisplay?: CollegeInsSignerDisplay | null;
   /** Campus-wide teaching load limits and scheduler defaults (System Configuration). */
   schedulingPolicy?: SchedulingPolicyConfig | null;
+  /** Campus-wide logo, header copy, footer, and INS letterhead. */
+  branding?: CampusBrandingConfig | null;
   updatedAt: string;
-}
+};
 
 export interface Program {
   id: string;
@@ -168,7 +175,7 @@ export interface ScheduleEntry {
   programMode?: ScheduleProgramMode | null;
 }
 
-/** Chairman documents why plotted loads exceed Faculty Manual caps; visible to DOI. */
+/** Chairman documents why plotted loads exceed Faculty Manual caps; recorded for DOI (notify only). */
 export interface ScheduleLoadJustification {
   id: string;
   academicPeriodId: string;
@@ -178,13 +185,13 @@ export interface ScheduleLoadJustification {
   authorEmail: string | null;
   /** Instructor whose load triggered this submission (nullable for legacy college-wide rows). */
   facultyUserId?: string | null;
-  /** Representative schedule row for VPAA traceability (nullable). */
+  /** Representative schedule row for traceability (nullable). */
   scheduleEntryId?: string | null;
   justification: string;
   violationsSnapshot: unknown | null;
   createdAt: string;
   updatedAt: string;
-  /** VPAA/DOI: null = not reviewed yet. */
+  /** Legacy approval field — justification is record + notify only; UI does not use this. */
   doiDecision?: "accepted" | "rejected" | "pending" | null;
   doiReviewedAt?: string | null;
   doiReviewedById?: string | null;
@@ -224,28 +231,6 @@ export interface AccessRequestRow {
   reviewedById: string | null;
   reviewedAt: string | null;
   expiresAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type ScheduleChangeStatus = "pending" | "approved" | "rejected" | "approved_with_solution";
-
-export interface ScheduleChangeRequest {
-  id: string;
-  academicPeriodId: string;
-  scheduleEntryId: string;
-  instructorId: string;
-  collegeId: string;
-  requestedDay: string;
-  requestedStartTime: string;
-  requestedEndTime: string;
-  reason: string;
-  status: ScheduleChangeStatus;
-  conflictSeverity: "none" | "small" | "large" | null;
-  conflictDetails: unknown | null;
-  adminSuggestion: string | null;
-  reviewedById: string | null;
-  reviewedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

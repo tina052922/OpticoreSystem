@@ -8,18 +8,27 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { isEvaluatorSlotPlottable, evaluatorTimeSlots, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { evaluatorTimeSlots, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import {
   clampPlotStartSlotIndex,
   maxPlotDurationSlots,
   plotRowDurationSlots,
 } from "@/lib/evaluator/plot-duration";
+import { PlotMeetingSlotsFields } from "@/components/evaluator/PlotMeetingSlotsFields";
+import {
+  resolvePlotMeetings,
+  seedPlotMeetingsDraft,
+  totalPlotMeetingHours,
+  type PlotMeetingsDraft,
+  type ResolvedPlotMeeting,
+} from "@/lib/evaluator/plot-meetings";
+import { slotIndexFromTypedTime } from "@/lib/evaluator/plot-time-input";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import {
   hoursExceedSubjectRequirement,
-  subjectHoursOverLimitMessage,
 } from "@/lib/scheduling/subject-semester-hours";
+import { SubjectWeeklyHoursBanner } from "@/components/evaluator/SubjectWeeklyHoursBanner";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
   formatLecLabDisplay,
@@ -138,7 +147,7 @@ export type ChairmanPlotScheduleModalProps = {
   weekdays?: readonly BsitEvaluatorWeekday[];
   timeSlots?: HourSlot[];
   programMode?: ProgramMode;
-  onApply: () => void;
+  onApply: (meetings: ResolvedPlotMeeting[]) => void;
   onRemove?: () => void;
 };
 
@@ -178,6 +187,15 @@ export function ChairmanPlotScheduleModal({
   const days = weekdays;
   const [visible, setVisible] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
+  const [meetings, setMeetings] = useState<PlotMeetingsDraft>(() =>
+    seedPlotMeetingsDraft({
+      day: draft.day,
+      startSlotIndex: draft.startSlotIndex,
+      durationSlots: draft.durationSlots,
+      slots,
+    }),
+  );
+  const [meetingError, setMeetingError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -187,8 +205,19 @@ export function ChairmanPlotScheduleModal({
       return () => window.clearTimeout(t);
     }
     setVisible(true);
+    setMeetingError(null);
+    setMeetings(
+      seedPlotMeetingsDraft({
+        day: draft.day,
+        startSlotIndex: draft.startSlotIndex,
+        durationSlots: draft.durationSlots,
+        slots,
+      }),
+    );
     const t = window.requestAnimationFrame(() => setAnimateIn(true));
     return () => window.cancelAnimationFrame(t);
+    // Seed from the row that opened the modal, not from later draft keystrokes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open is the reset signal
   }, [open]);
 
   useEffect(() => {
@@ -211,18 +240,21 @@ export function ChairmanPlotScheduleModal({
   const durationSource = pr ?? catalogMatch;
   const dur = plotRowDurationSlots(durationSource, draft);
   const maxDur = durationSource ? maxPlotDurationSlots(durationSource) : Math.max(1, draft.durationSlots ?? 1);
-  const maxStart = slots.length - dur;
-  const effectiveStart = clampPlotStartSlotIndex(
-    draft.startSlotIndex < 0 ? 0 : draft.startSlotIndex,
-    dur,
-    slots.length,
-  );
-  const timeLine =
-    !draft.day || draft.startSlotIndex < 0
-      ? "Select subject, day, and time"
-      : draft.subjectCode
-        ? formatTimeRangeFromSlots(effectiveStart, dur, slots)
-        : "Select subject for duration";
+  const additionalHours = Math.max(dur, totalPlotMeetingHours(meetings, maxDur));
+  const timeLine = useMemo(() => {
+    const resolved = resolvePlotMeetings(meetings, {
+      slots,
+      programMode,
+      maxDur,
+      weekdays: days,
+    });
+    if (!resolved.ok) {
+      return draft.subjectCode ? "Type a start time and choose at least one day" : "Select subject, then type a start time";
+    }
+    return resolved.meetings
+      .map((m) => `${m.day} ${formatTimeRangeFromSlots(m.startSlotIndex, m.durationSlots, slots)}`)
+      .join(" · ");
+  }, [meetings, slots, programMode, maxDur, days, draft.subjectCode]);
   const sectionName = draft.sectionId
     ? (sectionNameById.get(draft.sectionId) ?? "")
     : "";
@@ -304,27 +336,26 @@ export function ChairmanPlotScheduleModal({
   const missingInstructor = !draft.instructorId;
   const missingRoom = !draft.roomId;
   const missingBuilding = !buildingValue;
+  const missingDay = !meetings.slots[0]?.day;
+  const missingTime = !meetings.timeText.trim();
   const plotIncomplete =
-    missingSection || missingSubject || missingInstructor || missingRoom || missingBuilding;
+    missingSection ||
+    missingSubject ||
+    missingInstructor ||
+    missingRoom ||
+    missingBuilding ||
+    missingDay ||
+    missingTime;
   const hoursOverLimit =
     Boolean(subjectHourBudget) &&
     hoursExceedSubjectRequirement({
       requiredHours: subjectHourBudget?.required ?? 0,
       alreadyPlottedHours: subjectHourBudget?.alreadyPlotted ?? 0,
-      additionalHours: dur,
+      additionalHours,
     });
-  const hoursOverLimitMessage =
-    hoursOverLimit && draft.subjectCode && subjectHourBudget
-      ? subjectHoursOverLimitMessage({
-          subjectCode: draft.subjectCode,
-          requiredHours: subjectHourBudget.required,
-          alreadyPlottedHours: subjectHourBudget.alreadyPlotted,
-          additionalHours: dur,
-        })
-      : null;
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
 
-  const draftDurationHours = draft.subjectCode ? dur : 0;
+  const draftDurationHours = draft.subjectCode ? additionalHours : 0;
 
   const selectedInstructorLoad = draft.instructorId
     ? (instructorLoadById?.get(draft.instructorId) ?? null)
@@ -397,44 +428,6 @@ export function ChairmanPlotScheduleModal({
     return busy;
   }, [draft, existingBlocks, academicPeriodId, programCodeForSummary]);
 
-  const busyTimeSlotIndices = useMemo(() => {
-    if (
-      !draft.day ||
-      !draft.instructorId ||
-      !draft.subjectCode ||
-      existingBlocks.length === 0
-    )
-      return null;
-    const busy = new Set<number>();
-    for (let idx = 0; idx <= maxStart; idx++) {
-      const candidate = buildCandidateBlock(
-        draft,
-        { startSlotIndex: idx },
-        academicPeriodId,
-        programCodeForSummary,
-        slots,
-        programMode,
-      );
-      if (!candidate) continue;
-      const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
-      if (
-        hits.some(
-          (h) =>
-            h.type === "faculty" || h.type === "room" || h.type === "section",
-        )
-      ) {
-        busy.add(idx);
-      }
-    }
-    return busy;
-  }, [
-    draft,
-    existingBlocks,
-    academicPeriodId,
-    programCodeForSummary,
-    maxStart,
-  ]);
-
   const busyRoomIds = useMemo(() => {
     if (
       !draft.day ||
@@ -469,6 +462,47 @@ export function ChairmanPlotScheduleModal({
     buildingValue,
   ]);
 
+  function applyMeetingsChange(next: PlotMeetingsDraft) {
+    setMeetings(next);
+    setMeetingError(null);
+    const first = next.slots[0];
+    const day = (first?.day ?? "") as PlotRow["day"];
+    const idx =
+      day && next.timeText.trim()
+        ? slotIndexFromTypedTime(next.timeText, slots, day, programMode)
+        : null;
+    const parsedDur = parseInt(first?.durationHours || "1", 10);
+    onDraftChange({
+      ...draft,
+      day,
+      startSlotIndex: idx ?? -1,
+      durationSlots: Number.isFinite(parsedDur) && parsedDur >= 1 ? parsedDur : 1,
+    });
+  }
+
+  function handleApplyMeetings() {
+    const resolved = resolvePlotMeetings(meetings, {
+      slots,
+      programMode,
+      maxDur,
+      weekdays: days,
+    });
+    if (!resolved.ok) {
+      setMeetingError(resolved.error);
+      return;
+    }
+    const first = resolved.meetings[0];
+    if (first) {
+      onDraftChange({
+        ...draft,
+        day: first.day,
+        startSlotIndex: first.startSlotIndex,
+        durationSlots: first.durationSlots,
+      });
+    }
+    onApply(resolved.meetings);
+  }
+
   if (!visible && !open) return null;
 
   return (
@@ -486,7 +520,7 @@ export function ChairmanPlotScheduleModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="plot-schedule-modal-title"
-        className={`w-full max-w-lg max-h-[min(90vh,720px)] overflow-y-auto rounded-xl bg-white shadow-2xl border border-black/10 transition-all duration-200 ease-out ${
+        className={`w-full max-w-2xl max-h-[min(90vh,720px)] overflow-y-auto rounded-xl bg-white shadow-2xl border border-black/10 transition-all duration-200 ease-out ${
           animateIn && open
             ? "opacity-100 scale-100 translate-y-0"
             : "opacity-0 scale-[0.97] translate-y-2"
@@ -519,10 +553,12 @@ export function ChairmanPlotScheduleModal({
               Complete the highlighted fields before this plot can be saved.
             </p>
           ) : null}
-          {hoursOverLimitMessage && !readOnly ? (
-            <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
-              {hoursOverLimitMessage}
-            </p>
+          {subjectHourBudget && draft.subjectCode && !readOnly ? (
+            <SubjectWeeklyHoursBanner
+              requiredHours={subjectHourBudget.required}
+              alreadyPlottedHours={subjectHourBudget.alreadyPlotted}
+              additionalHours={additionalHours}
+            />
           ) : null}
           {hasConflict ? (
             <div
@@ -606,6 +642,10 @@ export function ChairmanPlotScheduleModal({
                     const d = plotRowDurationSlots(p, draft);
                     startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots.length);
                   }
+                  setMeetings((prev) => ({
+                    ...prev,
+                    slots: prev.slots.map((s, i) => (i === 0 ? { ...s, durationHours: "1" } : s)),
+                  }));
                   onDraftChange({
                     ...draft,
                     lecLabMode: mode,
@@ -712,6 +752,10 @@ export function ChairmanPlotScheduleModal({
                   const d = plotRowDurationSlots(p, { durationSlots: 1 });
                   startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots.length);
                 }
+                setMeetings((prev) => ({
+                  ...prev,
+                  slots: prev.slots.map((s, i) => (i === 0 ? { ...s, durationHours: "1" } : s)),
+                }));
                 onDraftChange({
                   ...draft,
                   subjectCode,
@@ -875,114 +919,24 @@ export function ChairmanPlotScheduleModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass} htmlFor="plot-day">
-                Day
-              </label>
-              <select
-                id="plot-day"
-                className={`${fieldClass} mt-1`}
-                value={draft.day}
-                disabled={readOnly}
-                onChange={(e) =>
-                  onDraftChange({
-                    ...draft,
-                    day: e.target.value as BsitEvaluatorWeekday,
-                  })
-                }
-              >
-                <option value="">Select day…</option>
-                {days.map((d) => {
-                  const conflict = busyDays?.has(d) === true;
-                  return (
-                    <option
-                      key={d}
-                      value={d}
-                      disabled={conflict && draft.day !== d}
-                    >
-                      {d}
-                      {conflict ? " — Busy on this day" : ""}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="plot-start">
-                Time slot (start)
-              </label>
-              <select
-                id="plot-start"
-                className={`${fieldClass} mt-1`}
-                value={draft.startSlotIndex < 0 ? "" : effectiveStart}
-                disabled={readOnly}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) return;
-                  onDraftChange({ ...draft, startSlotIndex: parseInt(v, 10) });
-                }}
-              >
-                <option value="">Select time…</option>
-                {slots.filter((t) => isEvaluatorSlotPlottable(programMode, draft.day || days[0] || "Monday", t)).map(
-                  (t) => {
-                    const idx = t.slotIndex;
-                    const conflict = busyTimeSlotIndices?.has(idx) === true;
-                    return (
-                      <option
-                        key={`${idx}-${t.label}`}
-                        value={idx}
-                        disabled={conflict && effectiveStart !== idx}
-                      >
-                        {t.label}
-                        {conflict ? " — Conflict" : ""}
-                      </option>
-                    );
-                  },
-                )}
-              </select>
-            </div>
-          </div>
-
-          {durationSource && maxDur > 1 ? (
-            <div>
-              <label className={labelClass} htmlFor="plot-duration">
-                Duration (consecutive hours this meeting)
-              </label>
-              <select
-                id="plot-duration"
-                className={`${fieldClass} mt-1`}
-                value={dur}
-                disabled={readOnly}
-                onChange={(e) => {
-                  const durationSlots = parseInt(e.target.value, 10) || 1;
-                  const startSlotIndex = clampPlotStartSlotIndex(
-                    draft.startSlotIndex,
-                    durationSlots,
-                    slots.length,
-                  );
-                  onDraftChange({ ...draft, durationSlots, startSlotIndex });
-                }}
-              >
-                {Array.from({ length: maxDur }, (_, i) => i + 1).map((h) => (
-                  <option key={h} value={h}>
-                    {h} hour{h === 1 ? "" : "s"} (max {maxDur} for this subject)
-                  </option>
-                ))}
-              </select>
-              <p className="text-[10px] text-black/50 mt-1">
-                To split contact across different days or times, set 1 hour here
-                and plot the same subject again.
-              </p>
-            </div>
-          ) : null}
+          <PlotMeetingSlotsFields
+            idPrefix="plot"
+            draft={meetings}
+            onChange={applyMeetingsChange}
+            days={days}
+            maxDur={maxDur}
+            readOnly={readOnly}
+            busyDays={busyDays}
+            incomplete={(missingDay || missingTime) && !readOnly}
+            error={meetingError}
+          />
 
           <p className="text-[12px] font-medium text-black/60 rounded-lg bg-[#ff990a]/8 border border-[#ff990a]/25 px-3 py-2">
             Preview: <span className="text-black/85">{timeLine}</span>
-            {draft.subjectCode ? (
+            {draft.subjectCode && additionalHours > 0 ? (
               <span className="text-black/50">
                 {" "}
-                · {dur} consecutive hour{dur === 1 ? "" : "s"}
+                · {additionalHours} hour{additionalHours === 1 ? "" : "s"} total
               </span>
             ) : null}
           </p>
@@ -1028,7 +982,7 @@ export function ChairmanPlotScheduleModal({
             type="button"
             className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold min-w-[120px]"
             disabled={readOnly || hasConflict || plotIncomplete || hoursOverLimit}
-            onClick={onApply}
+            onClick={handleApplyMeetings}
           >
             {isNewPlot ? "Plot schedule" : "Save changes"}
           </Button>

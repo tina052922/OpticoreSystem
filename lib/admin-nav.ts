@@ -33,7 +33,6 @@ export const CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/chairman/dashboard", icon: "LayoutDashboard" },
   { label: LOAD_GENERATOR_NAV_LABEL, href: "/chairman/ins?tab=faculty", icon: "BookOpen" },
   { label: "Evaluator", href: "/chairman/evaluator", icon: "ClipboardList" },
-  { label: "Schedule change requests", href: "/chairman/schedule-change-requests", icon: "Inbox" },
   { label: "Faculty Profile", href: "/chairman/faculty-profile", icon: "UserCircle" },
   { label: "Pending Instructors", href: "/chairman/pending-instructors", icon: "UserPlus" },
   { label: "Subject Codes", href: "/chairman/subject-codes", icon: "Layers" },
@@ -46,7 +45,7 @@ export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
   { label: LOAD_GENERATOR_NAV_LABEL, href: "/admin/college/ins", icon: "BookOpen" },
   { label: "Evaluator", href: "/admin/college/evaluator", icon: "ClipboardList" },
   { label: "Summary of Teaching Load", href: "/admin/college/teaching-load-summary", icon: "CalendarPlus" },
-  { label: "Policy reviews", href: "/admin/college/policy-reviews", icon: "Scale" },
+  { label: "Load justifications", href: "/admin/college/policy-reviews", icon: "Scale" },
   { label: "Access requests", href: "/admin/college/access-requests", icon: "KeyRound" },
   { label: "Audit log", href: "/admin/college/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/admin/college/faculty-profile", icon: "UserCircle" },
@@ -69,14 +68,13 @@ export const CAS_ADMIN_NAV: AdminNavItem[] = [
 ];
 
 /**
- * GEC Chairman — same shell as College Admin: Campus Intelligence + INS (faculty / section / room) + Central Hub.
- * INS pages reuse `INSForm*` with `campusWide` (all colleges); vacant GEC cells are highlighted in the grids.
+ * GEC Chairman — Campus Intelligence + Load Generator + Central Hub.
+ * Vacant GEC cells are editable within the selected college / department; major rows stay read-only.
  */
 export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/admin/gec", icon: "LayoutDashboard" },
   { label: LOAD_GENERATOR_NAV_LABEL, href: "/admin/gec/ins", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/admin/gec/evaluator", icon: "ClipboardList" },
-  { label: "Request access", href: "/admin/gec/request-access", icon: "KeyRound" },
   { label: "Faculty Profile", href: "/admin/gec/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/gec/subject-codes", icon: "Layers" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
@@ -90,13 +88,21 @@ export const INSTRUCTOR_NAV: AdminNavItem[] = [
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
+/** Student portal (PortalShell — no icon keys). */
+export const STUDENT_PORTAL_NAV: { label: string; href: string }[] = [
+  { label: "Dashboard", href: "/student" },
+  { label: "My schedule", href: "/student/schedule" },
+  { label: LOAD_GENERATOR_NAV_LABEL, href: "/student/ins?tab=section" },
+  { label: "Profile", href: "/student/profile" },
+  { label: "Campus navigation", href: "/campus-navigation" },
+];
+
 /** DOI / VPAA */
 export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/doi/dashboard", icon: "LayoutDashboard" },
   { label: LOAD_GENERATOR_NAV_LABEL, href: "/doi/ins?tab=faculty", icon: "BookOpen" },
   { label: "Central Hub Evaluator", href: "/doi/evaluator", icon: "ClipboardList" },
-  /** Single VPAA queue for all colleges — badge shows pending count (no extra routes). */
-  { label: "Policy reviews", href: "/doi/reviews", icon: "Scale" },
+  { label: "Load justifications", href: "/doi/reviews", icon: "Scale" },
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },

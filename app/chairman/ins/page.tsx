@@ -61,7 +61,7 @@ export default async function ChairmanInsIndexPage({
     <div>
       <ChairmanPageHeader
         title={LOAD_GENERATOR_NAV_LABEL}
-        subtitle="Schedule view"
+        subtitle="Faculty, section, and room schedules for your program"
       />
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-4">

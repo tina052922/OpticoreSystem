@@ -92,6 +92,8 @@ export type INS5AProps = {
   } | null;
   signatureSlots?: PDFSignatureSlot[];
   programMode?: "day" | "night";
+  headerBanner?: string | null;
+  insFooterText?: string;
 };
 
 export type INS5BProps = {
@@ -104,6 +106,8 @@ export type INS5BProps = {
   courses: PDFCourseRow[];
   signatureSlots?: PDFSignatureSlot[];
   programMode?: "day" | "night";
+  headerBanner?: string | null;
+  insFooterText?: string;
 };
 
 export type INS5CProps = {
@@ -112,4 +116,6 @@ export type INS5CProps = {
   schedule: PDFScheduleGrid;
   signatureSlots?: PDFSignatureSlot[];
   programMode?: "day" | "night";
+  headerBanner?: string | null;
+  insFooterText?: string;
 };

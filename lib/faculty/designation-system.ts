@@ -45,12 +45,17 @@ export const DESIGNATION_POLICIES: DesignationPolicy[] = [
   { key: "Regular Faculty", label: "Regular Faculty (no designation)", hoursPerWeekMin: 18, hoursPerWeekMax: 24 },
 ];
 
+/**
+ * Designation is typed free-form in Faculty Profile, so match case- and spacing-insensitively —
+ * otherwise "college dean" would silently fall back to the standard load instead of the 9 h cap.
+ * Mirrors the backend lookup in `faculty-load-policy.ts`.
+ */
 export function getDesignationPolicyByLabel(
   designation: string | null | undefined,
 ): DesignationPolicy | null {
-  const d = (designation ?? "").trim();
+  const d = (designation ?? "").trim().replace(/\s+/g, " ").toLowerCase();
   if (!d) return null;
-  return DESIGNATION_POLICIES.find((p) => p.label === d) ?? null;
+  return DESIGNATION_POLICIES.find((p) => p.label.toLowerCase() === d) ?? null;
 }
 
 /**

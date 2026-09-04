@@ -8,21 +8,29 @@ import {
   evaluatorWeekdays,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { normalizeSlotHHMM } from "@/lib/chairman/evaluator-schedule-hydration";
 import {
   clampPlotStartSlotIndex,
-  inferDurationSlotsFromTimes,
   maxPlotDurationSlotsForSubject,
   plotEntryDurationSlots,
   timesFromSlotRange,
 } from "@/lib/evaluator/plot-duration";
+import { PlotMeetingSlotsFields } from "@/components/evaluator/PlotMeetingSlotsFields";
+import {
+  resolvePlotMeetings,
+  seedPlotMeetingsDraft,
+  totalPlotMeetingHours,
+  type PlotMeetingsDraft,
+  type ResolvedPlotMeeting,
+} from "@/lib/evaluator/plot-meetings";
+import { slotIndexFromTypedTime } from "@/lib/evaluator/plot-time-input";
 import { campusNavigationBuildingOptionLabel } from "@/lib/campus/campus-navigation-catalog";
 import { GEC_VACANT_INSTRUCTOR_USER_ID } from "@/lib/gec/gec-vacant";
 import {
   hoursExceedSubjectRequirement,
-  subjectHoursOverLimitMessage,
 } from "@/lib/scheduling/subject-semester-hours";
+import { SubjectWeeklyHoursBanner } from "@/components/evaluator/SubjectWeeklyHoursBanner";
 import {
   formatInstructorPlotOptionLabel,
   type InstructorPlotOption,
@@ -91,7 +99,7 @@ export type GecPlotScheduleModalProps = {
   pickedSummaryCode: string | null;
   pickedSubjectId: string | null;
   onApplyPickedSummary?: () => void;
-  onApply: () => void;
+  onApply: (meetings: ResolvedPlotMeeting[]) => void;
   onRemove?: () => void;
   subjectHourBudget?: { required: number; alreadyPlotted: number } | null;
 };
@@ -131,6 +139,15 @@ export function GecPlotScheduleModal({
   const days = weekdays ?? evaluatorWeekdays(programMode);
   const [visible, setVisible] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
+  const [meetings, setMeetings] = useState<PlotMeetingsDraft>(() =>
+    seedPlotMeetingsDraft({
+      day: draft.day,
+      startSlotIndex: startSlotIndexFromEntry(draft, slots),
+      durationSlots,
+      slots,
+    }),
+  );
+  const [meetingError, setMeetingError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -140,8 +157,19 @@ export function GecPlotScheduleModal({
       return () => window.clearTimeout(t);
     }
     setVisible(true);
+    setMeetingError(null);
+    setMeetings(
+      seedPlotMeetingsDraft({
+        day: draft.day,
+        startSlotIndex: startSlotIndexFromEntry(draft, slots),
+        durationSlots,
+        slots,
+      }),
+    );
     const t = window.requestAnimationFrame(() => setAnimateIn(true));
     return () => window.cancelAnimationFrame(t);
+    // Seed from the row that opened the modal, not from later draft keystrokes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open is the reset signal
   }, [open]);
 
   useEffect(() => {
@@ -157,8 +185,21 @@ export function GecPlotScheduleModal({
   const dur = plotEntryDurationSlots(programCode, sub, durationSlots);
   const maxDur = sub ? maxPlotDurationSlotsForSubject(programCode, sub) : 1;
   const startIdx = startSlotIndexFromEntry(draft, slots);
-  const effectiveStart = clampPlotStartSlotIndex(Math.max(0, startIdx), dur, slots.length);
-  const timeLine = sub ? formatTimeRangeFromSlots(effectiveStart, dur, slots) : "Select GEC subject for duration";
+  const additionalHours = Math.max(dur, totalPlotMeetingHours(meetings, maxDur));
+  const timeLine = useMemo(() => {
+    const resolved = resolvePlotMeetings(meetings, {
+      slots,
+      programMode,
+      maxDur,
+      weekdays: days,
+    });
+    if (!resolved.ok) {
+      return sub ? "Type a start time and choose at least one day" : "Select GEC subject, then type a start time";
+    }
+    return resolved.meetings
+      .map((m) => `${m.day} ${formatTimeRangeFromSlots(m.startSlotIndex, m.durationSlots, slots)}`)
+      .join(" · ");
+  }, [meetings, slots, programMode, maxDur, days, sub]);
   const roomsInB = buildingValue ? roomsInBuildingSorted(rooms, buildingValue) : [];
 
   const { availableSubjects, addAnotherSlotSubjects } = useMemo(() => {
@@ -174,23 +215,16 @@ export function GecPlotScheduleModal({
   const missingSubject = !draft.subjectId;
   const missingRoom = !draft.roomId;
   const missingBuilding = !buildingValue;
-  const plotIncomplete = missingSubject || missingRoom || missingBuilding;
+  const missingDay = !meetings.slots[0]?.day;
+  const missingTime = !meetings.timeText.trim();
+  const plotIncomplete = missingSubject || missingRoom || missingBuilding || missingDay || missingTime;
   const hoursOverLimit =
     Boolean(subjectHourBudget) &&
     hoursExceedSubjectRequirement({
       requiredHours: subjectHourBudget?.required ?? 0,
       alreadyPlottedHours: subjectHourBudget?.alreadyPlotted ?? 0,
-      additionalHours: dur,
+      additionalHours,
     });
-  const hoursOverLimitMessage =
-    hoursOverLimit && sub?.code && subjectHourBudget
-      ? subjectHoursOverLimitMessage({
-          subjectCode: sub.code,
-          requiredHours: subjectHourBudget.required,
-          alreadyPlottedHours: subjectHourBudget.alreadyPlotted,
-          additionalHours: dur,
-        })
-      : null;
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
 
   const applySlotFromIndex = (idx: number, subjectId: string, slotDur = durationSlots) => {
@@ -206,6 +240,40 @@ export function GecPlotScheduleModal({
       endTime: times.endTime,
     });
   };
+
+  function applyMeetingsChange(next: PlotMeetingsDraft) {
+    setMeetings(next);
+    setMeetingError(null);
+    const first = next.slots[0];
+    const day = first?.day || draft.day;
+    const parsedDur = parseInt(first?.durationHours || "1", 10);
+    const durHours = Number.isFinite(parsedDur) && parsedDur >= 1 ? parsedDur : 1;
+    onDurationSlotsChange(durHours);
+    const idx =
+      day && next.timeText.trim()
+        ? slotIndexFromTypedTime(next.timeText, slots, day, programMode)
+        : null;
+    const times = idx != null ? timesFromSlotRange(idx, durHours, slots) : null;
+    onDraftChange({
+      ...draft,
+      day,
+      ...(times ? { startTime: times.startTime, endTime: times.endTime } : {}),
+    });
+  }
+
+  function handleApplyMeetings() {
+    const resolved = resolvePlotMeetings(meetings, {
+      slots,
+      programMode,
+      maxDur,
+      weekdays: days,
+    });
+    if (!resolved.ok) {
+      setMeetingError(resolved.error);
+      return;
+    }
+    onApply(resolved.meetings);
+  }
 
   if (!visible && !open) return null;
 
@@ -224,7 +292,7 @@ export function GecPlotScheduleModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="gec-plot-schedule-modal-title"
-        className={`w-full max-w-lg max-h-[min(90vh,720px)] overflow-y-auto rounded-xl bg-white shadow-2xl border border-black/10 transition-all duration-200 ease-out ${
+        className={`w-full max-w-2xl max-h-[min(90vh,720px)] overflow-y-auto rounded-xl bg-white shadow-2xl border border-black/10 transition-all duration-200 ease-out ${
           animateIn && open ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.97] translate-y-2"
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -255,15 +323,17 @@ export function GecPlotScheduleModal({
               Complete the highlighted fields before this plot can be saved.
             </p>
           ) : null}
-          {hoursOverLimitMessage && !readOnly ? (
-            <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
-              {hoursOverLimitMessage}
-            </p>
+          {subjectHourBudget && sub?.code && !readOnly ? (
+            <SubjectWeeklyHoursBanner
+              requiredHours={subjectHourBudget.required}
+              alreadyPlottedHours={subjectHourBudget.alreadyPlotted}
+              additionalHours={additionalHours}
+            />
           ) : null}
           {readOnly ? (
             <p className="text-[12px] text-black/60 rounded-lg border border-black/10 bg-gray-50 px-3 py-2">
               Major and assigned (non-vacant) rows are locked. Only <strong>vacant GEC</strong> slots (light green)
-              can be plotted, edited, or removed after approval.
+              in this college / department can be plotted, edited, or removed.
             </p>
           ) : null}
 
@@ -306,7 +376,11 @@ export function GecPlotScheduleModal({
                   return;
                 }
                 onDurationSlotsChange(1);
-                applySlotFromIndex(effectiveStart, subjectId, 1);
+                setMeetings((prev) => ({
+                  ...prev,
+                  slots: prev.slots.map((s, i) => (i === 0 ? { ...s, durationHours: "1" } : s)),
+                }));
+                applySlotFromIndex(Math.max(0, startIdx), subjectId, 1);
               }}
             >
               <option value="">Select GEC subject…</option>
@@ -407,81 +481,23 @@ export function GecPlotScheduleModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass} htmlFor="gec-plot-day">
-                Day
-              </label>
-              <select
-                id="gec-plot-day"
-                className={`${fieldClass} mt-1`}
-                value={draft.day}
-                disabled={readOnly}
-                onChange={(e) => onDraftChange({ ...draft, day: e.target.value as BsitEvaluatorWeekday })}
-              >
-                {days.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="gec-plot-start">
-                Time slot (start)
-              </label>
-              <select
-                id="gec-plot-start"
-                className={`${fieldClass} mt-1`}
-                value={effectiveStart}
-                disabled={readOnly || !draft.subjectId}
-                onChange={(e) => applySlotFromIndex(parseInt(e.target.value, 10), draft.subjectId, durationSlots)}
-              >
-                {slots
-                  .filter((t) => isEvaluatorSlotPlottable(programMode, draft.day || days[0] || "Monday", t))
-                  .map((t) => (
-                  <option key={`${t.slotIndex}-${t.label}`} value={t.slotIndex}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {sub && maxDur > 1 ? (
-            <div>
-              <label className={labelClass} htmlFor="gec-plot-duration">
-                Duration (consecutive hours this meeting)
-              </label>
-              <select
-                id="gec-plot-duration"
-                className={`${fieldClass} mt-1`}
-                value={dur}
-                disabled={readOnly}
-                onChange={(e) => {
-                  const nextDur = parseInt(e.target.value, 10) || 1;
-                  onDurationSlotsChange(nextDur);
-                  applySlotFromIndex(effectiveStart, draft.subjectId, nextDur);
-                }}
-              >
-                {Array.from({ length: maxDur }, (_, i) => i + 1).map((h) => (
-                  <option key={h} value={h}>
-                    {h} hour{h === 1 ? "" : "s"} (max {maxDur} for this subject)
-                  </option>
-                ))}
-              </select>
-              <p className="text-[10px] text-black/50 mt-1">
-                To split contact across different days or times, use 1 hour and plot the same GEC subject again.
-              </p>
-            </div>
-          ) : null}
+          <PlotMeetingSlotsFields
+            idPrefix="gec-plot"
+            draft={meetings}
+            onChange={applyMeetingsChange}
+            days={days}
+            maxDur={maxDur}
+            readOnly={readOnly}
+            incomplete={(missingDay || missingTime) && !readOnly}
+            error={meetingError}
+          />
 
           <p className="text-[12px] font-medium text-black/60 rounded-lg bg-emerald-500/8 border border-emerald-400/25 px-3 py-2">
             Preview: <span className="text-black/85">{timeLine}</span>
-            {sub ? (
+            {sub && additionalHours > 0 ? (
               <span className="text-black/50">
                 {" "}
-                · {dur} consecutive hour{dur === 1 ? "" : "s"}
+                · {additionalHours} hour{additionalHours === 1 ? "" : "s"} total
               </span>
             ) : null}
           </p>
@@ -501,7 +517,7 @@ export function GecPlotScheduleModal({
               type="button"
               className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold min-w-[120px]"
               disabled={hasConflict || plotIncomplete || hoursOverLimit}
-              onClick={onApply}
+              onClick={handleApplyMeetings}
             >
               {isNewPlot ? "Plot schedule" : "Save changes"}
             </Button>

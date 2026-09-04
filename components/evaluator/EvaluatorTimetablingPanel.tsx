@@ -10,6 +10,14 @@ import {
   enrichCampusConflictIssues,
 } from "@/lib/scheduling/conflict-enrichment";
 import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification, instructorMaxWeeklyTeachingCapFromProfile } from "@/lib/scheduling/facultyPolicies";
+import {
+  JUSTIFICATION_INLINE_LABEL,
+  JUSTIFICATION_MIN_LENGTH,
+  JUSTIFICATION_PLACEHOLDER,
+  JUSTIFICATION_PROMPT,
+  JUSTIFICATION_SAVED_MSG,
+  JUSTIFICATION_TOO_SHORT,
+} from "@/lib/scheduling/justification-copy";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { slotDurationHours } from "@/lib/scheduling/time";
 import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
@@ -145,7 +153,7 @@ export function EvaluatorTimetablingPanel({
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [justModalOpen, setJustModalOpen] = useState(false);
   const [justificationText, setJustificationText] = useState("");
-  /** One VPAA justification fetch per term+college while the modal is closed (not on every soft reload). */
+  /** One justification fetch per term+college while the modal is closed (not on every soft reload). */
   const justificationScopeHydratedRef = useRef<string | null>(null);
   const [policySaving, setPolicySaving] = useState(false);
   const [altOpen, setAltOpen] = useState(false);
@@ -894,17 +902,6 @@ export function EvaluatorTimetablingPanel({
 
     const needsTeachingJustification = policyEvaluation.hasTeachingLoadJustificationViolation;
 
-    if (needsTeachingJustification && !opts?.skipJustificationPrompt) {
-      setJustModalOpen(true);
-      setSaveMsg("Teaching hours are above the allowed weekly load. Add a short explanation to save.");
-      return;
-    }
-    if (needsTeachingJustification && justificationText.trim().length < 12) {
-      setJustModalOpen(true);
-      setSaveMsg("Enter a justification for DOI/VPAA review (min. 12 characters).");
-      return;
-    }
-
     const mergedSparse = mergedEntriesForPolicy
       .map((e) => scheduleEntryToSparseBlock(e))
       .filter((b): b is NonNullable<typeof b> => Boolean(b));
@@ -933,7 +930,7 @@ export function EvaluatorTimetablingPanel({
       const author = collegeUsers.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
 
-      if (needsTeachingJustification) {
+      if (needsTeachingJustification && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) {
         const violators = policyEvaluation.rows.filter((r) => rowNeedsTeachingLoadJustification(r));
         const snapRows = violators.map(
           (r) =>
@@ -1012,9 +1009,14 @@ export function EvaluatorTimetablingPanel({
       await load();
       setSaveMsg(
         needsTeachingJustification
-          ? "Schedule saved. Load policy justification recorded for DOI review."
+          ? justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH
+            ? "Schedule saved. Load policy justification recorded for DOI."
+            : "Schedule saved. Enter a justification for DOI to record the overload."
           : "Schedule saved.",
       );
+      if (needsTeachingJustification && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH) {
+        setJustModalOpen(true);
+      }
       toast.success("Schedule saved successfully");
     } finally {
       setPolicySaving(false);
@@ -1024,8 +1026,8 @@ export function EvaluatorTimetablingPanel({
   async function saveJustificationOnly() {
     if (!academicPeriodId || !effectiveCollegeId) return;
     const t = justificationText.trim();
-    if (t.length < 12) {
-      setSaveMsg("Enter at least 12 characters explaining the overload for DOI review.");
+    if (t.length < JUSTIFICATION_MIN_LENGTH) {
+      setSaveMsg(JUSTIFICATION_TOO_SHORT);
       return;
     }
     if (!policyEvaluation.hasTeachingLoadJustificationViolation) {
@@ -1065,7 +1067,7 @@ export function EvaluatorTimetablingPanel({
         });
       }
       await load();
-      setSaveMsg("Justification recorded for DOI review.");
+      setSaveMsg(JUSTIFICATION_SAVED_MSG);
     } finally {
       setPolicySaving(false);
     }
@@ -1628,9 +1630,10 @@ export function EvaluatorTimetablingPanel({
                 Weekly contact is summed from plotted slots; lecture vs. lab split uses each subject&apos;s lec/lab hours.
                 Standard teaching {FACULTY_POLICY_CONSTANTS.STANDARD_WEEKLY_TEACHING_HOURS} hrs/wk; lab cap{" "}
                 {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LAB_CONTACT_HOURS} hrs/wk; lecture overload track{" "}
-                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS} hrs/wk; part-time max{" "}
+                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS} hrs/wk; non-resident max{" "}
                 {FACULTY_POLICY_CONSTANTS.PARTTIME_MAX_WEEKLY_HOURS} hrs/wk; heavy overload flag over{" "}
-                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_RESIDENT_CONTACT_HOURS} hrs/wk.
+                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_RESIDENT_CONTACT_HOURS} hrs/wk resident /{" "}
+                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS} hrs/wk non-resident.
               </p>
               {policyEvaluation.rows.length === 0 ? (
                 <p className="text-black/50 text-[13px]">No schedule rows for this college and term.</p>
@@ -1675,12 +1678,12 @@ export function EvaluatorTimetablingPanel({
               {policyEvaluation.hasAnyViolation ? (
                 <div className="space-y-2">
                   <label className="block text-[13px] font-medium text-amber-950">
-                    Justification for DOI / VPAA (required when saving drafts while policies are exceeded)
+                    {JUSTIFICATION_INLINE_LABEL}
                     <textarea
                       className="mt-1 w-full min-h-[88px] rounded-md border border-amber-200 bg-white px-3 py-2 text-sm"
                       value={justificationText}
                       onChange={(e) => setJustificationText(e.target.value)}
-                      placeholder="e.g. Temporary faculty shortage; VPAA-approved overload; split sections consolidated…"
+                      placeholder={JUSTIFICATION_PLACEHOLDER}
                     />
                   </label>
                   <Button
@@ -1690,7 +1693,7 @@ export function EvaluatorTimetablingPanel({
                     disabled={policySaving}
                     onClick={() => void saveJustificationOnly()}
                   >
-                    Save justification only (DOI)
+                    Record justification for DOI
                   </Button>
                 </div>
               ) : null}
@@ -1801,14 +1804,16 @@ export function EvaluatorTimetablingPanel({
 
       <PolicyJustificationModal
         open={justModalOpen}
-        title="Policy justification"
-        promptText="This assignment exceeds faculty load policy (weekly hours and/or 4 or more subject preparations). Do you want to proceed with justification?"
+        promptText={JUSTIFICATION_PROMPT}
         value={justificationText}
-        minLength={12}
+        minLength={JUSTIFICATION_MIN_LENGTH}
         saving={policySaving}
         onChange={setJustificationText}
         onCancel={() => setJustModalOpen(false)}
-        onSave={() => saveToDatabase({ skipJustificationPrompt: true })}
+        onSave={async () => {
+          await saveJustificationOnly();
+          setJustModalOpen(false);
+        }}
       />
     </div>
   );

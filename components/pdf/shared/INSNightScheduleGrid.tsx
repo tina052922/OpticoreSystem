@@ -1,12 +1,13 @@
 import { View, Text } from "@react-pdf/renderer";
 import { StyleSheet } from "@react-pdf/renderer";
 import { ins } from "../styles/insStyles";
-import type { PDFScheduleGrid, PDFScheduleCell } from "../types/insTypes";
+import type { PDFScheduleGrid, PDFScheduleCell, PDFSignatureSlot } from "../types/insTypes";
 import type { ReactNode } from "react";
 import {
   NIGHT_INS_WEEKDAY_SLOT_LABELS,
   NIGHT_INS_WEEKEND_SLOT_LABELS,
 } from "@/lib/scheduling/program-mode";
+import { SignatureRail } from "./INSScheduleGrid";
 
 const WEEKEND_DAYS = ["Saturday", "Sunday"] as const;
 const WEEKDAY_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
@@ -14,9 +15,13 @@ const WEEKDAY_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as
 type Props = {
   schedule: PDFScheduleGrid;
   summary?: ReactNode;
+  /** Same right-side rotated rail as Day Program Faculty/Section PDFs. */
+  rightSignatureSlots?: PDFSignatureSlot[];
 };
 
 const ROW_H = 16;
+const HEADER_H = 14;
+const NIGHT_RAIL_H = HEADER_H + NIGHT_INS_WEEKEND_SLOT_LABELS.length * ROW_H;
 
 const ns = StyleSheet.create({
   wrap: {
@@ -25,6 +30,20 @@ const ns = StyleSheet.create({
     borderWidth: 0.5,
     marginTop: 4,
     marginBottom: 4,
+  },
+  wrapFlush: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderWidth: 0.5,
+  },
+  outerWrapper: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  gridPart: {
+    flex: 0.9,
   },
   weekend: {
     width: "34%",
@@ -92,9 +111,10 @@ function CellContent({ cell }: { cell: PDFScheduleCell | null }) {
  * Official Night Program L-grid: Sat/Sun 7:00 AM–10:00 PM beside Mon–Fri 4:00 PM–10:00 PM.
  * Weekday 4:00–5:00 aligns with weekend 7:00–8:00 (paper form).
  */
-export function INSNightScheduleGrid({ schedule, summary }: Props) {
-  return (
-    <View style={ns.wrap}>
+export function INSNightScheduleGrid({ schedule, summary, rightSignatureSlots }: Props) {
+  const withRail = Boolean(rightSignatureSlots && rightSignatureSlots.length > 0);
+  const grid = (
+    <View style={withRail ? ns.wrapFlush : ns.wrap}>
       <View style={ns.weekend}>
         <View style={ns.headerRow} wrap={false}>
           <View style={ns.timeCell}>
@@ -144,11 +164,20 @@ export function INSNightScheduleGrid({ schedule, summary }: Props) {
           </View>
         ))}
         <View style={ns.summaryBox}>
-          {summary ?? (
-            <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold" }}>SUMMARY OF COURSES</Text>
-          )}
+          {summary ?? null}
         </View>
       </View>
+    </View>
+  );
+
+  if (!withRail || !rightSignatureSlots) {
+    return grid;
+  }
+
+  return (
+    <View style={ns.outerWrapper}>
+      <View style={ns.gridPart}>{grid}</View>
+      <SignatureRail slots={rightSignatureSlots} railHeight={NIGHT_RAIL_H} />
     </View>
   );
 }

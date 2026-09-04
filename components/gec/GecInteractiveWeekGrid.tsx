@@ -29,6 +29,7 @@ import {
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { isGecCurriculumScheduleEntry } from "@/lib/gec/gec-vacant";
 import {
+  hoursExceedSubjectRequirement,
   plottedHoursForSubjectSection,
   requiredWeeklyContactHours,
 } from "@/lib/scheduling/subject-semester-hours";
@@ -38,6 +39,7 @@ import {
 } from "@/lib/evaluator/instructor-employee-id";
 import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
+import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
 import type { FacultyProfile, Room, ScheduleEntry, Subject, User } from "@/types/db";
 import { AlertTriangle, Save } from "lucide-react";
 
@@ -84,6 +86,7 @@ function formatTimeRangeFromSlots(
 function cellConflictClasses(
   cf: RowConflictFlags,
   scanHit: boolean,
+  hoursHit: boolean,
   selected: boolean,
   isVacant: boolean,
 ): string {
@@ -91,7 +94,7 @@ function cellConflictClasses(
   if (selected) {
     parts.push("ring-2 ring-[#ff990a] ring-inset bg-[#ff990a]/12 shadow-sm");
   }
-  if (scanHit) {
+  if (scanHit || hoursHit) {
     parts.push("bg-red-50/95 ring-2 ring-inset ring-red-400/90");
     return parts.join(" ");
   }
@@ -140,6 +143,8 @@ export type GecInteractiveWeekGridProps = {
   roomBuildingByEntryId: Record<string, string>;
   setRoomBuildingByEntryId: Dispatch<SetStateAction<Record<string, string>>>;
   canEditVacant: boolean;
+  /** When DOI has locked the term, vacant GEC edits stay off. */
+  termPublishLocked?: boolean;
   conflictForEntry: (e: ScheduleEntry) => RowConflictFlags;
   conflictDetailForEntry?: (e: ScheduleEntry) => string[];
   highlightConflictEntryIds: Set<string>;
@@ -149,6 +154,16 @@ export type GecInteractiveWeekGridProps = {
   pickedSubjectId: string | null;
   onPatchEntry: (entryId: string, patch: Partial<ScheduleEntry>) => void;
   onCreateVacantAtCell: (day: BsitEvaluatorWeekday, slotIdx: number) => void;
+  onAddVacantMeetings?: (
+    meetings: Array<{
+      subjectId: string;
+      instructorId: string;
+      roomId: string;
+      day: string;
+      startTime: string;
+      endTime: string;
+    }>,
+  ) => void;
   /** After creating a row at a cell, parent sets this so the plot modal opens immediately. */
   focusEntryId?: string | null;
   onFocusEntryHandled?: () => void;
@@ -179,6 +194,7 @@ export function GecInteractiveWeekGrid({
   roomBuildingByEntryId,
   setRoomBuildingByEntryId,
   canEditVacant,
+  termPublishLocked = false,
   conflictForEntry,
   conflictDetailForEntry,
   highlightConflictEntryIds,
@@ -187,6 +203,7 @@ export function GecInteractiveWeekGrid({
   pickedSubjectId,
   onPatchEntry,
   onCreateVacantAtCell,
+  onAddVacantMeetings,
   focusEntryId,
   onFocusEntryHandled,
   onRemovePendingEntry,
@@ -215,6 +232,58 @@ export function GecInteractiveWeekGrid({
         }),
     [mergedEntries, academicPeriodId, sectionId, days],
   );
+
+  const overLimitEntryIds = useMemo(() => {
+    const ids = new Set<string>();
+    const meetings = sectionRows
+      .filter((e) => e.subjectId && e.sectionId)
+      .map((e) => {
+        const sub = subjectById.get(e.subjectId);
+        return {
+          id: e.id,
+          sectionId: e.sectionId,
+          subjectCode: sub?.code ?? "",
+          hours: inferDurationSlotsFromTimes(e.startTime, e.endTime),
+        };
+      });
+    const seen = new Set<string>();
+    for (const e of sectionRows) {
+      const sub = subjectById.get(e.subjectId);
+      if (!sub?.code) continue;
+      const key = `${e.sectionId}::${sub.code.trim().toUpperCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const required = requiredWeeklyContactHours({
+        programCode,
+        subjectCode: sub.code,
+        lecUnits: sub.lecUnits,
+        labUnits: sub.labUnits,
+        lecHours: sub.lecHours,
+        labHours: sub.labHours,
+      });
+      const plotted = plottedHoursForSubjectSection({
+        meetings,
+        sectionId: e.sectionId,
+        subjectCode: sub.code,
+      });
+      if (
+        !hoursExceedSubjectRequirement({
+          requiredHours: required,
+          alreadyPlottedHours: plotted,
+          additionalHours: 0,
+        })
+      ) {
+        continue;
+      }
+      for (const x of sectionRows) {
+        const xs = subjectById.get(x.subjectId);
+        if (x.sectionId === e.sectionId && xs?.code.trim().toUpperCase() === sub.code.trim().toUpperCase()) {
+          ids.add(x.id);
+        }
+      }
+    }
+    return ids;
+  }, [sectionRows, subjectById, programCode]);
 
   useEffect(() => {
     if (!modal) return;
@@ -286,23 +355,46 @@ export function GecInteractiveWeekGrid({
     setHighlightedCell(null);
   }, []);
 
-  const handleApply = useCallback(() => {
-    if (!modal || modal.readOnly) return;
-    const { entryId, draft, buildingValue } = modal;
-    if (!draft.subjectId || !draft.roomId || !draft.day || !draft.startTime || !draft.endTime) return;
-    if (buildingValue) {
-      setRoomBuildingByEntryId((prev) => ({ ...prev, [entryId]: buildingValue }));
-    }
-    onPatchEntry(entryId, {
-      subjectId: draft.subjectId,
-      instructorId: draft.instructorId,
-      roomId: draft.roomId,
-      day: draft.day,
-      startTime: draft.startTime,
-      endTime: draft.endTime,
-    });
-    closeModal();
-  }, [modal, onPatchEntry, setRoomBuildingByEntryId, closeModal]);
+  const handleApply = useCallback(
+    (meetings: ResolvedPlotMeeting[]) => {
+      if (!modal || modal.readOnly || meetings.length === 0) return;
+      const { entryId, draft, buildingValue } = modal;
+      const [first, ...rest] = meetings;
+      if (!first || !draft.subjectId || !draft.roomId) return;
+      const firstTimes = timesFromSlotRange(first.startSlotIndex, first.durationSlots, slots);
+      if (!firstTimes) return;
+      if (buildingValue) {
+        setRoomBuildingByEntryId((prev) => ({ ...prev, [entryId]: buildingValue }));
+      }
+      onPatchEntry(entryId, {
+        subjectId: draft.subjectId,
+        instructorId: draft.instructorId,
+        roomId: draft.roomId,
+        day: first.day,
+        startTime: firstTimes.startTime,
+        endTime: firstTimes.endTime,
+      });
+      if (rest.length > 0 && onAddVacantMeetings) {
+        const extra = rest
+          .map((m) => {
+            const times = timesFromSlotRange(m.startSlotIndex, m.durationSlots, slots);
+            if (!times) return null;
+            return {
+              subjectId: draft.subjectId,
+              instructorId: draft.instructorId,
+              roomId: draft.roomId,
+              day: m.day,
+              startTime: times.startTime,
+              endTime: times.endTime,
+            };
+          })
+          .filter((row): row is NonNullable<typeof row> => row != null);
+        if (extra.length > 0) onAddVacantMeetings(extra);
+      }
+      closeModal();
+    },
+    [modal, onPatchEntry, onAddVacantMeetings, setRoomBuildingByEntryId, closeModal, slots],
+  );
 
   const handleRemove = useCallback(() => {
     if (!modal || modal.readOnly) return;
@@ -379,7 +471,7 @@ export function GecInteractiveWeekGrid({
                   <span className="text-red-800">Offline</span>
                 )}
                 <span className="text-black/45 font-normal">
-                  {canEditVacant ? " · Autosave ~9s" : " · Approval required"}
+                  {canEditVacant ? " · Autosave ~9s" : termPublishLocked ? " · DOI locked" : " · Select a section"}
                 </span>
               </span>
               <span className="tabular-nums">
@@ -468,6 +560,7 @@ export function GecInteractiveWeekGrid({
                         className={`border border-black px-0.5 py-0.5 align-top min-h-[44px] ${cellConflictClasses(
                           { faculty: "No", room: "No", section: "No" },
                           false,
+                          false,
                           selected,
                           false,
                         )}`}
@@ -490,6 +583,7 @@ export function GecInteractiveWeekGrid({
                   );
                   const cfMerged = atHere.map((e) => conflictForEntry(e));
                   const scanHit = atHere.some((e) => highlightConflictEntryIds.has(e.id));
+                  const hoursHit = atHere.some((e) => overLimitEntryIds.has(e.id));
                   const mergedCf: RowConflictFlags = {
                     faculty: cfMerged.some((c) => c.faculty === "Yes") ? "Yes" : "No",
                     room: cfMerged.some((c) => c.room === "Yes") ? "Yes" : "No",
@@ -503,6 +597,7 @@ export function GecInteractiveWeekGrid({
                       className={`px-0.5 py-0.5 min-w-[100px] ${cellConflictClasses(
                         mergedCf,
                         scanHit,
+                        hoursHit,
                         selected,
                         atHere.some((e) => vacantGecSourceIds.has(e.id)),
                       )}`}
@@ -522,6 +617,7 @@ export function GecInteractiveWeekGrid({
                           const dur = bounds?.dur ?? 1;
                           const hasConflict =
                             cf.faculty === "Yes" || cf.room === "Yes" || cf.section === "Yes";
+                          const hoursOverLimit = overLimitEntryIds.has(e.id);
                           const lockedMajor = !isVacant;
 
                           return (
@@ -535,7 +631,11 @@ export function GecInteractiveWeekGrid({
                                     : isVacant
                                       ? "bg-emerald-100/90 ring-1 ring-emerald-400/70 hover:bg-emerald-100 cursor-pointer"
                                       : "bg-emerald-50/80 ring-1 ring-emerald-300/50 hover:bg-emerald-50 cursor-pointer"
-                                } ${hasConflict && !lockedMajor ? "border border-red-300/80" : "border border-transparent"}`}
+                                } ${
+                                  (hasConflict || hoursOverLimit) && !lockedMajor
+                                    ? "border border-red-300/80"
+                                    : "border border-transparent"
+                                }`}
                                 onClick={() => {
                                   if (lockedMajor) return;
                                   openModalForEntry(e, anchor);
@@ -580,6 +680,9 @@ export function GecInteractiveWeekGrid({
                                 {hasConflict ? (
                                   <span className="text-[7px] font-bold text-red-800 mt-0.5 block">Conflict</span>
                                 ) : null}
+                                {hoursOverLimit ? (
+                                  <span className="text-[7px] font-bold text-red-800 mt-0.5 block">Over limit</span>
+                                ) : null}
                                 {!isVacant ? (
                                   <span className="text-[7px] font-semibold text-black/45 block">Locked</span>
                                 ) : null}
@@ -619,20 +722,7 @@ export function GecInteractiveWeekGrid({
         conflictDetailLines={modalConflictLines}
         durationSlots={modal?.durationSlots ?? 1}
         onDurationSlotsChange={(nextDur) =>
-          setModal((m) => {
-            if (!m) return m;
-            const sub = subjectById.get(m.draft.subjectId);
-            const d = plotEntryDurationSlots(programCode, sub, nextDur);
-            const startIdx = startSlotIndexFromEntry(m.draft, slots);
-            const maxS = slots.length - d;
-            const eff = Math.min(Math.max(0, startIdx), maxS);
-            const times = timesFromSlotRange(eff, d, slots);
-            return {
-              ...m,
-              durationSlots: nextDur,
-              draft: times ? { ...m.draft, startTime: times.startTime, endTime: times.endTime } : m.draft,
-            };
-          })
+          setModal((m) => (m ? { ...m, durationSlots: nextDur } : m))
         }
         plottedGecSubjectIds={plottedGecSubjectIds}
         readOnly={modal?.readOnly ?? true}
@@ -676,6 +766,8 @@ export function GecInteractiveWeekGrid({
                 const required = requiredWeeklyContactHours({
                   programCode,
                   subjectCode: sub.code,
+                  lecUnits: sub.lecUnits,
+                  labUnits: sub.labUnits,
                   lecHours: sub.lecHours,
                   labHours: sub.labHours,
                 });

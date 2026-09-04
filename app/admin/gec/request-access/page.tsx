@@ -1,16 +1,6 @@
-import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { RequestAccessPanel } from "@/components/access/RequestAccessPanel";
+import { redirect } from "next/navigation";
 
+/** Request Access is retired for GEC Chairman — vacant GEC plotting uses college/department scope only. */
 export default function GecRequestAccessPage() {
-  return (
-    <div>
-      <ChairmanPageHeader
-        title="Request access"
-        subtitle="Click a college, then Request Access. One request covers that college."
-      />
-      <div className="px-8 pb-10 max-w-3xl">
-        <RequestAccessPanel variant="full" />
-      </div>
-    </div>
-  );
+  redirect("/admin/gec/evaluator");
 }

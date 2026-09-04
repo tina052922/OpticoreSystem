@@ -62,7 +62,10 @@ export default async function FacultyInsIndexPage({
 
   return (
     <div>
-      <ChairmanPageHeader title={LOAD_GENERATOR_NAV_LABEL} subtitle="Schedule view" />
+      <ChairmanPageHeader
+        title={LOAD_GENERATOR_NAV_LABEL}
+        subtitle="Your teaching load, plus section and room schedules"
+      />
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 space-y-4">
         <div className="flex flex-wrap gap-2">
@@ -79,6 +82,7 @@ export default async function FacultyInsIndexPage({
                   insBasePath="/faculty/ins"
                   viewerCollegeId={profile.collegeId}
                   lockedInstructorId={profile.id}
+                  hideInstructorSearch
                   hideInnerInsTabs
                 />
               ) : null}

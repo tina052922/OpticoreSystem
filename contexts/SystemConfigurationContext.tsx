@@ -147,8 +147,10 @@ export function useSystemConfigurationOptional(): SystemConfigurationContextValu
   return useContext(SystemConfigurationContext);
 }
 
-/** After admin saves policy or signers — refresh policy context + INS catalog for all roles. */
-export function notifySystemConfigurationSaved(source: "schedulingPolicy" | "academicPeriod" | "collegeSigners" | "insSigners") {
+/** After admin saves policy, branding, or signers — refresh policy context + INS catalog for all roles. */
+export function notifySystemConfigurationSaved(
+  source: "schedulingPolicy" | "academicPeriod" | "collegeSigners" | "insSigners" | "branding",
+) {
   dispatchSystemConfigReload({ source });
   if (source === "insSigners" || source === "collegeSigners") {
     dispatchInsCatalogReload();
