@@ -25,6 +25,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  // Serve the latest kiosk at this URL — do not 307 to the old standalone filename.
+  if (pathname === "/campus-navigation" || pathname === "/campus-navigation/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/campus-navigation-standalone.html";
+    const response = NextResponse.rewrite(url);
+    response.headers.set("Cache-Control", "no-store, must-revalidate");
+    return response;
+  }
+
   return NextResponse.next();
 }
 
@@ -38,5 +47,7 @@ export const config = {
     "/gec/:path*",
     "/",
     "/login",
+    "/campus-navigation",
+    "/campus-navigation/",
   ],
 };

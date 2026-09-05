@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
     const apiUrl = process.env.API_PROXY_URL ?? "http://localhost:4000";
     return [
       {
+        source: "/campus-navigation",
+        destination: "/campus-navigation-standalone.html",
+      },
+      {
         source: "/api/:path*",
         destination: `${apiUrl}/api/:path*`,
       },
@@ -27,6 +31,10 @@ const nextConfig: NextConfig = {
     {
       source: "/api/:path*",
       headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }],
+    },
+    {
+      source: "/campus-navigation-standalone.html",
+      headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
     },
   ],
 };
