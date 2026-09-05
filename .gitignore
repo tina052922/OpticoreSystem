@@ -5,6 +5,10 @@ node_modules/
 .next/
 out/
 
+# generated campus kiosk (npm run build:campus-nav)
+Smart-Campus Navigation System/dist/
+public/campus-photos/
+
 # env (never commit secrets)
 .env
 .env.local
