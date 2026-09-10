@@ -1,0 +1,24 @@
+[
+  {
+    "id": "main-campus-entrance",
+    "name": "Main Campus Entrance",
+    "type": "landmark",
+    "svgId": null,
+    "buildingId": null,
+    "floor": null,
+    "floors": null,
+    "category": "Landmark",
+    "description": "Primary arrival and orientation point on the campus map.",
+    "images": [
+      "/images/landmark/MainCampusEntrance.jpg"
+    ],
+    "keywords": [
+      "entrance",
+      "gate",
+      "arrival",
+      "welcome"
+    ],
+    "x": 732,
+    "y": 1020
+  }
+]

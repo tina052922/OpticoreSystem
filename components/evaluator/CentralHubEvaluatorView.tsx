@@ -873,6 +873,16 @@ export function CentralHubEvaluatorView({
     ],
   );
 
+  const termPublishLocked = useMemo(
+    () =>
+      termIsDoiPublished({
+        doiScheduleLocked,
+        academicPeriodId,
+        entries,
+      }),
+    [doiScheduleLocked, academicPeriodId, entries],
+  );
+
   /** College Admin: own college is full access; peer college is view-only after approval. Do not auto-jump from the college list. */
 
   /* —— Hub: college tiles —— */
@@ -1129,15 +1139,6 @@ export function CentralHubEvaluatorView({
   }
 
   const hubPeerReadOnly = Boolean(needsPeerApproval && crossApproved);
-  const termPublishLocked = useMemo(
-    () =>
-      termIsDoiPublished({
-        doiScheduleLocked,
-        academicPeriodId,
-        entries,
-      }),
-    [doiScheduleLocked, academicPeriodId, entries],
-  );
   /** Peer-college view-only OR DOI published — search/view OK; plot/edit blocked. */
   const hubReadOnly = hubPeerReadOnly || termPublishLocked;
 
