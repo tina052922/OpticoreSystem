@@ -22,7 +22,9 @@ import {
 import { runCampusConflictScan } from "@/lib/scheduling/campus-conflict-scan-client";
 import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { DOI_SCHEDULE_LOCKED_MESSAGE, termIsDoiPublished } from "@/lib/scheduling/term-doi-lock";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { slotDurationHours } from "@/lib/scheduling/time";
@@ -113,6 +115,8 @@ export function useInsCatalog(args: {
   /** `userId` + name fields for INS labels (AKA vs full name; never Employee ID). */
   const [facultyInsNames, setFacultyInsNames] = useState<Pick<FacultyProfile, "userId" | "fullName" | "aka">[]>([]);
   const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
+  /** Periods with DOI-approved finalization (from ins-bundle). */
+  const [doiLockedPeriodIds, setDoiLockedPeriodIds] = useState<string[]>([]);
   /** Latest explicit “Run conflict check” (API + local); null = use computed scan from entries. */
   const [insConflictScanOverride, setInsConflictScanOverride] = useState<{
     conflictingEntryIds: Set<string>;
@@ -244,6 +248,11 @@ export function useInsCatalog(args: {
       setUsers(bundle.users);
       setFacultyInsNames(bundle.facultyProfiles);
       setCampusInsSettings(bundle.settings);
+      setDoiLockedPeriodIds(
+        Array.isArray(bundle.doiLockedPeriodIds)
+          ? bundle.doiLockedPeriodIds.filter((id: unknown): id is string => typeof id === "string" && Boolean(id))
+          : [],
+      );
       if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
       setLoading(false);
       return;
@@ -284,6 +293,11 @@ export function useInsCatalog(args: {
     setUsers(usersMerged);
     setFacultyInsNames(bundle.facultyProfiles);
     setCampusInsSettings(bundle.settings);
+    setDoiLockedPeriodIds(
+      Array.isArray(bundle.doiLockedPeriodIds)
+        ? bundle.doiLockedPeriodIds.filter((id: unknown): id is string => typeof id === "string" && Boolean(id))
+        : [],
+    );
     if (!semesterFilter && periodId) setFallbackPeriodId(periodId);
     setLoading(false);
     // `fallbackPeriodId` is intentionally read through a ref — see the ref declaration.
@@ -292,6 +306,17 @@ export function useInsCatalog(args: {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRealtimeEvent(["schedule.published", "schedule.unpublished"], (event) => {
+    const pid = typeof event.payload?.academicPeriodId === "string" ? event.payload.academicPeriodId : "";
+    if (!pid) return;
+    setDoiLockedPeriodIds((prev) => {
+      if (event.name === "schedule.published") {
+        return prev.includes(pid) ? prev : [...prev, pid];
+      }
+      return prev.filter((id) => id !== pid);
+    });
+  });
 
   const scheduleDebouncedReload = useCallback(() => {
     if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
@@ -872,8 +897,8 @@ export function useInsCatalog(args: {
     async (entryId: string): Promise<{ ok: boolean; message: string }> => {
       const entry = entries.find((e) => e.id === entryId);
       if (!entry) return { ok: false, message: "Schedule row not found." };
-      if (entry.lockedByDoiAt) {
-        return { ok: false, message: "Schedule is locked by DOI. Unpublish / unlock is required before edits can continue." };
+      if (entry.lockedByDoiAt || termIsDoiPublished({ doiScheduleLocked: doiLockedPeriodIds.includes(entry.academicPeriodId), academicPeriodId: entry.academicPeriodId, entries })) {
+        return { ok: false, message: DOI_SCHEDULE_LOCKED_MESSAGE };
       }
       const periodId = entry.academicPeriodId;
       const termRows = entries.filter((e) => e.academicPeriodId === periodId);
@@ -920,15 +945,17 @@ export function useInsCatalog(args: {
       void loadScheduleEntriesForPeriod({ periodId, soft: true });
       return { ok: true, message: "Applied alternative slot from the rule-based resolver." };
     },
-    [entries, rooms, users, loadScheduleEntriesForPeriod],
+    [entries, rooms, users, loadScheduleEntriesForPeriod, doiLockedPeriodIds],
   );
 
-  /** True when VPAA has published this term: any visible row for the term is locked (cross-college rows included). */
+  /** True when VPAA has published this term (finalization approved or any locked row). View OK; edits blocked. */
   const termPublishLocked = useMemo(() => {
-    return entries
-      .filter((e) => e.academicPeriodId === academicPeriodId)
-      .some((e) => Boolean(e.lockedByDoiAt));
-  }, [modeEntries, academicPeriodId]);
+    return termIsDoiPublished({
+      doiScheduleLocked: doiLockedPeriodIds.includes(academicPeriodId),
+      academicPeriodId,
+      entries,
+    });
+  }, [doiLockedPeriodIds, academicPeriodId, entries]);
 
   const campusWideDirectorSignatureUrl = campusInsSettings?.campusDirectorSignatureImageUrl?.trim() || null;
   const doiSignatureImageUrl = campusInsSettings?.doiSignatureImageUrl?.trim() || null;
@@ -940,7 +967,9 @@ export function useInsCatalog(args: {
     periods,
     academicPeriodId,
     setAcademicPeriodId,
-    /** Full term `ScheduleEntry` rows from Supabase (RLS-visible). Campus-wide instructor totals + conflict scan. */
+    /** Active Day / Evening toggle — `entries` are already filtered to this mode. */
+    programMode,
+    /** Mode-filtered `ScheduleEntry` rows from Supabase (RLS-visible). Campus-wide instructor totals + conflict scan. */
     entries: modeEntries,
     scopedEntries,
     /** INS 5B/5C + pickers: campus-wide resources (within RLS), not the college/program slice alone. */

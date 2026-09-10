@@ -7,6 +7,7 @@ import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
 import { DoiCampusDirectorSignatureCard } from "@/components/doi/DoiCampusDirectorSignatureCard";
 import { SystemConfigBrandingCard } from "@/components/admin/SystemConfigBrandingCard";
 import { SystemConfigElectronicSignatureCard } from "@/components/admin/SystemConfigElectronicSignatureCard";
+import { SystemConfigSchedulingPolicyCard } from "@/components/admin/SystemConfigSchedulingPolicyCard";
 import {
   adminApi,
   semestersApi,
@@ -92,6 +93,10 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
     <div className="px-4 md:px-8 pb-12 max-w-3xl space-y-6">
       <SectionCard title="Branding">
         <SystemConfigBrandingCard />
+      </SectionCard>
+
+      <SectionCard title="Faculty load limits">
+        <SystemConfigSchedulingPolicyCard />
       </SectionCard>
 
       <SectionCard title="INS form layout">

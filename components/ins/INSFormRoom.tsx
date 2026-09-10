@@ -31,6 +31,7 @@ import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding"
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import type { INS5CProps } from "@/components/pdf/types/insTypes";
 import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@/lib/ins/schedule-visibility";
+import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -180,14 +181,67 @@ export function INSFormRoom({
     chairmanProgramId,
   ]);
 
+  const pdfInsSignatureSlots = useMemo(() => {
+    if (!useLiveData || !selectedRoomId || !catalog.academicPeriodId) return null;
+    const termRows = catalog.insResourceEntries.filter(
+      (e) => e.academicPeriodId === catalog.academicPeriodId && e.roomId === selectedRoomId,
+    );
+    let collegeRow: College | null = null;
+    let programId: string | null = chairmanProgramId;
+    if (termRows.length > 0) {
+      const sec = catalog.sectionById.get(termRows[0]!.sectionId);
+      const pr = sec ? catalog.programById.get(sec.programId) : null;
+      collegeRow = pr ? catalog.colleges.find((c) => c.id === pr.collegeId) ?? null : null;
+      programId = sec?.programId ?? chairmanProgramId;
+    } else {
+      const r = catalog.roomById.get(selectedRoomId);
+      const cid = r?.collegeId ?? null;
+      collegeRow = cid ? catalog.colleges.find((c) => c.id === cid) ?? null : null;
+    }
+    return resolveInsSignatureSlots({
+      college: collegeRow,
+      programId,
+      users: catalog.users,
+      userById: catalog.userById,
+      scheduleApproved: catalog.termPublishLocked,
+      includeImages: true,
+      campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      doiSignatureImageUrl: catalog.doiSignatureImageUrl,
+      campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
+      collegeInsSignerDisplay: collegeRow?.insSignerDisplay ?? null,
+    });
+  }, [
+    useLiveData,
+    selectedRoomId,
+    catalog.academicPeriodId,
+    catalog.insResourceEntries,
+    catalog.sectionById,
+    catalog.programById,
+    catalog.colleges,
+    catalog.roomById,
+    catalog.users,
+    catalog.userById,
+    catalog.termPublishLocked,
+    catalog.campusWideDirectorSignatureUrl,
+    catalog.doiSignatureImageUrl,
+    catalog.campusInsSettings?.insSignerDisplay,
+    chairmanProgramId,
+  ]);
+
+  const pdfSignatureSlotsRaw = useMemo(
+    () => signatureSlotsToPdf(useLiveData ? pdfInsSignatureSlots : null),
+    [useLiveData, pdfInsSignatureSlots],
+  );
+  const { slots: pdfSignatureSlots, ready: pdfSignaturesReady } = usePdfEmbeddedSignatureSlots(pdfSignatureSlotsRaw);
+
   const pdfData = useMemo((): INS5CProps => ({
     roomAssignment: displayRoom,
     semesterLabel: (useLiveData ? catalog.periodLabel : undefined) ?? "____ Semester, AY ____",
     schedule: roomScheduleToPdfGrid(displaySchedule, programMode),
-    signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
+    signatureSlots: pdfSignatureSlots,
     programMode,
     ...insPdfBrandingProps(branding),
-  }), [displayRoom, displaySchedule, useLiveData, catalog.periodLabel, insSignatureSlots, programMode, branding]);
+  }), [displayRoom, displaySchedule, useLiveData, catalog.periodLabel, pdfSignatureSlots, programMode, branding]);
 
   const roomConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedRoomId) return 0;
@@ -237,6 +291,7 @@ export function INSFormRoom({
   }
 
   function handleDownload() {
+    if (!pdfSignaturesReady) return;
     setPdfPreviewOpen(true);
   }
 
@@ -393,7 +448,13 @@ export function INSFormRoom({
                 <Button variant="outline" className="bg-white" asChild>
                   <Link href={portalMyScheduleHref(insBasePath)}>My schedule</Link>
                 </Button>
-                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                <Button
+                  variant="outline"
+                  className="bg-white"
+                  type="button"
+                  disabled={!pdfSignaturesReady}
+                  onClick={handleDownload}
+                >
                   <Eye className="w-4 h-4 mr-2" />
                   Preview PDF
                 </Button>
@@ -422,7 +483,7 @@ export function INSFormRoom({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={handleDownload}>
+                    <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
                       <Download className="w-4 h-4 mr-2" />
                       Download / Save as PDF
                     </DropdownMenuItem>
@@ -430,7 +491,7 @@ export function INSFormRoom({
                       <Share2 className="w-4 h-4 mr-2" />
                       Share INS Form
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setPdfPreviewOpen(true)}>
+                    <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
                       <Eye className="w-4 h-4 mr-2" />
                       Preview PDF
                     </DropdownMenuItem>
@@ -455,7 +516,13 @@ export function INSFormRoom({
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                <Button
+                  variant="outline"
+                  className="bg-white"
+                  type="button"
+                  disabled={!pdfSignaturesReady}
+                  onClick={handleDownload}
+                >
                   <Eye className="w-4 h-4 mr-2" />
                   Preview PDF
                 </Button>

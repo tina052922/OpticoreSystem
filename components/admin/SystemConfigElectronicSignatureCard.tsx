@@ -104,7 +104,8 @@ export function SystemConfigElectronicSignatureCard({
       <h3 className="text-sm font-bold text-gray-900">{title}</h3>
       <p className="mt-1 text-xs text-gray-600">
         Upload a transparent PNG or JPG. This is the official image for the INS{" "}
-        <span className="font-medium">{slot}</span> line after VPAA publishes the term. Max 2 MB.
+        <span className="font-medium">{slot}</span> line on PDF preview and print
+        (and on the on-screen form after VPAA publishes the term). Max 2 MB.
       </p>
       {err ? <p className="mt-2 text-xs text-red-700">{err}</p> : null}
 

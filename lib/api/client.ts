@@ -851,6 +851,10 @@ export const registerApi = {
     email: string;
     password: string;
     collegeId: string;
+    /** `program` (default) or `gec` — GEC instructors are not locked to one department. */
+    facultyCategory?: "program" | "gec";
+    /** Required for program faculty; omit/null for GEC instructors. */
+    programId?: string | null;
     employeeId?: string;
     [key: string]: unknown; // Additional faculty profile fields (server allowlists)
   }) {
@@ -965,6 +969,10 @@ export type InstructorRequest = {
   collegeId: string;
   /** What the applicant typed. Advisory only — the chairman sets the real one. */
   claimedEmployeeId: string | null;
+  /** `program` or `gec` — GEC instructors are not locked to one department. */
+  facultyCategory?: "program" | "gec" | null;
+  /** Home department for program faculty; null for GEC. */
+  programId?: string | null;
   /** Faculty profile fields from the registration form. */
   profile: Record<string, string | null> | null;
   status: "pending" | "approved" | "rejected";
@@ -1384,6 +1392,59 @@ export const subjectCodesApi = {
   },
   delete(id: string) {
     return apiFetch<{ ok: true }>(`/api/catalog/subjects/${id}`, { method: "DELETE" });
+  },
+};
+
+export const buildingsRoomsApi = {
+  listBuildings(params: { collegeId?: string | null; programId?: string | null } = {}) {
+    const q = new URLSearchParams();
+    if (params.collegeId) q.set("collegeId", params.collegeId);
+    if (params.programId) q.set("programId", params.programId);
+    const qs = q.toString();
+    return apiFetch<{ buildings: import("@/types/db").Building[]; warning?: string }>(
+      `/api/catalog/buildings${qs ? `?${qs}` : ""}`,
+      { method: "GET" },
+    );
+  },
+  createBuilding(input: Record<string, unknown>) {
+    return apiFetch<{ building: import("@/types/db").Building }>("/api/catalog/buildings", {
+      method: "POST",
+      body: input,
+    });
+  },
+  updateBuilding(id: string, input: Record<string, unknown>) {
+    return apiFetch<{ building: import("@/types/db").Building }>(`/api/catalog/buildings/${id}`, {
+      method: "PUT",
+      body: input,
+    });
+  },
+  deleteBuilding(id: string) {
+    return apiFetch<{ ok: true }>(`/api/catalog/buildings/${id}`, { method: "DELETE" });
+  },
+  listRooms(params: { collegeId?: string | null; programId?: string | null; buildingId?: string | null } = {}) {
+    const q = new URLSearchParams();
+    if (params.collegeId) q.set("collegeId", params.collegeId);
+    if (params.programId) q.set("programId", params.programId);
+    if (params.buildingId) q.set("buildingId", params.buildingId);
+    q.set("limit", "500");
+    return apiFetch<{ rooms: import("@/types/db").Room[] }>(`/api/catalog/rooms?${q.toString()}`, {
+      method: "GET",
+    });
+  },
+  createRoom(input: Record<string, unknown>) {
+    return apiFetch<{ room: import("@/types/db").Room; warning?: string }>("/api/catalog/rooms", {
+      method: "POST",
+      body: input,
+    });
+  },
+  updateRoom(id: string, input: Record<string, unknown>) {
+    return apiFetch<{ room: import("@/types/db").Room }>(`/api/catalog/rooms/${id}`, {
+      method: "PUT",
+      body: input,
+    });
+  },
+  deleteRoom(id: string) {
+    return apiFetch<{ ok: true }>(`/api/catalog/rooms/${id}`, { method: "DELETE" });
   },
 };
 

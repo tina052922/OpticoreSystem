@@ -11,7 +11,12 @@ import {
   scheduleEntryToSparseBlock,
 } from "@/lib/scheduling/conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
-import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification, instructorMaxWeeklyTeachingCapFromProfile } from "@/lib/scheduling/facultyPolicies";
+import {
+  evaluateFacultyLoadsForCollege,
+  rowNeedsTeachingLoadJustification,
+  instructorMaxWeeklyTeachingCapFromProfile,
+} from "@/lib/scheduling/facultyPolicies";
+import { isNonResidentFacultyStatus } from "@/lib/faculty/employment-status";
 import {
   JUSTIFICATION_ASSIGN_PROMPT,
   JUSTIFICATION_MIN_LENGTH,
@@ -63,6 +68,7 @@ import { sortProgramsForTeachingLoad } from "@/lib/scheduling/teaching-load-summ
 import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { encodeDayForStorage, evaluatorTimeSlots, evaluatorWeekdaysForMode, filterByProgramMode, isEvaluatorSlotPlottable, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
+import { termIsDoiPublished, DOI_SCHEDULE_LOCKED_MESSAGE } from "@/lib/scheduling/term-doi-lock";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import { readEvaluatorBackupSnapshot, writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
@@ -225,19 +231,32 @@ function buildWorksheetPolicyScheduleEntries(args: {
   programCodeForSummary: string;
   programMode: ProgramMode;
   slots: { label: string; startTime: string; endTime: string }[];
+  /** Rows removed in the grid but not yet confirmed gone from DB — exclude so hours match the plot. */
+  pendingDeletedIds?: ReadonlySet<string>;
 }): ScheduleEntry[] {
-  const { rows, allTermScheduleEntries, academicPeriodId, programId, programCodeForSummary, programMode, slots } = args;
+  const {
+    rows,
+    allTermScheduleEntries,
+    academicPeriodId,
+    programId,
+    programCodeForSummary,
+    programMode,
+    slots,
+    pendingDeletedIds,
+  } = args;
   const worksheetIds = new Set(rows.map((r) => r.id));
   const byId = new Map<string, ScheduleEntry>();
 
   for (const e of allTermScheduleEntries) {
     if (e.academicPeriodId !== academicPeriodId) continue;
+    if (pendingDeletedIds?.has(e.id)) continue;
     if (worksheetIds.has(e.id)) continue;
     if (resolveProgramMode(e) !== programMode) continue;
     byId.set(e.id, e);
   }
 
   for (const row of rows) {
+    if (pendingDeletedIds?.has(row.id)) continue;
     let entry: ScheduleEntry | null = null;
     const subj = row.subjectCode ? subjectFromProspectus(row.subjectCode, programId, programCodeForSummary) : undefined;
     if (subj) {
@@ -362,6 +381,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const [loadError, setLoadError] = useState<string | null>(null);
   /** Full term load for campus-wide conflict checks (every program — merged with worksheet state). */
   const [allTermScheduleEntries, setAllTermScheduleEntries] = useState<ScheduleEntry[]>([]);
+  /** From evaluator-bundle: DOI approved publish lock for this term (even if this program has no rows yet). */
+  const [doiScheduleLocked, setDoiScheduleLocked] = useState(false);
   /** Row ids flagged by explicit &quot;Run conflict check&quot; (full campus scan). */
   const [campusScanConflictIds, setCampusScanConflictIds] = useState<Set<string>>(() => new Set());
   const [saveScheduleBusy, setSaveScheduleBusy] = useState(false);
@@ -475,6 +496,11 @@ export function BsitChairmanEvaluatorWorksheet({
     if (event.payload?.badge !== "policy_reviews") return;
     justificationHydrateKeyRef.current = null;
     setJustificationReloadTick((n) => n + 1);
+  });
+  useRealtimeEvent(["schedule.published", "schedule.unpublished"], (event) => {
+    const pid = typeof event.payload?.academicPeriodId === "string" ? event.payload.academicPeriodId : "";
+    if (!pid || pid !== academicPeriodId) return;
+    setDoiScheduleLocked(event.name === "schedule.published");
   });
   useEffect(() => {
     if (policyJustificationModalOpen) return;
@@ -620,6 +646,7 @@ export function BsitChairmanEvaluatorWorksheet({
 
       entries = (bundle.entries ?? []) as ScheduleEntry[];
       setAllTermScheduleEntries(entries);
+      setDoiScheduleLocked(Boolean(bundle.doiScheduleLocked));
 
       const allUsers = (bundle.users ?? []) as User[];
       const campusFac = allUsers.filter(
@@ -776,17 +803,22 @@ export function BsitChairmanEvaluatorWorksheet({
     void loadAllData();
   }, [loadAllData]);
 
-  /** Program-scoped plot rooms (BSIT → official IT labs only). Legacy IT LAB rows deduped when COTE labs load. */
+  /** Program-scoped plot rooms (department-owned rooms when configured; BSIT → IT labs otherwise). */
   const roomsForEvaluatorGrid = useMemo((): Room[] => {
     const catalog = dedupeLegacyItLabsForCampusNavigation(rooms);
-    const scoped = filterRoomsForProgramPlot(catalog, programCodeForSummary, chairmanCollegeId);
+    const scoped = filterRoomsForProgramPlot(
+      catalog,
+      programCodeForSummary,
+      chairmanCollegeId,
+      programId,
+    );
     const sorted = [...scoped].sort((a, b) => {
       const ba = (a.building ?? "").localeCompare(b.building ?? "");
       if (ba !== 0) return ba;
       return a.code.localeCompare(b.code);
     });
     return sorted.length > 0 ? sorted : rooms;
-  }, [rooms, chairmanCollegeId, programCodeForSummary]);
+  }, [rooms, chairmanCollegeId, programCodeForSummary, programId]);
 
   const rowInstructorIds = useMemo(() => rows.map((r) => r.instructorId).filter(Boolean) as string[], [rows]);
 
@@ -849,8 +881,16 @@ export function BsitChairmanEvaluatorWorksheet({
     [selectedPeriod],
   );
 
-  /** Any row published for this term — RLS blocks chairman mutations; worksheet stays read-only. */
-  const schedulePublished = useMemo(() => rows.some((r) => Boolean(r.lockedByDoiAt)), [rows]);
+  /** DOI published/locked for this term — view/search OK; plot/edit blocked (UI + API). */
+  const schedulePublished = useMemo(
+    () =>
+      termIsDoiPublished({
+        doiScheduleLocked,
+        academicPeriodId,
+        entries: allTermScheduleEntries,
+      }) || rows.some((r) => Boolean(r.lockedByDoiAt)),
+    [doiScheduleLocked, academicPeriodId, allTermScheduleEntries, rows],
+  );
 
   /**
    * Evaluator grid behavior: when the user selects a section, show only that section's rows.
@@ -1311,8 +1351,9 @@ export function BsitChairmanEvaluatorWorksheet({
       programCodeForSummary,
       programMode,
       slots: slotsForMode,
+      pendingDeletedIds,
     });
-  }, [academicPeriodId, allTermScheduleEntries, rows, programId, programCodeForSummary, programMode, slotsForMode]);
+  }, [academicPeriodId, allTermScheduleEntries, rows, programId, programCodeForSummary, programMode, slotsForMode, pendingDeletedIds]);
 
   const policyRows = useMemo(() => {
     if (!academicPeriodId || !chairmanCollegeId) {
@@ -1330,6 +1371,7 @@ export function BsitChairmanEvaluatorWorksheet({
       chairmanCollegeId,
       (sid) => sectionToCollegeId(sid),
       policyConstants,
+      programMode,
     );
   }, [
     mergedEntriesForCollegePolicy,
@@ -1340,6 +1382,7 @@ export function BsitChairmanEvaluatorWorksheet({
     profileByUserId,
     sectionToCollegeId,
     policyConstants,
+    programMode,
   ]);
 
   useEffect(() => {
@@ -1367,7 +1410,41 @@ export function BsitChairmanEvaluatorWorksheet({
     return ids;
   }, [loadJustifications, academicPeriodId]);
 
-  const showJustification = policyRows.rows.some((r) => rowNeedsTeachingLoadJustification(r));
+  /** Violators who still need a DOI justification record (drives FAQ, form, and red cell outline). */
+  const unjustifiedPolicyRows = useMemo(
+    () =>
+      policyRows.rows.filter(
+        (r) => rowNeedsTeachingLoadJustification(r) && !recordedFacultyIds.has(r.instructorId),
+      ),
+    [policyRows.rows, recordedFacultyIds],
+  );
+
+  const showJustification = unjustifiedPolicyRows.length > 0;
+
+  /** After justification: keep a simple prep-limit note only (no red outline / FAQ). */
+  const justifiedPrepWarnings = useMemo(() => {
+    const out: {
+      instructorId: string;
+      name: string;
+      preparations: number;
+      limitWithoutJustification: number;
+    }[] = [];
+    for (const r of policyRows.rows) {
+      if (!recordedFacultyIds.has(r.instructorId)) continue;
+      if (!r.violations.some((v) => v.code === "OVER_PREP_LIMIT")) continue;
+
+      const limitWithoutJustification = isNonResidentFacultyStatus(r.status)
+        ? policyConstants.MAX_WEEKLY_NON_RESIDENT_PREPS_WITHOUT_JUSTIFICATION
+        : policyConstants.MAX_WEEKLY_RESIDENT_PREPS_WITHOUT_JUSTIFICATION;
+      out.push({
+        instructorId: r.instructorId,
+        name: r.instructorName || instructorDisplayById.get(r.instructorId) || "Instructor",
+        preparations: r.preparations,
+        limitWithoutJustification,
+      });
+    }
+    return out;
+  }, [policyRows.rows, recordedFacultyIds, instructorDisplayById, policyConstants]);
 
   /** Live "hours so far / cap" snapshot for the plot modal's instructor-select warning. */
   const instructorLoadById = useMemo(() => {
@@ -1380,15 +1457,12 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [policyRows.rows, profileByUserId, policyConstants]);
 
+  /** Red outline only while justification is still outstanding for that faculty. */
   const overloadedInstructorIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const r of policyRows.rows) {
-      if (rowNeedsTeachingLoadJustification(r)) {
-        ids.add(r.instructorId);
-      }
-    }
+    for (const r of unjustifiedPolicyRows) ids.add(r.instructorId);
     return ids;
-  }, [policyRows.rows]);
+  }, [unjustifiedPolicyRows]);
 
   /** Persists overload explanation to `ScheduleLoadJustification` (same table as Central Hub Evaluator). */
   const saveLoadJustificationForDoi = useCallback(
@@ -1411,6 +1485,7 @@ export function BsitChairmanEvaluatorWorksheet({
       programCodeForSummary,
       programMode,
       slots: slotsForMode,
+      pendingDeletedIds: pendingDeletedIdsRef.current,
     });
     const polJustif = evaluateFacultyLoadsForCollege(
       mergedForJustif,
@@ -1420,6 +1495,7 @@ export function BsitChairmanEvaluatorWorksheet({
       chairmanCollegeId,
       (sid) => sectionToCollegeId(sid),
       policyConstants,
+      programMode,
     );
     if (!polJustif.hasTeachingLoadJustificationViolation) {
       setJustificationMsg("No teaching load overage detected; a justification is not required.");
@@ -1465,6 +1541,35 @@ export function BsitChairmanEvaluatorWorksheet({
           },
         });
       }
+      const nowIso = new Date().toISOString();
+      setLoadJustifications((prev) => {
+        const next = [...prev];
+        for (const v of violators) {
+          const idx = next.findIndex(
+            (j) =>
+              j.academicPeriodId === academicPeriodId &&
+              (j.facultyUserId ?? "").trim() === v.instructorId,
+          );
+          const row: ScheduleLoadJustification = {
+            id: idx >= 0 ? next[idx]!.id : `local-justif-${v.instructorId}`,
+            academicPeriodId,
+            collegeId: chairmanCollegeId,
+            authorUserId: user.id,
+            authorName,
+            authorEmail: user.email ?? null,
+            facultyUserId: v.instructorId,
+            scheduleEntryId: rowsForJustif.find((r) => r.instructorId === v.instructorId)?.id ?? null,
+            justification: t,
+            violationsSnapshot: { summary: snapRows.join("\n") },
+            createdAt: idx >= 0 ? next[idx]!.createdAt : nowIso,
+            updatedAt: nowIso,
+          };
+          if (idx >= 0) next[idx] = row;
+          else next.unshift(row);
+        }
+        return next;
+      });
+      setPolicyJustificationModalOpen(false);
       dispatchInsCatalogReload();
       void recordScheduleWrite({
           action: "chairman.policy_justification_upsert",
@@ -1473,6 +1578,7 @@ export function BsitChairmanEvaluatorWorksheet({
           details: { source: "bsit_evaluator_worksheet" },
         });
       setJustificationMsg(JUSTIFICATION_SAVED_MSG);
+      toast.success("Justification recorded", "Plotting is back to normal. Prep-limit notice stays for justified faculty.");
       return true;
     } finally {
       setJustificationSaving(false);
@@ -1492,6 +1598,9 @@ export function BsitChairmanEvaluatorWorksheet({
     profileByUserId,
     sectionToCollegeId,
     policyConstants,
+    toast,
+    programMode,
+    slotsForMode,
   ],
 );
 
@@ -1550,6 +1659,7 @@ export function BsitChairmanEvaluatorWorksheet({
         programCodeForSummary,
         programMode,
         slots: slotsForMode,
+        pendingDeletedIds: pendingDeletedIdsRef.current,
       });
       const pol = evaluateFacultyLoadsForCollege(
         merged,
@@ -1559,6 +1669,7 @@ export function BsitChairmanEvaluatorWorksheet({
         chairmanCollegeId,
         (sid) => sectionToCollegeId(sid),
         policyConstants,
+        programMode,
       );
       const hit = pol.rows.find(
         (x) => x.instructorId === candidate.instructorId && rowNeedsTeachingLoadJustification(x),
@@ -1852,6 +1963,13 @@ export function BsitChairmanEvaluatorWorksheet({
   const performSchedulePersist = useCallback(
     async (source: "autosave" | "manual") => {
       if (viewOnly) return;
+      if (schedulePublished) {
+        if (source === "manual") {
+          toast.error("Schedule locked", DOI_SCHEDULE_LOCKED_MESSAGE);
+          setSaveScheduleMsg(DOI_SCHEDULE_LOCKED_MESSAGE);
+        }
+        return;
+      }
       if (!academicPeriodId) return;
       if (source === "autosave" && !didHydrateFromDbRef.current) return;
       if (source === "autosave" && typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -2129,23 +2247,24 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, subjects],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, schedulePublished, subjects],
   );
 
   /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */
   useEffect(() => {
     const onOnline = () => {
       if (!academicPeriodId) return;
+      if (schedulePublished || viewOnly) return;
       if (!didHydrateFromDbRef.current) return;
       if (rows.length === 0) return;
       void performSchedulePersist("autosave");
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, [academicPeriodId, rows.length, performSchedulePersist]);
+  }, [academicPeriodId, rows.length, performSchedulePersist, schedulePublished, viewOnly]);
 
   useEffect(() => {
-    if (viewOnly) return;
+    if (viewOnly || schedulePublished) return;
     if (!academicPeriodId) return;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = setTimeout(() => {
@@ -2155,7 +2274,7 @@ export function BsitChairmanEvaluatorWorksheet({
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [rows, academicPeriodId, performSchedulePersist, viewOnly]);
+  }, [rows, academicPeriodId, performSchedulePersist, viewOnly, schedulePublished]);
 
   if (loadError) {
     return <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>;
@@ -2189,7 +2308,7 @@ export function BsitChairmanEvaluatorWorksheet({
             <select
               className="h-10 min-w-[240px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
               value={pickedProgramId}
-              disabled={(schedulePublished && !viewOnly) || collegePrograms.length === 0 ? true : false}
+              disabled={collegePrograms.length === 0}
               onChange={(e) => {
                 setPickedProgramId(e.target.value);
                 setSelectedSectionId("");
@@ -2215,7 +2334,6 @@ export function BsitChairmanEvaluatorWorksheet({
         <select
           className="h-10 min-w-[220px] rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60 disabled:pointer-events-none"
           value={selectedSectionId}
-          disabled={schedulePublished && !viewOnly}
           onChange={(e) => setSelectedSectionId(e.target.value)}
         >
           <option value="">All sections</option>
@@ -2256,6 +2374,24 @@ export function BsitChairmanEvaluatorWorksheet({
       ) : null}
 
       {showJustification && !viewOnly ? <PolicyViolationFaq /> : null}
+
+      {justifiedPrepWarnings.length > 0 && !viewOnly ? (
+        <div
+          className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-[12px] text-amber-950"
+          role="status"
+        >
+          <p className="font-semibold">Prep limit notice</p>
+          <ul className="mt-1 space-y-0.5 list-disc pl-4">
+            {justifiedPrepWarnings.map((w) => (
+              <li key={w.instructorId}>
+                {w.name} is at {w.preparations} subject preparation
+                {w.preparations === 1 ? "" : "s"} (limit without justification:{" "}
+                {w.limitWithoutJustification}). Justification is on record — plotting continues normally.
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <BsitChairmanInteractiveWeekGrid
         rows={rows}

@@ -30,6 +30,7 @@ import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding"
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import type { INS5BProps } from "@/components/pdf/types/insTypes";
 import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@/lib/ins/schedule-visibility";
+import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -210,6 +211,44 @@ export function INSFormSection({
     catalog.campusInsSettings?.insSignerDisplay,
   ]);
 
+  const pdfInsSignatureSlots = useMemo(() => {
+    if (!useLiveData || !selectedSectionId) return null;
+    const sec = catalog.sectionById.get(selectedSectionId);
+    const pr = sec ? catalog.programById.get(sec.programId) : null;
+    const collegeRow = pr ? catalog.colleges.find((c) => c.id === pr.collegeId) ?? null : null;
+    return resolveInsSignatureSlots({
+      college: collegeRow,
+      programId: sec?.programId ?? null,
+      users: catalog.users,
+      userById: catalog.userById,
+      scheduleApproved: catalog.termPublishLocked,
+      includeImages: true,
+      mode: "full",
+      campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      doiSignatureImageUrl: catalog.doiSignatureImageUrl,
+      campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
+      collegeInsSignerDisplay: collegeRow?.insSignerDisplay ?? null,
+    });
+  }, [
+    useLiveData,
+    selectedSectionId,
+    catalog.sectionById,
+    catalog.programById,
+    catalog.colleges,
+    catalog.users,
+    catalog.userById,
+    catalog.termPublishLocked,
+    catalog.campusWideDirectorSignatureUrl,
+    catalog.doiSignatureImageUrl,
+    catalog.campusInsSettings?.insSignerDisplay,
+  ]);
+
+  const pdfSignatureSlotsRaw = useMemo(
+    () => signatureSlotsToPdf(useLiveData ? pdfInsSignatureSlots : null),
+    [useLiveData, pdfInsSignatureSlots],
+  );
+  const { slots: pdfSignatureSlots, ready: pdfSignaturesReady } = usePdfEmbeddedSignatureSlots(pdfSignatureSlotsRaw);
+
   const pdfData = useMemo((): INS5BProps => ({
     degreeAndYear: formDegreeAndYear,
     major: formMajor || undefined,
@@ -218,10 +257,10 @@ export function INSFormSection({
     semesterLabel: catalog.periodLabel ?? "____ Semester, AY ____",
     schedule: sectionScheduleToPdfGrid(displaySchedule, programMode),
     courses: displayCourses,
-    signatureSlots: signatureSlotsToPdf(useLiveData ? insSignatureSlots : null),
+    signatureSlots: pdfSignatureSlots,
     programMode,
     ...insPdfBrandingProps(branding),
-  }), [formDegreeAndYear, formMajor, formAssignment, displaySchedule, displayCourses, catalog.periodLabel, useLiveData, insSignatureSlots, programMode, branding]);
+  }), [formDegreeAndYear, formMajor, formAssignment, displaySchedule, displayCourses, catalog.periodLabel, pdfSignatureSlots, programMode, branding]);
 
   const sectionConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;
@@ -271,6 +310,7 @@ export function INSFormSection({
   }
 
   function handleDownload() {
+    if (!pdfSignaturesReady) return;
     setPdfPreviewOpen(true);
   }
 
@@ -429,7 +469,13 @@ export function INSFormSection({
                 <Button variant="outline" className="bg-white" asChild>
                   <Link href={portalMyScheduleHref(insBasePath)}>My schedule</Link>
                 </Button>
-                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                <Button
+                  variant="outline"
+                  className="bg-white"
+                  type="button"
+                  disabled={!pdfSignaturesReady}
+                  onClick={handleDownload}
+                >
                   <Eye className="w-4 h-4 mr-2" />
                   Preview PDF
                 </Button>
@@ -458,7 +504,7 @@ export function INSFormSection({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={handleDownload}>
+                    <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
                       <Download className="w-4 h-4 mr-2" />
                       Download / Save as PDF
                     </DropdownMenuItem>
@@ -466,7 +512,7 @@ export function INSFormSection({
                       <Share2 className="w-4 h-4 mr-2" />
                       Share INS Form
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setPdfPreviewOpen(true)}>
+                    <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
                       <Eye className="w-4 h-4 mr-2" />
                       Preview PDF
                     </DropdownMenuItem>
@@ -491,7 +537,13 @@ export function INSFormSection({
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                <Button
+                  variant="outline"
+                  className="bg-white"
+                  type="button"
+                  disabled={!pdfSignaturesReady}
+                  onClick={handleDownload}
+                >
                   <Eye className="w-4 h-4 mr-2" />
                   Preview PDF
                 </Button>

@@ -26,6 +26,7 @@ import { scanAllSparseScheduleConflicts, scheduleEntryToSparseBlock } from "@/li
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { slotDurationHours } from "@/lib/scheduling/time";
+import { DOI_SCHEDULE_LOCKED_MESSAGE, termIsDoiPublished } from "@/lib/scheduling/term-doi-lock";
 import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import type {
   AcademicPeriod,
@@ -58,6 +59,7 @@ import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import { AlertTriangle } from "lucide-react";
 import { useAccessRequests } from "@/hooks/use-access-requests";
 import {
@@ -156,6 +158,7 @@ export function CentralHubEvaluatorView({
   const [users, setUsers] = useState<User[]>([]);
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
+  const [doiScheduleLocked, setDoiScheduleLocked] = useState(false);
   const [justifications, setJustifications] = useState<ScheduleLoadJustification[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
 
@@ -195,6 +198,7 @@ export function CentralHubEvaluatorView({
       if (!soft) {
         setPeriods(bundle.periods ?? []);
         setEntries(bundle.entries ?? []);
+        setDoiScheduleLocked(Boolean(bundle.doiScheduleLocked));
         setSections(bundle.sections ?? []);
         setSubjects(bundle.subjects ?? []);
         setRooms(bundle.rooms ?? []);
@@ -216,6 +220,12 @@ export function CentralHubEvaluatorView({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRealtimeEvent(["schedule.published", "schedule.unpublished"], (event) => {
+    const pid = typeof event.payload?.academicPeriodId === "string" ? event.payload.academicPeriodId : "";
+    if (!pid || pid !== academicPeriodId) return;
+    setDoiScheduleLocked(event.name === "schedule.published");
+  });
 
   /** Realtime / cross-tab reload: lightweight refresh of term `ScheduleEntry` rows only. Full catalog loads on mount. */
   const reloadScheduleEntriesSoft = useCallback(async () => {
@@ -795,6 +805,16 @@ export function CentralHubEvaluatorView({
   /** Apply a GA suggestion to the primary row in a conflict pair (updates Supabase + reloads grid). */
   const applyHubConflictSuggestion = useCallback(
     async (issueKey: string, s: GASuggestion) => {
+      if (
+        termIsDoiPublished({
+          doiScheduleLocked,
+          academicPeriodId,
+          entries,
+        })
+      ) {
+        toast.error("Schedule locked", DOI_SCHEDULE_LOCKED_MESSAGE);
+        return;
+      }
       const iss = campusConflictScan?.enrichedIssues.find((i) => i.key === issueKey);
       if (!iss) return;
       setBusyConflictApplyKey(issueKey);
@@ -825,19 +845,15 @@ export function CentralHubEvaluatorView({
             details: {
               entryId: iss.rowA.entryId,
               issueKey,
+              suggestion: s,
               subjectCode: sub0?.code ?? "",
               sectionName: sec0?.name ?? "",
-              applied: {
-                day: s.day,
-                startTime: pad(s.startTime),
-                endTime: pad(s.endTime),
-                roomId: s.roomId,
-                instructorId: s.instructorId,
-              },
             },
           });
-        /** Re-run the scoped scan so the UI confirms the GA pick did not leave a new overlap in this view. */
-        runScopedConflictScan();
+        await runScopedConflictScan({ silentSuccess: true });
+      } catch (e) {
+        const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Apply failed";
+        toast.error("Could not apply suggestion", msg);
       } finally {
         setBusyConflictApplyKey(null);
       }
@@ -851,7 +867,9 @@ export function CentralHubEvaluatorView({
       programById,
       scopeCollegeId,
       academicPeriodId,
+      doiScheduleLocked,
       runScopedConflictScan,
+      toast,
     ],
   );
 
@@ -1110,7 +1128,18 @@ export function CentralHubEvaluatorView({
     );
   }
 
-  const hubReadOnly = Boolean(needsPeerApproval && crossApproved);
+  const hubPeerReadOnly = Boolean(needsPeerApproval && crossApproved);
+  const termPublishLocked = useMemo(
+    () =>
+      termIsDoiPublished({
+        doiScheduleLocked,
+        academicPeriodId,
+        entries,
+      }),
+    [doiScheduleLocked, academicPeriodId, entries],
+  );
+  /** Peer-college view-only OR DOI published — search/view OK; plot/edit blocked. */
+  const hubReadOnly = hubPeerReadOnly || termPublishLocked;
 
   return (
     <div>
@@ -1118,7 +1147,13 @@ export function CentralHubEvaluatorView({
 
       <div className="px-4 md:px-8 pb-8">
         <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
-        {hubReadOnly ? (
+        {termPublishLocked ? (
+          <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50/90 px-4 py-3 text-[13px] text-sky-950">
+            <span className="font-semibold">Published schedule (read-only).</span> DOI has locked this term. You can
+            search and view section cells; plotting and edits resume only after DOI unpublishes / unlocks.
+          </div>
+        ) : null}
+        {hubPeerReadOnly ? (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/90 px-4 py-3 text-[13px] text-amber-950">
             Peer-college access is <strong>view only</strong>. You cannot edit, apply alternatives, or save schedule
             rows for <strong>{hub?.abbr ?? "this college"}</strong>.
@@ -1177,6 +1212,9 @@ export function CentralHubEvaluatorView({
                   onFocusEntry: (id) => setFocusEntryId(id),
                   suggestAlternativesForEntry,
                   applySchedulePatch: async (id, patch) => {
+                    if (termPublishLocked) {
+                      throw new ApiClientError(DOI_SCHEDULE_LOCKED_MESSAGE, 423);
+                    }
                     await apiFetch(`/api/catalog/schedule-entries/${id}`, {
                       method: "PATCH",
                       body: patch,
@@ -1400,6 +1438,10 @@ export function CentralHubEvaluatorView({
                 busy={editBusy}
                 onSave={async (patch) => {
                   if (!editEntryId) return;
+                  if (termPublishLocked) {
+                    toast.error("Schedule locked", DOI_SCHEDULE_LOCKED_MESSAGE);
+                    return;
+                  }
                   const savedId = editEntryId;
                   setEditBusy(true);
                     try {

@@ -34,6 +34,7 @@ import type {
   User,
 } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
+import { isGecInstructorUser } from "@/lib/faculty/faculty-category";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
@@ -48,6 +49,7 @@ import {
   subjectHoursOverLimitMessage,
 } from "@/lib/scheduling/subject-semester-hours";
 import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode, stampProgramMode } from "@/lib/scheduling/program-mode";
+import { DOI_SCHEDULE_LOCKED_MESSAGE, termIsDoiPublished } from "@/lib/scheduling/term-doi-lock";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import {
@@ -57,8 +59,10 @@ import {
   isGecVacantScheduleEntry,
 } from "@/lib/gec/gec-vacant";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
+import { filterRoomsForGecPlot } from "@/lib/scheduling/program-plot-rooms";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import {
   CAMPUS_WIDE_COLLEGE_SLUG,
   gecHubCollegeTiles,
@@ -137,6 +141,7 @@ export function GecCentralHubEvaluatorClient() {
   const [users, setUsers] = useState<User[]>([]);
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
+  const [doiScheduleLocked, setDoiScheduleLocked] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [programId, setProgramId] = useState("");
@@ -246,6 +251,7 @@ export function GecCentralHubEvaluatorClient() {
       setRooms(bundle.rooms ?? []);
       setUsers(bundle.users ?? []);
       setFacultyProfiles(bundle.facultyProfiles ?? []);
+      setDoiScheduleLocked(Boolean(bundle.doiScheduleLocked));
       applyFetchedEntries(bundle.entries ?? []);
       setLoading(false);
     } catch {
@@ -257,6 +263,12 @@ export function GecCentralHubEvaluatorClient() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRealtimeEvent(["schedule.published", "schedule.unpublished"], (event) => {
+    const pid = typeof event.payload?.academicPeriodId === "string" ? event.payload.academicPeriodId : "";
+    if (!pid || pid !== academicPeriodId) return;
+    setDoiScheduleLocked(event.name === "schedule.published");
+  });
 
   /**
    * Program Chairman / hub saves + Realtime: reload should be lightweight (term `ScheduleEntry` only),
@@ -403,8 +415,13 @@ export function GecCentralHubEvaluatorClient() {
   }, [isCampusWide, collegeParam, plotCollegeId]);
 
   const termPublishLocked = useMemo(
-    () => entries.some((e) => e.academicPeriodId === academicPeriodId && Boolean(e.lockedByDoiAt)),
-    [entries, academicPeriodId],
+    () =>
+      termIsDoiPublished({
+        doiScheduleLocked,
+        academicPeriodId,
+        entries,
+      }),
+    [doiScheduleLocked, academicPeriodId, entries],
   );
 
   const canEditVacant = useMemo(
@@ -469,12 +486,20 @@ export function GecCentralHubEvaluatorClient() {
           toSave.push(merged);
         }
         if (toSave.length === 0) return;
-        try { await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave }); } catch {}
-        setLastDraftSaveAt(new Date());
-        const now = Date.now();
-        if (now - lastAutosaveToastAtRef.current > 30_000) {
-          lastAutosaveToastAtRef.current = now;
-          toast.success("Draft saved automatically");
+        try {
+          await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
+          setLastDraftSaveAt(new Date());
+          const now = Date.now();
+          if (now - lastAutosaveToastAtRef.current > 30_000) {
+            lastAutosaveToastAtRef.current = now;
+            toast.success("Draft saved automatically");
+          }
+        } catch (e) {
+          const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Autosave failed";
+          if (e instanceof ApiClientError && e.status === 423) {
+            toast.error("Schedule locked", msg || DOI_SCHEDULE_LOCKED_MESSAGE);
+            setDoiScheduleLocked(true);
+          }
         }
       })();
     }, 9000);
@@ -517,9 +542,16 @@ export function GecCentralHubEvaluatorClient() {
             toSave.push(stampProgramMode({ ...e, ...patch }, programMode));
           }
           if (toSave.length === 0) return;
-          try { await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave }); } catch {}
-          setLastDraftSaveAt(new Date());
-          toast.success("Draft saved automatically");
+          try {
+            await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
+            setLastDraftSaveAt(new Date());
+            toast.success("Draft saved automatically");
+          } catch (e) {
+            if (e instanceof ApiClientError && e.status === 423) {
+              toast.error("Schedule locked", e.message || DOI_SCHEDULE_LOCKED_MESSAGE);
+              setDoiScheduleLocked(true);
+            }
+          }
         })();
       }, 0);
     };
@@ -618,10 +650,20 @@ export function GecCentralHubEvaluatorClient() {
 
   const instructorPlotOptionsBase = useMemo(() => {
     if (!plotCollegeId) return [];
-    const pool = users.filter(
-      (u) => u.collegeId === plotCollegeId && isPlottableFacultyUser(u),
-    );
-    const base = usersToInstructorPlotOptions(pool, facultyProfileByUserId);
+    const pool = users
+      .filter((u) => u.collegeId === plotCollegeId && isPlottableFacultyUser(u))
+      // Prefer registered GEC instructors at the top of faculty pickers.
+      .sort((a, b) => {
+        const ag = isGecInstructorUser(a) ? 0 : 1;
+        const bg = isGecInstructorUser(b) ? 0 : 1;
+        if (ag !== bg) return ag - bg;
+        return (a.name ?? "").localeCompare(b.name ?? "");
+      });
+    const base = usersToInstructorPlotOptions(pool, facultyProfileByUserId).map((opt) => {
+      const u = pool.find((row) => row.id === opt.id);
+      if (!u || !isGecInstructorUser(u)) return opt;
+      return { ...opt, fullName: `${opt.fullName} (GEC)` };
+    });
     return mergeLegacyRowInstructorsIntoPlotOptions(
       base,
       pool,
@@ -632,7 +674,7 @@ export function GecCentralHubEvaluatorClient() {
 
   const roomsForPlotting = useMemo(() => {
     if (!plotCollegeId) return [];
-    const scoped = rooms.filter((r) => !r.collegeId || r.collegeId === plotCollegeId);
+    const scoped = filterRoomsForGecPlot(rooms, plotCollegeId);
     return dedupeLegacyItLabsForCampusNavigation(scoped);
   }, [rooms, plotCollegeId]);
 
@@ -893,6 +935,7 @@ export function GecCentralHubEvaluatorClient() {
           return pr?.collegeId ?? null;
         },
         policyConstants,
+        programMode,
       );
       const needsJust = policy.hasTeachingLoadJustificationViolation;
       if (needsJust && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) {
@@ -986,6 +1029,16 @@ export function GecCentralHubEvaluatorClient() {
             rowCount: toSave.length,
           })
           .catch(() => {});
+      }
+    } catch (e) {
+      const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Save failed";
+      if (e instanceof ApiClientError && e.status === 423) {
+        setDoiScheduleLocked(true);
+        setSaveMsg(msg || DOI_SCHEDULE_LOCKED_MESSAGE);
+        toast.error("Schedule locked", msg || DOI_SCHEDULE_LOCKED_MESSAGE);
+      } else {
+        setSaveMsg(msg);
+        toast.error("Could not save vacant slots", msg);
       }
     } finally {
       setSaveBusy(false);

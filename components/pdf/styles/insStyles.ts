@@ -130,7 +130,8 @@ export const ins = StyleSheet.create({
 
   fieldRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    // alignItems: "flex-end",
+    width: '40%',
     marginBottom: 3,
   },
   fieldLabel: {
@@ -149,10 +150,9 @@ export const ins = StyleSheet.create({
     // minHeight: 10,
   },
   columnContainerHeader:{
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    width: "40%",
+   flexDirection: "row",
+    // alignItems: "flex-start",
+    width: "100%",
     marginBottom: 4,
   },
   fieldRowHalf: {

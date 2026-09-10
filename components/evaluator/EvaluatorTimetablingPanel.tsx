@@ -42,7 +42,6 @@ import { ScheduleLivePreview } from "./ScheduleLivePreview";
 import {
   type BsitSemester,
   isBsitChairmanProgram,
-  isBsitPlotEligibleRoom,
   isBsitSectionName,
   normalizeProspectusCode,
   prospectusSubjectsForYearAndSemester,
@@ -65,6 +64,7 @@ import {
   sortedBuildingKeysFromRooms,
 } from "@/lib/campus/campus-navigation-catalog";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
+import { filterRoomsForProgramPlot } from "@/lib/scheduling/program-plot-rooms";
 import {
   formatRoomOptionLabel,
   roomBuildingKey,
@@ -337,25 +337,22 @@ export function EvaluatorTimetablingPanel({
   /** Drop superseded legacy IT lab rows when COTE navigation labs exist — matches campus navigation module groupings. */
   const roomsCatalogAligned = useMemo(() => dedupeLegacyItLabsForCampusNavigation(rooms), [rooms]);
 
-  const roomsInCollege = useMemo(
-    () =>
-      roomsCatalogAligned.filter(
-        (r) => !effectiveCollegeId || r.collegeId === effectiveCollegeId || r.collegeId == null,
-      ),
-    [roomsCatalogAligned, effectiveCollegeId],
-  );
-
   /**
-   * Rooms available in the plotter: college-scoped (+ shared `collegeId` null). BSIT chairman mode limits to the four
-   * official IT labs — both legacy codes (`IT LAB 1`…) and COTE navigation rows (`COTE 302` + displayName `IT Lab 04`).
-   * Building → Room options are derived from this list via {@link sortedBuildingKeysFromRooms} and
-   * {@link roomsInBuildingSorted} (campus navigation grouping).
+   * Rooms available in the plotter: department-owned when configured; else college (+ shared).
+   * BSIT without department rooms still limits to official IT labs.
    */
   const roomsForPlotter = useMemo(() => {
-    let list = roomsInCollege;
-    if (bsitScope) list = list.filter((r) => isBsitPlotEligibleRoom(r));
-    return list;
-  }, [roomsInCollege, bsitScope]);
+    const programCode =
+      chairmanProgramCode ??
+      programs.find((p) => p.id === programId)?.code ??
+      null;
+    return filterRoomsForProgramPlot(
+      roomsCatalogAligned,
+      programCode,
+      effectiveCollegeId,
+      programId,
+    );
+  }, [roomsCatalogAligned, effectiveCollegeId, programId, chairmanProgramCode, programs]);
 
   /** Cascading step 1: one entry per distinct `Room.building` (normalized), alphabetically sorted. */
   const plotterBuildingLabels = useMemo(() => sortedBuildingKeysFromRooms(roomsForPlotter), [roomsForPlotter]);
@@ -525,8 +522,9 @@ export function EvaluatorTimetablingPanel({
       effectiveCollegeId,
       (sid) => sectionToCollegeId(sid),
       policyConstants,
+      programMode,
     );
-  }, [mergedEntriesForPolicy, subjectById, userById, profileByUserId, effectiveCollegeId, sectionToCollegeId, policyConstants]);
+  }, [mergedEntriesForPolicy, subjectById, userById, profileByUserId, effectiveCollegeId, sectionToCollegeId, policyConstants, programMode]);
 
   /** Live "hours so far / cap" snapshot for the instructor picker's overload warning. */
   const instructorLoadById = useMemo(() => {
@@ -1628,12 +1626,13 @@ export function EvaluatorTimetablingPanel({
               <div className="font-semibold text-amber-950">Faculty load vs. CTU Faculty Manual (from timetable)</div>
               <p className="text-[12px] text-amber-950/80 leading-relaxed">
                 Weekly contact is summed from plotted slots; lecture vs. lab split uses each subject&apos;s lec/lab hours.
-                Standard teaching {FACULTY_POLICY_CONSTANTS.STANDARD_WEEKLY_TEACHING_HOURS} hrs/wk; lab cap{" "}
-                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LAB_CONTACT_HOURS} hrs/wk; lecture overload track{" "}
-                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS} hrs/wk; non-resident max{" "}
-                {FACULTY_POLICY_CONSTANTS.PARTTIME_MAX_WEEKLY_HOURS} hrs/wk; heavy overload flag over{" "}
-                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_RESIDENT_CONTACT_HOURS} hrs/wk resident /{" "}
-                {FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS} hrs/wk non-resident.
+                Standard teaching {policyConstants.STANDARD_WEEKLY_TEACHING_HOURS} hrs/wk; lab cap{" "}
+                {policyConstants.MAX_WEEKLY_LAB_CONTACT_HOURS} hrs/wk; lecture overload track{" "}
+                {policyConstants.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS} hrs/wk; non-resident max{" "}
+                {policyConstants.PARTTIME_MAX_WEEKLY_HOURS} hrs/wk; heavy overload flag over{" "}
+                {policyConstants.MAX_WEEKLY_RESIDENT_CONTACT_HOURS} hrs/wk resident /{" "}
+                {policyConstants.MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS} hrs/wk non-resident.
+                Day and Evening are checked separately.
               </p>
               {policyEvaluation.rows.length === 0 ? (
                 <p className="text-black/50 text-[13px]">No schedule rows for this college and term.</p>

@@ -5,18 +5,10 @@ import { designationTeachingCapHours } from "@/lib/faculty/designation-system";
 import { isNonResidentFacultyStatus } from "@/lib/faculty/employment-status";
 import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
 import { subjectPrepKey } from "./prep-key";
+import { slotDurationHours } from "@/lib/scheduling/time";
+import { filterByProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
 
-function parseTimeToMinutes(t: string): number {
-  const [h, m] = t.split(":").map((x) => parseInt(x, 10));
-  return h * 60 + (m || 0);
-}
-
-/** Duration of one weekly meeting in hours (from timetable slot). */
-export function slotDurationHours(startTime: string, endTime: string): number {
-  const a = parseTimeToMinutes(startTime);
-  const b = parseTimeToMinutes(endTime);
-  return Math.max(0, (b - a) / 60);
-}
+export { slotDurationHours } from "@/lib/scheduling/time";
 
 /** Split slot hours into lecture vs lab portions using subject contact-hour mix. */
 export function lectureLabSplitHours(subject: Subject | undefined, durationHours: number): { lec: number; lab: number } {
@@ -55,7 +47,12 @@ export type FacultyLoadRow = {
   violations: FacultyPolicyViolation[];
 };
 
-/** Allowed distinct subjects without justification; assigning a 4th (or more) requires a written reason. */
+/**
+ * Legacy defaults for prep-limit justification.
+ *
+ * The real (resident/non-resident) thresholds come from `policyConstants`
+ * (`maxWeekly*PrepsWithoutJustification`).
+ */
 export const MAX_WEEKLY_PREPS_WITHOUT_JUSTIFICATION = 3;
 export const PREP_LIMIT_JUSTIFICATION_THRESHOLD = 4;
 
@@ -190,6 +187,8 @@ function collectSecondaryPolicyViolations(
  * assignments in other colleges (e.g. COTE faculty teaching a CAS section). Same universe as
  * `getInstructorScheduleRows`, INS Form 5A, and faculty My Schedule. `collegeId` and `sectionToCollegeId` are legacy
  * parameters; overload policy uses the instructor’s **full** term load, not a single-college slice.
+ *
+ * Pass `programMode` so Day and Evening never mix when a caller forgets to pre-filter.
  */
 export function evaluateFacultyLoadsForCollege(
   entries: ScheduleEntry[],
@@ -199,7 +198,9 @@ export function evaluateFacultyLoadsForCollege(
   _collegeId: string,
   _sectionToCollegeId: (sectionId: string) => string | null,
   policyConstants: ResolvedFacultyPolicyConstants = FACULTY_POLICY_CONSTANTS as ResolvedFacultyPolicyConstants,
+  programMode?: ProgramMode,
 ): { rows: FacultyLoadRow[]; hasAnyViolation: boolean; hasTeachingLoadJustificationViolation: boolean } {
+  const scopedEntries = programMode ? filterByProgramMode(entries, programMode) : entries;
   const byInstructor = new Map<
     string,
     {
@@ -213,7 +214,7 @@ export function evaluateFacultyLoadsForCollege(
     }
   >();
 
-  for (const e of entries) {
+  for (const e of scopedEntries) {
     const sub = subjectsById.get(e.subjectId);
     const dur = slotDurationHours(e.startTime, e.endTime);
     const { lec, lab } = lectureLabSplitHours(sub, dur);
@@ -249,33 +250,52 @@ export function evaluateFacultyLoadsForCollege(
     const desCap = designationTeachingCapHours(ctx.designation);
     const effectiveTeachingCap = desCap ?? policyConstants.STANDARD_WEEKLY_TEACHING_HOURS;
     const teaching = collectTeachingLoadCapViolations(ctx, hrs.total, policyConstants);
+    const nonResident = isNonResidentFacultyStatus(ctx.status);
     const preparations = hrs.prepKeys.size || hrs.subjectIds.size;
-    if (preparations >= PREP_LIMIT_JUSTIFICATION_THRESHOLD) {
+
+    const maxPrepsWithoutJustification = nonResident
+      ? policyConstants.MAX_WEEKLY_NON_RESIDENT_PREPS_WITHOUT_JUSTIFICATION
+      : policyConstants.MAX_WEEKLY_RESIDENT_PREPS_WITHOUT_JUSTIFICATION;
+    const prepLimitThreshold = maxPrepsWithoutJustification + 1;
+
+    if (preparations >= prepLimitThreshold) {
       teaching.push({
         code: "OVER_PREP_LIMIT",
-        message: `Preparations (${preparations} distinct subjects) reach or exceed the allowed ${MAX_WEEKLY_PREPS_WITHOUT_JUSTIFICATION} without justification.`,
+        message: `Preparations (${preparations} distinct subjects) reach or exceed the allowed ${maxPrepsWithoutJustification} without justification.`,
       });
     }
+
     const secondary = collectSecondaryPolicyViolations(
       hrs.total,
       hrs.lec,
       hrs.lab,
-      isNonResidentFacultyStatus(ctx.status),
+      nonResident,
       policyConstants,
     );
     const violations = [...teaching, ...secondary];
     if (violations.length > 0) hasAnyViolation = true;
     if (teaching.length > 0) hasTeachingLoadJustificationViolation = true;
-    const subjectCodes = [...hrs.subjectIds]
-      .map((id) => subjectsById.get(id)?.code)
-      .filter((c): c is string => Boolean(c))
-      .sort((a, b) => a.localeCompare(b));
+    const subjectCodesByPrep = new Map<string, string>();
+    for (const id of hrs.subjectIds) {
+      const raw = subjectsById.get(id)?.code?.trim();
+      if (!raw) continue;
+      const prep = subjectPrepKey(raw) || raw;
+      const prev = subjectCodesByPrep.get(prep);
+      if (!prev) {
+        subjectCodesByPrep.set(prep, raw);
+        continue;
+      }
+      const prevIsLab = /L$/i.test(prev.replace(/[\s\-_.]/g, "")) || /\bLAB\b/i.test(prev);
+      const rawIsLab = /L$/i.test(raw.replace(/[\s\-_.]/g, "")) || /\bLAB\b/i.test(raw);
+      if (prevIsLab && !rawIsLab) subjectCodesByPrep.set(prep, raw);
+    }
+    const subjectCodes = [...subjectCodesByPrep.values()].sort((a, b) => a.localeCompare(b));
     rows.push({
       instructorId,
       instructorName: ctx.name,
-      weeklyTotalContactHours: hrs.total,
-      weeklyLectureHours: hrs.lec,
-      weeklyLabHours: hrs.lab,
+      weeklyTotalContactHours: Math.round(hrs.total * 100) / 100,
+      weeklyLectureHours: Math.round(hrs.lec * 100) / 100,
+      weeklyLabHours: Math.round(hrs.lab * 100) / 100,
       preparations,
       weeklyUnits: hrs.units,
       subjectCodes,

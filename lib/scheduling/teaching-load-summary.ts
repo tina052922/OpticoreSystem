@@ -1,13 +1,16 @@
 import type { FacultyProfile, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
-import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
-import { slotDurationHours } from "@/lib/scheduling/facultyPolicies";
+import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { slotDurationHours } from "@/lib/scheduling/time";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { subjectPrepKey } from "@/lib/scheduling/prep-key";
 
 export type TeachingLoadModeSlice = {
   preps: number;
   unitsPerWeek: number;
+  /** Sum of plotted slot durations (`endTime - startTime`) for this mode only. */
   hoursPerWeek: number;
+  /** Distinct subject labels for this mode only (lec+lab collapsed). */
+  subjectsHandled: string;
 };
 
 export type TeachingLoadSummaryRow = {
@@ -17,6 +20,10 @@ export type TeachingLoadSummaryRow = {
   otherResponsibilities: string;
   day: TeachingLoadModeSlice;
   evening: TeachingLoadModeSlice;
+  /**
+   * Display helper for the single Subjects Handled column.
+   * Day and Evening lists stay separate (`Day: …` / `Eve: …`) — never a merged prep count.
+   */
   subjectsHandled: string;
   justification: string | null;
   /** Arithmetic sum of Day + Evening columns for the printed form — not a merged policy total. */
@@ -70,13 +77,40 @@ export function sortProgramsForTeachingLoad<T extends TeachingLoadProgramRef>(pr
   });
 }
 
-const emptySlice = (): TeachingLoadModeSlice => ({ preps: 0, unitsPerWeek: 0, hoursPerWeek: 0 });
-
 export function otherResponsibilitiesFromProfile(profile: FacultyProfile | undefined | null): string {
   const parts = [profile?.research, profile?.extension, profile?.production, profile?.specialTraining]
     .map((s) => (s ?? "").trim())
     .filter(Boolean);
   return parts.length > 0 ? parts.join("; ") : "—";
+}
+
+export function subjectCodesForEntries(entries: ScheduleEntry[], subjectById: Map<string, Subject>): string {
+  /** One display label per preparation; prefer lecture-style codes over lab suffixes. */
+  const byPrep = new Map<string, string>();
+  for (const e of entries) {
+    const raw = subjectById.get(e.subjectId)?.code?.trim();
+    if (!raw) continue;
+    const prep = subjectPrepKey(raw) || raw;
+    const prev = byPrep.get(prep);
+    if (!prev) {
+      byPrep.set(prep, raw);
+      continue;
+    }
+    const prevIsLab = /L$/i.test(prev.replace(/[\s\-_.]/g, "")) || /\bLAB\b/i.test(prev);
+    const rawIsLab = /L$/i.test(raw.replace(/[\s\-_.]/g, "")) || /\bLAB\b/i.test(raw);
+    if (prevIsLab && !rawIsLab) byPrep.set(prep, raw);
+  }
+  return [...byPrep.values()].sort((a, b) => a.localeCompare(b)).join(", ") || "—";
+}
+
+/** Label Day / Eve lists without merging prep counts across modes. */
+export function formatModeSeparatedSubjects(daySubjects: string, eveningSubjects: string): string {
+  const day = daySubjects.trim() && daySubjects !== "—" ? daySubjects.trim() : "";
+  const eve = eveningSubjects.trim() && eveningSubjects !== "—" ? eveningSubjects.trim() : "";
+  if (day && eve) return `Day: ${day}\nEve: ${eve}`;
+  if (day) return `Day: ${day}`;
+  if (eve) return `Eve: ${eve}`;
+  return "—";
 }
 
 export function metricsForEntries(
@@ -89,6 +123,7 @@ export function metricsForEntries(
   let hours = 0;
   let units = 0;
   for (const e of entries) {
+    // Always use plotted wall-clock duration — never subject catalog lec/lab hours.
     hours += slotDurationHours(e.startTime, e.endTime);
     if (e.subjectId) subjectIds.add(e.subjectId);
     const prep = subjectPrepKey(subjectById.get(e.subjectId)?.code) || e.subjectId;
@@ -104,6 +139,7 @@ export function metricsForEntries(
     preps: prepKeys.size || subjectIds.size,
     unitsPerWeek: units,
     hoursPerWeek: Math.round(hours * 100) / 100,
+    subjectsHandled: subjectCodesForEntries(entries, subjectById),
   };
 }
 
@@ -117,15 +153,6 @@ export function latestJustificationText(
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   const text = rows[0]?.justification?.trim();
   return text ? text : null;
-}
-
-function subjectCodesForEntries(entries: ScheduleEntry[], subjectById: Map<string, Subject>): string {
-  const codes = new Set<string>();
-  for (const e of entries) {
-    const code = subjectById.get(e.subjectId)?.code?.trim();
-    if (code) codes.add(code);
-  }
-  return [...codes].sort((a, b) => a.localeCompare(b)).join(", ") || "—";
 }
 
 /**
@@ -155,7 +182,10 @@ export function buildTeachingLoadSummary(args: {
     }
   }
 
-  const termEntries = args.entries.filter((e) => e.academicPeriodId === args.academicPeriodId);
+  // Resolve Night:: / missing programMode before splitting — prevents Day/Eve mix on legacy rows.
+  const termEntries = hydrateScheduleEntries(
+    args.entries.filter((e) => e.academicPeriodId === args.academicPeriodId),
+  );
   const collegeEntries = termEntries.filter((e) => {
     const sec = sectionById.get(e.sectionId);
     return Boolean(sec && programIds.has(sec.programId));
@@ -171,8 +201,8 @@ export function buildTeachingLoadSummary(args: {
     const mine = collegeEntries.filter((e) => e.instructorId === instructorId);
     const dayEntries = filterByProgramMode(mine, "day");
     const eveningEntries = filterByProgramMode(mine, "night");
-    const day = mine.length === 0 ? emptySlice() : metricsForEntries(dayEntries, subjectById);
-    const evening = mine.length === 0 ? emptySlice() : metricsForEntries(eveningEntries, subjectById);
+    const day = metricsForEntries(dayEntries, subjectById);
+    const evening = metricsForEntries(eveningEntries, subjectById);
     const profile = profileByUserId.get(instructorId);
     const user = userById.get(instructorId);
     const homeProgramId =
@@ -184,7 +214,7 @@ export function buildTeachingLoadSummary(args: {
       otherResponsibilities: otherResponsibilitiesFromProfile(profile),
       day,
       evening,
-      subjectsHandled: subjectCodesForEntries(mine, subjectById),
+      subjectsHandled: formatModeSeparatedSubjects(day.subjectsHandled, evening.subjectsHandled),
       justification: latestJustificationText(args.justifications, instructorId, args.academicPeriodId),
       totalPreps: day.preps + evening.preps,
       totalHoursPerWeek: Math.round((day.hoursPerWeek + evening.hoursPerWeek) * 100) / 100,

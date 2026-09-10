@@ -124,15 +124,109 @@ describe("buildTeachingLoadSummary", () => {
     expect(rows[0].day.preps).toBe(1);
     expect(rows[0].day.hoursPerWeek).toBeCloseTo(3, 5);
     expect(rows[0].day.unitsPerWeek).toBe(3);
+    expect(rows[0].day.subjectsHandled).toBe("IT 101");
     expect(rows[0].evening.preps).toBe(1);
     expect(rows[0].evening.hoursPerWeek).toBeCloseTo(2, 5);
     expect(rows[0].evening.unitsPerWeek).toBe(3);
+    expect(rows[0].evening.subjectsHandled).toBe("IT 201");
     expect(rows[0].totalHoursPerWeek).toBeCloseTo(5, 5);
-    expect(rows[0].subjectsHandled).toContain("IT 101");
-    expect(rows[0].subjectsHandled).toContain("IT 201");
+    expect(rows[0].subjectsHandled).toBe("Day: IT 101\nEve: IT 201");
     expect(rows[0].justification).toMatch(/Fourth prep/);
     expect(rows[0].administrativeDesignation).toBe("Program Chair");
     expect(rows[0].otherResponsibilities).toBe("Research load");
+  });
+
+  it("does not mix Day and Evening when the same subject is taught in both modes", () => {
+    const entries: ScheduleEntry[] = [
+      entry({ id: "d1", subjectId: "sub-day", programMode: "day", startTime: "08:00:00", endTime: "11:00:00" }),
+      entry({
+        id: "n1",
+        subjectId: "sub-day",
+        programMode: "night",
+        startTime: "18:00:00",
+        endTime: "20:00:00",
+        day: "Monday",
+      }),
+    ];
+    const users: User[] = [
+      {
+        id: instructorId,
+        employeeId: null,
+        email: "t@test.edu",
+        name: "Test Faculty",
+        role: "instructor",
+        collegeId,
+        chairmanProgramId: null,
+        signatureImageUrl: null,
+        profileImageUrl: null,
+        createdAt: "2025-01-01T00:00:00Z",
+        updatedAt: "2025-01-01T00:00:00Z",
+      },
+    ];
+    const rows = buildTeachingLoadSummary({
+      collegeId,
+      academicPeriodId: periodId,
+      entries,
+      users,
+      profiles: [],
+      programs: [{ id: "prog1", collegeId }],
+      sections: [{ id: "sec1", programId: "prog1", name: "1A", yearLevel: 1, studentCount: 40 }],
+      subjects: [subjectDay],
+      justifications: [],
+    });
+    expect(rows[0].day.preps).toBe(1);
+    expect(rows[0].evening.preps).toBe(1);
+    expect(rows[0].day.hoursPerWeek).toBeCloseTo(3, 5);
+    expect(rows[0].evening.hoursPerWeek).toBeCloseTo(2, 5);
+    expect(rows[0].day.subjectsHandled).toBe("IT 101");
+    expect(rows[0].evening.subjectsHandled).toBe("IT 101");
+    expect(rows[0].totalPreps).toBe(2);
+    expect(rows[0].subjectsHandled).toBe("Day: IT 101\nEve: IT 101");
+  });
+
+  it("counts Night:: legacy rows as Evening and uses plotted durations", () => {
+    const entries: ScheduleEntry[] = [
+      entry({
+        id: "n1",
+        subjectId: "sub-eve",
+        day: "Night::Monday",
+        programMode: null,
+        startTime: "18:00",
+        endTime: "21:00",
+      }),
+    ];
+    const users: User[] = [
+      {
+        id: instructorId,
+        employeeId: null,
+        email: "t@test.edu",
+        name: "Test Faculty",
+        role: "instructor",
+        collegeId,
+        chairmanProgramId: null,
+        signatureImageUrl: null,
+        profileImageUrl: null,
+        createdAt: "2025-01-01T00:00:00Z",
+        updatedAt: "2025-01-01T00:00:00Z",
+      },
+    ];
+    const rows = buildTeachingLoadSummary({
+      collegeId,
+      academicPeriodId: periodId,
+      entries,
+      users,
+      profiles: [],
+      programs: [{ id: "prog1", collegeId }],
+      sections: [{ id: "sec1", programId: "prog1", name: "1A", yearLevel: 1, studentCount: 40 }],
+      subjects: [subjectEve],
+      justifications: [],
+    });
+    expect(rows[0].day.preps).toBe(0);
+    expect(rows[0].day.hoursPerWeek).toBe(0);
+    expect(rows[0].evening.preps).toBe(1);
+    expect(rows[0].evening.hoursPerWeek).toBeCloseTo(3, 5);
+    expect(rows[0].evening.subjectsHandled).toBe("IT 201");
+    expect(rows[0].subjectsHandled).toBe("Eve: IT 201");
   });
 
   it("counts distinct subjects as preps, not meeting count", () => {
@@ -236,6 +330,44 @@ describe("metricsForEntries", () => {
       map,
     );
     expect(slice.preps).toBe(1);
+  });
+});
+
+describe("subjectsHandled display", () => {
+  it("collapses lec+lab into one subject label preferring the lecture code", () => {
+    const lec: Subject = { ...subjectDay, id: "cc112", code: "CC-112" };
+    const lab: Subject = { ...subjectDay, id: "cc112l", code: "CC-112L", lecUnits: 0, labUnits: 1 };
+    const rows = buildTeachingLoadSummary({
+      collegeId,
+      academicPeriodId: periodId,
+      entries: [
+        entry({ id: "a", subjectId: lec.id, programMode: "day" }),
+        entry({ id: "b", subjectId: lab.id, programMode: "day", startTime: "10:00", endTime: "13:00" }),
+      ],
+      users: [
+        {
+          id: instructorId,
+          employeeId: null,
+          email: "t@test.edu",
+          name: "Test Faculty",
+          role: "instructor",
+          collegeId,
+          chairmanProgramId: null,
+          signatureImageUrl: null,
+          profileImageUrl: null,
+          createdAt: "2025-01-01T00:00:00Z",
+          updatedAt: "2025-01-01T00:00:00Z",
+        },
+      ],
+      profiles: [],
+      programs: [{ id: "prog1", collegeId }],
+      sections: [{ id: "sec1", programId: "prog1", name: "1A", yearLevel: 1, studentCount: 40 }],
+      subjects: [lec, lab],
+      justifications: [],
+    });
+    expect(rows[0].day.preps).toBe(1);
+    expect(rows[0].day.subjectsHandled).toBe("CC-112");
+    expect(rows[0].subjectsHandled).toBe("Day: CC-112");
   });
 });
 

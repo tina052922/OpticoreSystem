@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "./facultyPolicies";
+import { FACULTY_POLICY_CONSTANTS } from "./constants";
+import type { ResolvedFacultyPolicyConstants } from "@/lib/system-configuration/scheduling-policy";
 import type { FacultyProfile, ScheduleEntry, Subject, User } from "@/types/db";
 
 const instructorId = "instr-1";
@@ -193,10 +195,22 @@ describe("evaluateFacultyLoadsForCollege / teaching-load justification gate", ()
     const dayLoad = evaluateFacultyLoadsForCollege(dayOnly, subjects, users, profiles, "c1", () => "c1");
     const nightLoad = evaluateFacultyLoadsForCollege(nightOnly, subjects, users, profiles, "c1", () => "c1");
     const mixedLoad = evaluateFacultyLoadsForCollege(mixed, subjects, users, profiles, "c1", () => "c1");
+    const mixedFilteredDay = evaluateFacultyLoadsForCollege(
+      mixed,
+      subjects,
+      users,
+      profiles,
+      "c1",
+      () => "c1",
+      FACULTY_POLICY_CONSTANTS as ResolvedFacultyPolicyConstants,
+      "day",
+    );
 
     expect(dayLoad.rows[0].weeklyTotalContactHours).toBeCloseTo(2, 5);
     expect(nightLoad.rows[0].weeklyTotalContactHours).toBeCloseTo(2, 5);
     expect(mixedLoad.rows[0].weeklyTotalContactHours).toBeCloseTo(4, 5);
+    expect(mixedFilteredDay.rows[0].weeklyTotalContactHours).toBeCloseTo(2, 5);
+    expect(mixedFilteredDay.rows[0].preparations).toBe(1);
   });
 
   it("requires justification when assigning would reach 4 distinct subject preps", () => {

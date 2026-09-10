@@ -1135,27 +1135,42 @@ export function OpticoreInsForm5C({
         </div>
       </div>
 
-      {/* Print-only footer: compact signature lines (one page). */}
+      {/* Print-only footer: compact signature lines with configured e-signature images. */}
       <div className="hidden print:grid grid-cols-3 gap-6 border-t border-neutral-900 pt-4 text-[11px]">
-        <div className="text-center">
-          <div className="mb-6 border-b border-neutral-900" />
-          <div className="font-semibold">Prepared by:</div>
-          <div className="text-[10px] text-neutral-700">
-            Program Coordinator/Chair
+        {(
+          [
+            { title: "Prepared by:", role: "Program Coordinator/Chair", slot: prepared },
+            {
+              title: "Reviewed, Certified True and Correct:",
+              role: "Director/Dean",
+              slot: review,
+            },
+            { title: "Approved:", role: "Campus Director", slot: campus },
+          ] as const
+        ).map((col) => (
+          <div key={col.title} className="text-center">
+            <div className="mb-1 flex min-h-[2.25rem] items-end justify-center">
+              {scheduleApproved && col.slot?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
+                <img
+                  src={col.slot.imageUrl}
+                  alt=""
+                  className="max-h-10 max-w-full object-contain"
+                />
+              ) : (
+                <div className="w-full border-b border-neutral-900" />
+              )}
+            </div>
+            {scheduleApproved && col.slot?.imageUrl ? (
+              <div className="mb-1 border-b border-neutral-900" />
+            ) : null}
+            <div className="font-semibold">{col.title}</div>
+            <div className="text-[10px] text-neutral-700">{col.role}</div>
+            {col.slot?.signerName && col.slot.signerName !== "—" ? (
+              <div className="mt-0.5 text-[9px] text-neutral-800">{col.slot.signerName}</div>
+            ) : null}
           </div>
-        </div>
-        <div className="text-center">
-          <div className="mb-6 border-b border-neutral-900" />
-          <div className="font-semibold">
-            Reviewed, Certified True and Correct:
-          </div>
-          <div className="text-[10px] text-neutral-700">Director/Dean</div>
-        </div>
-        <div className="text-center">
-          <div className="mb-6 border-b border-neutral-900" />
-          <div className="font-semibold">Approved:</div>
-          <div className="text-[10px] text-neutral-700">Campus Director</div>
-        </div>
+        ))}
       </div>
       <InsPrintFooter />
     </div>

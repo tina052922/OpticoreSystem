@@ -7,6 +7,7 @@ import { facultyProfileApi, userAdminApi, apiFetch } from "@/lib/api/client";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { FacultyProfile, Program, ScheduleLoadJustification, Section, User } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
+import { isGecInstructorUser } from "@/lib/faculty/faculty-category";
 import { computeRatePerHour, DESIGNATION_POLICIES, getDesignationPolicyByLabel } from "@/lib/faculty/designation-system";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { resolveHourlyRates } from "@/lib/system-configuration/scheduling-policy";
@@ -130,7 +131,7 @@ export function FacultyProfileWorkspace({
       const { apiFetch } = await import("@/lib/api/client");
       const data = await apiFetch<{
         users: Array<
-          Pick<User, "id" | "name" | "employeeId" | "role" | "chairmanProgramId" | "instructorValidation">
+          Pick<User, "id" | "name" | "employeeId" | "role" | "chairmanProgramId" | "instructorValidation" | "facultyCategory">
         >;
       }>(
         `/api/catalog/users?collegeId=${collegeId}`,
@@ -139,8 +140,10 @@ export function FacultyProfileWorkspace({
       users = data.users
         .filter((u) => {
           if (u.role !== "instructor" || !isPlottableFacultyUser(u)) return false;
-          const home = String(u.chairmanProgramId ?? "").trim();
           const locked = String(chairmanProgramId ?? "").trim();
+          // Department chairs manage program faculty only — GEC instructors are college-scoped.
+          if (locked && isGecInstructorUser(u)) return false;
+          const home = String(u.chairmanProgramId ?? "").trim();
           if (locked && home && home !== locked) return false;
           return true;
         })

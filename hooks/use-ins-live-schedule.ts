@@ -123,6 +123,31 @@ export function useInsLiveSchedule(args: {
     catalog.campusInsSettings?.insSignerDisplay,
   ]);
 
+  /** Same strip with configured e-signature images kept for PDF preview/print. */
+  const pdfInsSignatureSlots: InsSignatureSlot[] | null = useMemo(() => {
+    return resolveInsSignatureSlots({
+      college: resolvedCollegeAndProgram.collegeRow,
+      programId: resolvedCollegeAndProgram.programId,
+      users: catalog.users,
+      userById: catalog.userById,
+      scheduleApproved: catalog.termPublishLocked,
+      includeImages: true,
+      campusWideDirectorSignatureUrl: catalog.campusWideDirectorSignatureUrl,
+      doiSignatureImageUrl: catalog.doiSignatureImageUrl,
+      campusInsSignerDisplay: catalog.campusInsSettings?.insSignerDisplay ?? null,
+      collegeInsSignerDisplay: resolvedCollegeAndProgram.collegeRow?.insSignerDisplay ?? null,
+    });
+  }, [
+    resolvedCollegeAndProgram.collegeRow,
+    resolvedCollegeAndProgram.programId,
+    catalog.users,
+    catalog.userById,
+    catalog.termPublishLocked,
+    catalog.campusWideDirectorSignatureUrl,
+    catalog.doiSignatureImageUrl,
+    catalog.campusInsSettings?.insSignerDisplay,
+  ]);
+
   const facultyCredentials = useMemo(() => {
     if (!facultyProfile) return null;
     return {
@@ -172,10 +197,12 @@ export function useInsLiveSchedule(args: {
       sectionById: catalog.sectionById,
       subjectById: catalog.subjectById,
       roomById: catalog.roomById,
+      programMode: catalog.programMode,
     });
   }, [
     entriesForInsFacultyView,
     catalog.academicPeriodId,
+    catalog.programMode,
     selectedInstructorId,
     catalog.sectionById,
     catalog.subjectById,
@@ -241,6 +268,7 @@ export function useInsLiveSchedule(args: {
     applyInsConflictAlternative: catalog.applyInsConflictAlternative,
     termPublishLocked: catalog.termPublishLocked,
     insSignatureSlots,
+    pdfInsSignatureSlots,
     facultyCredentials,
     facultyFormSummary,
     selectedFacultyDisplayName,

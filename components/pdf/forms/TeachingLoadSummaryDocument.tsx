@@ -138,6 +138,19 @@ function Cell({
   );
 }
 
+function SubjectsCell({ width, text }: { width: string; text: string }) {
+  const lines = text.split("\n").filter(Boolean);
+  return (
+    <View style={[s.td, { width, paddingVertical: 2 }]}>
+      {lines.map((line) => (
+        <Text key={line} style={{ fontSize: 7, lineHeight: 1.25 }}>
+          {line}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 function FacultyRow({ row, index, alt }: { row: TeachingLoadSummaryRow; index: number; alt: boolean }) {
   return (
     <View style={alt ? [s.tr, s.trAlt] : s.tr} wrap={false}>
@@ -158,7 +171,7 @@ function FacultyRow({ row, index, alt }: { row: TeachingLoadSummaryRow; index: n
       <Cell width={COLS.n} center>
         {fmt(row.evening.hoursPerWeek)}
       </Cell>
-      <Cell width={COLS.subjects}>{row.subjectsHandled}</Cell>
+      <SubjectsCell width={COLS.subjects} text={row.subjectsHandled} />
       <Cell width={COLS.just}>{row.justification ?? ""}</Cell>
     </View>
   );

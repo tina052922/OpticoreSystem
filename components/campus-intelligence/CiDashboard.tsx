@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { Users, BookOpen, DoorOpen, AlertTriangle, ChevronRight } from "lucide-react";
+import { Users, BookOpen, DoorOpen, AlertTriangle, ChevronRight, CalendarCheck2 } from "lucide-react";
 import { apiFetch, schedulingApi } from "@/lib/api/client";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
@@ -189,6 +189,14 @@ export function CiDashboard({
       color: "#780301",
     },
     {
+      label: "Plotted schedules (sections with classes)",
+      value: statsLive
+        ? fmtCount(statsLive.plottedScheduleCount ?? statsLive.draftScheduleCount)
+        : "—",
+      icon: CalendarCheck2,
+      color: "#1565C0",
+    },
+    {
       label: "Schedule conflicts (selected term)",
       value: conflictsLive ? String(conflictsLive.conflictingRowCount) : "—",
       icon: AlertTriangle,
@@ -248,7 +256,7 @@ export function CiDashboard({
         </Link>
       ) : null}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (

@@ -36,6 +36,10 @@ export const FACULTY_POLICY_CONSTANTS = {
   MAX_WEEKLY_RESIDENT_CONTACT_HOURS: 40,
   /** Non-resident faculty — same heavy-overload reference bound, which runs higher than the resident week. */
   MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS: 49,
+  /** Allowed distinct subject preparations without DOI justification — resident. */
+  MAX_WEEKLY_RESIDENT_PREPS_WITHOUT_JUSTIFICATION: 3,
+  /** Allowed distinct subject preparations without DOI justification — non-resident. */
+  MAX_WEEKLY_NON_RESIDENT_PREPS_WITHOUT_JUSTIFICATION: 3,
 } as const;
 
 /** Majors keyed by program id (COTE prospectus — example data). */

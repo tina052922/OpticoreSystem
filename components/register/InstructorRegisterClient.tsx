@@ -15,6 +15,11 @@ import {
   FACULTY_EMPLOYMENT_NON_RESIDENT,
   FACULTY_EMPLOYMENT_RESIDENT,
 } from "@/lib/faculty/employment-status";
+import {
+  FACULTY_CATEGORY_GEC,
+  FACULTY_CATEGORY_PROGRAM,
+  type FacultyCategory,
+} from "@/lib/faculty/faculty-category";
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = { id: string; code: string; name: string; collegeId: string };
@@ -48,6 +53,7 @@ export function InstructorRegisterClient() {
   const [showPassword, setShowPassword] = useState(false);
   const [employeeId, setEmployeeId] = useState("");
   const [collegeId, setCollegeId] = useState("");
+  const [facultyCategory, setFacultyCategory] = useState<FacultyCategory>(FACULTY_CATEGORY_PROGRAM);
   const [programId, setProgramId] = useState("");
   const [bsDegree, setBsDegree] = useState("");
   const [msDegree, setMsDegree] = useState("");
@@ -146,7 +152,7 @@ export function InstructorRegisterClient() {
       setError("Please select your home college.");
       return;
     }
-    if (!programId) {
+    if (facultyCategory === FACULTY_CATEGORY_PROGRAM && !programId) {
       setError("Please select your home department so the Program Chairman can review your registration.");
       return;
     }
@@ -158,7 +164,9 @@ export function InstructorRegisterClient() {
         email: normalizedEmail,
         password,
         collegeId,
-        programId,
+        facultyCategory,
+        programId:
+          facultyCategory === FACULTY_CATEGORY_GEC ? null : programId,
         employeeId: employeeId.trim() || undefined,
         ...profilePayload(),
       });
@@ -276,8 +284,9 @@ export function InstructorRegisterClient() {
           <h1 className="text-xl font-medium text-[#181818]">{branding.universityName}</h1>
           <h2 className="text-lg font-bold text-black">Instructor registration</h2>
           <p className="text-[13px] text-black/55">
-            Register with your CTU email and home department. We&apos;ll email you a
-            code, then your Program Chairman approves the account and confirms your
+            Register with your CTU email. Program faculty choose a home department for
+            chairman review; GEC instructors are college-scoped and not locked to one
+            department. We&apos;ll email you a code, then an administrator confirms your
             Employee ID.
           </p>
         </div>
@@ -388,8 +397,35 @@ export function InstructorRegisterClient() {
                   aria-describedby="ins-employee-id-hint"
                 />
                 <p id="ins-employee-id-hint" className="mt-1 text-xs text-black/55">
-                  Helps your chairman find you. They confirm the final Employee ID
+                  Helps your reviewer find you. They confirm the final Employee ID
                   when approving your account.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="ins-category" className={labelClass}>
+                  Instructor category
+                </label>
+                <select
+                  id="ins-category"
+                  value={facultyCategory}
+                  onChange={(e) => {
+                    const next =
+                      e.target.value === FACULTY_CATEGORY_GEC
+                        ? FACULTY_CATEGORY_GEC
+                        : FACULTY_CATEGORY_PROGRAM;
+                    setFacultyCategory(next);
+                    if (next === FACULTY_CATEGORY_GEC) setProgramId("");
+                  }}
+                  className={fieldClass}
+                  required
+                >
+                  <option value={FACULTY_CATEGORY_PROGRAM}>Program / department instructor</option>
+                  <option value={FACULTY_CATEGORY_GEC}>GEC instructor</option>
+                </select>
+                <p className="mt-1 text-xs text-black/55">
+                  {facultyCategory === FACULTY_CATEGORY_GEC
+                    ? "GEC instructors belong to the college and may teach across departments."
+                    : "Your home department’s Program Chairman reviews this registration."}
                 </p>
               </div>
               <div>
@@ -415,26 +451,28 @@ export function InstructorRegisterClient() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label htmlFor="ins-program" className={labelClass}>
-                  Home department
-                </label>
-                <select
-                  id="ins-program"
-                  value={programId}
-                  onChange={(e) => setProgramId(e.target.value)}
-                  disabled={!collegeId}
-                  className={fieldClass}
-                  required
-                >
-                  <option value="">{collegeId ? "Select department…" : "Select college first…"}</option>
-                  {programsForCollege.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.code} — {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {facultyCategory === FACULTY_CATEGORY_PROGRAM ? (
+                <div>
+                  <label htmlFor="ins-program" className={labelClass}>
+                    Home department
+                  </label>
+                  <select
+                    id="ins-program"
+                    value={programId}
+                    onChange={(e) => setProgramId(e.target.value)}
+                    disabled={!collegeId}
+                    className={fieldClass}
+                    required
+                  >
+                    <option value="">{collegeId ? "Select department…" : "Select college first…"}</option>
+                    {programsForCollege.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.code} — {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
             </fieldset>
 
             <fieldset className="space-y-3 border-0 p-0">

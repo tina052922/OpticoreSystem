@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   BookOpen,
+  Building2,
   CalendarPlus,
   ClipboardList,
   History,
@@ -58,6 +59,7 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   Layers,
   Send,
   MapPin,
+  Building2,
   Scale,
   CalendarPlus,
   KeyRound,

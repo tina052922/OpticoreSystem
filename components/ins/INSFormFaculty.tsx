@@ -30,6 +30,7 @@ import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding";
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import { isFacultyInsPortal } from "@/lib/ins/schedule-visibility";
+import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -121,6 +122,12 @@ export function INSFormFaculty({
   const displayCourses = useLiveData ? live.courses : DEMO_COURSES;
   const displayFacultyName = useLiveData ? live.selectedFacultyDisplayName : "Dr. Maria Santos (demo)";
 
+  const pdfSignatureSlotsRaw = useMemo(
+    () => signatureSlotsToPdf(useLiveData ? live.pdfInsSignatureSlots : null),
+    [useLiveData, live.pdfInsSignatureSlots],
+  );
+  const { slots: pdfSignatureSlots, ready: pdfSignaturesReady } = usePdfEmbeddedSignatureSlots(pdfSignatureSlotsRaw);
+
   const pdfData = useMemo((): INS5AProps => ({
     facultyName: displayFacultyName,
     semesterLabel: (useLiveData ? live.periodLabel : undefined) ?? "____ Semester, AY ____",
@@ -136,10 +143,10 @@ export function INSFormFaculty({
     schedule: facultyScheduleToPdfGrid(displaySchedule, programMode),
     courses: displayCourses,
     summary: useLiveData ? live.facultyFormSummary : null,
-    signatureSlots: signatureSlotsToPdf(useLiveData ? live.insSignatureSlots : null),
+    signatureSlots: pdfSignatureSlots,
     programMode,
     ...insPdfBrandingProps(branding),
-  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, live.insSignatureSlots, programMode, branding]);
+  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, pdfSignatureSlots, programMode, branding]);
 
   async function onShare() {
     try {
@@ -173,6 +180,7 @@ export function INSFormFaculty({
   }
 
   function handleDownload() {
+    if (!pdfSignaturesReady) return;
     setPdfPreviewOpen(true);
   }
 
@@ -361,7 +369,13 @@ export function INSFormFaculty({
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
               {instructorReadOnlyPortal ? (
-                <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                <Button
+                  variant="outline"
+                  className="bg-white"
+                  type="button"
+                  disabled={!pdfSignaturesReady}
+                  onClick={() => setPdfPreviewOpen(true)}
+                >
                     <Eye className="w-4 h-4 mr-2" />
                     Preview PDF
                   </Button>
@@ -389,7 +403,7 @@ export function INSFormFaculty({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
-                      <DropdownMenuItem onClick={handleDownload}>
+                      <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
                         <Download className="w-4 h-4 mr-2" />
                         Download / Save as PDF
                       </DropdownMenuItem>
@@ -397,7 +411,7 @@ export function INSFormFaculty({
                         <Share2 className="w-4 h-4 mr-2" />
                         Share INS Form
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setPdfPreviewOpen(true)}>
+                      <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
                         <Eye className="w-4 h-4 mr-2" />
                         Preview PDF
                       </DropdownMenuItem>
@@ -424,7 +438,13 @@ export function INSFormFaculty({
                     </DropdownMenuContent>
                   </DropdownMenu>
 
-                  <Button variant="outline" className="bg-white" type="button" onClick={() => setPdfPreviewOpen(true)}>
+                  <Button
+                  variant="outline"
+                  className="bg-white"
+                  type="button"
+                  disabled={!pdfSignaturesReady}
+                  onClick={() => setPdfPreviewOpen(true)}
+                >
                     <Eye className="w-4 h-4 mr-2" />
                     Preview PDF
                   </Button>

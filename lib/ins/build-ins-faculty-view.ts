@@ -1,6 +1,8 @@
 import { INS_DAYS, toInsDay, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
-import { slotDurationHours } from "@/lib/scheduling/facultyPolicies";
+import { slotDurationHours } from "@/lib/scheduling/time";
+import { filterByProgramMode } from "@/lib/scheduling/program-mode";
+import { subjectPrepKey } from "@/lib/scheduling/prep-key";
 import { formatTimeRange12h } from "@/lib/time/format-12h";
 import type { Room, ScheduleEntry, Section, Subject } from "@/types/db";
 
@@ -51,6 +53,8 @@ function emptySchedule(): InsFacultySchedule {
 /**
  * Build INS Form 5A schedule grid + course list for one instructor from live `ScheduleEntry` rows.
  * Pass only that instructor’s rows for the term (may span multiple colleges); hours match My Schedule + policy.
+ *
+ * When `programMode` is set, Day and Evening never mix — metrics and grid use that mode only.
  */
 export function buildInsFacultyView(args: {
   entries: ScheduleEntry[];
@@ -59,6 +63,8 @@ export function buildInsFacultyView(args: {
   sectionById: Map<string, Section>;
   subjectById: Map<string, Subject>;
   roomById: Map<string, Room>;
+  /** When set, only rows for this Day/Evening program are included. */
+  programMode?: "day" | "night";
 }): {
   schedule: InsFacultySchedule;
   courses: Array<{
@@ -70,19 +76,24 @@ export function buildInsFacultyView(args: {
   teachingMetrics: InsFacultyTeachingMetrics;
 } {
   const schedule = emptySchedule();
-  const list = args.entries.filter(
+  let list = args.entries.filter(
     (e) =>
       e.academicPeriodId === args.academicPeriodId &&
       e.instructorId === args.instructorId,
   );
+  if (args.programMode) {
+    list = filterByProgramMode(list, args.programMode);
+  }
 
-  /** Same duration math as {@link evaluateFacultyLoadsForCollege} / Evaluator. */
+  /** Same duration math as {@link evaluateFacultyLoadsForCollege} / Evaluator — plotted slot span only. */
   let hoursPerWeek = 0;
   for (const e of list) {
     hoursPerWeek += slotDurationHours(e.startTime, e.endTime);
   }
 
-  const distinctSubjects = new Set(list.map((e) => e.subjectId));
+  const distinctSubjects = new Set(
+    list.map((e) => subjectPrepKey(args.subjectById.get(e.subjectId)?.code) || e.subjectId).filter(Boolean),
+  );
   const preparations = distinctSubjects.size;
 
   const seenPair = new Set<string>();

@@ -39,13 +39,6 @@ export function INS5BDocument({ data }: { data: INS5BProps }) {
               {degreeAndYear}
             </Text>
           </View>
-          {data.programMode === "night" ? (
-            <View style={ins.fieldRow}>
-              <Text style={ins.fieldValue} wrap={false}>
-                {assignment || "—"}
-              </Text>
-            </View>
-          ) : null}
           <View style={ins.fieldRow}>
             <Text style={ins.fieldLabel}>Major:</Text>
             <Text style={ins.fieldValue} wrap={false}>
@@ -59,12 +52,10 @@ export function INS5BDocument({ data }: { data: INS5BProps }) {
           <Text style={ins.fieldValue}>{adviser || "—"}</Text>
         </View>
 
-        {data.programMode === "night" ? null : (
         <View style={ins.fieldRow}>
           <Text style={ins.fieldLabel}>Assignment:</Text>
           <Text style={ins.fieldValue}>{assignment || "—"}</Text>
         </View>
-        )}
 
         {data.programMode === "night" ? (
           <INSNightScheduleGrid

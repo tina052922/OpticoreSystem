@@ -84,7 +84,7 @@ const gs = StyleSheet.create({
     textAlign: "center",
   },
   sigImage: {
-    height: 14,
+    height: 28,
     objectFit: "contain" as const,
     marginBottom: 3,
   },

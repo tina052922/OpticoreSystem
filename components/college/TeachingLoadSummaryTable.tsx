@@ -52,7 +52,7 @@ export function TeachingLoadSummaryTable({
                 <td className="border border-black/20 px-2 py-2 tabular-nums text-center">{fmt(r.day.hoursPerWeek)}</td>
                 <td className="border border-black/20 px-2 py-2 tabular-nums text-center">{r.evening.preps}</td>
                 <td className="border border-black/20 px-2 py-2 tabular-nums text-center">{fmt(r.evening.hoursPerWeek)}</td>
-                <td className="border border-black/20 px-2 py-2">{r.subjectsHandled}</td>
+                <td className="border border-black/20 px-2 py-2 whitespace-pre-wrap">{r.subjectsHandled}</td>
                 <td className="border border-black/20 px-2 py-2 whitespace-pre-wrap">{r.justification ?? ""}</td>
               </tr>
             ))

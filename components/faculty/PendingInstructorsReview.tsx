@@ -9,6 +9,7 @@ import {
   type InstructorRequest,
   type LinkableFaculty,
 } from "@/lib/api/client";
+import { isGecFacultyCategory } from "@/lib/faculty/faculty-category";
 
 /**
  * Chairman queue for instructor self-registrations.
@@ -27,7 +28,13 @@ const fieldClass =
   "h-10 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm w-full";
 
 const profileEntries = (profile: InstructorRequest["profile"]) =>
-  Object.entries(profile ?? {}).filter(([, v]) => v != null && v !== "");
+  Object.entries(profile ?? {}).filter(
+    ([k, v]) =>
+      v != null &&
+      v !== "" &&
+      k !== "facultyCategory" &&
+      k !== "homeProgramId",
+  );
 
 export function PendingInstructorsReview() {
   const [requests, setRequests] = useState<InstructorRequest[]>([]);
@@ -189,13 +196,23 @@ export function PendingInstructorsReview() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold text-[#181818]">{r.fullName}</p>
+                      <p className="font-semibold text-[#181818]">
+                        {r.fullName}
+                        {isGecFacultyCategory(r.facultyCategory) ? (
+                          <span className="ml-2 inline-block rounded-md bg-[#780301]/10 px-1.5 py-0.5 text-xs font-semibold text-[#780301]">
+                            GEC instructor
+                          </span>
+                        ) : null}
+                      </p>
                       <p className="text-sm text-black/70">{r.deliveryEmail}</p>
                       <p className="mt-1 text-xs text-black/45">
                         Verified {new Date(r.verifiedAt).toLocaleString()}
                         {r.claimedEmployeeId
                           ? ` · claims ID ${r.claimedEmployeeId}`
                           : " · no ID provided"}
+                        {isGecFacultyCategory(r.facultyCategory)
+                          ? " · college-scoped (not locked to one department)"
+                          : ""}
                       </p>
                     </div>
                     {details.length > 0 ? (
@@ -370,6 +387,7 @@ export function PendingInstructorsReview() {
               <thead>
                 <tr className="bg-black/[0.06]">
                   <th className="p-2">Name</th>
+                  <th className="p-2">Category</th>
                   <th className="p-2">Email</th>
                   <th className="p-2">Status</th>
                   <th className="p-2">Reviewed</th>
@@ -380,6 +398,9 @@ export function PendingInstructorsReview() {
                 {history.map((r) => (
                   <tr key={r.id} className="border-t border-black/10 bg-white">
                     <td className="p-2 font-medium">{r.fullName}</td>
+                    <td className="p-2">
+                      {isGecFacultyCategory(r.facultyCategory) ? "GEC" : "Program"}
+                    </td>
                     <td className="p-2">{r.deliveryEmail}</td>
                     <td className="p-2">
                       <span

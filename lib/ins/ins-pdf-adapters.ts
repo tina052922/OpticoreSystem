@@ -271,20 +271,25 @@ export function resolveInsPrintedSigners(slots: InsSignatureSlot[]) {
     const n = s?.signerName?.trim();
     return Boolean(n) && n !== "—";
   };
-  // Take the first candidate carrying a real name, so an unpopulated slot never
-  // blanks out a line that a later candidate could fill. Falls back to the
-  // first existing slot so the placeholder still renders.
-  const preferNamed = (...keys: string[]) =>
-    keys.map((k) => slots.find((s) => s.key === k)).find(hasName) ??
-    byKey(...keys);
+  // Prefer a named signer that also carries a configured e-signature image, so
+  // System Configuration uploads (College Admin / Campus Director / DOI) are not
+  // dropped when an earlier key has a placeholder name but no image.
+  const preferNamed = (...keys: string[]) => {
+    const candidates = keys
+      .map((k) => slots.find((s) => s.key === k))
+      .filter((s): s is InsSignatureSlot => Boolean(s));
+    const withImage = candidates.find((s) => hasName(s) && Boolean(s.imageUrl?.trim()));
+    if (withImage) return withImage;
+    return candidates.find(hasName) ?? byKey(...keys);
+  };
 
   return {
-    prepared: byKey("prepared"),
+    prepared: preferNamed("prepared"),
     // "Director/Dean": the "dean" slot is built with a null user, so it is only
     // populated via System Configuration overrides. Fall back to the Program
     // Chairman ("review") when no dean name is configured.
     review: preferNamed("dean", "review", "reviewed"),
-    // "Campus Director" must resolve to the campus slot, not the DOI/VPAA one.
+    // "Campus Director" first; DOI/VPAA config image fills Approved when campus has no image.
     approved: preferNamed("campus", "approved"),
   };
 }

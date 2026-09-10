@@ -8,6 +8,12 @@ export type SchedulingPolicyConfig = {
   maxWeeklyLectureOverloadHours?: number;
   maxWeeklyResidentContactHours?: number;
   maxWeeklyNonResidentContactHours?: number;
+  /**
+   * Maximum distinct subject preparations allowed without DOI justification,
+   * split by employment status.
+   */
+  maxWeeklyResidentPrepsWithoutJustification?: number;
+  maxWeeklyNonResidentPrepsWithoutJustification?: number;
   /** Soft cap for GA / suggestions (hours/week). */
   defaultMaxFacultyHoursPerWeek?: number;
   /** Merit-system hourly rates (undergraduate), editable campus-wide. */
@@ -31,6 +37,8 @@ export type ResolvedFacultyPolicyConstants = {
   MAX_WEEKLY_LECTURE_OVERLOAD_HOURS: number;
   MAX_WEEKLY_RESIDENT_CONTACT_HOURS: number;
   MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS: number;
+  MAX_WEEKLY_RESIDENT_PREPS_WITHOUT_JUSTIFICATION: number;
+  MAX_WEEKLY_NON_RESIDENT_PREPS_WITHOUT_JUSTIFICATION: number;
 };
 
 export const DEFAULT_SCHEDULING_POLICY: SchedulingPolicyConfig = {
@@ -40,6 +48,8 @@ export const DEFAULT_SCHEDULING_POLICY: SchedulingPolicyConfig = {
   maxWeeklyLectureOverloadHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS,
   maxWeeklyResidentContactHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_RESIDENT_CONTACT_HOURS,
   maxWeeklyNonResidentContactHours: FACULTY_POLICY_CONSTANTS.MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS,
+  maxWeeklyResidentPrepsWithoutJustification: 3,
+  maxWeeklyNonResidentPrepsWithoutJustification: 3,
   defaultMaxFacultyHoursPerWeek: 24,
   ratePerHourDoctorate: 250,
   ratePerHourMasters: 225,
@@ -65,6 +75,14 @@ export function resolveFacultyPolicyConstants(
       raw?.maxWeeklyNonResidentContactHours,
       d.maxWeeklyNonResidentContactHours!,
     ),
+    MAX_WEEKLY_RESIDENT_PREPS_WITHOUT_JUSTIFICATION: num(
+      raw?.maxWeeklyResidentPrepsWithoutJustification,
+      d.maxWeeklyResidentPrepsWithoutJustification!,
+    ),
+    MAX_WEEKLY_NON_RESIDENT_PREPS_WITHOUT_JUSTIFICATION: num(
+      raw?.maxWeeklyNonResidentPrepsWithoutJustification,
+      d.maxWeeklyNonResidentPrepsWithoutJustification!,
+    ),
   };
 }
 
@@ -76,6 +94,8 @@ export function schedulingPolicyFromResolved(c: ResolvedFacultyPolicyConstants):
     maxWeeklyLectureOverloadHours: c.MAX_WEEKLY_LECTURE_OVERLOAD_HOURS,
     maxWeeklyResidentContactHours: c.MAX_WEEKLY_RESIDENT_CONTACT_HOURS,
     maxWeeklyNonResidentContactHours: c.MAX_WEEKLY_NON_RESIDENT_CONTACT_HOURS,
+    maxWeeklyResidentPrepsWithoutJustification: c.MAX_WEEKLY_RESIDENT_PREPS_WITHOUT_JUSTIFICATION,
+    maxWeeklyNonResidentPrepsWithoutJustification: c.MAX_WEEKLY_NON_RESIDENT_PREPS_WITHOUT_JUSTIFICATION,
     defaultMaxFacultyHoursPerWeek: DEFAULT_SCHEDULING_POLICY.defaultMaxFacultyHoursPerWeek,
   };
 }

@@ -6,6 +6,8 @@ import { apiFetch } from "@/lib/api/client";
 import { getSupabaseServiceRoleKey, getSupabaseUrl } from "@/lib/server/supabase-env";
 import { resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { slotDurationHours } from "@/lib/scheduling/time";
+import { resolveFacultyPolicyConstants } from "@/lib/system-configuration/scheduling-policy";
+import type { SchedulingPolicyConfig } from "@/lib/system-configuration/scheduling-policy";
 
 export type CampusIntelligenceStats = {
   roomCount: number;
@@ -161,6 +163,17 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
   let draftScheduleCount = 0;
   let sectionIds: string[] = [];
 
+  let organicCap = 24;
+  {
+    const { data: settingsRow } = await supabase
+      .from("CampusInsSettings")
+      .select("schedulingPolicy")
+      .limit(1)
+      .maybeSingle();
+    const policy = (settingsRow?.schedulingPolicy ?? null) as SchedulingPolicyConfig | null;
+    organicCap = resolveFacultyPolicyConstants(policy).STANDARD_WEEKLY_TEACHING_HOURS;
+  }
+
   if (mode === "program" && collegeId && programId) {
     const { count: rc } = await supabase
       .from("Room")
@@ -304,15 +317,19 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
         utilization: Math.round((rooms.size / totalRooms) * 100),
       }));
 
-      const hoursByInstructor = new Map<string, number>();
+      // Day and Evening stay independent: use heaviest single-mode load per instructor.
+      const maxHoursByInstructor = new Map<string, number>();
       for (const [key, hrs] of instructorHours) {
         const id = key.split("::")[0] ?? key;
-        hoursByInstructor.set(id, (hoursByInstructor.get(id) || 0) + hrs);
+        maxHoursByInstructor.set(id, Math.max(maxHoursByInstructor.get(id) || 0, hrs));
       }
-      let full = 0, partial = 0, overloaded = 0;
-      for (const hrs of hoursByInstructor.values()) {
-        if (hrs >= 24) overloaded++;
-        else if (hrs >= 18) full++;
+      const fullFloor = Math.min(18, organicCap);
+      let full = 0,
+        partial = 0,
+        overloaded = 0;
+      for (const hrs of maxHoursByInstructor.values()) {
+        if (hrs >= organicCap) overloaded++;
+        else if (hrs >= fullFloor) full++;
         else partial++;
       }
       facultyLoadDistribution = [
@@ -328,6 +345,8 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     sectionCount,
     facultyCount,
     draftScheduleCount,
+    plottedScheduleCount: draftScheduleCount,
+    standardWeeklyTeachingHours: organicCap,
     roomUtilizationBySlot,
     facultyLoadDistribution,
   };

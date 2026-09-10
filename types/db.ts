@@ -86,6 +86,12 @@ export interface User {
   instructorValidation?: "pending" | "active" | "rejected" | null;
   /** Set for chairman_admin: the one program they manage. Instructors store home department here after registration. */
   chairmanProgramId?: string | null;
+  /**
+   * Teaching category from registration.
+   * `gec` = GEC instructor (college-scoped; chairmanProgramId null).
+   * `program` / missing = department faculty.
+   */
+  facultyCategory?: "program" | "gec" | null;
   /** Public URL for INS / formal forms (uploaded in Profile). */
   signatureImageUrl?: string | null;
   /** Public URL for header / profile avatar. */
@@ -148,6 +154,27 @@ export interface Room {
   imagePath?: string | null;
   /** Optional label when different from room code (e.g. Dean's Office). */
   displayName?: string | null;
+  /** FK to department-scoped Building (scheduling); independent of Campus Navigation. */
+  buildingId?: string | null;
+  /** Department (`Program`) that may assign this room when plotting. */
+  programId?: string | null;
+  /** When true, GEC plotting may use this room. */
+  gecUsable?: boolean | null;
+}
+
+/** Scheduling facility owned by a college/department — not Campus Navigation. */
+export interface Building {
+  id: string;
+  name: string;
+  code: string | null;
+  floorCount: number;
+  collegeId: string | null;
+  /** Department assignment (`Program.id`). */
+  programId: string | null;
+  /** Mark building (and synced rooms) usable for GEC subjects. */
+  gecUsable: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /** Day Program and Evening Program (`night` in storage) are independent loads. */

@@ -141,7 +141,8 @@ export function buildInsSignatureSlots(args: {
 
 /**
  * Build INS signature strip with System Configuration overrides (names + titles).
- * Signature images appear only after VPAA publication (`scheduleApproved`).
+ * Signature images appear on the on-screen form after VPAA publication (`scheduleApproved`),
+ * unless `includeImages` forces them through (PDF preview / print verification).
  */
 export function resolveInsSignatureSlots(args: {
   college: College | null;
@@ -154,6 +155,12 @@ export function resolveInsSignatureSlots(args: {
   doiSignatureImageUrl?: string | null;
   campusInsSignerDisplay?: CollegeInsSignerDisplay | null;
   collegeInsSignerDisplay?: CollegeInsSignerDisplay | null;
+  /**
+   * When true, keep configured e-signature images even if the term is not yet published.
+   * Used by INS PDF preview/print so System Configuration uploads are visible.
+   * Defaults to `scheduleApproved` (on-screen HTML forms stay gated until publish).
+   */
+  includeImages?: boolean;
 }): InsSignatureSlot[] | null {
   const built = buildInsSignatureSlots({
     college: args.college,
@@ -171,7 +178,8 @@ export function resolveInsSignatureSlots(args: {
     args.collegeInsSignerDisplay ?? null,
   );
   if (!merged?.length) return merged;
-  if (!args.scheduleApproved) {
+  const showImages = args.includeImages ?? args.scheduleApproved;
+  if (!showImages) {
     return merged.map((s) => ({ ...s, imageUrl: null }));
   }
   return merged;
