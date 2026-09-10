@@ -556,7 +556,7 @@ export function CentralHubEvaluatorView({
    * Scoped conflict scan for the hub grid (respects college + program filters). Precomputes a few GA alternatives
    * per issue for one-click apply — same enrichment model as the dashboard banner.
    */
-  const runScopedConflictScan = useCallback(() => {
+  const runScopedConflictScan = useCallback((opts?: { silentSuccess?: boolean }) => {
     if (!academicPeriodId) return;
     setConflictScanBusy(true);
     void (async () => {
@@ -665,7 +665,7 @@ export function CentralHubEvaluatorView({
         applyGa(payload);
 
         if (payload.conflictingEntryIds.length === 0) {
-          toast.success("No conflicts detected");
+          if (!opts?.silentSuccess) toast.success("No conflicts detected");
         } else {
           toast.info("Conflicts found – see details below", `${payload.issueSummaries.length} issue(s) detected.`);
         }
@@ -1214,7 +1214,7 @@ export function CentralHubEvaluatorView({
                   suggestAlternativesForEntry,
                   applySchedulePatch: async (id, patch) => {
                     if (termPublishLocked) {
-                      throw new ApiClientError(DOI_SCHEDULE_LOCKED_MESSAGE, 423);
+                      throw new ApiClientError(423, DOI_SCHEDULE_LOCKED_MESSAGE);
                     }
                     await apiFetch(`/api/catalog/schedule-entries/${id}`, {
                       method: "PATCH",

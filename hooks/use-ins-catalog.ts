@@ -201,6 +201,7 @@ export function useInsCatalog(args: {
       users: User[];
       settings: CampusInsSettings | null;
       facultyProfiles: Pick<FacultyProfile, "userId" | "fullName" | "aka">[];
+      doiLockedPeriodIds?: string[];
     } | null = null;
 
     try {
