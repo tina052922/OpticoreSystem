@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
+import { EVALUATOR_TAB_LABELS } from "@/lib/evaluator/evaluator-tabs";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
 import {
   detectConflictsSparse,
@@ -1376,7 +1377,7 @@ export function GecCentralHubEvaluatorClient() {
         <ChairmanPageHeader title="Central Hub Evaluator" />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
-            ← Back to college hub
+            ← Back to {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
           <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>
         </div>
@@ -1390,7 +1391,7 @@ export function GecCentralHubEvaluatorClient() {
         <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Invalid college selection." />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
-            ← Back to college hub
+            ← Back to {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
         </div>
       </div>
@@ -1408,7 +1409,7 @@ export function GecCentralHubEvaluatorClient() {
         <div className="px-4 md:px-8 pb-8 max-w-[1400px] mx-auto">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
-              ← College hub
+              ← {EVALUATOR_TAB_LABELS.colleges}
             </HubCollegesNavLink>
           </div>
           <GecHubEvaluatorTabs collegeParam={collegeParam} panel="hrs" />
@@ -1429,7 +1430,7 @@ export function GecCentralHubEvaluatorClient() {
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
-            ← College hub
+            ← {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
         </div>
 

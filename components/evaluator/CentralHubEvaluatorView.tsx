@@ -15,6 +15,7 @@ import {
   hubSlugForCollegeId,
   isHubCollegeListView,
 } from "@/lib/evaluator-central-hub";
+import { EVALUATOR_TAB_LABELS } from "@/lib/evaluator/evaluator-tabs";
 import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import {
   buildConflictGridHints,
@@ -1016,7 +1017,7 @@ export function CentralHubEvaluatorView({
         <ChairmanPageHeader title={hubTitle} subtitle="Invalid college selection." />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
-            ← Back to college hub
+            ← Back to {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
         </div>
       </div>
@@ -1029,7 +1030,7 @@ export function CentralHubEvaluatorView({
         <ChairmanPageHeader title={hubTitle} />
         <div className="px-4 md:px-8 pb-8 max-w-2xl">
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
-            ← Back to college hub
+            ← Back to {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
           <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-6 text-[14px] text-amber-950">
             Campus-wide timetabling is not available from the College Admin Central Hub. Use the{" "}
@@ -1086,7 +1087,7 @@ export function CentralHubEvaluatorView({
         <div className="px-4 md:px-8 pb-8 max-w-xl">
           <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
-            ← College hub
+            ← {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
           {crossPending ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-6 text-[14px]">
@@ -1174,7 +1175,7 @@ export function CentralHubEvaluatorView({
         ) : null}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
-            ← College hub
+            ← {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
           <div className="flex flex-wrap items-center gap-3">
             {hubAccessMode === "collegeAdmin" ? (

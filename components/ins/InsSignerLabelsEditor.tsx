@@ -4,6 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiFetch, campusInsSettingsApi, collegeApi } from "@/lib/api/client";
 import { notifySystemConfigurationSaved } from "@/contexts/SystemConfigurationContext";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import {
+  insSignerSlotKeyForRole,
+  withProfileSignerAutofill,
+} from "@/lib/ins/signer-profile-autofill";
 import type { CollegeInsSignerDisplay } from "@/types/db";
 
 export const INS_SIGNATORY_SLOT_DEFS: { key: string; label: string }[] = [
@@ -23,33 +28,43 @@ type Props = {
 };
 
 export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "default" }: Props) {
+  const { user, loading: userLoading } = useCurrentUser();
   const [display, setDisplay] = useState<CollegeInsSignerDisplay>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const profileSlot = insSignerSlotKeyForRole(user?.role);
+  const profileName = (user?.name ?? "").trim();
+
   const load = useCallback(async () => {
+    if (userLoading) return;
     setLoading(true);
     setMsg(null);
     try {
+      let loaded: CollegeInsSignerDisplay = {};
       if (mode === "doi") {
         const data = await apiFetch<{ settings: { insSignerDisplay?: CollegeInsSignerDisplay | null } }>(
           "/api/catalog/campus-ins-settings",
           { method: "GET" },
         );
-        setDisplay((data.settings?.insSignerDisplay ?? {}) as CollegeInsSignerDisplay);
+        loaded = (data.settings?.insSignerDisplay ?? {}) as CollegeInsSignerDisplay;
       } else if (collegeId) {
         const data = await collegeApi.getSignerSettings({ collegeId });
-        setDisplay((data.settings?.insSignerDisplay ?? {}) as CollegeInsSignerDisplay);
-      } else {
-        setDisplay({});
+        loaded = (data.settings?.insSignerDisplay ?? {}) as CollegeInsSignerDisplay;
       }
+      setDisplay(
+        withProfileSignerAutofill(loaded, {
+          role: user?.role,
+          name: user?.name,
+        }) as CollegeInsSignerDisplay,
+      );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Load failed");
     } finally {
       setLoading(false);
     }
-  }, [mode, collegeId]);
+  }, [mode, collegeId, userLoading, user?.role, user?.name]);
 
   useEffect(() => {
     void load();
@@ -101,37 +116,40 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
         <p className="text-xs text-gray-500">Loading…</p>
       ) : (
         <div className="space-y-4">
-          {keys.map(({ key, label }) => (
-            <div key={key} className="rounded-lg border border-black/10 bg-black/[0.02] p-3 space-y-2">
-              <p className="text-sm font-semibold text-[#780301]">{label}</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="text-xs text-black/75">
-                  Name
-                  {key === "approved" ? (
-                    <p className="mt-1 rounded-lg border border-black/10 bg-white px-2 py-2 text-sm text-black/70">
-                      Signed-in VPAA / DOI account (not typed here)
-                    </p>
-                  ) : (
+          {keys.map(({ key, label }) => {
+            const isProfileSlot = profileSlot === key && Boolean(profileName);
+            return (
+              <div key={key} className="rounded-lg border border-black/10 bg-black/[0.02] p-3 space-y-2">
+                <p className="text-sm font-semibold text-[#780301]">{label}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="text-xs text-black/75">
+                    Name
                     <input
                       className="mt-1 w-full h-9 rounded-lg border border-black/20 px-2 text-sm"
                       value={display[key]?.signerName ?? ""}
                       onChange={(e) => patchKey(key, "signerName", e.target.value)}
-                      placeholder="Printed name"
+                      placeholder={isProfileSlot ? profileName : "Printed name"}
+                      aria-describedby={isProfileSlot ? `${key}-name-hint` : undefined}
                     />
-                  )}
-                </label>
-                <label className="text-xs text-black/75">
-                  Title
-                  <input
-                    className="mt-1 w-full h-9 rounded-lg border border-black/20 px-2 text-sm"
-                    value={display[key]?.lineSubtitle ?? ""}
-                    onChange={(e) => patchKey(key, "lineSubtitle", e.target.value)}
-                    placeholder="Official title / role line"
-                  />
-                </label>
+                    {isProfileSlot ? (
+                      <p id={`${key}-name-hint`} className="mt-1 text-[11px] text-black/50">
+                        Prefills from your profile ({profileName}). Editable — clear to leave blank.
+                      </p>
+                    ) : null}
+                  </label>
+                  <label className="text-xs text-black/75">
+                    Title
+                    <input
+                      className="mt-1 w-full h-9 rounded-lg border border-black/20 px-2 text-sm"
+                      value={display[key]?.lineSubtitle ?? ""}
+                      onChange={(e) => patchKey(key, "lineSubtitle", e.target.value)}
+                      placeholder="Official title / role line"
+                    />
+                  </label>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"

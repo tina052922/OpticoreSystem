@@ -245,15 +245,24 @@ export function GecPlotScheduleModal({
     setMeetings(next);
     setMeetingError(null);
     const first = next.slots[0];
-    const day = first?.day || draft.day;
-    const parsedDur = parseInt(first?.durationHours || "1", 10);
-    const durHours = Number.isFinite(parsedDur) && parsedDur >= 1 ? parsedDur : 1;
+    // Use the meeting Day field as source of truth — do not fall back to a stale draft.day
+    // when the user clears Day 1 (that left Hours stuck at 1 while Day looked blank).
+    const day = first?.day ?? "";
+    const durRaw = (first?.durationHours ?? "").trim();
+    const parsedDur = durRaw ? parseInt(durRaw, 10) : NaN;
+    const durHours =
+      !day
+        ? 0
+        : Number.isFinite(parsedDur) && parsedDur >= 1
+          ? parsedDur
+          : 0;
     onDurationSlotsChange(durHours);
     const idx =
       day && next.timeText.trim()
         ? slotIndexFromTypedTime(next.timeText, slots, day, programMode)
         : null;
-    const times = idx != null ? timesFromSlotRange(idx, durHours, slots) : null;
+    const times =
+      idx != null && durHours >= 1 ? timesFromSlotRange(idx, durHours, slots) : null;
     onDraftChange({
       ...draft,
       day,

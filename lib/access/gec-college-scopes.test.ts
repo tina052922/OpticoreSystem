@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { CHAIRMAN_NAV, GEC_CHAIRMAN_NAV } from "@/lib/admin-nav";
-import { GEC_COLLEGE_ACCESS_SCOPES } from "./gec-college-scopes";
 import { formatInstructorDepartmentLabel } from "@/lib/auth/instructor-department-label";
 
 describe("GEC Chairman nav", () => {
@@ -14,12 +13,6 @@ describe("Chairman nav", () => {
   it("does not include Schedule change requests", () => {
     expect(CHAIRMAN_NAV.some((item) => /schedule change/i.test(item.label))).toBe(false);
     expect(CHAIRMAN_NAV.some((item) => item.href.includes("schedule-change"))).toBe(false);
-  });
-});
-
-describe("GEC_COLLEGE_ACCESS_SCOPES", () => {
-  it("covers evaluator, INS, and vacant GEC slots in one request", () => {
-    expect(GEC_COLLEGE_ACCESS_SCOPES).toEqual(["evaluator", "ins_forms", "gec_vacant_slots"]);
   });
 });
 

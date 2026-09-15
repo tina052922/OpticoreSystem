@@ -334,7 +334,7 @@ type BsitChairmanEvaluatorWorksheetProps = {
   /** DOI Evaluator: view-only (no plot / save / remove). Conflict check remains available. */
   viewOnly?: boolean;
   insFormBasePath?: string;
-  /** Live load summary for the Evaluator &quot;Hrs-Units-Preps-Remarks&quot; tab. */
+  /** Live load summary for the Evaluator "Hrs · Units · Preps · Remarks" tab. */
   onPolicySnapshot?: (snapshot: ChairmanPolicySnapshot | null) => void;
 };
 

@@ -1229,6 +1229,23 @@ export const adminApi = {
       },
     );
   },
+  /** DOI: wipe subjects + schedules for retest (rooms kept). */
+  clearSubjectsAndSchedule(confirm: string) {
+    return apiFetch<{
+      ok: true;
+      kept: string[];
+      deleted: {
+        scheduleLoadJustifications: number;
+        scheduleEntries: number;
+        doiFinalizations: number;
+        subjects: number;
+      };
+    }>("/api/admin/clear-subjects-schedule", {
+      method: "POST",
+      body: { confirm },
+      invalidates: ["/api/catalog", "/api/admin"],
+    });
+  },
 };
 
 export const auditApi = {
@@ -1445,6 +1462,73 @@ export const buildingsRoomsApi = {
   },
   deleteRoom(id: string) {
     return apiFetch<{ ok: true }>(`/api/catalog/rooms/${id}`, { method: "DELETE" });
+  },
+};
+
+/** Academic Structure: College → Program → Years → Section. */
+export const academicStructureApi = {
+  createCollege(input: { code: string; name: string; id?: string }) {
+    return apiFetch<{ college: import("@/types/db").College }>("/api/catalog/colleges", {
+      method: "POST",
+      body: input,
+    });
+  },
+  updateCollege(id: string, input: { code?: string; name?: string }) {
+    return apiFetch<{ college: import("@/types/db").College }>(`/api/catalog/colleges/${id}`, {
+      method: "PUT",
+      body: input,
+    });
+  },
+  deleteCollege(id: string) {
+    return apiFetch<{ ok: true }>(`/api/catalog/colleges/${id}`, { method: "DELETE" });
+  },
+  createProgram(input: {
+    collegeId: string;
+    code: string;
+    name: string;
+    yearCount?: number;
+    id?: string;
+  }) {
+    return apiFetch<{ program: import("@/types/db").Program; warning?: string }>("/api/catalog/programs", {
+      method: "POST",
+      body: input,
+    });
+  },
+  updateProgram(
+    id: string,
+    input: { code?: string; name?: string; yearCount?: number },
+  ) {
+    return apiFetch<{ program: import("@/types/db").Program; warning?: string }>(
+      `/api/catalog/programs/${id}`,
+      { method: "PUT", body: input },
+    );
+  },
+  deleteProgram(id: string) {
+    return apiFetch<{ ok: true }>(`/api/catalog/programs/${id}`, { method: "DELETE" });
+  },
+  createSection(input: {
+    programId: string;
+    name: string;
+    yearLevel: number;
+    studentCount?: number;
+    id?: string;
+  }) {
+    return apiFetch<{ section: import("@/types/db").Section }>("/api/catalog/sections", {
+      method: "POST",
+      body: input,
+    });
+  },
+  updateSection(
+    id: string,
+    input: { name?: string; yearLevel?: number; studentCount?: number },
+  ) {
+    return apiFetch<{ section: import("@/types/db").Section }>(`/api/catalog/sections/${id}`, {
+      method: "PUT",
+      body: input,
+    });
+  },
+  deleteSection(id: string) {
+    return apiFetch<{ ok: true }>(`/api/catalog/sections/${id}`, { method: "DELETE" });
   },
 };
 

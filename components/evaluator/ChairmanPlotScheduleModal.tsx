@@ -467,16 +467,24 @@ export function ChairmanPlotScheduleModal({
     setMeetingError(null);
     const first = next.slots[0];
     const day = (first?.day ?? "") as PlotRow["day"];
+    const durRaw = (first?.durationHours ?? "").trim();
+    const parsedDur = durRaw ? parseInt(durRaw, 10) : NaN;
     const idx =
       day && next.timeText.trim()
         ? slotIndexFromTypedTime(next.timeText, slots, day, programMode)
         : null;
-    const parsedDur = parseInt(first?.durationHours || "1", 10);
     onDraftChange({
       ...draft,
       day,
       startSlotIndex: idx ?? -1,
-      durationSlots: Number.isFinite(parsedDur) && parsedDur >= 1 ? parsedDur : 1,
+      // Blank day → blank duration (do not keep a default 1 hour).
+      durationSlots: !day
+        ? undefined
+        : Number.isFinite(parsedDur) && parsedDur >= 1
+          ? parsedDur
+          : durRaw
+            ? draft.durationSlots
+            : undefined,
     });
   }
 

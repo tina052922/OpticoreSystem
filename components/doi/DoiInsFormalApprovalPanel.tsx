@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { doiApi, ApiClientError } from "@/lib/api/client";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CampusConflictScanApiPayload } from "@/lib/scheduling/conflict-enrichment";
 import type { GASuggestion } from "@/lib/scheduling/types";
 import type { AcademicPeriod, DoiScheduleFinalization, ScheduleEntry } from "@/types/db";
@@ -59,6 +61,7 @@ export function DoiInsFormalApprovalPanel({
   gridIntegration,
   onConflictScanComplete,
 }: DoiInsFormalApprovalPanelProps) {
+  const { user } = useCurrentUser();
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflict, setConflict] = useState<ConflictPayload | null>(null);
   const [conflictError, setConflictError] = useState<string | null>(null);
@@ -68,13 +71,15 @@ export function DoiInsFormalApprovalPanel({
   const [gaApplyBusy, setGaApplyBusy] = useState(false);
 
   const [finalization, setFinalization] = useState<DoiScheduleFinalization | null>(null);
-  const [signedByName, setSignedByName] = useState("");
   const [signedAck, setSignedAck] = useState(false);
   const [notes, setNotes] = useState("");
   const [decisionBusy, setDecisionBusy] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   /** Set only after mount so SSR and first client paint match (avoids `new Date()` hydration mismatch). */
   const [signaturePreviewAt, setSignaturePreviewAt] = useState<string | null>(null);
+
+  /** Lock audit name from profile — printed INS names live in System Configuration only. */
+  const signedByName = useMemo(() => (user?.name ?? "").trim(), [user?.name]);
 
   useEffect(() => {
     setSignaturePreviewAt(new Date().toLocaleString());
@@ -138,7 +143,6 @@ export function DoiInsFormalApprovalPanel({
       setFinalization(data.finalization ?? null);
       if (action === "approve" || action === "unpublish") {
         setSignedAck(false);
-        setSignedByName("");
         await reloadCatalog?.();
       }
     } catch (e) {
@@ -436,16 +440,17 @@ export function DoiInsFormalApprovalPanel({
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-700" htmlFor="doi-sign-name">
-                    Signer name (printed)
-                  </label>
-                  <input
-                    id="doi-sign-name"
-                    className="w-full h-10 rounded-lg border border-gray-200 px-3 text-sm"
-                    value={signedByName}
-                    onChange={(e) => setSignedByName(e.target.value)}
-                    placeholder="Full name as DOI / VPAA"
-                  />
+                  <p className="text-xs font-medium text-gray-700">Signing as</p>
+                  <p className="h-10 flex items-center text-sm text-gray-900 font-medium">
+                    {signedByName || "—"}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Uses your profile name for this lock. Printed INS signatory names are managed in{" "}
+                    <Link href="/doi/system-configuration" className="font-semibold text-[#780301] hover:underline">
+                      System Configuration
+                    </Link>
+                    .
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-gray-700">Date / time</label>

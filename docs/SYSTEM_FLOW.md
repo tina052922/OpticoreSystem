@@ -67,7 +67,7 @@ Instructor clicks own class (My Schedule / Faculty INS)
 | Instructor | Own load | Register (pending until chairman approval); after approval: view schedule, request schedule change |
 | Program Chairman | One program | Approve/reject instructor registrations; plot majors; notify College Admin when plotted; approve/reject schedule changes |
 | College Admin | Own college | College-wide Evaluator; campus-wide conflict check; Summary of Teaching Load (category + PDF); GEC access approve; notify GEC ready (Evaluator / Central Hub only) |
-| GEC Chairman | Vacant GEC only | Request access per college; plot vacant GEC slots after approval |
+| GEC Chairman | Vacant GEC only | Plot vacant GEC slots in selected college / department (no access-request queue) |
 | DOI / VPAA | Campus | Policy justifications; final publish/lock; System Configuration |
 | Student | Own section | Section schedule, campus navigation |
 | CAS Admin | Campus hub | Central Hub / INS (view and CAS tools) |
@@ -78,7 +78,7 @@ Instructor clicks own class (My Schedule / Faculty INS)
 
 - **Chairman:** program-scope plot only (`chairmanProgramId`).
 - **College Admin:** college-wide plot; cannot write peer-college rows even after hub access; conflict check is campus-wide.
-- **GEC:** vacant GEC cells only, and only after an approved `AccessRequest` (`gec_vacant_slots`) for that college.
+- **GEC:** vacant GEC cells only, within the selected college / department (no College Admin access grant).
 - **DOI:** final review / approve / lock. Publication sets `lockedByDoiAt` and `status: "final"`.
 - Pending or rejected instructor accounts cannot be assigned on new plots.
 
@@ -113,8 +113,7 @@ Instructor clicks own class (My Schedule / Faculty INS)
 | Prep/hour justification submitted | College Admin of that college + DOI |
 | Chairman: program plotted | College Admin of that college |
 | College Admin: ready for GEC (college or department) | All GEC Chairmen |
-| GEC creates access request | College Admin of the target college |
-| Access request approved / rejected | GEC requester |
+| Access request approved / rejected | Peer College Admin requester (Evaluator view) |
 | GEC saves vacant GEC plots | College Admin + Chairmen of that college + DOI |
 | DOI publishes the term | Instructors on the term, chairs, college admins, GEC, CAS, students in those sections |
 

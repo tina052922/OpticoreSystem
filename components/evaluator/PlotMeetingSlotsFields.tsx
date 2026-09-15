@@ -3,6 +3,7 @@
 import type { BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import {
   PLOT_MEETING_SLOT_COUNT,
+  durationHoursAfterDayChange,
   type PlotMeetingsDraft,
 } from "@/lib/evaluator/plot-meetings";
 
@@ -92,9 +93,10 @@ export function PlotMeetingSlotsFields({
                     disabled={readOnly}
                     onChange={(e) => {
                       const day = e.target.value;
-                      const durationHours =
-                        day && !slot.durationHours.trim() ? "1" : slot.durationHours;
-                      patchSlot(i, { day, durationHours });
+                      patchSlot(i, {
+                        day,
+                        durationHours: durationHoursAfterDayChange(day, slot.durationHours),
+                      });
                     }}
                   >
                     <option value="">{i === 0 ? "Select day…" : "—"}</option>
@@ -126,7 +128,7 @@ export function PlotMeetingSlotsFields({
                     step={1}
                     className={`${fieldClass} mt-1 tabular-nums`}
                     placeholder="hrs"
-                    disabled={readOnly || !slot.day}
+                    disabled={readOnly}
                     value={slot.durationHours}
                     onChange={(e) => patchSlot(i, { durationHours: e.target.value })}
                   />
@@ -136,8 +138,8 @@ export function PlotMeetingSlotsFields({
           })}
         </div>
         <p className="text-[10px] text-black/50 mt-1">
-          Duration is consecutive hours from the start time (max {maxDur} for this subject). Lecture:
-          1 unit = 1 hour. Lab: 1 unit = 3 hours.
+          Duration is consecutive hours from the start time (max {maxDur} for this subject). Clear Day
+          to also clear Hours. Lecture: 1 unit = 1 hour. Lab: 1 unit = 3 hours.
         </p>
       </div>
       {error ? (

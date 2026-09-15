@@ -18,7 +18,6 @@ import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearc
 import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
 import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
-import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
@@ -242,14 +241,6 @@ export function INSFormFaculty({
               periods={live.periods}
               onPeriodIdChange={live.setAcademicPeriodId}
               reloadCatalog={live.reload}
-            />
-          ) : null}
-
-          {(insBasePath.includes("/admin/college") || insBasePath.includes("/doi")) && !lockedInstructorId && useLiveData ? (
-            <InsSignerLabelsEditor
-              mode={insBasePath.includes("/doi") ? "doi" : "college"}
-              collegeId={live.signerEditorCollegeId}
-              onUpdated={() => void live.reload()}
             />
           ) : null}
 

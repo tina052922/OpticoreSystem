@@ -16,8 +16,22 @@ import {
 } from "@/lib/auth/pending-registration-state";
 
 type CollegeRow = { id: string; code: string; name: string };
-type ProgramRow = { id: string; code: string; name: string; collegeId: string };
+type ProgramRow = {
+  id: string;
+  code: string;
+  name: string;
+  collegeId: string;
+  yearCount?: number | null;
+};
 type SectionRow = { id: string; name: string; programId: string; yearLevel: number };
+
+function yearOptionsForProgram(program: ProgramRow | undefined): number[] {
+  const n =
+    typeof program?.yearCount === "number" && program.yearCount >= 1 && program.yearCount <= 6
+      ? program.yearCount
+      : 4;
+  return Array.from({ length: n }, (_, i) => i + 1);
+}
 
 export function RegisterClient() {
   const branding = useCampusBranding();
@@ -93,6 +107,13 @@ export function RegisterClient() {
     return sections.filter((s) => s.programId === programId && s.yearLevel === yearLevel);
   }, [sections, programId, yearLevel]);
 
+  const selectedProgram = useMemo(
+    () => programs.find((p) => p.id === programId),
+    [programs, programId],
+  );
+
+  const yearOptions = useMemo(() => yearOptionsForProgram(selectedProgram), [selectedProgram]);
+
   useEffect(() => {
     setProgramId("");
   }, [collegeId]);
@@ -100,6 +121,11 @@ export function RegisterClient() {
   useEffect(() => {
     setSectionId("");
   }, [programId, yearLevel]);
+
+  useEffect(() => {
+    if (yearOptions.includes(yearLevel)) return;
+    setYearLevel(yearOptions[0] ?? 1);
+  }, [yearOptions, yearLevel]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -377,7 +403,7 @@ export function RegisterClient() {
               className="flex h-14 w-full rounded-xl border border-black/25 bg-white px-3 text-base shadow-md outline-none focus-visible:ring-2 focus-visible:ring-black/10"
               required
             >
-              {[1, 2, 3, 4].map((y) => (
+              {yearOptions.map((y) => (
                 <option key={y} value={y}>
                   {y}
                   {y === 1 ? "st" : y === 2 ? "nd" : y === 3 ? "rd" : "th"} year

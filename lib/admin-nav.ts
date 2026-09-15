@@ -18,7 +18,8 @@ export type NavIconKey =
   | "KeyRound"
   | "History"
   | "Megaphone"
-  | "Settings";
+  | "Settings"
+  | "Network";
 
 export type AdminNavItem = {
   label: string;
@@ -51,6 +52,7 @@ export const COLLEGE_ADMIN_NAV: AdminNavItem[] = [
   { label: "Audit log", href: "/admin/college/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/admin/college/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/college/subject-codes", icon: "Layers" },
+  { label: "Academic Structure", href: "/admin/college/academic-structure", icon: "Network" },
   { label: "Buildings & Rooms", href: "/admin/college/buildings-rooms", icon: "Building2" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
   { label: "System Configuration", href: "/admin/college/system-configuration", icon: "Settings" },
@@ -108,6 +110,7 @@ export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },
+  { label: "Academic Structure", href: "/doi/academic-structure", icon: "Network" },
   { label: "Buildings & Rooms", href: "/doi/buildings-rooms", icon: "Building2" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
   { label: "System Configuration", href: "/doi/system-configuration", icon: "Settings" },

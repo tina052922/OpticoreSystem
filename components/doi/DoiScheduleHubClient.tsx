@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 import { doiApi, semestersApi, ApiClientError } from "@/lib/api/client";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { AcademicPeriod, DoiScheduleFinalization } from "@/types/db";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 
@@ -21,6 +22,7 @@ type ConflictPayload = {
  */
 export function DoiScheduleHubClient() {
   const toast = useOpticoreToast();
+  const { user } = useCurrentUser();
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
   const [periodId, setPeriodId] = useState("");
   const [loadingPeriods, setLoadingPeriods] = useState(true);
@@ -30,11 +32,13 @@ export function DoiScheduleHubClient() {
   const [conflictError, setConflictError] = useState<string | null>(null);
 
   const [finalization, setFinalization] = useState<DoiScheduleFinalization | null>(null);
-  const [signedByName, setSignedByName] = useState("");
   const [signedAck, setSignedAck] = useState(false);
   const [notes, setNotes] = useState("");
   const [decisionBusy, setDecisionBusy] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+
+  /** Lock audit name from profile — printed INS names live in System Configuration only. */
+  const signedByName = useMemo(() => (user?.name ?? "").trim(), [user?.name]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,11 +119,9 @@ export function DoiScheduleHubClient() {
       setFinalization(data.finalization ?? null);
       if (action === "approve") {
         setSignedAck(false);
-        setSignedByName("");
         toast.success("Schedule published and locked successfully");
       } else if (action === "unpublish") {
         setSignedAck(false);
-        setSignedByName("");
         toast.success("Schedule unpublished and unlocked");
       } else {
         toast.success("Schedule decision saved");
@@ -271,16 +273,15 @@ export function DoiScheduleHubClient() {
           ) : (
             <>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-black" htmlFor="doi-name">
-                  Sign as DOI Admin (full name)
-                </label>
-                <input
-                  id="doi-name"
-                  className="w-full max-w-md h-10 rounded-lg border border-black/15 px-3 text-sm"
-                  value={signedByName}
-                  onChange={(e) => setSignedByName(e.target.value)}
-                  placeholder="e.g. Dr. Maria Elena Reyes"
-                />
+                <p className="text-sm font-medium text-black">Signing as DOI Admin</p>
+                <p className="text-sm text-black font-semibold">{signedByName || "—"}</p>
+                <p className="text-xs text-black/55">
+                  Uses your profile name for this lock. Printed INS signatory names are managed in{" "}
+                  <Link href="/doi/system-configuration" className="font-semibold text-[#780301] hover:underline">
+                    System Configuration
+                  </Link>
+                  .
+                </p>
                 <label className="flex items-start gap-2 text-sm text-black/80 cursor-pointer">
                   <input
                     type="checkbox"

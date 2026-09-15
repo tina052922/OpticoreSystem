@@ -4,7 +4,10 @@ import { GecVacantSlotsClient } from "./GecVacantSlotsClient";
 export default function GecVacantSlotsPage() {
   return (
     <div>
-      <ChairmanPageHeader title="Vacant GEC slots" subtitle="Use Central Hub Evaluator; access is approved per college." />
+      <ChairmanPageHeader
+        title="Vacant GEC slots"
+        subtitle="Use Central Hub Evaluator — plot vacant GEC in the selected college or department (no access request)."
+      />
       <GecVacantSlotsClient />
     </div>
   );

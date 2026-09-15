@@ -24,6 +24,16 @@ export function emptyPlotMeetingSlot(): PlotMeetingSlotFields {
   return { day: "", durationHours: "" };
 }
 
+/**
+ * When Day is cleared, Hours must clear too (never keep a leftover default like "1").
+ * When Day is newly selected and Hours is empty, default to 1 hour for convenience.
+ */
+export function durationHoursAfterDayChange(day: string, currentDurationHours: string): string {
+  if (!day.trim()) return "";
+  if (!currentDurationHours.trim()) return "1";
+  return currentDurationHours;
+}
+
 export function emptyPlotMeetingsDraft(): PlotMeetingsDraft {
   return {
     timeText: "",
@@ -63,7 +73,7 @@ export function totalPlotMeetingHours(draft: PlotMeetingsDraft, maxDur: number):
   let sum = 0;
   for (const slot of draft.slots) {
     if (!slot.day.trim()) continue;
-    const d = parseDurationHours(slot.durationHours || "1", maxDur);
+    const d = parseDurationHours(slot.durationHours, maxDur);
     if (d != null) sum += d;
   }
   return sum;
@@ -117,11 +127,11 @@ export function resolvePlotMeetings(
       };
     }
 
-    const durationSlots = parseDurationHours(durRaw || "1", args.maxDur);
+    const durationSlots = parseDurationHours(durRaw, args.maxDur);
     if (durationSlots == null) {
       return {
         ok: false,
-        error: `Duration for ${day} must be between 1 and ${args.maxDur} hour${args.maxDur === 1 ? "" : "s"}.`,
+        error: `Enter duration hours for ${day} (1–${args.maxDur}).`,
       };
     }
 

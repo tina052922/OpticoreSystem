@@ -49,7 +49,11 @@ export function AccessRequestsReview() {
       ) : null}
 
       <section>
-        <h2 className="text-lg font-semibold mb-3">Pending</h2>
+        <h2 className="text-lg font-semibold mb-1">Pending</h2>
+        <p className="mb-3 text-sm text-black/55">
+          Review cross-college Evaluator access from peer College Admins. Vacant GEC plotting no longer
+          requires approval.
+        </p>
         {pending.length === 0 ? (
           <p className="text-sm text-black/55">No pending access requests.</p>
         ) : (

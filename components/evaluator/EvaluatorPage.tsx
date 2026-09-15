@@ -13,6 +13,7 @@ import {
   type ChairmanPolicySnapshot,
 } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { EVALUATOR_TAB_LABELS, evaluatorTabClass } from "@/lib/evaluator/evaluator-tabs";
 
 export type EvaluatorPageProps = {
   /** Chairman / College Admin: week-grid plotter. DOI: same layout, view-only. CAS: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
@@ -65,30 +66,27 @@ export function EvaluatorPage({
 
       <div className="px-4 md:px-8 pb-8">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { id: "timetabling" as const, label: "Timetabling & Optimization" },
-              { id: "load" as const, label: "Hrs-Units-Preps-Remarks" },
-            ].map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`h-10 px-4 rounded-[15px] font-bold text-[14px] ${
-                  tab === t.id ? "bg-[#ff990a] text-white" : "bg-white text-black border border-black/10"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          {/* Same order/labels as hub shells: Colleges → Timetabling → Hrs */}
+          <div className="flex gap-2 border-b border-gray-200 flex-wrap">
             {collegeWide ? (
-              <Link
-                href="/admin/college/evaluator?hub=1"
-                className="h-10 px-4 rounded-[15px] font-bold text-[14px] bg-white text-black border border-black/10 inline-flex items-center"
-              >
-                College hub
+              <Link href="/admin/college/evaluator?hub=1" className={evaluatorTabClass(false)}>
+                {EVALUATOR_TAB_LABELS.colleges}
               </Link>
             ) : null}
+            <button
+              type="button"
+              onClick={() => setTab("timetabling")}
+              className={evaluatorTabClass(tab === "timetabling")}
+            >
+              {EVALUATOR_TAB_LABELS.timetabling}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("load")}
+              className={evaluatorTabClass(tab === "load")}
+            >
+              {EVALUATOR_TAB_LABELS.hrs}
+            </button>
           </div>
           {collegeWide ? (
             <NotifyGecReadyButton

@@ -8,6 +8,7 @@ import { DoiCampusDirectorSignatureCard } from "@/components/doi/DoiCampusDirect
 import { SystemConfigBrandingCard } from "@/components/admin/SystemConfigBrandingCard";
 import { SystemConfigElectronicSignatureCard } from "@/components/admin/SystemConfigElectronicSignatureCard";
 import { SystemConfigSchedulingPolicyCard } from "@/components/admin/SystemConfigSchedulingPolicyCard";
+import { SystemConfigClearSubjectsCard } from "@/components/admin/SystemConfigClearSubjectsCard";
 import {
   adminApi,
   semestersApi,
@@ -97,19 +98,6 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
 
       <SectionCard title="Faculty load limits">
         <SystemConfigSchedulingPolicyCard />
-      </SectionCard>
-
-      <SectionCard title="INS form layout">
-        <p className="text-sm text-black/65 leading-relaxed">
-          Printed INS Forms 5A, 5B, and 5C stay aligned with the official CTU paper layout
-          (grid, signatures, and field order). A free-form layout editor is not enabled: if
-          the official form changes, staff would otherwise rebuild OptiCore to match — or
-          go back to Excel / SPA.
-        </p>
-        <p className="text-sm text-black/65 leading-relaxed">
-          Letterhead image, university name, and an optional print footer are under Branding.
-          Confirm with the team before adding layout knobs such as margins or banner size.
-        </p>
       </SectionCard>
       <SectionCard title="INS form signatories">
         {mode === "doi" ? (
@@ -219,6 +207,12 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
         ) : null}
         {periodMsg ? <p className="text-sm text-emerald-800">{periodMsg}</p> : null}
       </SectionCard>
+
+      {mode === "doi" ? (
+        <SectionCard title="Retest data (danger zone)">
+          <SystemConfigClearSubjectsCard />
+        </SectionCard>
+      ) : null}
     </div>
   );
 }

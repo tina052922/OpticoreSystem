@@ -239,8 +239,6 @@ export function useInsLiveSchedule(args: {
   }, [selectedInstructorId, catalog.getInsConflictLinesForInstructor]);
 
   return {
-    /** College id used for INS signer label editor (resolved from selection / campus-wide slice). */
-    signerEditorCollegeId: resolvedCollegeAndProgram.collegeId,
     loading: catalog.loading,
     error: catalog.error,
     periodLabel: catalog.periodLabel,

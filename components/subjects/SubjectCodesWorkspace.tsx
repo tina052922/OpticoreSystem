@@ -85,6 +85,7 @@ export function SubjectCodesWorkspace({
   const [lecUnits, setLecUnits] = useState("");
   const [labUnits, setLabUnits] = useState("");
   const [yearLevel, setYearLevel] = useState("1");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
   const [subjectSearch, setSubjectSearch] = useState("");
@@ -141,14 +142,37 @@ export function SubjectCodesWorkspace({
   const duplicateLocal = useMemo(() => {
     const n = normalizeSubjectCodeForCompare(code.trim());
     if (!n) return false;
-    return dbSubjects.some((s) => normalizeSubjectCodeForCompare(s.code) === n);
-  }, [code, dbSubjects]);
+    return dbSubjects.some(
+      (s) => normalizeSubjectCodeForCompare(s.code) === n && s.id !== editingId,
+    );
+  }, [code, dbSubjects, editingId]);
 
-  async function onAddSubject() {
+  function resetForm() {
+    setEditingId(null);
+    setCode("");
+    setTitle("");
+    setLecUnits("");
+    setLabUnits("");
+    setYearLevel("1");
+  }
+
+  function startEdit(s: Subject) {
+    setEditingId(s.id);
+    setCode(s.code);
+    setTitle(s.title);
+    setLecUnits(String(s.lecUnits ?? ""));
+    setLabUnits(String(s.labUnits ?? ""));
+    setYearLevel(String(s.yearLevel ?? 1));
+    setError(null);
+    setSuccess(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function onSaveSubject() {
     setError(null);
     setSuccess(null);
     if (!programId) {
-      setError("Select a program (use the scope bar) before adding a subject.");
+      setError("Select a program (use the scope bar) before saving a subject.");
       return;
     }
     const trimmedCode = code.trim();
@@ -167,38 +191,52 @@ export function SubjectCodesWorkspace({
     }
 
     setSaving(true);
+    const lec = parseFloat(lecUnits) || 0;
+    const lab = parseFloat(labUnits) || 0;
+    const payload = {
+      code: trimmedCode,
+      title: trimmedTitle,
+      lecUnits: lec,
+      lecHours: lectureHoursFromUnits(lec),
+      labUnits: lab,
+      labHours: labHoursFromUnits(lab),
+      programId,
+      yearLevel: Math.min(6, Math.max(1, parseInt(yearLevel, 10) || 1)),
+    };
     try {
-      const lec = parseFloat(lecUnits) || 0;
-      const lab = parseFloat(labUnits) || 0;
-      await subjectCodesApi.create({
-        code: trimmedCode,
-        title: trimmedTitle,
-        lecUnits: lec,
-        lecHours: lectureHoursFromUnits(lec),
-        labUnits: lab,
-        labHours: labHoursFromUnits(lab),
-        programId,
-        yearLevel: Math.min(4, Math.max(1, parseInt(yearLevel, 10) || 1)),
-      });
+      if (editingId) {
+        await subjectCodesApi.update(editingId, payload);
+        setSuccess("Subject updated.");
+      } else {
+        await subjectCodesApi.create(payload);
+        setSuccess("Subject saved.");
+      }
+      resetForm();
+      void loadSubjects();
     } catch (err: any) {
-      setSaving(false);
       const msg = err?.message ?? "Failed to save subject.";
       if (msg.includes("duplicate") || msg.includes("already exists") || msg.includes("23505")) {
         setError("Subject Code already exists.");
       } else {
         setError(msg);
       }
-      return;
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
+  }
 
-    setSuccess("Subject saved.");
-    setCode("");
-    setTitle("");
-    setLecUnits("");
-    setLabUnits("");
-    setYearLevel("1");
-    void loadSubjects();
+  async function onDeleteSubject(s: Subject) {
+    if (!window.confirm(`Delete subject “${s.code}”?`)) return;
+    setError(null);
+    setSuccess(null);
+    try {
+      await subjectCodesApi.delete(s.id);
+      if (editingId === s.id) resetForm();
+      setSuccess(`Subject “${s.code}” deleted.`);
+      void loadSubjects();
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to delete subject.");
+    }
   }
 
   const prospectusSubtitle =
@@ -212,20 +250,27 @@ export function SubjectCodesWorkspace({
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6 max-h-[min(78vh,960px)] overflow-y-auto">
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-          <div className="text-[16px] font-semibold">Add Subject</div>
-          <Button
-            type="button"
-            className="bg-[#ff990a] text-white hover:bg-[#e68a09]"
-            disabled={saving || !programId}
-            onClick={() => void onAddSubject()}
-          >
-            + Add Subject
-          </Button>
+          <div className="text-[16px] font-semibold">{editingId ? "Edit Subject" : "Add Subject"}</div>
+          <div className="flex flex-wrap gap-2">
+            {editingId ? (
+              <Button type="button" variant="outline" disabled={saving} onClick={() => resetForm()}>
+                Cancel edit
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              className="bg-[#ff990a] text-white hover:bg-[#e68a09]"
+              disabled={saving || !programId}
+              onClick={() => void onSaveSubject()}
+            >
+              {saving ? "Saving…" : editingId ? "Update Subject" : "+ Add Subject"}
+            </Button>
+          </div>
         </div>
 
         {!programId ? (
           <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            Select a program using the scope bar above to add subjects or view saved rows.
+            Select a program using the scope bar above to manage subjects.
           </p>
         ) : null}
 
@@ -281,6 +326,8 @@ export function SubjectCodesWorkspace({
               <option value="2">2</option>
               <option value="3">3</option>
               <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
             </select>
           </div>
           <div className="space-y-1">
@@ -341,18 +388,19 @@ export function SubjectCodesWorkspace({
                 <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lab Units</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lab Hours</th>
+                <th className="border border-black/10 px-2 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="text-[12px]">
               {!programId ? (
                 <tr>
-                  <td colSpan={7} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     No program selected.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     {dbSubjects.length === 0
                       ? "No subjects in the database for this program yet."
                       : "No saved subjects match your search."}
@@ -360,7 +408,7 @@ export function SubjectCodesWorkspace({
                 </tr>
               ) : (
                 filteredDbSubjects.map((s) => (
-                  <tr key={s.id}>
+                  <tr key={s.id} className={editingId === s.id ? "bg-amber-50/80" : undefined}>
                     <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
                     <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
                     <td className="border border-black/10 px-2 py-2">{s.title}</td>
@@ -368,6 +416,22 @@ export function SubjectCodesWorkspace({
                     <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
                     <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
                     <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
+                    <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        className="text-[#780301] font-semibold hover:underline mr-3"
+                        onClick={() => startEdit(s)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="text-red-800 font-semibold hover:underline"
+                        onClick={() => void onDeleteSubject(s)}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DAY_ONE_HOUR_SLOTS, NIGHT_FULL_DAY_SLOTS } from "@/lib/scheduling/program-mode";
 import { parseTypedPlotTime, slotIndexFromTypedTime } from "./plot-time-input";
-import { resolvePlotMeetings, seedPlotMeetingsDraft } from "./plot-meetings";
+import { resolvePlotMeetings, seedPlotMeetingsDraft, durationHoursAfterDayChange } from "./plot-meetings";
 
 describe("parseTypedPlotTime", () => {
   it("parses 12-hour and 24-hour hourly starts", () => {
@@ -108,5 +108,50 @@ describe("resolvePlotMeetings", () => {
       { slots: DAY_ONE_HOUR_SLOTS, programMode: "day", maxDur: 3, weekdays },
     );
     expect(result.ok).toBe(false);
+  });
+
+  it("rejects blank duration when a day is set (no silent 1-hour default)", () => {
+    const result = resolvePlotMeetings(
+      {
+        timeText: "8:00 AM",
+        slots: [
+          { day: "Monday", durationHours: "" },
+          { day: "", durationHours: "" },
+          { day: "", durationHours: "" },
+        ],
+      },
+      { slots: DAY_ONE_HOUR_SLOTS, programMode: "day", maxDur: 3, weekdays },
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects leftover duration when day was cleared", () => {
+    const result = resolvePlotMeetings(
+      {
+        timeText: "8:00 AM",
+        slots: [
+          { day: "Monday", durationHours: "1" },
+          { day: "", durationHours: "1" },
+          { day: "", durationHours: "" },
+        ],
+      },
+      { slots: DAY_ONE_HOUR_SLOTS, programMode: "day", maxDur: 3, weekdays },
+    );
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("durationHoursAfterDayChange", () => {
+  it("clears hours when day is blank", () => {
+    expect(durationHoursAfterDayChange("", "1")).toBe("");
+    expect(durationHoursAfterDayChange("   ", "2")).toBe("");
+  });
+
+  it("defaults to 1 hour when a day is chosen and hours were empty", () => {
+    expect(durationHoursAfterDayChange("Monday", "")).toBe("1");
+  });
+
+  it("keeps an existing duration when switching days", () => {
+    expect(durationHoursAfterDayChange("Wednesday", "2")).toBe("2");
   });
 });

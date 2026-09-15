@@ -17,6 +17,7 @@ import {
   MapPin,
   Megaphone,
   Menu,
+  Network,
   Scale,
   Send,
   Settings,
@@ -67,6 +68,7 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   Megaphone,
   UserPlus,
   Settings,
+  Network,
 };
 
 const COLLEGE_ACCESS_REQUESTS_HREF = "/admin/college/access-requests";

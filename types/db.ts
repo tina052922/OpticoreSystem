@@ -62,6 +62,8 @@ export interface Program {
   code: string;
   name: string;
   collegeId: string;
+  /** How many year levels this program spans (1–6). Sections use yearLevel 1..yearCount. */
+  yearCount?: number | null;
 }
 
 export interface Section {
@@ -243,7 +245,7 @@ export interface StudentProfile {
   updatedAt: string;
 }
 
-/** Request Access: College Admin approves temporary scoped access for GEC/CAS. */
+/** Access scopes for peer-college Evaluator viewing (not used for GEC vacant-slot plotting). */
 export type AccessScope = "evaluator" | "ins_forms" | "gec_vacant_slots";
 
 export type AccessRequestStatus = "pending" | "approved" | "rejected";
