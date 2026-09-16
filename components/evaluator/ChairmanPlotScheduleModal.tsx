@@ -316,6 +316,26 @@ export function ChairmanPlotScheduleModal({
     ? lecLabModesAvailable(programCodeForSummary, draft.subjectCode)
     : [];
   const lecLabSelectable = lecLabModes.length > 1;
+  const lecLabPair = draft.subjectCode
+    ? getLecLabPair(programCodeForSummary, draft.subjectCode)
+    : null;
+  const lecLabIsPaired = Boolean(
+    lecLabPair?.lecCode &&
+      lecLabPair?.labCode &&
+      lecLabPair.lecCode !== lecLabPair.labCode,
+  );
+  /**
+   * Paired curricula encode Lec/Lab in the subject code — always derive the control
+   * from that code so a stale `draft.lecLabMode` cannot desync the dropdown.
+   * Unpaired combined subjects keep the explicit draft mode.
+   */
+  const lecLabModeValue: PlotLecLabMode = !draft.subjectCode
+    ? "lec"
+    : lecLabIsPaired
+      ? inferLecLabMode(programCodeForSummary, draft.subjectCode)
+      : lecLabModes.includes(draft.lecLabMode)
+        ? draft.lecLabMode
+        : (lecLabModes[0] ?? draft.lecLabMode ?? "lec");
 
   const roomsInB = buildingValue
     ? roomsInBuildingSorted(roomsForEvaluatorGrid, buildingValue)
@@ -632,7 +652,7 @@ export function ChairmanPlotScheduleModal({
               <select
                 id="plot-leclab"
                 className={`${fieldClass} mt-1`}
-                value={draft.lecLabMode}
+                value={lecLabModeValue}
                 disabled={readOnly || !draft.subjectCode || !lecLabSelectable}
                 onChange={(e) => {
                   const mode = e.target.value as PlotLecLabMode;
@@ -673,8 +693,8 @@ export function ChairmanPlotScheduleModal({
                     </option>
                   ))
                 ) : (
-                  <option value={draft.lecLabMode}>
-                    {formatLecLabDisplay(draft.lecLabMode)}
+                  <option value={lecLabModeValue}>
+                    {formatLecLabDisplay(lecLabModeValue)}
                   </option>
                 )}
               </select>

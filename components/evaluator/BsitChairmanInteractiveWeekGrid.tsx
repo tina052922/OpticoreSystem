@@ -400,29 +400,37 @@ export function BsitChairmanInteractiveWeekGrid({
       if (!modal || meetings.length === 0) return;
       const [first, ...rest] = meetings;
       if (!first) return;
-      const primary: PlotRow = {
-        ...modal.draft,
-        day: first.day,
-        startSlotIndex: first.startSlotIndex,
-        durationSlots: first.durationSlots,
-      };
-      const extras: PlotRow[] = rest.map((m) => ({
-        ...emptyPlotRow(),
-        id: newPlotRowId(),
-        sectionId: primary.sectionId,
-        students: primary.students,
-        subjectCode: primary.subjectCode,
-        lecLabMode: primary.lecLabMode,
-        instructorId: primary.instructorId,
-        roomId: primary.roomId,
-        day: m.day,
-        startSlotIndex: m.startSlotIndex,
-        durationSlots: m.durationSlots,
-      }));
+      const primary: PlotRow = normalizePlotRow(
+        {
+          ...modal.draft,
+          day: first.day,
+          startSlotIndex: first.startSlotIndex,
+          durationSlots: first.durationSlots,
+        },
+        programCodeForSummary,
+      );
+      const extras: PlotRow[] = rest.map((m) =>
+        normalizePlotRow(
+          {
+            ...emptyPlotRow(),
+            id: newPlotRowId(),
+            sectionId: primary.sectionId,
+            students: primary.students,
+            subjectCode: primary.subjectCode,
+            lecLabMode: primary.lecLabMode,
+            instructorId: primary.instructorId,
+            roomId: primary.roomId,
+            day: m.day,
+            startSlotIndex: m.startSlotIndex,
+            durationSlots: m.durationSlots,
+          },
+          programCodeForSummary,
+        ),
+      );
       onApplyPlot(primary, modal.buildingValue, extras);
       closeModal();
     },
-    [modal, onApplyPlot, closeModal],
+    [modal, onApplyPlot, closeModal, programCodeForSummary],
   );
 
   const handleRemove = useCallback(() => {
