@@ -46,7 +46,6 @@ import { ProgramModeProvider } from "@/contexts/ProgramModeContext";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
-import { usePendingAccessRequestsCount } from "@/hooks/use-pending-access-requests-count";
 import { usePendingPolicyReviewsCount } from "@/hooks/use-pending-policy-reviews-count";
 import { useAuditLogUnreadCount } from "@/hooks/use-audit-log-unread-count";
 import { usePendingInstructorRequestsCount } from "@/hooks/use-pending-instructor-requests-count";
@@ -71,7 +70,6 @@ const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   Network,
 };
 
-const COLLEGE_ACCESS_REQUESTS_HREF = "/admin/college/access-requests";
 const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
 /** College Admin: same data as DOI queue, scoped by RLS to their college. */
 const COLLEGE_POLICY_JUSTIFICATIONS_HREF = "/admin/college/policy-reviews";
@@ -94,8 +92,6 @@ export type CampusIntelligenceShellProps = {
   settingsHref?: string;
   /** Kept for layouts that pass it; inbox is only in the sidebar, not the avatar menu. */
   inboxHref?: string;
-  /** College Admin: pending access requests for this college hub. */
-  accessRequestsBadgeCollegeId?: string | null;
   /** DOI layout: unused for justification (record + notify only, no review queue). */
   policyReviewsBadge?: boolean;
   /**
@@ -127,7 +123,6 @@ export function CampusIntelligenceShell({
   roleLabel,
   profileHref,
   settingsHref,
-  accessRequestsBadgeCollegeId = null,
   policyReviewsBadge = false,
   policyJustificationsBadgeCollegeId = null,
   auditLogUnreadScope = null,
@@ -138,7 +133,6 @@ export function CampusIntelligenceShell({
   const branding = useCampusBranding();
   const navHrefs = navItems.map((i) => i.href);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const pendingAccessCount = usePendingAccessRequestsCount(accessRequestsBadgeCollegeId);
   const pendingDoiPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
   const showDoiPolicyBadge = policyReviewsBadge && pendingDoiPolicyReviews > 0;
   const collegePolicyBadgeEnabled = Boolean(policyJustificationsBadgeCollegeId?.trim());
@@ -315,8 +309,6 @@ export function CampusIntelligenceShell({
             {navItems.map((item) => {
               const active = isNavItemActive(pathname, item.href, navHrefs);
               const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
-              const accessBadge =
-                item.href === COLLEGE_ACCESS_REQUESTS_HREF && pendingAccessCount > 0 ? pendingAccessCount : null;
               const doiPolicyBadge =
                 item.href === DOI_POLICY_REVIEWS_HREF && showDoiPolicyBadge ? pendingDoiPolicyReviews : null;
               const collegePolicyBadge =
@@ -334,7 +326,6 @@ export function CampusIntelligenceShell({
               const badge =
                 doiPolicyBadge ??
                 collegePolicyBadge ??
-                accessBadge ??
                 auditBadge ??
                 instructorBadge ??
                 null;
@@ -361,20 +352,16 @@ export function CampusIntelligenceShell({
                       title={
                         doiPolicyBadge !== null || collegePolicyBadge !== null
                           ? `${badge} recorded teaching-load justification${badge === 1 ? "" : "s"}`
-                          : accessBadge !== null
-                              ? `${badge} pending access request${badge === 1 ? "" : "s"}`
-                              : instructorBadge !== null
-                                ? `${badge} instructor registration${badge === 1 ? "" : "s"} awaiting approval`
-                                : `${badge} new audit entr${badge === 1 ? "y" : "ies"} since last visit`
+                          : instructorBadge !== null
+                            ? `${badge} instructor registration${badge === 1 ? "" : "s"} awaiting approval`
+                            : `${badge} new audit entr${badge === 1 ? "y" : "ies"} since last visit`
                       }
                       aria-label={
                         doiPolicyBadge !== null || collegePolicyBadge !== null
                           ? `${badge} recorded teaching-load justification${badge === 1 ? "" : "s"}`
-                          : accessBadge !== null
-                              ? `${badge} pending access requests`
-                              : instructorBadge !== null
-                                ? `${badge} instructor registrations awaiting approval`
-                                : `${badge} unread audit log items`
+                          : instructorBadge !== null
+                            ? `${badge} instructor registrations awaiting approval`
+                            : `${badge} unread audit log items`
                       }
                     >
                       {badge > 99 ? "99+" : badge}

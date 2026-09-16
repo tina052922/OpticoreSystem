@@ -273,7 +273,7 @@ export function BsitChairmanInteractiveWeekGrid({
   }, [modal?.draft.day, modal?.draft.startSlotIndex, modal]);
 
   const filteredRows = useMemo(
-    () => (selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : rows),
+    () => (selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : []),
     [rows, selectedSectionId],
   );
 
@@ -351,8 +351,7 @@ export function BsitChairmanInteractiveWeekGrid({
     [filteredRows, programCodeForSummary, slots],
   );
 
-  const insSectionId =
-    selectedSectionId || filteredRows.find((r) => r.sectionId)?.sectionId || rows.find((r) => r.sectionId)?.sectionId || "";
+  const insSectionId = selectedSectionId || "";
   const insPrintHref = insSectionId
     ? `${insFormBasePath}?tab=section&sectionId=${encodeURIComponent(insSectionId)}&print=1`
     : `${insFormBasePath}?tab=section`;
@@ -370,25 +369,25 @@ export function BsitChairmanInteractiveWeekGrid({
         anchor,
       });
     },
-    [schedulePublished, roomById, roomBuildingByRowId],
+    [schedulePublished, roomById, roomBuildingByRowId, programCodeForSummary],
   );
 
   const openModalForEmptyCell = useCallback(
     (day: BsitEvaluatorWeekday, slotIdx: number) => {
-      if (schedulePublished) return;
+      if (schedulePublished || !selectedSectionId) return;
       const draft: PlotRow = normalizePlotRow(
         {
           ...emptyPlotRow(),
           day,
           startSlotIndex: slotIdx,
-          sectionId: selectedSectionId || "",
+          sectionId: selectedSectionId,
         },
         programCodeForSummary,
       );
       setHighlightedCell({ day, slotIdx });
       setModal({ draft, buildingValue: "", isNew: true, anchor: { day, slotIdx } });
     },
-    [schedulePublished, selectedSectionId],
+    [schedulePublished, selectedSectionId, programCodeForSummary],
   );
 
   const closeModal = useCallback(() => {
@@ -401,29 +400,37 @@ export function BsitChairmanInteractiveWeekGrid({
       if (!modal || meetings.length === 0) return;
       const [first, ...rest] = meetings;
       if (!first) return;
-      const primary: PlotRow = {
-        ...modal.draft,
-        day: first.day,
-        startSlotIndex: first.startSlotIndex,
-        durationSlots: first.durationSlots,
-      };
-      const extras: PlotRow[] = rest.map((m) => ({
-        ...emptyPlotRow(),
-        id: newPlotRowId(),
-        sectionId: primary.sectionId,
-        students: primary.students,
-        subjectCode: primary.subjectCode,
-        lecLabMode: primary.lecLabMode,
-        instructorId: primary.instructorId,
-        roomId: primary.roomId,
-        day: m.day,
-        startSlotIndex: m.startSlotIndex,
-        durationSlots: m.durationSlots,
-      }));
+      const primary: PlotRow = normalizePlotRow(
+        {
+          ...modal.draft,
+          day: first.day,
+          startSlotIndex: first.startSlotIndex,
+          durationSlots: first.durationSlots,
+        },
+        programCodeForSummary,
+      );
+      const extras: PlotRow[] = rest.map((m) =>
+        normalizePlotRow(
+          {
+            ...emptyPlotRow(),
+            id: newPlotRowId(),
+            sectionId: primary.sectionId,
+            students: primary.students,
+            subjectCode: primary.subjectCode,
+            lecLabMode: primary.lecLabMode,
+            instructorId: primary.instructorId,
+            roomId: primary.roomId,
+            day: m.day,
+            startSlotIndex: m.startSlotIndex,
+            durationSlots: m.durationSlots,
+          },
+          programCodeForSummary,
+        ),
+      );
       onApplyPlot(primary, modal.buildingValue, extras);
       closeModal();
     },
-    [modal, onApplyPlot, closeModal],
+    [modal, onApplyPlot, closeModal, programCodeForSummary],
   );
 
   const handleRemove = useCallback(() => {
@@ -506,13 +513,17 @@ export function BsitChairmanInteractiveWeekGrid({
         </div>
       </div>
 
-      {!insSectionId ? (
+      {!selectedSectionId ? (
+        <p className="text-[12px] text-black/60 bg-black/[0.03] border border-black/10 rounded-lg px-3 py-3 mb-4">
+          Select a <strong>section</strong> to open the plotting workspace. Empty selection does not show all sections.
+        </p>
+      ) : !insSectionId ? (
         <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
           Plot at least one row with a section to generate the printable INS Form 5B.
         </p>
       ) : null}
 
-      {unplacedRows.length > 0 ? (
+      {selectedSectionId && unplacedRows.length > 0 ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           <p className="text-[11px] font-semibold text-amber-950">Incomplete plots — click to finish in the form</p>
           <ul className="flex flex-wrap gap-2">
@@ -591,7 +602,7 @@ export function BsitChairmanInteractiveWeekGrid({
                       >
                         <button
                           type="button"
-                          disabled={schedulePublished}
+                          disabled={schedulePublished || !selectedSectionId}
                           className="w-full min-h-[40px] rounded border border-dashed border-black/20 text-black/30 hover:border-[#ff990a] hover:text-[#ff990a] hover:bg-[#ff990a]/5 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-0.5 transition-colors"
                           aria-label={`Plot schedule on ${day} at ${slot.label}`}
                           onClick={() => openModalForEmptyCell(day, slotIdx)}

@@ -8,10 +8,29 @@ import {
 
 export type PlotLecLabMode = "lec" | "lab";
 
+function stripLecLabTitleSuffix(title: string): string {
+  return title.replace(/\s*\((?:Lec|Lab|Lecture|Laboratory)\)\s*/gi, "").trim();
+}
+
+function isLabProspectusRow(row: ProspectusSubjectRow): boolean {
+  if (/\(\s*Lab(?:oratory)?\s*\)/i.test(row.title)) return true;
+  if (row.labUnits > 0 && row.lecUnits === 0) return true;
+  // Some curricula store lab contact in labHours only (labUnits left at 0).
+  if ((row.labHours ?? 0) > 0 && (row.lecHours ?? 0) === 0 && row.labUnits === 0) return true;
+  return false;
+}
+
 export function inferLecLabMode(programCode: string, subjectCode: string): PlotLecLabMode {
+  if (!subjectCode) return "lec";
   const p = prospectusRowForProgram(programCode, subjectCode);
-  if (!p) return "lec";
-  if (p.labUnits > 0 && p.lecUnits === 0) return "lab";
+  const all = getProspectusSubjectsForProgram(programCode);
+  const norm = normalizeProspectusCode(subjectCode);
+
+  // Explicit lab twin of another prospectus code (…L), even when units are mis-keyed.
+  const hasLecTwin = all.some((s) => normalizeProspectusCode(s.code) + "L" === norm);
+  if (hasLecTwin) return "lab";
+
+  if (p && isLabProspectusRow(p)) return "lab";
   return "lec";
 }
 
@@ -27,11 +46,17 @@ export function getLecLabPair(
   const all = getProspectusSubjectsForProgram(programCode);
   const norm = normalizeProspectusCode(subjectCode);
   const mode = inferLecLabMode(programCode, subjectCode);
+  const baseTitle = stripLecLabTitleSuffix(row.title);
 
   if (mode === "lab") {
     const lecRow =
       all.find((s) => normalizeProspectusCode(s.code) + "L" === norm) ??
-      all.find((s) => s.title.replace(/\s*\(Lab\)\s*/i, "").trim() === row.title.replace(/\s*\(Lab\)\s*/i, "").trim() && s.lecUnits > 0);
+      all.find(
+        (s) =>
+          !isLabProspectusRow(s) &&
+          stripLecLabTitleSuffix(s.title) === baseTitle &&
+          (s.lecUnits > 0 || (s.lecHours ?? 0) > 0),
+      );
     return { lecCode: lecRow?.code ?? null, labCode: subjectCode, mode: "lab" };
   }
 
@@ -39,9 +64,9 @@ export function getLecLabPair(
     all.find((s) => normalizeProspectusCode(s.code) === norm + "L") ??
     all.find(
       (s) =>
-        s.labUnits > 0 &&
-        s.lecUnits === 0 &&
-        s.title.replace(/\s*\(Lab\)\s*/i, "").trim() === row.title.replace(/\s*\(Lec\)\s*/i, "").trim(),
+        isLabProspectusRow(s) &&
+        stripLecLabTitleSuffix(s.title) === baseTitle &&
+        normalizeProspectusCode(s.code) !== norm,
     );
   return { lecCode: subjectCode, labCode: labRow?.code ?? null, mode: "lec" };
 }
@@ -51,7 +76,10 @@ export function lecLabModesAvailable(programCode: string, subjectCode: string): 
   if (lecCode && labCode) return ["lec", "lab"];
   const p = subjectCode ? prospectusRowForProgram(programCode, subjectCode) : undefined;
   if (!p) return [];
-  if (p.labUnits > 0 && p.lecUnits === 0) return ["lab"];
+  // Single catalog row carrying both lecture and lab contact hours.
+  if (p.lecUnits > 0 && p.labUnits > 0) return ["lec", "lab"];
+  if ((p.lecHours ?? 0) > 0 && (p.labHours ?? 0) > 0) return ["lec", "lab"];
+  if (isLabProspectusRow(p)) return ["lab"];
   return ["lec"];
 }
 
@@ -78,6 +106,14 @@ export function subjectRowsForPlotDropdown(
     out.push(s);
   }
   return out;
+}
+
+/**
+ * Subject dropdown label: base subject code/name only (no "(Lec)" / "(Lab)" twin options).
+ * Lec/Lab is chosen via the separate control; plotting resolves the paired code.
+ */
+export function formatPlotSubjectDropdownLabel(row: { code: string; title?: string | null }): string {
+  return row.code.trim();
 }
 
 export function formatLecLabDisplay(mode: PlotLecLabMode): string {

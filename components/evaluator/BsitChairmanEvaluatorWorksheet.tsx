@@ -707,6 +707,7 @@ export function BsitChairmanEvaluatorWorksheet({
             sectionId: e.sectionId,
             students: "",
             subjectCode,
+            // lecLabMode is derived from subjectCode inside normalizePlotRow
             lecLabMode: "lec",
             instructorId: e.instructorId,
             roomId: e.roomId,
@@ -1941,7 +1942,7 @@ export function BsitChairmanEvaluatorWorksheet({
               sectionId: r.sectionId,
               students: r.students,
               subjectCode: r.subjectCode,
-              lecLabMode: "lec",
+              lecLabMode: (r as { lecLabMode?: "lec" | "lab" }).lecLabMode ?? "lec",
               instructorId: r.instructorId,
               roomId: r.roomId,
               startSlotIndex: r.startSlotIndex,
@@ -2339,7 +2340,7 @@ export function BsitChairmanEvaluatorWorksheet({
           value={selectedSectionId}
           onChange={(e) => setSelectedSectionId(e.target.value)}
         >
-          <option value="">All sections</option>
+          <option value="">Select section</option>
           {Array.from(sectionNameById.entries()).map(([id, name]) => (
             <option key={id} value={id}>
               {name}

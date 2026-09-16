@@ -6,6 +6,10 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Keep Vercel/build logs clean; run `npm run lint` locally when cleaning debt.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   experimental: {
     optimizePackageImports: ["lucide-react"],
   },

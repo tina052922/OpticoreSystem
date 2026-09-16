@@ -15,6 +15,43 @@ function formatProspectusSemester(sem: number): string {
   return sem === 1 ? "1st" : "2nd";
 }
 
+function yearLevelHeading(yearLevel: number): string {
+  const ordinal =
+    yearLevel === 1
+      ? "1st"
+      : yearLevel === 2
+        ? "2nd"
+        : yearLevel === 3
+          ? "3rd"
+          : yearLevel === 4
+            ? "4th"
+            : yearLevel === 5
+              ? "5th"
+              : yearLevel === 6
+                ? "6th"
+                : `${yearLevel}th`;
+  return `${ordinal} Year`;
+}
+
+function groupSubjectsByYearLevel<T extends { yearLevel?: number | null }>(
+  rows: T[],
+): { yearLevel: number; label: string; subjects: T[] }[] {
+  const map = new Map<number, T[]>();
+  for (const row of rows) {
+    const yl = Number(row.yearLevel) || 0;
+    const list = map.get(yl) ?? [];
+    list.push(row);
+    map.set(yl, list);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([yearLevel, subjects]) => ({
+      yearLevel,
+      label: yearLevel > 0 ? yearLevelHeading(yearLevel) : "Unspecified year",
+      subjects,
+    }));
+}
+
 export type SubjectCodesWorkspaceProps = {
   /** Chairman session: program is fixed. */
   lockedProgramId?: string | null;
@@ -95,22 +132,37 @@ export function SubjectCodesWorkspace({
   const [success, setSuccess] = useState<string | null>(null);
 
   const loadSubjects = useCallback(async () => {
+    if (!programId) {
+      setDbSubjects([]);
+      setLoadingList(false);
+      return;
+    }
     setLoadingList(true);
     setError(null);
+    setDbSubjects([]);
     try {
       const { apiFetch } = await import("@/lib/api/client");
-      const url = programId
-        ? `/api/catalog/subjects?programId=${programId}`
-        : "/api/catalog/subjects";
-      const data = await apiFetch<{ subjects: Subject[] }>(url, { method: "GET" });
+      const data = await apiFetch<{ subjects: Subject[] }>(
+        `/api/catalog/subjects?programId=${encodeURIComponent(programId)}&limit=500`,
+        { method: "GET" },
+      );
       setDbSubjects(data.subjects);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load subjects");
+      setDbSubjects([]);
     }
     setLoadingList(false);
   }, [programId]);
 
   useEffect(() => {
+    setEditingId(null);
+    setCode("");
+    setTitle("");
+    setLecUnits("");
+    setLabUnits("");
+    setYearLevel("1");
+    setSubjectSearch("");
+    setSuccess(null);
     void loadSubjects();
   }, [loadSubjects]);
 
@@ -125,6 +177,19 @@ export function SubjectCodesWorkspace({
     );
   }, [dbSubjects, subjectSearch, gecCurriculumOnly]);
 
+  const dbSubjectsByYear = useMemo(
+    () =>
+      groupSubjectsByYearLevel(
+        [...filteredDbSubjects].sort((a, b) => {
+          const ya = Number(a.yearLevel) || 0;
+          const yb = Number(b.yearLevel) || 0;
+          if (ya !== yb) return ya - yb;
+          return a.code.localeCompare(b.code);
+        }),
+      ),
+    [filteredDbSubjects],
+  );
+
   const filteredProspectus = useMemo(() => {
     const q = subjectSearch.trim().toLowerCase();
     if (!q) return prospectusRows;
@@ -138,6 +203,11 @@ export function SubjectCodesWorkspace({
       );
     });
   }, [prospectusRows, subjectSearch]);
+
+  const prospectusByYear = useMemo(
+    () => groupSubjectsByYearLevel(filteredProspectus),
+    [filteredProspectus],
+  );
 
   const duplicateLocal = useMemo(() => {
     const n = normalizeSubjectCodeForCompare(code.trim());
@@ -270,7 +340,7 @@ export function SubjectCodesWorkspace({
 
         {!programId ? (
           <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            Select a program using the scope bar above to manage subjects.
+            Select a program first. Subjects load only for the chosen program, grouped by year level.
           </p>
         ) : null}
 
@@ -395,7 +465,7 @@ export function SubjectCodesWorkspace({
               {!programId ? (
                 <tr>
                   <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
-                    No program selected.
+                    Select a program to load subjects for that program.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
@@ -407,33 +477,43 @@ export function SubjectCodesWorkspace({
                   </td>
                 </tr>
               ) : (
-                filteredDbSubjects.map((s) => (
-                  <tr key={s.id} className={editingId === s.id ? "bg-amber-50/80" : undefined}>
-                    <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
-                    <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                    <td className="border border-black/10 px-2 py-2">{s.title}</td>
-                    <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                    <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
-                    <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                    <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
-                    <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        className="text-[#780301] font-semibold hover:underline mr-3"
-                        onClick={() => startEdit(s)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="text-red-800 font-semibold hover:underline"
-                        onClick={() => void onDeleteSubject(s)}
-                      >
-                        Delete
-                      </button>
+                dbSubjectsByYear.flatMap((group) => [
+                  <tr key={`yr-db-${group.yearLevel}`} className="bg-black/[0.04]">
+                    <td
+                      colSpan={8}
+                      className="border border-black/10 px-2 py-2 text-[12px] font-bold text-black/80"
+                    >
+                      {group.label}
                     </td>
-                  </tr>
-                ))
+                  </tr>,
+                  ...group.subjects.map((s) => (
+                    <tr key={s.id} className={editingId === s.id ? "bg-amber-50/80" : undefined}>
+                      <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
+                      <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.title}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
+                      <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
+                      <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
+                      <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          className="text-[#780301] font-semibold hover:underline mr-3"
+                          onClick={() => startEdit(s)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="text-red-800 font-semibold hover:underline"
+                          onClick={() => void onDeleteSubject(s)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  )),
+                ])
               )}
             </tbody>
           </table>
@@ -486,18 +566,28 @@ export function SubjectCodesWorkspace({
                     </td>
                   </tr>
                 ) : (
-                  filteredProspectus.map((s) => (
-                    <tr key={`${s.yearLevel}-${s.semester}-${s.code}`}>
-                      <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
-                      <td className="border border-black/10 px-2 py-2">{formatProspectusSemester(s.semester)}</td>
-                      <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.title}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
-                    </tr>
-                  ))
+                  prospectusByYear.flatMap((group) => [
+                    <tr key={`yr-pr-${group.yearLevel}`} className="bg-black/[0.04]">
+                      <td
+                        colSpan={8}
+                        className="border border-black/10 px-2 py-2 text-[12px] font-bold text-black/80"
+                      >
+                        {group.label}
+                      </td>
+                    </tr>,
+                    ...group.subjects.map((s) => (
+                      <tr key={`${s.yearLevel}-${s.semester}-${s.code}`}>
+                        <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
+                        <td className="border border-black/10 px-2 py-2">{formatProspectusSemester(s.semester)}</td>
+                        <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
+                        <td className="border border-black/10 px-2 py-2">{s.title}</td>
+                        <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
+                        <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
+                        <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
+                        <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
+                      </tr>
+                    )),
+                  ])
                 )}
               </tbody>
             </table>

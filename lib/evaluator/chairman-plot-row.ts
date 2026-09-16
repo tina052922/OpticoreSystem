@@ -1,7 +1,11 @@
 import type { BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import type { ProgramSessionWeekday } from "@/lib/scheduling/program-session";
 import type { PlotLecLabMode } from "@/lib/evaluator/chairman-plot-leclab";
-import { inferLecLabMode } from "@/lib/evaluator/chairman-plot-leclab";
+import {
+  getLecLabPair,
+  inferLecLabMode,
+  lecLabModesAvailable,
+} from "@/lib/evaluator/chairman-plot-leclab";
 
 export type PlotRow = {
   id: string;
@@ -42,8 +46,26 @@ export function emptyPlotRow(): PlotRow {
   };
 }
 
-/** Ensure legacy rows hydrated from DB include `lecLabMode`. */
+/**
+ * Ensure plot rows carry a lecLabMode consistent with the subject.
+ * - Paired curricula (CC-112 / CC-112L): derive mode from the subject code.
+ * - Unpaired combined subjects: keep the explicit Lec/Lab choice when valid.
+ */
 export function normalizePlotRow(row: PlotRow, programCode: string): PlotRow {
-  const lecLabMode = row.lecLabMode ?? inferLecLabMode(programCode, row.subjectCode);
+  if (!row.subjectCode) {
+    const lecLabMode = row.lecLabMode ?? "lec";
+    return row.lecLabMode === lecLabMode ? row : { ...row, lecLabMode };
+  }
+  const pair = getLecLabPair(programCode, row.subjectCode);
+  const paired = Boolean(pair.lecCode && pair.labCode && pair.lecCode !== pair.labCode);
+  if (paired) {
+    const lecLabMode = inferLecLabMode(programCode, row.subjectCode);
+    return row.lecLabMode === lecLabMode ? row : { ...row, lecLabMode };
+  }
+  const modes = lecLabModesAvailable(programCode, row.subjectCode);
+  const lecLabMode =
+    row.lecLabMode && modes.includes(row.lecLabMode)
+      ? row.lecLabMode
+      : (modes[0] ?? "lec");
   return row.lecLabMode === lecLabMode ? row : { ...row, lecLabMode };
 }
