@@ -444,7 +444,11 @@ export function FacultyProfileWorkspace({
         if (row?.profile) {
           await facultyProfileApi.update(row.profile.id, profilePayload);
         } else {
-          await facultyProfileApi.create({ userId: editingUserId, ...profilePayload });
+          await facultyProfileApi.create({
+            id: crypto.randomUUID(),
+            userId: editingUserId,
+            ...profilePayload,
+          });
         }
       } catch (err) {
         setSaving(false);
@@ -496,6 +500,7 @@ export function FacultyProfileWorkspace({
 
     try {
       await facultyProfileApi.create({
+        id: crypto.randomUUID(),
         userId: id,
         fullName: nameTrim,
         aka: aka.trim() || null,
@@ -517,10 +522,15 @@ export function FacultyProfileWorkspace({
         designation: designation.trim() || null,
         ratePerHour: computedRate,
       });
-    } catch {
+    } catch (err) {
       try { await userAdminApi.delete(id); } catch {}
       setSaving(false);
-      setError("Faculty already exists.");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("duplicate") || msg.includes("already exists") || msg.includes("23505")) {
+        setError("Faculty already exists.");
+      } else {
+        setError(msg || "Failed to save faculty profile.");
+      }
       return;
     }
 

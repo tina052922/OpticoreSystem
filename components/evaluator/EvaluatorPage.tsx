@@ -16,7 +16,7 @@ import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { EVALUATOR_TAB_LABELS, evaluatorTabClass } from "@/lib/evaluator/evaluator-tabs";
 
 export type EvaluatorPageProps = {
-  /** Chairman / College Admin: week-grid plotter. DOI: same layout, view-only. CAS: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
+  /** Chairman / College Admin: week-grid plotter. DOI: campus-wide plotter. CAS: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
   variant?: "chairman" | "college" | "cas" | "doi";
   /** Server-provided college scope for Chairman / College Admin. */
   chairmanCollegeId?: string | null;
@@ -58,7 +58,7 @@ export function EvaluatorPage({
   }
 
   const collegeWide = variant === "college";
-  const doiViewOnly = variant === "doi";
+  const doiCampusWide = variant === "doi";
 
   return (
     <div>
@@ -93,7 +93,7 @@ export function EvaluatorPage({
               academicPeriodId={selectedPeriodId}
               periodLabel={selectedPeriod?.name ?? null}
             />
-          ) : doiViewOnly ? null : (
+          ) : doiCampusWide ? null : (
             <NotifyProgramPlottedButton
               academicPeriodId={selectedPeriodId}
               periodLabel={selectedPeriod?.name ?? null}
@@ -109,10 +109,10 @@ export function EvaluatorPage({
             check is campus-wide. Peer-college hubs remain view-only.
           </p>
         ) : null}
-        {doiViewOnly ? (
+        {doiCampusWide ? (
           <p className="text-[13px] text-black/65 mb-4">
-            Same Evaluator layout as College Admin. View-only: you cannot plot or edit. Use <strong>Run conflict
-            check</strong> for a campus-wide scan. Formal publish stays on Schedule Hub.
+            Campus-wide Evaluator: plot and edit any department. Use conflict check before formal publish on Schedule
+            Hub.
           </p>
         ) : null}
 
@@ -123,9 +123,9 @@ export function EvaluatorPage({
             chairmanProgramCode={chairmanProgramCode}
             chairmanProgramName={chairmanProgramName}
             collegeWidePrograms={collegeWide}
-            campusWidePrograms={doiViewOnly}
-            viewOnly={doiViewOnly}
-            insFormBasePath={doiViewOnly ? "/doi/ins" : collegeWide ? "/admin/college/ins" : "/chairman/ins"}
+            campusWidePrograms={doiCampusWide}
+            viewOnly={false}
+            insFormBasePath={doiCampusWide ? "/doi/ins" : collegeWide ? "/admin/college/ins" : "/chairman/ins"}
             onPolicySnapshot={setPolicySnapshot}
           />
         </div>

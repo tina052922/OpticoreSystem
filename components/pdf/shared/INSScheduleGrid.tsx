@@ -14,30 +14,40 @@ type INSScheduleGridProps = {
   programSession?: "day" | "night";
 };
 
-const RAIL_W = 100;
-const GRID_H = 350;
+const RAIL_W = 112;
+/** Match day grid body (header + time rows) so the signature rail does not stretch a gap under the schedule. */
+const DAY_HEADER_H = 14;
+const DAY_ROW_H = 28;
+const DAY_SLOT_COUNT = insTimeSlotLabels("day").length;
+const DAY_RAIL_H = DAY_HEADER_H + DAY_SLOT_COUNT * DAY_ROW_H;
 
 const gs = StyleSheet.create({
   outerWrapper: {
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "flex-start",
     marginTop: 4,
     marginBottom: 4,
   },
   gridPart: {
-    flex: .9,
+    flex: 0.9,
+  },
+  /** Flush grid inside the rail wrapper — margins live on outerWrapper only. */
+  gridContainerFlush: {
+    borderWidth: 0.5,
+    marginTop: 0,
+    marginBottom: 0,
   },
   rail: {
     width: RAIL_W,
-    height: GRID_H,
-    marginLeft: 30,
+    height: DAY_RAIL_H,
+    marginLeft: 24,
     position: "relative",
   },
   rotatedStrip: {
     position: "absolute",
-    top: GRID_H / 2 - RAIL_W / 2,
-    left: -(GRID_H / 2 - 50 / 2),
-    width: GRID_H,
+    top: DAY_RAIL_H / 2 - RAIL_W / 2,
+    left: -(DAY_RAIL_H / 2 - RAIL_W / 2),
+    width: DAY_RAIL_H,
     height: RAIL_W,
     transform: "rotate(-90deg)",
     flexDirection: "row",
@@ -45,32 +55,37 @@ const gs = StyleSheet.create({
   },
   sigBlock: {
     flex: 1,
+    height: "100%",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-    paddingTop: 10
-  },
-  sigBlockLast: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-    paddingTop: 10
+    justifyContent: "flex-start",
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: 3,
   },
   sigTitle: {
     fontSize: 5.5,
     fontFamily: "Helvetica-Bold",
     textAlign: "center",
-    marginBottom: 10,
+    marginBottom: 2,
+    flexShrink: 0,
   },
-  space: {
-    marginTop: 70,
+  /** Flexible gap between title and footer — never a fixed 70pt that clips the sig line. */
+  sigSpacer: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 2,
+  },
+  sigFooter: {
+    width: "100%",
+    alignItems: "center",
+    flexShrink: 0,
   },
   sigLineView: {
-    marginBottom: 1.5,
-    marginTop: 3,
-    height: .6,
-    width: 80,
+    marginTop: 2,
+    marginBottom: 2,
+    height: 0.85,
+    width: "88%",
+    maxWidth: 96,
     backgroundColor: "black",
   },
   sigName: {
@@ -84,9 +99,10 @@ const gs = StyleSheet.create({
     textAlign: "center",
   },
   sigImage: {
-    height: 28,
+    height: 22,
+    maxWidth: "90%",
     objectFit: "contain" as const,
-    marginBottom: 3,
+    marginBottom: 2,
   },
 });
 
@@ -102,11 +118,17 @@ function CellContent({ cell }: { cell: PDFScheduleCell | null }) {
   );
 }
 
-function GridTable({ schedule }: { schedule: PDFScheduleGrid }) {
+function GridTable({
+  schedule,
+  flush = false,
+}: {
+  schedule: PDFScheduleGrid;
+  flush?: boolean;
+}) {
   const days = INS_DAYS;
   const timeSlots = insTimeSlotLabels("day");
   return (
-    <View style={ins.gridContainer}>
+    <View style={flush ? gs.gridContainerFlush : ins.gridContainer}>
       <View style={ins.gridHeaderRow} wrap={false}>
         <View style={ins.gridTimeHeader}>
           <Text>TIME</Text>
@@ -141,7 +163,7 @@ function GridTable({ schedule }: { schedule: PDFScheduleGrid }) {
 
 export function SignatureRail({
   slots,
-  railHeight = GRID_H,
+  railHeight = DAY_RAIL_H,
 }: {
   slots: PDFSignatureSlot[];
   railHeight?: number;
@@ -153,26 +175,27 @@ export function SignatureRail({
           gs.rotatedStrip,
           {
             top: railHeight / 2 - RAIL_W / 2,
-            left: -(railHeight / 2 - 50 / 2),
+            left: -(railHeight / 2 - RAIL_W / 2),
             width: railHeight,
+            height: RAIL_W,
           },
         ]}
       >
-        {slots.map((slot, idx) => (
-          <View
-            key={slot.key}
-            style={idx < slots.length - 1 ? gs.sigBlock : gs.sigBlockLast}
-          >
+        {slots.map((slot) => (
+          <View key={slot.key} style={gs.sigBlock}>
             <Text style={gs.sigTitle}>{slot.lineTitle}</Text>
-            {slot.imageUrl ? (
-              <Image src={slot.imageUrl} style={gs.sigImage} />
-            ) : null}
-            <View style={gs.space} />
-            {slot.signerName && slot.signerName !== "—" ? (
-              <Text style={gs.sigName}>{slot.signerName}</Text>
-            ) : null}
-            <View style={gs.sigLineView} />
-            <Text style={gs.sigRole}>{slot.lineSubtitle}</Text>
+            <View style={gs.sigSpacer} />
+            <View style={gs.sigFooter}>
+              {slot.imageUrl ? (
+                <Image src={slot.imageUrl} style={gs.sigImage} />
+              ) : null}
+              {slot.signerName && slot.signerName !== "—" ? (
+                <Text style={gs.sigName}>{slot.signerName}</Text>
+              ) : null}
+              {/* Always draw the signature underline (Chair + Campus Director were clipping before). */}
+              <View style={gs.sigLineView} />
+              <Text style={gs.sigRole}>{slot.lineSubtitle}</Text>
+            </View>
           </View>
         ))}
       </View>
@@ -188,9 +211,9 @@ export function INSScheduleGrid({ schedule, rightSignatureSlots }: INSScheduleGr
   return (
     <View style={gs.outerWrapper}>
       <View style={gs.gridPart}>
-        <GridTable schedule={schedule} />
+        <GridTable schedule={schedule} flush />
       </View>
-      <SignatureRail slots={rightSignatureSlots} />
+      <SignatureRail slots={rightSignatureSlots} railHeight={DAY_RAIL_H} />
     </View>
   );
 }

@@ -246,16 +246,24 @@ export function roomScheduleToPdfGrid(
 }
 
 /**
- * Resolves the three printed INS lines (Prepared by / Director-Dean / Campus
- * Director) from the six-slot source strip built by `buildInsSignatureSlots`.
+ * Resolves the three printed INS lines from the six-slot source strip.
  *
- * Key order matters: several slots can plausibly satisfy one printed line, and
- * `.find()` scans in array order — which previously let "approved" (DOI/VPAA,
- * index 0) win the Campus Director lookup, and "review" (Program Chairman) win
- * the Director/Dean lookup.
+ * Official paper roles (fixed titles on the form):
+ *   Prepared by:                          Program Coordinator/Chair
+ *     → Program Chairman ACCOUNT name (`review.accountName`, from
+ *       `User.name` for the resolved chairman) + their profile signature
+ *       image uploaded on /chairman/profile. System Configuration display
+ *       overrides for the 'review' slot are deliberately NOT used here —
+ *       the printed form must reflect the chairman themselves, not a
+ *       different name typed into the College Admin's editor.
+ *       Falls back to the `prepared` slot (College Admin name + e-sig from
+ *       /admin/college/system-configuration) when no chairman is resolved.
+ *   Reviewed, Certified True and Correct: Director/Dean
+ *     → DOI / VPAA System Configuration name + e-sig (`approved`); dean only if DOI blank
+ *   Approved:                             Campus Director
+ *     → campus (`campus`) from DOI System Configuration (wins over college placeholders)
  *
- * Shared by the PDF adapter and the on-screen Form 5C footer so the two can
- * never disagree about who signs which line.
+ * Shared by the PDF adapter and the on-screen signature strip so they never disagree.
  */
 export function resolveInsPrintedSigners(slots: InsSignatureSlot[]) {
   const byKey = (...keys: string[]) => {
@@ -271,38 +279,107 @@ export function resolveInsPrintedSigners(slots: InsSignatureSlot[]) {
     const n = s?.signerName?.trim();
     return Boolean(n) && n !== "—";
   };
-  // Prefer a named signer that also carries a configured e-signature image, so
-  // System Configuration uploads (College Admin / Campus Director / DOI) are not
-  // dropped when an earlier key has a placeholder name but no image.
-  const preferNamed = (...keys: string[]) => {
-    const candidates = keys
-      .map((k) => slots.find((s) => s.key === k))
-      .filter((s): s is InsSignatureSlot => Boolean(s));
-    const withImage = candidates.find((s) => hasName(s) && Boolean(s.imageUrl?.trim()));
-    if (withImage) return withImage;
-    return candidates.find(hasName) ?? byKey(...keys);
+  const firstUrl = (...urls: Array<string | null | undefined>) => {
+    for (const u of urls) {
+      const t = u?.trim();
+      if (t) return t;
+    }
+    return null;
   };
 
+  const dean = byKey("dean");
+  const doi = byKey("approved");
+  const campus = byKey("campus");
+  const review = byKey("review");
+  const prepared = byKey("prepared");
+
+  // Reviewed / Director/Dean: DOI System Configuration name + e-sig win over
+  // college "dean" placeholders (e.g. "MS. DEAN").
+  let reviewed: InsSignatureSlot | undefined;
+  if (hasName(doi) || hasName(dean) || Boolean(doi?.imageUrl?.trim())) {
+    reviewed = {
+      key: "reviewed",
+      lineTitle: "Reviewed, Certified True and Correct:",
+      lineSubtitle: "Director/Dean",
+      signerName: hasName(doi)
+        ? doi!.signerName
+        : hasName(dean)
+          ? dean!.signerName
+          : "",
+      imageUrl: firstUrl(doi?.imageUrl, dean?.imageUrl),
+    };
+  } else {
+    reviewed = dean ?? doi;
+  }
+
+  // Approved / Campus Director — never substitute DOI name or image here.
+  let approved: InsSignatureSlot | undefined;
+  if (hasName(campus) || Boolean(campus?.imageUrl?.trim())) {
+    approved = {
+      ...campus!,
+      imageUrl: firstUrl(campus?.imageUrl),
+    };
+  } else {
+    approved = campus;
+  }
+
+  /**
+   * Prepared: Program Chairman's account name (source of truth), fallback to
+   * the College Admin System Configuration slot.
+   *
+   * The printed name comes from the chairman's own `User.name` — carried on
+   * the `review` slot as `accountName` — NOT from anything typed into the
+   * "Program Chairman" row of the College Admin's INS form signatories editor.
+   * That protects the printed form from a College Admin overriding a
+   * chairman's name with arbitrary display text.
+   *
+   * The chairman's signature image (`review.imageUrl`) still travels with the
+   * slot; we never borrow the College Admin's landscape image for this line.
+   * If the chairman is unresolved for this college/program (no `accountName`
+   * on the review slot) we fall back to the `prepared` slot: name + e-sig
+   * configured by the College Admin in System Configuration.
+   */
+  const chairmanAccountName = review?.accountName?.trim();
+  const preparedOut: InsSignatureSlot | undefined = chairmanAccountName
+    ? {
+        ...review!,
+        signerName: chairmanAccountName,
+        imageUrl: firstUrl(review?.imageUrl),
+      }
+    : prepared;
+
   return {
-    prepared: preferNamed("prepared"),
-    // "Director/Dean": the "dean" slot is built with a null user, so it is only
-    // populated via System Configuration overrides. Fall back to the Program
-    // Chairman ("review") when no dean name is configured.
-    review: preferNamed("dean", "review", "reviewed"),
-    // "Campus Director" first; DOI/VPAA config image fills Approved when campus has no image.
-    approved: preferNamed("campus", "approved"),
+    prepared: preparedOut,
+    review: reviewed,
+    approved,
   };
 }
 
 /**
+ * Fallback printed names when System Configuration / resolved users leave a line blank.
+ * Matches the paper role under each signature line.
+ */
+export const INS_PRINTED_SIGNER_NAME_DEFAULTS = {
+  prepared: "Program Coordinator/Chair",
+  reviewed: "Director/Dean",
+  approved: "Campus Director",
+} as const;
+
+function printedSignerName(
+  slot: InsSignatureSlot | undefined,
+  fallback: string,
+): string {
+  const n = slot?.signerName?.trim();
+  if (n && n !== "—") return n;
+  return fallback;
+}
+
+/**
  * The three signature lines the official INS form actually prints, in paper
- * order. The six-slot strip from `buildInsSignatureSlots` is an internal
- * routing model (DOI, dean, contract, …); this collapses it to what appears on
- * the form.
+ * order. Names come from System Configuration (INS form signatories) via
+ * `mergeInsSignerDisplay` on the source strip, then role defaults when blank.
  *
- * Single source of truth for the on-screen signature strip AND the PDF rail —
- * previously the screen rendered all six raw slots while the PDF rendered
- * three, so Load Generator and the exported file disagreed.
+ * Single source of truth for the on-screen signature strip AND the PDF rail.
  */
 export function insPrintedSignatureLines(
   slots: InsSignatureSlot[] | null | undefined,
@@ -313,21 +390,30 @@ export function insPrintedSignatureLines(
       key: "prepared",
       lineTitle: "Prepared by:",
       lineSubtitle: "Program Coordinator/Chair",
-      signerName: prepared?.signerName ?? "",
+      signerName: printedSignerName(
+        prepared,
+        INS_PRINTED_SIGNER_NAME_DEFAULTS.prepared,
+      ),
       imageUrl: prepared?.imageUrl ?? null,
     },
     {
       key: "reviewed",
       lineTitle: "Reviewed, Certified True and Correct:",
       lineSubtitle: "Director/Dean",
-      signerName: review?.signerName ?? "",
+      signerName: printedSignerName(
+        review,
+        INS_PRINTED_SIGNER_NAME_DEFAULTS.reviewed,
+      ),
       imageUrl: review?.imageUrl ?? null,
     },
     {
       key: "approved",
       lineTitle: "Approved:",
       lineSubtitle: "Campus Director",
-      signerName: approved?.signerName ?? "",
+      signerName: printedSignerName(
+        approved,
+        INS_PRINTED_SIGNER_NAME_DEFAULTS.approved,
+      ),
       imageUrl: approved?.imageUrl ?? null,
     },
   ];
@@ -335,7 +421,8 @@ export function insPrintedSignatureLines(
 
 export function signatureSlotsToPdf(
   slots: InsSignatureSlot[] | null | undefined,
-): PDFSignatureSlot[] | undefined {
-  if (!slots || slots.length === 0) return undefined;
-  return insPrintedSignatureLines(slots) satisfies PDFSignatureSlot[];
+): PDFSignatureSlot[] {
+  // Always emit the three paper lines (with System Config names or defaults)
+  // so Forms 5A/5B/5C never render empty signer labels.
+  return insPrintedSignatureLines(slots ?? []);
 }

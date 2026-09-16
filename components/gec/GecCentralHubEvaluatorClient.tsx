@@ -1333,7 +1333,7 @@ export function GecCentralHubEvaluatorClient() {
     [sparseCampusWideUniverse, subjectById, roomById, userById, sectionById],
   );
 
-  const landingTiles = gecHubCollegeTiles(colleges.map((c) => ({ id: c.id, name: c.name })));
+  const landingTiles = gecHubCollegeTiles(colleges.map((c) => ({ id: c.id, name: c.name, code: c.code })));
 
   /** Landing: college tiles first — never wait on catalog errors, never skip to Timetabling. */
   if (!collegeParam) {

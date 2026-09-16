@@ -502,6 +502,9 @@ export function BsitChairmanEvaluatorWorksheet({
     if (!pid || pid !== academicPeriodId) return;
     setDoiScheduleLocked(event.name === "schedule.published");
   });
+  useRealtimeEvent("config.changed", () => {
+    void loadAllData();
+  });
   useEffect(() => {
     if (policyJustificationModalOpen) return;
     if (!chairmanCollegeId || !academicPeriodId) {

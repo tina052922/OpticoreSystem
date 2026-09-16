@@ -9,6 +9,17 @@ export type InsSignatureSlot = {
   lineSubtitle: string;
   signerName: string;
   imageUrl: string | null;
+  /**
+   * Raw source-of-truth name for this signer, before any System Configuration
+   * display overrides are applied. Set for slots where downstream printed
+   * views must use the authoritative account name and never the editor's
+   * display text — for example the Program Chairman on the printed "Prepared
+   * by" line, which must reflect the chairman's own `User.name`, not a value
+   * typed into "INS form signatories" by someone else.
+   *
+   * Optional — defaults to `signerName` when a caller doesn't set it.
+   */
+  accountName?: string | null;
 };
 
 export type InsSignatureSlotMode = "full" | "sectionCampusOnly";
@@ -121,6 +132,10 @@ export function buildInsSignatureSlots(args: {
     lineSubtitle,
     signerName: u?.name ?? "—",
     imageUrl: imageOverride ?? u?.signatureImageUrl?.trim() ?? null,
+    // Preserved so printed lines that must reflect the account name
+    // (e.g. Program Chairman on 'Prepared by') can bypass any editor
+    // display overrides applied later by mergeInsSignerDisplay.
+    accountName: u?.name?.trim() || null,
   });
 
   const doiImg = firstUrl(doiSignatureImageUrl, doi?.signatureImageUrl);

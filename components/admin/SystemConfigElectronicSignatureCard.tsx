@@ -29,7 +29,10 @@ export function SystemConfigElectronicSignatureCard({
   const [err, setErr] = useState<string | null>(null);
 
   const title = kind === "doi" ? "DOI / VPAA electronic signature" : "College Admin electronic signature";
-  const slot = kind === "doi" ? "Approved by (Director of Instruction / VPAA)" : "Prepared by (College Admin)";
+  const slot =
+    kind === "doi"
+      ? "Reviewed, Certified True and Correct (Director of Instruction / VPAA)"
+      : "Prepared by (College Admin)";
   const empty = kind === "doi" ? "No DOI signature on file" : "No College Admin signature on file";
   const removeLabel = kind === "doi" ? "Remove DOI signature" : "Remove College Admin signature";
 

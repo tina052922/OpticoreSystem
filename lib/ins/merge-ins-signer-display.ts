@@ -3,7 +3,10 @@ import type { CollegeInsSignerDisplay } from "@/types/db";
 
 /**
  * Merges optional display overrides onto resolved INS slots.
- * Campus (DOI) overrides apply first; college overrides apply second (college should omit `approved` if VPAA is campus-only).
+ *
+ * College overrides apply first; DOI / campus System Configuration applies
+ * second so VPAA / Campus Director names saved under DOI → INS form signatories
+ * always win over leftover college placeholders (e.g. "MS. DEAN").
  */
 export function mergeInsSignerDisplay(
   slots: InsSignatureSlot[] | null,
@@ -25,7 +28,7 @@ export function mergeInsSignerDisplay(
       }
     }
   };
-  apply(campusDisplay);
   apply(collegeDisplay);
+  apply(campusDisplay);
   return out;
 }

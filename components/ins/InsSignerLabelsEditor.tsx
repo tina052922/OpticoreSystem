@@ -11,13 +11,35 @@ import {
 } from "@/lib/ins/signer-profile-autofill";
 import type { CollegeInsSignerDisplay } from "@/types/db";
 
-export const INS_SIGNATORY_SLOT_DEFS: { key: string; label: string }[] = [
-  { key: "approved", label: "VPAA / DOI (approved by)" },
-  { key: "campus", label: "Campus Director" },
-  { key: "dean", label: "Dean" },
-  { key: "review", label: "Program Chairman" },
+/**
+ * Row definitions for the "INS form signatories" editor.
+ *
+ * How this flows onto the printed 3-line INS block
+ * (`lib/ins/ins-pdf-adapters.ts` → `resolveInsPrintedSigners`):
+ *   - "Prepared by (Program Coordinator/Chair)" prints the Program Chairman's
+ *     own account name + their profile signature image (uploaded on
+ *     /chairman/profile). It is NOT sourced from this editor — an admin
+ *     cannot rename a chairman on official forms from here. The `prepared`
+ *     row below is the fallback used only when no chairman is resolved.
+ *   - "Reviewed, Certified True and Correct: Director/Dean" → `approved` (DOI),
+ *     `dean` used only as a name override when DOI is blank.
+ *   - "Approved: Campus Director"                       → `campus` slot.
+ *
+ * The `review` slot still exists on the on-screen 6-slot strip for display
+ * overrides (subtitle changes, etc.), but it never overrides the printed
+ * Prepared line — hence no editor row for it here.
+ */
+export const INS_SIGNATORY_SLOT_DEFS: { key: string; label: string; hint?: string }[] = [
+  { key: "approved", label: "VPAA / DOI (Reviewed — Director/Dean e-sig)" },
+  { key: "campus", label: "Campus Director (Approved)" },
+  { key: "dean", label: "Dean (Reviewed name override)" },
   { key: "contract", label: "Contract signatory" },
-  { key: "prepared", label: "College Admin (prepared by)" },
+  {
+    key: "prepared",
+    label: "College Admin (Prepared by — fallback)",
+    hint:
+      "Printed under 'Prepared by (Program Coordinator/Chair)' ONLY when no Program Chairman is resolved for the college/program on the form. When a chairman exists, their own account name and profile signature print instead — this row is ignored. The electronic signature image is uploaded in the 'College Admin electronic signature' card below.",
+  },
 ];
 
 type Props = {
@@ -116,11 +138,14 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
         <p className="text-xs text-gray-500">Loading…</p>
       ) : (
         <div className="space-y-4">
-          {keys.map(({ key, label }) => {
+          {keys.map(({ key, label, hint }) => {
             const isProfileSlot = profileSlot === key && Boolean(profileName);
             return (
               <div key={key} className="rounded-lg border border-black/10 bg-black/[0.02] p-3 space-y-2">
                 <p className="text-sm font-semibold text-[#780301]">{label}</p>
+                {hint ? (
+                  <p className="text-[11px] leading-snug text-black/60">{hint}</p>
+                ) : null}
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="text-xs text-black/75">
                     Name

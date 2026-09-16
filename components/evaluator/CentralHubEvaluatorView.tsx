@@ -10,10 +10,9 @@ import { Button } from "@/components/ui/button";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import {
   CAMPUS_WIDE_COLLEGE_SLUG,
-  CENTRAL_HUB_COLLEGES,
-  hubCollegeBySlug,
-  hubSlugForCollegeId,
+  hubCollegesFromDb,
   isHubCollegeListView,
+  resolveHubCollege,
 } from "@/lib/evaluator-central-hub";
 import { EVALUATOR_TAB_LABELS } from "@/lib/evaluator/evaluator-tabs";
 import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
@@ -119,7 +118,6 @@ export function CentralHubEvaluatorView({
     ? null
     : searchParams.get("college");
   const isCampusWide = collegeSlug?.toLowerCase() === CAMPUS_WIDE_COLLEGE_SLUG;
-  const hub = hubCollegeBySlug(collegeSlug);
   const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
   const landingPanelForTabs = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
 
@@ -162,6 +160,9 @@ export function CentralHubEvaluatorView({
   const [doiScheduleLocked, setDoiScheduleLocked] = useState(false);
   const [justifications, setJustifications] = useState<ScheduleLoadJustification[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
+
+  const hubTiles = useMemo(() => hubCollegesFromDb(colleges), [colleges]);
+  const hub = useMemo(() => resolveHubCollege(collegeSlug, colleges), [collegeSlug, colleges]);
 
   const [programId, setProgramId] = useState("");
   /** College Admin timetabling: filter grid to one section ("" = all sections in department scope). */
@@ -227,6 +228,9 @@ export function CentralHubEvaluatorView({
     if (!pid || pid !== academicPeriodId) return;
     setDoiScheduleLocked(event.name === "schedule.published");
   });
+  useRealtimeEvent("config.changed", () => {
+    void load({ soft: false });
+  });
 
   /** Realtime / cross-tab reload: lightweight refresh of term `ScheduleEntry` rows only. Full catalog loads on mount. */
   const reloadScheduleEntriesSoft = useCallback(async () => {
@@ -275,8 +279,8 @@ export function CentralHubEvaluatorView({
     if (pending.createdAt === lastAppliedBundleAtRef.current) return;
 
     const isWide = collegeSlug.toLowerCase() === CAMPUS_WIDE_COLLEGE_SLUG;
-    const hub = hubCollegeBySlug(collegeSlug);
-    if (!isWide && hub?.collegeId && hub.collegeId !== pending.collegeId) {
+    const pendingHub = resolveHubCollege(collegeSlug, colleges);
+    if (!isWide && pendingHub?.collegeId && pendingHub.collegeId !== pending.collegeId) {
       setHubBundleNotice(
         `Workflow bundle is for college “${pending.collegeId}”. Open that hub tile or campus-wide to merge INS-linked schedule rows.`,
       );
@@ -309,9 +313,9 @@ export function CentralHubEvaluatorView({
 
     setHubBundleNotice(
       `Imported ${pending.scheduleEntries.length} schedule row(s) from the Chairman workflow bundle (INS + Evaluator). ` +
-        `Organized under college scope “${isWide ? "All colleges" : hub?.name ?? collegeSlug}” · Department filter: ${progName}.`,
+        `Organized under college scope “${isWide ? "All colleges" : pendingHub?.name ?? collegeSlug}” · Department filter: ${progName}.`,
     );
-  }, [loading, collegeSlug, periods, programs]);
+  }, [loading, collegeSlug, periods, programs, colleges]);
 
   useEffect(() => {
     setCampusConflictScan(null);
@@ -942,11 +946,12 @@ export function CentralHubEvaluatorView({
               </div>
             ) : null}
             <div id="college-hub-tiles" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {CENTRAL_HUB_COLLEGES.filter((c) => !myCollegeId || c.collegeId === myCollegeId || !c.collegeId).map(
-                (c) => (
+              {hubTiles
+                .filter((c) => !myCollegeId || c.collegeId === myCollegeId)
+                .map((c) => (
                   <Link
                     key={c.slug}
-                    href={`${basePath}?college=${c.slug}`}
+                    href={`${basePath}?college=${encodeURIComponent(c.slug)}`}
                     className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
                   >
                     {c.name}
@@ -954,18 +959,19 @@ export function CentralHubEvaluatorView({
                       <span className="block text-[11px] font-medium opacity-90 mt-0.5">Your college</span>
                     ) : null}
                   </Link>
-                ),
-              )}
+                ))}
               {myCollegeId
-                ? CENTRAL_HUB_COLLEGES.filter((c) => c.collegeId && c.collegeId !== myCollegeId).map((c) => (
-                    <Link
-                      key={c.slug}
-                      href={`${basePath}?college=${c.slug}`}
-                      className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-white border-2 border-[#ff990a] text-[#780301] font-bold text-[14px] text-center px-6 py-5 shadow-sm hover:bg-[#ff990a]/5 transition-colors"
-                    >
-                      {c.abbr} — peer access
-                    </Link>
-                  ))
+                ? hubTiles
+                    .filter((c) => c.collegeId && c.collegeId !== myCollegeId)
+                    .map((c) => (
+                      <Link
+                        key={c.slug}
+                        href={`${basePath}?college=${encodeURIComponent(c.slug)}`}
+                        className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-white border-2 border-[#ff990a] text-[#780301] font-bold text-[14px] text-center px-6 py-5 shadow-sm hover:bg-[#ff990a]/5 transition-colors"
+                      >
+                        {c.abbr} — peer access
+                      </Link>
+                    ))
                 : null}
             </div>
           </div>
@@ -986,32 +992,30 @@ export function CentralHubEvaluatorView({
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {CENTRAL_HUB_COLLEGES.slice(0, 4).map((c) => (
+            {hubTiles.map((c) => (
               <Link
                 key={c.slug}
-                href={`${basePath}?college=${c.slug}`}
+                href={`${basePath}?college=${encodeURIComponent(c.slug)}`}
                 className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
               >
                 {c.name}
               </Link>
             ))}
           </div>
-          {CENTRAL_HUB_COLLEGES[4] ? (
-            <div className="flex justify-center mt-5">
-              <Link
-                href={`${basePath}?college=${CENTRAL_HUB_COLLEGES[4]!.slug}`}
-                className="flex items-center justify-center w-full sm:max-w-[calc(50%-10px)] min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
-              >
-                {CENTRAL_HUB_COLLEGES[4]!.name}
-              </Link>
-            </div>
-          ) : null}
         </div>
       </div>
     );
   }
 
   if (collegeSlug && !isCampusWide && !hub) {
+    if (loading) {
+      return (
+        <div>
+          <ChairmanPageHeader title={hubTitle} subtitle="Loading colleges…" />
+          <div className="px-8 py-12 text-sm text-black/60">Please wait.</div>
+        </div>
+      );
+    }
     return (
       <div>
         <ChairmanPageHeader title={hubTitle} subtitle="Invalid college selection." />
@@ -1311,9 +1315,7 @@ export function CentralHubEvaluatorView({
                     value={
                       isCampusWide
                         ? CAMPUS_WIDE_COLLEGE_SLUG
-                        : scopeCollegeId
-                          ? hubSlugForCollegeId(scopeCollegeId) ?? collegeSlug ?? ""
-                          : collegeSlug ?? ""
+                        : hub?.slug ?? collegeSlug ?? ""
                     }
                     onChange={(e) => {
                       const v = e.target.value;
@@ -1325,7 +1327,7 @@ export function CentralHubEvaluatorView({
                     {hubAccessMode !== "collegeAdmin" ? (
                       <option value={CAMPUS_WIDE_COLLEGE_SLUG}>All colleges (campus-wide)</option>
                     ) : null}
-                    {CENTRAL_HUB_COLLEGES.map((c) => (
+                    {hubTiles.map((c) => (
                       <option key={c.slug} value={c.slug}>
                         {c.abbr} — {c.name}
                       </option>

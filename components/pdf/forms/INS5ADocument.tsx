@@ -6,6 +6,7 @@ import { INSBrandedFooter } from "../shared/INSBrandedFooter";
 import { INSScheduleGrid } from "../shared/INSScheduleGrid";
 import { INSNightScheduleGrid } from "../shared/INSNightScheduleGrid";
 import { INSSummaryTable } from "../shared/INSSummaryTable";
+import { WordSafeText } from "../shared/WordSafeText";
 
 function FieldRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -81,37 +82,48 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
         </View>
 
         <View style={ins.credentialsGrid}>
-          <View style={ins.fieldRowHalf}>
-            <Text style={ins.fieldLabel}>Bachelor&apos;s Degree:</Text>
-            <Text style={ins.fieldValue}>
-              {credentials?.bachelors || "—"}
-            </Text>
+          {/* Col 1 degrees | Col 2 Major / Minor / Special Training (same widths). */}
+          <View style={ins.columnContainerHeader}>
+            <View style={ins.fieldRowDegree}>
+              <Text style={ins.fieldLabel}>Bachelor&apos;s Degree:</Text>
+              <Text style={ins.fieldValue}>
+                {credentials?.bachelors || "—"}
+              </Text>
+            </View>
+            <View style={ins.fieldRowMajor}>
+              <Text style={ins.fieldLabel}>Major:</Text>
+              <WordSafeText style={ins.fieldValueMajor}>
+                {credentials?.major?.trim() || "—"}
+              </WordSafeText>
+            </View>
           </View>
-          <View style={ins.fieldRowHalf}>
-            <Text style={ins.fieldLabel}>Major:</Text>
-            <Text style={ins.fieldValue}>{credentials?.major || "—"}</Text>
+          <View style={ins.columnContainerHeader}>
+            <View style={ins.fieldRowDegree}>
+              <Text style={ins.fieldLabel}>Master&apos;s Degree:</Text>
+              <Text style={ins.fieldValue}>
+                {credentials?.masters || "—"}
+              </Text>
+            </View>
+            <View style={ins.fieldRowMajor}>
+              <Text style={ins.fieldLabel}>Minor:</Text>
+              <WordSafeText style={ins.fieldValueMajor}>
+                {credentials?.minor?.trim() || "—"}
+              </WordSafeText>
+            </View>
           </View>
-          <View style={ins.fieldRowHalf}>
-            <Text style={ins.fieldLabel}>Master&apos;s Degree:</Text>
-            <Text style={ins.fieldValue}>
-              {credentials?.masters || "—"}
-            </Text>
-          </View>
-          <View style={ins.fieldRowHalf}>
-            <Text style={ins.fieldLabel}>Minor:</Text>
-            <Text style={ins.fieldValue}>{credentials?.minor || "—"}</Text>
-          </View>
-          <View style={ins.fieldRowHalf}>
-            <Text style={ins.fieldLabel}>Doctorate Degree:</Text>
-            <Text style={ins.fieldValue}>
-              {credentials?.doctorate || "—"}
-            </Text>
-          </View>
-          <View style={ins.fieldRowHalf}>
-            <Text style={ins.fieldLabel}>Special Training:</Text>
-            <Text style={ins.fieldValue}>
-              {credentials?.specialTraining || "—"}
-            </Text>
+          <View style={ins.columnContainerHeader}>
+            <View style={ins.fieldRowDegree}>
+              <Text style={ins.fieldLabel}>Doctorate Degree:</Text>
+              <Text style={ins.fieldValue}>
+                {credentials?.doctorate || "—"}
+              </Text>
+            </View>
+            <View style={ins.fieldRowMajor}>
+              <Text style={ins.fieldLabel}>Special Training:</Text>
+              <WordSafeText style={ins.fieldValueMajor}>
+                {credentials?.specialTraining?.trim() || "—"}
+              </WordSafeText>
+            </View>
           </View>
         </View>
 
@@ -119,18 +131,18 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
           <INSNightScheduleGrid
             schedule={schedule}
             rightSignatureSlots={signatureSlots ?? [
-              { key: "prepared", lineTitle: "Prepared by:", lineSubtitle: "Program Coordinator/Chair", signerName: "", imageUrl: null },
-              { key: "reviewed", lineTitle: "Reviewed, Certified True and Correct:", lineSubtitle: "Director/Dean", signerName: "", imageUrl: null },
-              { key: "approved", lineTitle: "Approved:", lineSubtitle: "Campus Director", signerName: "", imageUrl: null },
+              { key: "prepared", lineTitle: "Prepared by:", lineSubtitle: "Program Coordinator/Chair", signerName: "Program Coordinator/Chair", imageUrl: null },
+              { key: "reviewed", lineTitle: "Reviewed, Certified True and Correct:", lineSubtitle: "Director/Dean", signerName: "Director/Dean", imageUrl: null },
+              { key: "approved", lineTitle: "Approved:", lineSubtitle: "Campus Director", signerName: "Campus Director", imageUrl: null },
             ]}
           />
         ) : (
           <INSScheduleGrid
             schedule={schedule}
             rightSignatureSlots={signatureSlots ?? [
-              { key: "prepared", lineTitle: "Prepared by:", lineSubtitle: "Program Coordinator/Chair", signerName: "", imageUrl: null },
-              { key: "reviewed", lineTitle: "Reviewed, Certified True and Correct:", lineSubtitle: "Director/Dean", signerName: "", imageUrl: null },
-              { key: "approved", lineTitle: "Approved:", lineSubtitle: "Campus Director", signerName: "", imageUrl: null },
+              { key: "prepared", lineTitle: "Prepared by:", lineSubtitle: "Program Coordinator/Chair", signerName: "Program Coordinator/Chair", imageUrl: null },
+              { key: "reviewed", lineTitle: "Reviewed, Certified True and Correct:", lineSubtitle: "Director/Dean", signerName: "Director/Dean", imageUrl: null },
+              { key: "approved", lineTitle: "Approved:", lineSubtitle: "Campus Director", signerName: "Campus Director", imageUrl: null },
             ]}
           />
         )}

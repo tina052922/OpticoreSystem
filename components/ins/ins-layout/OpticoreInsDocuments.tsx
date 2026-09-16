@@ -20,26 +20,26 @@ import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { OpticoreInsNightScheduleTable } from "./OpticoreInsNightScheduleTable";
 
-/** INS Form 5A (draft / unpublished): official vertical signature columns — matches CTU paper layout; fills when VPAA publishes. */
+/** INS Form 5A draft placeholders — keys match the printed-line resolver. */
 const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
   {
-    key: "approved",
+    key: "review",
+    lineTitle: "Prepared by",
+    lineSubtitle: "Program Coordinator/Chair",
+    signerName: "—",
+    imageUrl: null,
+  },
+  {
+    key: "dean",
+    lineTitle: "Reviewed & Certified",
+    lineSubtitle: "Director/Dean",
+    signerName: "—",
+    imageUrl: null,
+  },
+  {
+    key: "campus",
     lineTitle: "Approved",
     lineSubtitle: "Campus Director",
-    signerName: "—",
-    imageUrl: null,
-  },
-  {
-    key: "reviewed",
-    lineTitle: "Reviewed & Certified",
-    lineSubtitle: "Director / Dean",
-    signerName: "—",
-    imageUrl: null,
-  },
-  {
-    key: "prepared",
-    lineTitle: "Prepared by",
-    lineSubtitle: "Program Coordinator / Chair",
     signerName: "—",
     imageUrl: null,
   },
@@ -52,19 +52,132 @@ const formDate = () =>
     year: "numeric",
   }).format(new Date());
 
-function InsPaperLetterhead({ formCode }: { formCode: string }) {
-  const { universityName } = useCampusBranding();
+/**
+ * On-screen / print letterhead mirrored from PDF `INSHeader`:
+ * centered campus banner, form meta pinned top-right, navy rule, then title block.
+ */
+function InsPdfMatchingHeader({
+  formCode,
+  formTitle,
+  semesterLabel,
+  readOnly = false,
+}: {
+  formCode: string;
+  formTitle: string;
+  semesterLabel?: string;
+  readOnly?: boolean;
+}) {
+  const { insHeaderBannerUrl, universityName } = useCampusBranding();
+  const { programMode } = useProgramMode();
   return (
-    <div className="flex flex-col gap-4 print:gap-0.5 border-b border-neutral-300 pb-6 print:pb-0.5 sm:flex-row sm:items-start sm:justify-between">
-      <h3 className="order-2 text-center text-base font-bold uppercase tracking-wide sm:order-1 sm:text-left sm:text-lg print:text-[8pt] print:leading-none">
-        {universityName}
-      </h3>
-      <div className="order-1 text-right text-sm sm:order-2 print:text-[6.5pt]">
-        <div className="font-semibold">{formCode}</div>
-        <div>{formDate()}</div>
-        <div>Revision: 2</div>
+    <div className="mb-3 print:mb-1">
+      <div className="relative min-h-[3.5rem] pb-2 print:min-h-[2.75rem] print:pb-0.5">
+        {insHeaderBannerUrl ? (
+          <div className="flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element -- campus branding public URL */}
+            <img
+              src={insHeaderBannerUrl}
+              alt=""
+              className="h-12 max-w-[min(100%,260px)] object-contain sm:h-14 print:h-11"
+            />
+          </div>
+        ) : (
+          <h3 className="text-center text-base font-bold uppercase tracking-wide sm:text-lg print:text-[8pt] print:leading-none">
+            {universityName}
+          </h3>
+        )}
+        <div className="absolute right-0 top-0 text-right text-[11px] leading-snug text-neutral-900 sm:text-xs print:text-[6.5pt] print:leading-tight">
+          <div className="font-semibold">{formCode}</div>
+          <div>{formDate()}</div>
+          <div>Revision: 2</div>
+        </div>
+      </div>
+
+      <div className="mb-3 border-t-2 border-[#1e3a5f] print:mb-1" />
+
+      <div className="space-y-1 text-center print:space-y-0">
+        <h4 className="text-xl font-bold uppercase tracking-wide print:text-[9pt] print:leading-none">
+          {formTitle}
+        </h4>
+        <div className="text-sm print:text-[7pt]">{programModeLabel(programMode)}</div>
+        <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
+          {readOnly ? (
+            <span className="block py-1 text-center text-sm text-neutral-900 print:py-0 print:text-[7.5pt]">
+              {semesterLabel ?? "____ Semester, AY ____"}
+            </span>
+          ) : (
+            <input
+              type="text"
+              placeholder="____ Semester, AY ____"
+              defaultValue={semesterLabel ?? ""}
+              className="w-full min-w-[16rem] bg-transparent text-center text-sm outline-none placeholder:text-neutral-400 print:text-[7.5pt]"
+              aria-label="Semester and academic year"
+            />
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+/** PDF-style 42% | 58% credential / Degree|Major pair row. */
+function InsTwoColFieldRow({
+  leftLabel,
+  leftNode,
+  rightLabel,
+  rightNode,
+}: {
+  leftLabel: string;
+  leftNode: ReactNode;
+  rightLabel: string;
+  rightNode: ReactNode;
+}) {
+  return (
+    <div className="grid w-full grid-cols-1 gap-y-2 sm:grid-cols-[42%_58%] sm:gap-x-2.5">
+      <div className="flex min-w-0 items-end gap-2">
+        <span className="shrink-0">{leftLabel}:</span>
+        {leftNode}
+      </div>
+      <div className="flex min-w-0 items-start gap-2">
+        <span className="shrink-0 pt-0.5">{rightLabel}:</span>
+        {rightNode}
+      </div>
+    </div>
+  );
+}
+
+function InsUnderlineValue({
+  value,
+  className = "",
+}: {
+  value?: string | null;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`min-h-[1.5rem] flex-1 min-w-0 border-b border-neutral-900 py-0.5 text-neutral-900 whitespace-normal break-normal print:min-h-0 print:py-0 ${className}`}
+    >
+      {value?.trim() ? value : "—"}
+    </span>
+  );
+}
+
+function InsUnderlineInput({
+  defaultValue,
+  className = "",
+  "aria-label": ariaLabel,
+}: {
+  defaultValue?: string;
+  className?: string;
+  "aria-label"?: string;
+}) {
+  return (
+    <input
+      type="text"
+      defaultValue={defaultValue ?? ""}
+      aria-label={ariaLabel}
+      className={`min-h-[1.5rem] flex-1 min-w-0 border-0 border-b border-neutral-900 bg-transparent outline-none print:min-h-0 ${className}`}
+    />
   );
 }
 
@@ -251,7 +364,7 @@ export type OpticoreInsForm5AProps = {
   conflictingScheduleEntryIds?: ReadonlySet<string> | null;
 };
 
-/** INS FORM 5A — Program by Teacher (Opticore-CampusIntelligence layout + editable fields). */
+/** INS FORM 5A — Program by Teacher (layout matched to PDF `INS5ADocument`). */
 export function OpticoreInsForm5A({
   facultyName,
   schedule,
@@ -266,129 +379,106 @@ export function OpticoreInsForm5A({
 }: OpticoreInsForm5AProps) {
   const { programMode } = useProgramMode();
   return (
-      <div className="space-y-5 print:space-y-0.5 text-neutral-900 print:text-[7pt] print:leading-snug">
-      <InsPaperLetterhead formCode="INS FORM 5A" />
+    <div className="space-y-3 print:space-y-0.5 text-neutral-900 print:text-[7pt] print:leading-snug">
+      <InsPdfMatchingHeader
+        formCode="INS Form 5A"
+        formTitle="Program by Teacher"
+        semesterLabel={semesterLabel}
+        readOnly={readOnly}
+      />
 
-      <div className="space-y-2 print:space-y-0 text-center">
-        <h4 className="text-xl font-bold uppercase tracking-wide print:text-[8pt] print:leading-none">
-          Program by Teacher
-        </h4>
-        <div className="text-sm print:text-[6.5pt]">{programModeLabel(programMode)}</div>
-        <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
-          {readOnly ? (
-            <span className="block py-1 text-center text-sm text-neutral-900">
-              {semesterLabel ?? "____ Semester, AY ____"}
-            </span>
-          ) : (
-            <input
-              type="text"
-              placeholder="____ Semester, AY ____"
-              className="w-full min-w-[16rem] bg-transparent text-center text-sm outline-none placeholder:text-neutral-400"
-              aria-label="Semester and academic year"
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-x-10 gap-y-4 print:gap-y-0 print:gap-x-4 text-sm md:grid-cols-2 print:text-[6.5pt]">
-        <div className="flex flex-wrap items-end gap-3 print:gap-1 md:col-span-2">
+      <div className="space-y-2 print:space-y-0.5 text-sm print:text-[6.5pt]">
+        <div className="flex flex-wrap items-end gap-3 print:gap-1">
           <span className="shrink-0">Name:</span>
           {readOnly ? (
-            <span className="min-h-[1.5rem] flex-1 min-w-[12rem] border-b border-neutral-900 py-0.5 text-neutral-900 print:min-h-0 print:py-0">
-              {facultyName}
-            </span>
+            <InsUnderlineValue value={facultyName} className="min-w-[12rem]" />
           ) : (
-            <input
-              type="text"
+            <InsUnderlineInput
               defaultValue={facultyName}
-              className="min-h-[1.5rem] flex-1 min-w-[12rem] border-0 border-b border-neutral-900 bg-transparent outline-none focus:border-[#FF990A]"
+              className="min-w-[12rem] focus:border-[#FF990A]"
               aria-label="Faculty name"
             />
           )}
         </div>
-        {!readOnly ? (
-          <>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 md:col-span-2">
-              <span className="shrink-0">Status of Appointment:</span>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="rounded border-neutral-500" />{" "}
-                Permanent
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="rounded border-neutral-500" />{" "}
-                Temporary
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="rounded border-neutral-500" />{" "}
-                Contract of Service
-              </label>
-            </div>
-            <div className="flex items-end gap-3">
-              <span>Bachelor&apos;s Degree:</span>
+
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <span className="shrink-0">Status of Appointment:</span>
+          {(
+            [
+              "Permanent",
+              "Temporary",
+              "Contract of Service",
+            ] as const
+          ).map((label) => (
+            <label key={label} className="flex items-center gap-2 text-sm print:text-[6.5pt]">
               <input
-                type="text"
-                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
-              />
-            </div>
-            <div className="flex items-end gap-3">
-              <span>Major:</span>
-              <input
-                type="text"
-                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
-              />
-            </div>
-            <div className="flex items-end gap-3">
-              <span>Master&apos;s Degree:</span>
-              <input
-                type="text"
-                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
-              />
-            </div>
-            <div className="flex items-end gap-3">
-              <span>Minor:</span>
-              <input
-                type="text"
-                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
-              />
-            </div>
-            <div className="flex items-end gap-3">
-              <span>Doctorate Degree:</span>
-              <input
-                type="text"
-                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
-              />
-            </div>
-            <div />
-            <div className="flex items-end gap-3 md:col-span-2">
-              <span>Special Training:</span>
-              <input
-                type="text"
-                className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
-              />
-            </div>
-          </>
-        ) : facultyCredentials ? (
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-            <CredLine
-              label={"Bachelor's Degree"}
-              value={facultyCredentials.bachelors}
-            />
-            <CredLine label="Major" value={facultyCredentials.major} />
-            <CredLine
-              label="Master's Degree"
-              value={facultyCredentials.master}
-            />
-            <CredLine label="Minor" value={facultyCredentials.minor} />
-            <CredLine
-              label="Doctorate Degree"
-              value={facultyCredentials.doctorate}
-            />
-            <CredLine
-              label="Special Training"
-              value={facultyCredentials.specialTraining}
-            />
-          </div>
-        ) : null}
+                type="checkbox"
+                disabled={readOnly}
+                className="rounded border-neutral-500"
+              />{" "}
+              {label}
+            </label>
+          ))}
+        </div>
+
+        <div className="space-y-2 print:space-y-0.5">
+          <InsTwoColFieldRow
+            leftLabel="Bachelor's Degree"
+            leftNode={
+              readOnly ? (
+                <InsUnderlineValue value={facultyCredentials?.bachelors} />
+              ) : (
+                <InsUnderlineInput defaultValue={facultyCredentials?.bachelors ?? ""} />
+              )
+            }
+            rightLabel="Major"
+            rightNode={
+              readOnly ? (
+                <InsUnderlineValue value={facultyCredentials?.major} />
+              ) : (
+                <InsUnderlineInput defaultValue={facultyCredentials?.major ?? ""} />
+              )
+            }
+          />
+          <InsTwoColFieldRow
+            leftLabel="Master's Degree"
+            leftNode={
+              readOnly ? (
+                <InsUnderlineValue value={facultyCredentials?.master} />
+              ) : (
+                <InsUnderlineInput defaultValue={facultyCredentials?.master ?? ""} />
+              )
+            }
+            rightLabel="Minor"
+            rightNode={
+              readOnly ? (
+                <InsUnderlineValue value={facultyCredentials?.minor} />
+              ) : (
+                <InsUnderlineInput defaultValue={facultyCredentials?.minor ?? ""} />
+              )
+            }
+          />
+          <InsTwoColFieldRow
+            leftLabel="Doctorate Degree"
+            leftNode={
+              readOnly ? (
+                <InsUnderlineValue value={facultyCredentials?.doctorate} />
+              ) : (
+                <InsUnderlineInput defaultValue={facultyCredentials?.doctorate ?? ""} />
+              )
+            }
+            rightLabel="Special Training"
+            rightNode={
+              readOnly ? (
+                <InsUnderlineValue value={facultyCredentials?.specialTraining} />
+              ) : (
+                <InsUnderlineInput
+                  defaultValue={facultyCredentials?.specialTraining ?? ""}
+                />
+              )
+            }
+          />
+        </div>
       </div>
 
       {programMode === "night" ? (
@@ -475,122 +565,112 @@ export function OpticoreInsForm5A({
       <InsSummaryOfCourses
         courses={courses}
         emptyMessage="No courses plotted for this faculty in the selected term. Use Evaluator to add schedule rows."
-        footer={
-          <div className="grid grid-cols-1 gap-x-10 gap-y-2 print:gap-y-0 text-sm md:grid-cols-2 print:text-[6.5pt]">
-            <div className="space-y-2 print:space-y-0">
-              {readOnly ? (
-                <>
-                  <CredLine
-                    label="No. of Preparations"
-                    value={
-                      facultyFormSummary != null
-                        ? String(facultyFormSummary.preparations)
-                        : null
-                    }
-                  />
-                  <CredLine
-                    label="No. of Units"
-                    value={
-                      facultyFormSummary != null
-                        ? String(facultyFormSummary.totalUnits)
-                        : null
-                    }
-                  />
-                  <CredLine
-                    label="No. of Hours/Week"
-                    value={
-                      facultyFormSummary != null
-                        ? String(facultyFormSummary.hoursPerWeek)
-                        : null
-                    }
-                  />
-                </>
-              ) : (
-                <>
-                  <FieldLine
-                    label="No. of Preparations"
-                    defaultValue={
-                      facultyFormSummary != null
-                        ? String(facultyFormSummary.preparations)
-                        : ""
-                    }
-                  />
-                  <FieldLine
-                    label="No. of Units"
-                    defaultValue={
-                      facultyFormSummary != null
-                        ? String(facultyFormSummary.totalUnits)
-                        : ""
-                    }
-                  />
-                  <FieldLine
-                    label="No. of Hours/Week"
-                    defaultValue={
-                      facultyFormSummary != null
-                        ? String(facultyFormSummary.hoursPerWeek)
-                        : ""
-                    }
-                  />
-                </>
-              )}
-            </div>
-            <div className="space-y-2">
-              {readOnly ? (
-                <>
-                  <CredLine
-                    label="Administrative Designation"
-                    value={facultyFormSummary?.administrativeDesignation}
-                  />
-                  <CredLine
-                    label="Production"
-                    value={facultyFormSummary?.production}
-                  />
-                  <CredLine
-                    label="Extension"
-                    value={facultyFormSummary?.extension}
-                  />
-                  <CredLine
-                    label="Research"
-                    value={facultyFormSummary?.research}
-                  />
-                </>
-              ) : (
-                <>
-                  <FieldLine
-                    label="Administrative Designation"
-                    defaultValue={
-                      facultyFormSummary?.administrativeDesignation ?? ""
-                    }
-                  />
-                  <FieldLine
-                    label="Production"
-                    defaultValue={facultyFormSummary?.production ?? ""}
-                  />
-                  <FieldLine
-                    label="Extension"
-                    defaultValue={facultyFormSummary?.extension ?? ""}
-                  />
-                  <FieldLine
-                    label="Research"
-                    defaultValue={facultyFormSummary?.research ?? ""}
-                  />
-                </>
-              )}
-            </div>
-          </div>
-        }
       />
 
-      {!readOnly ? (
-        <div className="grid grid-cols-1 gap-8 border-t border-neutral-200 pt-8 text-xs sm:grid-cols-3 md:hidden">
-          <SigBlock title="Prepared by:" subtitle="Program Coordinator/Chair" />
-          <SigBlock
-            title="Reviewed, Certified True and Correct:"
-            subtitle="Director/Dean"
-          />
-          <SigBlock title="Approved:" subtitle="Campus Director" />
+      {/* Metrics sit below Summary — same order as PDF `INS5ADocument`. */}
+      <div className="grid grid-cols-1 gap-x-10 gap-y-2 border-t border-neutral-900 pt-2 print:gap-y-0 print:pt-1 text-sm md:grid-cols-2 print:text-[6.5pt]">
+        <div className="space-y-2 print:space-y-0">
+          {readOnly ? (
+            <>
+              <CredLine
+                label="No. of Preparations"
+                value={
+                  facultyFormSummary != null
+                    ? String(facultyFormSummary.preparations)
+                    : null
+                }
+              />
+              <CredLine
+                label="No. of Units"
+                value={
+                  facultyFormSummary != null
+                    ? String(facultyFormSummary.totalUnits)
+                    : null
+                }
+              />
+              <CredLine
+                label="No. of Hours/Week"
+                value={
+                  facultyFormSummary != null
+                    ? String(facultyFormSummary.hoursPerWeek)
+                    : null
+                }
+              />
+            </>
+          ) : (
+            <>
+              <FieldLine
+                label="No. of Preparations"
+                defaultValue={
+                  facultyFormSummary != null
+                    ? String(facultyFormSummary.preparations)
+                    : ""
+                }
+              />
+              <FieldLine
+                label="No. of Units"
+                defaultValue={
+                  facultyFormSummary != null
+                    ? String(facultyFormSummary.totalUnits)
+                    : ""
+                }
+              />
+              <FieldLine
+                label="No. of Hours/Week"
+                defaultValue={
+                  facultyFormSummary != null
+                    ? String(facultyFormSummary.hoursPerWeek)
+                    : ""
+                }
+              />
+            </>
+          )}
         </div>
-      ) : null}
+        <div className="space-y-2 print:space-y-0">
+          {readOnly ? (
+            <>
+              <CredLine
+                label="Administrative Designation"
+                value={facultyFormSummary?.administrativeDesignation}
+              />
+              <CredLine
+                label="Production"
+                value={facultyFormSummary?.production}
+              />
+              <CredLine
+                label="Extension"
+                value={facultyFormSummary?.extension}
+              />
+              <CredLine
+                label="Research"
+                value={facultyFormSummary?.research}
+              />
+            </>
+          ) : (
+            <>
+              <FieldLine
+                label="Administrative Designation"
+                defaultValue={
+                  facultyFormSummary?.administrativeDesignation ?? ""
+                }
+              />
+              <FieldLine
+                label="Production"
+                defaultValue={facultyFormSummary?.production ?? ""}
+              />
+              <FieldLine
+                label="Extension"
+                defaultValue={facultyFormSummary?.extension ?? ""}
+              />
+              <FieldLine
+                label="Research"
+                defaultValue={facultyFormSummary?.research ?? ""}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
       <InsPrintFooter />
     </div>
   );
@@ -611,16 +691,6 @@ function FieldLine({
         defaultValue={defaultValue}
         className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
       />
-    </div>
-  );
-}
-
-function SigBlock({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="text-center">
-      <div className="mb-8 text-[11px] font-semibold leading-snug">{title}</div>
-      <div className="mb-2 border-b border-neutral-900" />
-      <div className="text-[10px] text-neutral-800">{subtitle}</div>
     </div>
   );
 }
@@ -700,7 +770,7 @@ export type OpticoreInsForm5BProps = {
   conflictingScheduleEntryIds?: ReadonlySet<string> | null;
 };
 
-/** INS FORM 5B — Program by Section */
+/** INS FORM 5B — Program by Section (layout matched to PDF `INS5BDocument`). */
 export function OpticoreInsForm5B({
   degreeAndYear,
   adviser,
@@ -716,136 +786,49 @@ export function OpticoreInsForm5B({
 }: OpticoreInsForm5BProps) {
   const { programMode } = useProgramMode();
   return (
-    <div className="space-y-5 print:space-y-1 text-neutral-900 print:text-[7.5pt] print:leading-tight">
-      <InsPaperLetterhead formCode="INS FORM 5B" />
+    <div className="space-y-3 print:space-y-1 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+      <InsPdfMatchingHeader
+        formCode="INS Form 5B"
+        formTitle="Program by Section"
+        semesterLabel={semesterLabel}
+        readOnly={readOnly}
+      />
 
-      <div className="space-y-2 print:space-y-0 text-center">
-        <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
-          Program by Section
-        </h4>
-        <div className="text-sm print:text-[7.5pt]">{programModeLabel(programMode)}</div>
-        <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
-          {readOnly ? (
-            <span className="block py-1 text-center text-sm text-neutral-900">
-              {semesterLabel ?? "____ Semester, AY ____"}
-            </span>
-          ) : (
-            <input
-              type="text"
-              placeholder="____ Semester, AY ____"
-              className="w-full min-w-[16rem] bg-transparent text-center text-sm outline-none placeholder:text-neutral-400"
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-4 print:space-y-1 text-sm print:text-[7.5pt]">
-        {programMode === "night" ? (
-          <>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end sm:gap-4">
-              <div className="flex items-end gap-2 min-w-0">
-                <span className="shrink-0">Degree and Year:</span>
-                {readOnly ? (
-                  <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">
-                    {degreeAndYear}
-                  </span>
-                ) : (
-                  <input
-                    type="text"
-                    defaultValue={degreeAndYear}
-                    className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
-                  />
-                )}
-              </div>
-              <div className="flex items-end justify-center min-w-0">
-                {readOnly ? (
-                  <span className="min-h-[1.5rem] min-w-[8rem] border-b border-neutral-900 px-3 py-0.5 text-center font-semibold text-neutral-900">
-                    {assignment || "—"}
-                  </span>
-                ) : (
-                  <input
-                    type="text"
-                    defaultValue={assignment}
-                    className="min-h-[1.5rem] w-full max-w-[14rem] border-0 border-b border-neutral-900 bg-transparent text-center font-semibold outline-none"
-                  />
-                )}
-              </div>
-              <div className="flex items-end gap-2 min-w-0 sm:justify-end">
-                <span className="shrink-0">Major:</span>
-                {readOnly ? (
-                  <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900 sm:text-right">
-                    {major || "—"}
-                  </span>
-                ) : (
-                  <input
-                    type="text"
-                    defaultValue={major ?? ""}
-                    className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none sm:text-right"
-                  />
-                )}
-              </div>
-            </div>
-            <div className="flex items-end gap-3">
-              <span className="shrink-0">Adviser:</span>
-              {readOnly ? (
-                <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">
-                  {adviser || "—"}
-                </span>
-              ) : (
-                <input
-                  type="text"
-                  defaultValue={adviser}
-                  className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
-                />
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-        <div className="flex items-end gap-3">
-          <span className="shrink-0">Degree and Year:</span>
-          {readOnly ? (
-            <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">
-              {degreeAndYear}
-            </span>
-          ) : (
-            <input
-              type="text"
-              defaultValue={degreeAndYear}
-              className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
-            />
-          )}
-        </div>
+      <div className="space-y-2 print:space-y-1 text-sm print:text-[7.5pt]">
+        <InsTwoColFieldRow
+          leftLabel="Degree and Year"
+          leftNode={
+            readOnly ? (
+              <InsUnderlineValue value={degreeAndYear} />
+            ) : (
+              <InsUnderlineInput defaultValue={degreeAndYear} />
+            )
+          }
+          rightLabel="Major"
+          rightNode={
+            readOnly ? (
+              <InsUnderlineValue value={major} />
+            ) : (
+              <InsUnderlineInput defaultValue={major ?? ""} />
+            )
+          }
+        />
         <div className="flex items-end gap-3">
           <span className="shrink-0">Adviser:</span>
           {readOnly ? (
-            <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">
-              {adviser || "—"}
-            </span>
+            <InsUnderlineValue value={adviser} />
           ) : (
-            <input
-              type="text"
-              defaultValue={adviser}
-              className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
-            />
+            <InsUnderlineInput defaultValue={adviser} />
           )}
         </div>
         <div className="flex items-end gap-3">
           <span className="shrink-0">Assignment:</span>
           {readOnly ? (
-            <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">
-              {assignment}
-            </span>
+            <InsUnderlineValue value={assignment} />
           ) : (
-            <input
-              type="text"
-              defaultValue={assignment}
-              className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
-            />
+            <InsUnderlineInput defaultValue={assignment} />
           )}
         </div>
-          </>
-        )}
       </div>
 
       {programMode === "night" ? (
@@ -923,40 +906,12 @@ export function OpticoreInsForm5B({
         }}
         signatureSlots={insSignatureSlots}
         scheduleApproved={scheduleApproved}
-        signatureStrip="campusOnly"
+        signatureStrip="full"
       />
       )}
 
       <InsSummaryOfCourses courses={courses} />
 
-      <div className="border-t border-neutral-200 pt-8 text-center text-xs md:hidden">
-        <div className="text-sm font-semibold text-neutral-900">Approved</div>
-        <div className="mx-auto mt-3 flex min-h-[4rem] max-w-xs items-end justify-center border-b-2 border-neutral-900 pb-2">
-          {scheduleApproved && insSignatureSlots?.[0]?.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Supabase public URL
-            <img
-              src={insSignatureSlots[0].imageUrl}
-              alt=""
-              className="max-h-16 max-w-full object-contain"
-            />
-          ) : null}
-        </div>
-        <div className="mt-2 text-sm text-neutral-800">Campus Director</div>
-        {insSignatureSlots?.[0]?.signerName &&
-        insSignatureSlots[0].signerName !== "—" ? (
-          <div className="mt-1 text-xs font-medium text-neutral-900">
-            {insSignatureSlots[0].signerName}
-          </div>
-        ) : !scheduleApproved ? (
-          <div className="mt-1 text-[11px] text-neutral-500">
-            Pending publication
-          </div>
-        ) : (
-          <div className="mt-1 text-[11px] text-amber-900">
-            No signature on file — DOI admin uploads under DOI Profile
-          </div>
-        )}
-      </div>
       <InsPrintFooter />
     </div>
   );
@@ -973,7 +928,7 @@ export type OpticoreInsForm5CProps = {
   conflictingScheduleEntryIds?: ReadonlySet<string> | null;
 };
 
-/** INS FORM 5C — Room utilization */
+/** INS FORM 5C — Room utilization (layout matched to PDF `INS5CDocument`). */
 export function OpticoreInsForm5C({
   roomAssignment,
   schedule,
@@ -993,42 +948,20 @@ export function OpticoreInsForm5C({
   } = resolveInsPrintedSigners(insSignatureSlots ?? []);
 
   return (
-    <div className="space-y-5 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
-      <InsPaperLetterhead formCode="INS FORM 5C" />
+    <div className="space-y-3 print:space-y-1.5 text-neutral-900 print:text-[7.5pt] print:leading-tight">
+      <InsPdfMatchingHeader
+        formCode="INS Form 5C"
+        formTitle="Room Utilization"
+        semesterLabel={semesterLabel}
+        readOnly={readOnly}
+      />
 
-      <div className="space-y-2 print:space-y-0 text-center">
-        <h4 className="text-xl font-bold uppercase tracking-wide print:text-[10pt] print:leading-none">
-          Room Utilization
-        </h4>
-        <div className="text-sm print:text-[7.5pt]">{programModeLabel(programMode)}</div>
-        <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
-          {readOnly ? (
-            <span className="block py-1 text-center text-sm text-neutral-900">
-              {semesterLabel ?? "____ Semester, AY ____"}
-            </span>
-          ) : (
-            <input
-              type="text"
-              placeholder="____ Semester, AY ____"
-              className="w-full min-w-[16rem] bg-transparent text-center text-sm outline-none placeholder:text-neutral-400"
-              aria-label="Semester and academic year"
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-end gap-3 text-sm">
+      <div className="flex items-end gap-3 text-sm print:text-[7.5pt]">
         <span className="shrink-0">Room Assignment:</span>
         {readOnly ? (
-          <span className="min-h-[1.5rem] flex-1 border-b border-neutral-900 py-0.5 text-neutral-900">
-            {roomAssignment}
-          </span>
+          <InsUnderlineValue value={roomAssignment} />
         ) : (
-          <input
-            type="text"
-            defaultValue={roomAssignment}
-            className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent outline-none"
-          />
+          <InsUnderlineInput defaultValue={roomAssignment} />
         )}
       </div>
 
@@ -1109,23 +1042,24 @@ export function OpticoreInsForm5C({
       />
       )}
 
-      {/* Screen footer (spacious). Print uses a compact signature-line footer below. */}
-      <div className="mt-12 grid grid-cols-1 gap-x-16 gap-y-12 border-t border-neutral-200 pt-12 md:grid-cols-2 print:hidden">
-        <div className="space-y-12">
+      {/* PDF `INSSignatureBlock` horizontal: Prepared (col1) then Reviewed | Approved. */}
+      <div className="mt-4 space-y-6 border-t border-neutral-900 pt-4 print:mt-2 print:space-y-3 print:pt-2">
+        <div className="grid grid-cols-1 gap-x-16 gap-y-6 sm:grid-cols-2">
           <RoomForm5CFooterBlock
             title="Prepared by:"
             roleLabel="Program Coordinator/Chair"
             slot={prepared}
             scheduleApproved={scheduleApproved}
           />
+          <div className="hidden sm:block" aria-hidden />
+        </div>
+        <div className="grid grid-cols-1 gap-x-16 gap-y-6 sm:grid-cols-2">
           <RoomForm5CFooterBlock
             title="Reviewed, Certified True and Correct:"
             roleLabel="Director/Dean"
             slot={review}
             scheduleApproved={scheduleApproved}
           />
-        </div>
-        <div>
           <RoomForm5CFooterBlock
             title="Approved:"
             roleLabel="Campus Director"
@@ -1133,44 +1067,6 @@ export function OpticoreInsForm5C({
             scheduleApproved={scheduleApproved}
           />
         </div>
-      </div>
-
-      {/* Print-only footer: compact signature lines with configured e-signature images. */}
-      <div className="hidden print:grid grid-cols-3 gap-6 border-t border-neutral-900 pt-4 text-[11px]">
-        {(
-          [
-            { title: "Prepared by:", role: "Program Coordinator/Chair", slot: prepared },
-            {
-              title: "Reviewed, Certified True and Correct:",
-              role: "Director/Dean",
-              slot: review,
-            },
-            { title: "Approved:", role: "Campus Director", slot: campus },
-          ] as const
-        ).map((col) => (
-          <div key={col.title} className="text-center">
-            <div className="mb-1 flex min-h-[2.25rem] items-end justify-center">
-              {scheduleApproved && col.slot?.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
-                <img
-                  src={col.slot.imageUrl}
-                  alt=""
-                  className="max-h-10 max-w-full object-contain"
-                />
-              ) : (
-                <div className="w-full border-b border-neutral-900" />
-              )}
-            </div>
-            {scheduleApproved && col.slot?.imageUrl ? (
-              <div className="mb-1 border-b border-neutral-900" />
-            ) : null}
-            <div className="font-semibold">{col.title}</div>
-            <div className="text-[10px] text-neutral-700">{col.role}</div>
-            {col.slot?.signerName && col.slot.signerName !== "—" ? (
-              <div className="mt-0.5 text-[9px] text-neutral-800">{col.slot.signerName}</div>
-            ) : null}
-          </div>
-        ))}
       </div>
       <InsPrintFooter />
     </div>

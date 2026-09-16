@@ -30,6 +30,18 @@ describe("mergeInsSignerDisplay", () => {
     expect(merged?.[1]?.signerName).toBe("—");
   });
 
+  it("lets DOI System Configuration win over college placeholders on campus", () => {
+    const merged = mergeInsSignerDisplay(
+      slots,
+      { campus: { signerName: "Dr. Engilbert Benolirao" } },
+      { campus: { signerName: "Mr. Campus Director" }, dean: { signerName: "MS. DEAN" } },
+    );
+    expect(merged?.find((s) => s.key === "campus")?.signerName).toBe(
+      "Dr. Engilbert Benolirao",
+    );
+    expect(merged?.find((s) => s.key === "dean")?.signerName).toBe("MS. DEAN");
+  });
+
   it("returns the original slots when both displays are missing", () => {
     expect(mergeInsSignerDisplay(slots, null, undefined)?.length).toBe(2);
     expect(mergeInsSignerDisplay(null, {}, {})).toBeNull();

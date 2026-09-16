@@ -1,4 +1,10 @@
-import { StyleSheet } from "@react-pdf/renderer";
+import { Font, StyleSheet } from "@react-pdf/renderer";
+
+/**
+ * Disable mid-word hyphenation in PDF text (e.g. "Technol-ogy").
+ * Words may still wrap at spaces when the column is narrow.
+ */
+Font.registerHyphenationCallback((word) => [word]);
 
 const NAVY = "#1e3a5f";
 const GRID_BORDER = "black";
@@ -130,36 +136,64 @@ export const ins = StyleSheet.create({
 
   fieldRow: {
     flexDirection: "row",
-    // alignItems: "flex-end",
-    width: '40%',
+    alignItems: "flex-end",
+    width: "100%",
     marginBottom: 3,
   },
   fieldLabel: {
     fontSize: 7.5,
     marginRight: 4,
     color: BLACK,
+    flexShrink: 0,
   },
   fieldValue: {
     flex: 1,
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    letterSpacing: 1.2,
-    // borderBottomWidth: 0.5,
-    // borderBottomColor: BLACK,
-    // paddingBottom: 1,
-    // minHeight: 10,
   },
-  columnContainerHeader:{
-   flexDirection: "row",
-    // alignItems: "flex-start",
+  /** Col 1 | Col 2 header pair (Degree/Bachelor's left, Major right). */
+  columnContainerHeader: {
+    flexDirection: "row",
     width: "100%",
+    alignItems: "flex-start",
     marginBottom: 4,
+  },
+  fieldRowDegree: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    width: "42%",
+    paddingRight: 10,
+    marginBottom: 0,
+  },
+  fieldRowMajor: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    width: "58%",
+    marginBottom: 0,
+  },
+  fieldValueMajor: {
+    flexGrow: 1,
+    flexShrink: 1,
+    fontSize: 8.5,
+    fontFamily: "Helvetica-Bold",
   },
   fieldRowHalf: {
     flexDirection: "row",
     alignItems: "flex-end",
     marginBottom: 3,
-    width: "48%",
+    width: "50%",
+    paddingRight: 8,
+  },
+  fieldRowHalfRight: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 3,
+    width: "50%",
+  },
+  fieldValueFull: {
+    flex: 1,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
   },
 
   credentialsGrid: {
@@ -337,8 +371,8 @@ export const ins = StyleSheet.create({
   },
   signatureLine: {
     width: "80%",
-    borderBottomWidth: 0.5,
-    borderBottomColor: BLACK,
+    borderBottomWidth: 1,
+    borderBottomColor: "black",
     marginBottom: 2,
   },
   signatureRole: {

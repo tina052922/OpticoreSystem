@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import { insPickSlotRender } from "@/lib/ins/ins-weekly-grid-span";
@@ -10,12 +12,10 @@ import {
 } from "@/lib/scheduling/program-session";
 import { INS_DAYS } from "./opticore-ins-constants";
 
-const vLabel = {
-  writingMode: "vertical-rl" as const,
-  transform: "rotate(180deg)",
-};
-
 const insTableBorder = "border border-neutral-900";
+
+/** Visible width of the signature rail beside the schedule (matches PDF RAIL_W). */
+const RAIL_W_PX = 100;
 
 type InsDay = (typeof INS_DAYS)[number];
 
@@ -54,7 +54,7 @@ type Props = {
 
 /**
  * Weekly grid + Opticore-style vertical signature columns.
- * Order (left→right): Approved by → Campus Director → Reviewed & Certified → Contract → Prepared by.
+ * Order (left→right after rotation): Prepared by → Reviewed & Certified → Approved.
  */
 export function OpticoreInsScheduleTableWithSignatures(props: Props) {
   const {
@@ -71,7 +71,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
   return (
     <div className="overflow-x-auto print:overflow-visible">
       <div
-        className={`flex min-w-0 ${signatureStrip === "none" ? "" : "gap-1"}`}
+        className={`flex min-w-0 flex-row flex-nowrap items-stretch ${signatureStrip === "none" ? "" : "gap-0"}`}
       >
         <table
           className={`w-full min-w-0 border-collapse ${insTableBorder}`}
@@ -214,13 +214,19 @@ const FALLBACK_SLOTS: InsSignatureSlot[] = insPrintedSignatureLines(null);
 const FALLBACK_CAMPUS_ONLY: InsSignatureSlot[] = [
   {
     key: "campus",
-    lineTitle: "Approved",
+    lineTitle: "Approved:",
     lineSubtitle: "Campus Director",
     signerName: "—",
     imageUrl: null,
   },
 ];
 
+/**
+ * PDF `SignatureRail` equivalent for the on-page INS form:
+ * build a **3-column × 2-row** strip (row1 = titles, row2 = name/line/role),
+ * then rotate the whole strip -90° so it sits as a tall rail beside the grid.
+ * No cell borders — only the signature underlines.
+ */
 export function InsSignatureStrip({
   signatureSlots,
   scheduleApproved,
@@ -232,77 +238,114 @@ export function InsSignatureStrip({
   variant?: "full" | "campusOnly";
   compactPrint?: boolean;
 }) {
-  // Form 5B prints a single Campus Director column; every other form prints the
-  // same three lines as the PDF. `signatureSlots` arrives as the internal
-  // six-slot strip, so it must be collapsed rather than rendered raw.
   const slots =
     variant === "campusOnly"
       ? (signatureSlots ?? FALLBACK_CAMPUS_ONLY)
       : signatureSlots
         ? insPrintedSignatureLines(signatureSlots)
         : FALLBACK_SLOTS;
-  // Keep the signature strip narrow (paper form style) — no big boxed placeholders.
-  const colWidth =
-    variant === "campusOnly"
-      ? compactPrint
-        ? "w-[4rem]"
-        : "w-[4.5rem]"
-      : compactPrint
-        ? "w-[4.25rem]"
-        : "w-[4.75rem]";
+
+  const railRef = useRef<HTMLDivElement>(null);
+  const [railH, setRailH] = useState(320);
+
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+    const update = () => {
+      const h = el.getBoundingClientRect().height;
+      if (h > 0) setRailH(h);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const railW = compactPrint ? 88 : RAIL_W_PX;
+  const colCount = Math.max(1, slots.length);
 
   return (
-    <div className="hidden shrink-0 gap-0 md:flex print:flex">
-      {slots.map((s) => (
-        <div
-          key={s.key}
-          className={`flex ${colWidth} flex-col items-stretch border border-neutral-900 border-l-0 bg-white first:border-l`}
-        >
+    <div
+      ref={railRef}
+      className="relative ml-4 shrink-0 self-stretch overflow-visible print:ml-3"
+      style={{ width: railW, minHeight: "18rem" }}
+      aria-label="Signature rail"
+    >
+      {/*
+        Unrotated layout = 3 cols × 2 rows:
+          [ Prepared by: ] [ Reviewed… ] [ Approved: ]
+          [ name / line  ] [ name/line ] [ name/line ]
+        Then rotate -90° (same math as PDF SignatureRail).
+      */}
+      <div
+        className="absolute grid"
+        style={{
+          width: railH,
+          height: railW,
+          top: railH / 2 - railW / 2,
+          left: -(railH / 2 - railW / 2),
+          transform: "rotate(-90deg)",
+          gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
+          gridTemplateRows: "auto 1fr",
+        }}
+      >
+        {/* Row 1 — titles */}
+        {slots.map((s) => (
           <div
-            className={`flex-1 flex flex-col items-center justify-between px-1 ${compactPrint ? "py-1 print:py-0.5 print:px-0.5" : "py-2"}`}
+            key={`title-${s.key}`}
+            className="flex items-start justify-center px-2 pt-1 text-center"
           >
-            <div
-              className={`font-semibold leading-tight text-neutral-900 ${compactPrint ? "text-[8px] print:text-[6.5pt]" : "text-[9px]"}`}
-              style={vLabel}
+            <span
+              className={`font-semibold leading-tight text-neutral-900 ${
+                compactPrint ? "text-[8px] print:text-[6.5pt]" : "text-[9px]"
+              }`}
             >
               {s.lineTitle}
-            </div>
-            <div
-              className={`w-full ${compactPrint ? "pt-1 pb-0 print:pt-0.5" : "pt-2 pb-1"}`}
-            >
-              <div
-                className={`flex items-end justify-center ${compactPrint ? "min-h-[2.5rem] print:min-h-[1.6rem]" : "min-h-[3.25rem]"}`}
-              >
-                {scheduleApproved && s.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
-                  <img
-                    src={s.imageUrl}
-                    alt=""
-                    className={`w-full object-contain object-bottom ${compactPrint ? "max-h-10 print:max-h-7" : "max-h-12"}`}
-                  />
-                ) : null}
-              </div>
-              <div className="border-b border-neutral-900" />
-              <div
-                className={`mt-1 text-center leading-tight text-neutral-700 ${compactPrint ? "text-[7px] print:text-[6pt]" : "text-[8px]"}`}
-              >
-                {s.lineSubtitle}
-              </div>
-              <div
-                className={`mt-0.5 min-h-[0.9rem] text-center font-medium leading-tight text-neutral-900 line-clamp-2 ${compactPrint ? "text-[7px] print:text-[6pt]" : "text-[8px]"}`}
-              >
-                {s.signerName && s.signerName !== "—" ? (
-                  s.signerName
-                ) : (
-                  <span className="font-normal text-neutral-400 print:text-neutral-500 print:block print:min-h-[0.65rem] print:border-b print:border-neutral-400">
-                    {"\u00A0"}
-                  </span>
-                )}
-              </div>
-            </div>
+            </span>
           </div>
-        </div>
-      ))}
+        ))}
+
+        {/* Row 2 — signature / name / underline / role */}
+        {slots.map((s) => (
+          <div
+            key={`sig-${s.key}`}
+            className="flex flex-col items-center justify-end px-2 pb-1 text-center"
+          >
+            {scheduleApproved && s.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
+              <img
+                src={s.imageUrl}
+                alt=""
+                className={`mb-0.5 object-contain ${
+                  compactPrint ? "max-h-7 max-w-[4.5rem]" : "max-h-9 max-w-[5.5rem]"
+                }`}
+              />
+            ) : (
+              <div className={compactPrint ? "h-4" : "h-6"} aria-hidden />
+            )}
+            {s.signerName && s.signerName !== "—" ? (
+              <span
+                className={`max-w-full truncate font-bold leading-tight text-neutral-900 ${
+                  compactPrint ? "text-[7px] print:text-[5.5pt]" : "text-[8px]"
+                }`}
+              >
+                {s.signerName}
+              </span>
+            ) : null}
+            <div
+              className="my-0.5 border-b border-neutral-900"
+              style={{ width: Math.max(48, railH / colCount - 24) }}
+            />
+            <span
+              className={`max-w-full leading-tight text-neutral-800 ${
+                compactPrint ? "text-[7px] print:text-[5.5pt]" : "text-[8px]"
+              }`}
+            >
+              {s.lineSubtitle}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

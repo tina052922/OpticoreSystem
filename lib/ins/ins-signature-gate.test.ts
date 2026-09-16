@@ -81,6 +81,11 @@ describe("resolveInsSignatureSlots publish gate vs PDF includeImages", () => {
     expect(pdf?.find((s) => s.key === "prepared")?.imageUrl).toBe(
       "https://cdn.example/college-admin.png",
     );
+    // DOI e-sig prints on Reviewed (Director/Dean), not on Campus Director.
+    expect(pdf?.find((s) => s.key === "reviewed")?.imageUrl).toBe(
+      "https://cdn.example/doi-config.png",
+    );
+    expect(pdf?.find((s) => s.key === "approved")?.signerName).toBe("Campus Director");
     expect(pdf?.find((s) => s.key === "approved")?.imageUrl).toBe("https://cdn.example/campus.png");
   });
 

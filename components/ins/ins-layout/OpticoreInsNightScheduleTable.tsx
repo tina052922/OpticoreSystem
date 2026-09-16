@@ -59,7 +59,7 @@ export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary,
 
   return (
     <div className="overflow-x-auto print:overflow-visible">
-      <div className={`flex min-w-0 items-stretch ${rightRail ? "gap-0" : ""}`}>
+      <div className={`flex min-w-0 flex-row flex-nowrap items-stretch ${rightRail ? "gap-0" : ""}`}>
       <table className={`w-full min-w-0 table-fixed border-collapse ${border} text-[10px] print:text-[6.5pt]`}>
         <thead>
           <tr className="bg-neutral-50">
