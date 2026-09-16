@@ -23,6 +23,11 @@ export type CampusScopeFiltersProps = {
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
+  /**
+   * Subject Codes (and similar): require an explicit program — no “All departments” / campus-wide list.
+   * Placeholder becomes “Select program”.
+   */
+  requireProgram?: boolean;
 };
 
 /**
@@ -37,6 +42,7 @@ export function CampusScopeFilters({
   chairmanProgramId = null,
   chairmanProgramCode = null,
   chairmanProgramName = null,
+  requireProgram = false,
 }: CampusScopeFiltersProps) {
   const [loading, setLoading] = useState(true);
   const [colleges, setColleges] = useState<College[]>([]);
@@ -146,7 +152,11 @@ export function CampusScopeFilters({
               disabled={loading || (isChairman && !hasChairmanCollege)}
             >
               <option value="">
-                {isChairman ? "All programs in your college" : "All departments"}
+                {requireProgram
+                  ? "Select program"
+                  : isChairman
+                    ? "All programs in your college"
+                    : "All departments"}
               </option>
               {programsInCollege.map((p) => (
                 <option key={p.id} value={p.id}>

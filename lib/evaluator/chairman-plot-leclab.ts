@@ -80,6 +80,14 @@ export function subjectRowsForPlotDropdown(
   return out;
 }
 
+/**
+ * Subject dropdown label: base subject code/name only (no "(Lec)" / "(Lab)" twin options).
+ * Lec/Lab is chosen via the separate control; plotting resolves the paired code.
+ */
+export function formatPlotSubjectDropdownLabel(row: { code: string; title?: string | null }): string {
+  return row.code.trim();
+}
+
 export function formatLecLabDisplay(mode: PlotLecLabMode): string {
   return mode === "lab" ? "Laboratory" : "Lecture";
 }

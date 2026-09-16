@@ -164,7 +164,7 @@ export function CentralHubEvaluatorView({
   const [colleges, setColleges] = useState<College[]>([]);
 
   const [programId, setProgramId] = useState("");
-  /** College Admin timetabling: filter grid to one section ("" = all sections in department scope). */
+  /** College Admin timetabling: require one section before viewing/filtering the hub schedule. */
   const [sectionFilterId, setSectionFilterId] = useState("");
 
   const [altOpen, setAltOpen] = useState(false);
@@ -702,6 +702,9 @@ export function CentralHubEvaluatorView({
 
   const tableRows = useMemo(() => {
     if (!academicPeriodId) return [];
+    const collegeAdminSectionScoped =
+      hubAccessMode === "collegeAdmin" && !isCampusWide && Boolean(scopeCollegeId);
+    if (collegeAdminSectionScoped && !sectionFilterId.trim()) return [];
     return buildScheduleEvaluatorTableRows({
       entries: modeEntries,
       academicPeriodId,
@@ -729,6 +732,8 @@ export function CentralHubEvaluatorView({
     facultyProfileByUserId,
     programById,
     collegeNameById,
+    hubAccessMode,
+    isCampusWide,
   ]);
 
   /** Dashboard deep link: ?conflicts=1&focusEntry=<id> — same scan as the explicit Run conflict check button. */
@@ -1282,7 +1287,7 @@ export function CentralHubEvaluatorView({
                     value={sectionFilterId}
                     onChange={(e) => setSectionFilterId(e.target.value)}
                   >
-                    <option value="">All sections</option>
+                    <option value="">Select section</option>
                     {sectionsInDepartmentScope.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
@@ -1290,6 +1295,11 @@ export function CentralHubEvaluatorView({
                     ))}
                   </select>
                 </div>
+                {!sectionFilterId.trim() ? (
+                  <p className="text-[12px] text-black/60">
+                    Select a <strong>section</strong> to view the schedule for that section.
+                  </p>
+                ) : null}
                 {effectiveProgramCodeForSummary.trim() && hasProspectusForProgram(effectiveProgramCodeForSummary) ? (
                   <ChairmanProgramProspectusSummaryTable
                     programCode={effectiveProgramCodeForSummary}
@@ -1414,6 +1424,10 @@ export function CentralHubEvaluatorView({
               <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>
             ) : loading ? (
               <div className="text-sm text-black/60 py-8">Loading schedule…</div>
+            ) : hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId && !sectionFilterId.trim() ? (
+              <p className="text-[13px] text-black/60 py-8">
+                Select a section above to view that section&apos;s schedule. Empty selection does not mean all sections.
+              </p>
             ) : (
               <>
                 <EvaluatorScheduleOverviewTable

@@ -2336,7 +2336,7 @@ export function BsitChairmanEvaluatorWorksheet({
           value={selectedSectionId}
           onChange={(e) => setSelectedSectionId(e.target.value)}
         >
-          <option value="">All sections</option>
+          <option value="">Select section</option>
           {Array.from(sectionNameById.entries()).map(([id, name]) => (
             <option key={id} value={id}>
               {name}

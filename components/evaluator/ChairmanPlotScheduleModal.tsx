@@ -32,6 +32,7 @@ import { SubjectWeeklyHoursBanner } from "@/components/evaluator/SubjectWeeklyHo
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
   formatLecLabDisplay,
+  formatPlotSubjectDropdownLabel,
   getLecLabPair,
   inferLecLabMode,
   lecLabModesAvailable,
@@ -272,7 +273,7 @@ export function ChairmanPlotScheduleModal({
       }),
     );
     if (fromProspectus.length > 0) return fromProspectus;
-    return catalogSubjectRows ?? [];
+    return subjectRowsForPlotDropdown(programCodeForSummary, catalogSubjectRows ?? []);
   }, [programCodeForSummary, yearLevel, termProspectusSemester, catalogSubjectRows]);
 
   const subjectSelectValue = useMemo(() => {
@@ -784,7 +785,7 @@ export function ChairmanPlotScheduleModal({
                 <optgroup label="Available">
                   {availableSubjects.map((s) => (
                     <option key={s.code} value={s.code}>
-                      {s.code} — {s.title}
+                      {formatPlotSubjectDropdownLabel(s)}
                     </option>
                   ))}
                 </optgroup>
@@ -793,7 +794,7 @@ export function ChairmanPlotScheduleModal({
                 <optgroup label="Add another time slot (same subject)">
                   {addAnotherSlotSubjects.map((s) => (
                     <option key={`split-${s.code}`} value={s.code}>
-                      + {s.code} — {s.title}
+                      + {formatPlotSubjectDropdownLabel(s)}
                     </option>
                   ))}
                 </optgroup>
@@ -805,7 +806,10 @@ export function ChairmanPlotScheduleModal({
                   normalizeProspectusCode(subjectSelectValue),
               ) ? (
                 <option value={subjectSelectValue}>
-                  {draft.subjectCode} — {durationSource?.title ?? "Current selection"}
+                  {formatPlotSubjectDropdownLabel({
+                    code: subjectSelectValue || draft.subjectCode,
+                    title: durationSource?.title,
+                  })}
                 </option>
               ) : null}
             </select>

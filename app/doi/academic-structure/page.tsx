@@ -5,7 +5,7 @@ export default function DoiAcademicStructurePage() {
   return (
     <div>
       <ChairmanPageHeader
-        title="Academic Structure"
+        title="Programs & Sections"
         subtitle="College → Program → Years → Section"
       />
       <AcademicStructureWorkspace canManageColleges />
