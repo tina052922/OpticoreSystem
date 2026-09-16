@@ -273,7 +273,7 @@ export function BsitChairmanInteractiveWeekGrid({
   }, [modal?.draft.day, modal?.draft.startSlotIndex, modal]);
 
   const filteredRows = useMemo(
-    () => (selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : []),
+    () => (selectedSectionId ? rows.filter((r) => r.sectionId === selectedSectionId) : rows),
     [rows, selectedSectionId],
   );
 
@@ -351,7 +351,8 @@ export function BsitChairmanInteractiveWeekGrid({
     [filteredRows, programCodeForSummary, slots],
   );
 
-  const insSectionId = selectedSectionId;
+  const insSectionId =
+    selectedSectionId || filteredRows.find((r) => r.sectionId)?.sectionId || rows.find((r) => r.sectionId)?.sectionId || "";
   const insPrintHref = insSectionId
     ? `${insFormBasePath}?tab=section&sectionId=${encodeURIComponent(insSectionId)}&print=1`
     : `${insFormBasePath}?tab=section`;
@@ -369,25 +370,25 @@ export function BsitChairmanInteractiveWeekGrid({
         anchor,
       });
     },
-    [schedulePublished, roomById, roomBuildingByRowId, programCodeForSummary],
+    [schedulePublished, roomById, roomBuildingByRowId],
   );
 
   const openModalForEmptyCell = useCallback(
     (day: BsitEvaluatorWeekday, slotIdx: number) => {
-      if (schedulePublished || !selectedSectionId) return;
+      if (schedulePublished) return;
       const draft: PlotRow = normalizePlotRow(
         {
           ...emptyPlotRow(),
           day,
           startSlotIndex: slotIdx,
-          sectionId: selectedSectionId,
+          sectionId: selectedSectionId || "",
         },
         programCodeForSummary,
       );
       setHighlightedCell({ day, slotIdx });
       setModal({ draft, buildingValue: "", isNew: true, anchor: { day, slotIdx } });
     },
-    [schedulePublished, selectedSectionId, programCodeForSummary],
+    [schedulePublished, selectedSectionId],
   );
 
   const closeModal = useCallback(() => {

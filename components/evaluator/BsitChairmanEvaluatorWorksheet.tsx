@@ -533,7 +533,7 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [academicPeriodId, chairmanCollegeId, policyJustificationModalOpen, justificationReloadTick]);
 
   /**
-   * Sections for this chairman program (plotting grid only). Policy load + INS use campus-wide `ScheduleEntry`
+   * All sections for this chairman program (plotting grid only). Policy load + INS use campus-wide `ScheduleEntry`
    * rows visible under RLS; INS 5B/5C pickers use `insResourceEntries` (not a college-only slice).
    */
   const programSections = useMemo(
@@ -2336,7 +2336,7 @@ export function BsitChairmanEvaluatorWorksheet({
           value={selectedSectionId}
           onChange={(e) => setSelectedSectionId(e.target.value)}
         >
-          <option value="">Select section</option>
+          <option value="">All sections</option>
           {Array.from(sectionNameById.entries()).map(([id, name]) => (
             <option key={id} value={id}>
               {name}
@@ -2346,13 +2346,6 @@ export function BsitChairmanEvaluatorWorksheet({
         <ProgramModeToggle size="sm" />
       </div>
 
-      {!selectedSectionId ? (
-        <p className="text-[13px] text-black/55 px-0.5">
-          Select a section to view prospectus progress and plot the week grid.
-        </p>
-      ) : null}
-
-      {selectedSectionId ? (
       <ChairmanProgramProspectusSummaryTable
         programCode={programCodeForSummary}
         programName={activeProgramName ?? undefined}
@@ -2364,7 +2357,6 @@ export function BsitChairmanEvaluatorWorksheet({
         lastPlottedSubjectCode={lastPlottedSubjectFlash}
         fallbackSubjects={catalogSubjectRows}
       />
-      ) : null}
       {overLimitSubjectCodesForSection.size > 0 && !viewOnly ? (
         <div
           className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-900 flex gap-2"
@@ -2401,7 +2393,6 @@ export function BsitChairmanEvaluatorWorksheet({
         </div>
       ) : null}
 
-      {selectedSectionId ? (
       <BsitChairmanInteractiveWeekGrid
         rows={rows}
         programMode={programMode}
@@ -2506,7 +2497,6 @@ export function BsitChairmanEvaluatorWorksheet({
           </>
         }
       />
-      ) : null}
 
       
 

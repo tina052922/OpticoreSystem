@@ -15,26 +15,6 @@ function formatProspectusSemester(sem: number): string {
   return sem === 1 ? "1st" : "2nd";
 }
 
-function yearLevelHeading(yearLevel: number): string {
-  const n = Math.min(6, Math.max(1, Math.trunc(yearLevel) || 1));
-  const ordinal =
-    n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : `${n}th`;
-  return `${ordinal} Year`;
-}
-
-function groupSubjectsByYearLevel<T extends { yearLevel?: number | null }>(rows: T[]): { yearLevel: number; rows: T[] }[] {
-  const byYear = new Map<number, T[]>();
-  for (const row of rows) {
-    const yl = Math.min(6, Math.max(1, Math.trunc(Number(row.yearLevel) || 1)));
-    const list = byYear.get(yl);
-    if (list) list.push(row);
-    else byYear.set(yl, [row]);
-  }
-  return [...byYear.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([yearLevel, yearRows]) => ({ yearLevel, rows: yearRows }));
-}
-
 export type SubjectCodesWorkspaceProps = {
   /** Chairman session: program is fixed. */
   lockedProgramId?: string | null;
@@ -415,7 +395,7 @@ export function SubjectCodesWorkspace({
               {!programId ? (
                 <tr>
                   <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
-                    Select a program first to view subject codes for that program.
+                    No program selected.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
@@ -427,43 +407,33 @@ export function SubjectCodesWorkspace({
                   </td>
                 </tr>
               ) : (
-                groupSubjectsByYearLevel(filteredDbSubjects).flatMap(({ yearLevel, rows }) => [
-                  <tr key={`yr-db-${yearLevel}`} className="bg-[#fff4e5]">
-                    <td
-                      colSpan={8}
-                      className="border border-black/10 px-2 py-2 text-[12px] font-bold text-[#780301]"
-                    >
-                      {yearLevelHeading(yearLevel)}
+                filteredDbSubjects.map((s) => (
+                  <tr key={s.id} className={editingId === s.id ? "bg-amber-50/80" : undefined}>
+                    <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
+                    <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
+                    <td className="border border-black/10 px-2 py-2">{s.title}</td>
+                    <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
+                    <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
+                    <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
+                    <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
+                    <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        className="text-[#780301] font-semibold hover:underline mr-3"
+                        onClick={() => startEdit(s)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="text-red-800 font-semibold hover:underline"
+                        onClick={() => void onDeleteSubject(s)}
+                      >
+                        Delete
+                      </button>
                     </td>
-                  </tr>,
-                  ...rows.map((s) => (
-                    <tr key={s.id} className={editingId === s.id ? "bg-amber-50/80" : undefined}>
-                      <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
-                      <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.title}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
-                      <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          className="text-[#780301] font-semibold hover:underline mr-3"
-                          onClick={() => startEdit(s)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="text-red-800 font-semibold hover:underline"
-                          onClick={() => void onDeleteSubject(s)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  )),
-                ])
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -483,9 +453,7 @@ export function SubjectCodesWorkspace({
           <p className="text-[11px] text-black/45 sm:text-right">Uses the same search box as saved subjects above.</p>
         </div>
         {!programId ? (
-          <p className="text-[13px] text-black/45 px-4 py-6 text-center">
-            Select a program first to view the prospectus for that program.
-          </p>
+          <p className="text-[13px] text-black/45 px-4 py-6 text-center">No program selected.</p>
         ) : !effectiveProgramCode ? (
           <p className="text-[13px] text-amber-800 bg-amber-50 border-t border-amber-200 px-4 py-3">
             Resolving program code… If this persists, ensure the Program row exists in Supabase.
@@ -518,28 +486,18 @@ export function SubjectCodesWorkspace({
                     </td>
                   </tr>
                 ) : (
-                  groupSubjectsByYearLevel(filteredProspectus).flatMap(({ yearLevel, rows }) => [
-                    <tr key={`yr-px-${yearLevel}`} className="bg-[#fff4e5]">
-                      <td
-                        colSpan={8}
-                        className="border border-black/10 px-2 py-2 text-[12px] font-bold text-[#780301]"
-                      >
-                        {yearLevelHeading(yearLevel)}
-                      </td>
-                    </tr>,
-                    ...rows.map((s) => (
-                      <tr key={`${s.yearLevel}-${s.semester}-${s.code}`}>
-                        <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
-                        <td className="border border-black/10 px-2 py-2">{formatProspectusSemester(s.semester)}</td>
-                        <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                        <td className="border border-black/10 px-2 py-2">{s.title}</td>
-                        <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                        <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
-                        <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                        <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
-                      </tr>
-                    )),
-                  ])
+                  filteredProspectus.map((s) => (
+                    <tr key={`${s.yearLevel}-${s.semester}-${s.code}`}>
+                      <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
+                      <td className="border border-black/10 px-2 py-2">{formatProspectusSemester(s.semester)}</td>
+                      <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.title}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
+                      <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
+                      <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

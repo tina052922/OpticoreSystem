@@ -702,7 +702,6 @@ export function CentralHubEvaluatorView({
 
   const tableRows = useMemo(() => {
     if (!academicPeriodId) return [];
-    if (hubAccessMode === "collegeAdmin" && !sectionFilterId.trim()) return [];
     return buildScheduleEvaluatorTableRows({
       entries: modeEntries,
       academicPeriodId,
@@ -723,7 +722,6 @@ export function CentralHubEvaluatorView({
     academicPeriodId,
     programId,
     sectionFilterId,
-    hubAccessMode,
     sectionById,
     subjectById,
     roomById,
@@ -1284,7 +1282,7 @@ export function CentralHubEvaluatorView({
                     value={sectionFilterId}
                     onChange={(e) => setSectionFilterId(e.target.value)}
                   >
-                    <option value="">Select section</option>
+                    <option value="">All sections</option>
                     {sectionsInDepartmentScope.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
@@ -1292,14 +1290,7 @@ export function CentralHubEvaluatorView({
                     ))}
                   </select>
                 </div>
-                {!sectionFilterId.trim() ? (
-                  <p className="text-[13px] text-black/55">
-                    Select a section to view prospectus progress and section schedule rows.
-                  </p>
-                ) : null}
-                {effectiveProgramCodeForSummary.trim() &&
-                sectionFilterId.trim() &&
-                hasProspectusForProgram(effectiveProgramCodeForSummary) ? (
+                {effectiveProgramCodeForSummary.trim() && hasProspectusForProgram(effectiveProgramCodeForSummary) ? (
                   <ChairmanProgramProspectusSummaryTable
                     programCode={effectiveProgramCodeForSummary}
                     programName={effectiveProgramNameForSummary}

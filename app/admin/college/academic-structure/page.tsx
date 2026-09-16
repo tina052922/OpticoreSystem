@@ -8,8 +8,8 @@ export default async function CollegeAcademicStructurePage() {
   return (
     <div>
       <ChairmanPageHeader
-        title="Colleges, Programs & Sections"
-        subtitle="Manage colleges, programs, year levels, and sections for your college"
+        title="Academic Structure"
+        subtitle="Programs, years, and sections for your college"
       />
       <AcademicStructureWorkspace lockedCollegeId={profile.collegeId} canManageColleges={false} />
     </div>

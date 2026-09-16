@@ -84,21 +84,6 @@ export function formatLecLabDisplay(mode: PlotLecLabMode): string {
   return mode === "lab" ? "Laboratory" : "Lecture";
 }
 
-/** Strip Lec/Lab markers from titles so the subject dropdown shows one base name. */
-export function stripLecLabTitleSuffix(title: string): string {
-  return String(title ?? "")
-    .replace(/\s*\((?:Lec|Lab|Lecture|Laboratory)\)\s*/gi, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
-/** Dropdown label: subject code + cleaned title (no “(Lec)” / “(Lab)”). */
-export function formatPlotSubjectOptionLabel(code: string, title: string): string {
-  const clean = stripLecLabTitleSuffix(title);
-  if (!clean || clean.toLowerCase() === String(code).trim().toLowerCase()) return code;
-  return `${code} — ${clean}`;
-}
-
 /** Prospectus slice for the plot modal — avoids empty subject lists when year parsing fails. */
 export function prospectusSubjectsForSectionPlot(args: {
   programCode: string;

@@ -1465,7 +1465,7 @@ export const buildingsRoomsApi = {
   },
 };
 
-/** Academic structure UI: College → Program → Years → Section. */
+/** Academic Structure: College → Program → Years → Section. */
 export const academicStructureApi = {
   createCollege(input: { code: string; name: string; id?: string }) {
     return apiFetch<{ college: import("@/types/db").College }>("/api/catalog/colleges", {
