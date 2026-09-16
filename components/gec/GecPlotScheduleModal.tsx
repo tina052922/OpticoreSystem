@@ -26,6 +26,7 @@ import {
 } from "@/lib/evaluator/plot-meetings";
 import { slotIndexFromTypedTime } from "@/lib/evaluator/plot-time-input";
 import { campusNavigationBuildingOptionLabel } from "@/lib/campus/campus-navigation-catalog";
+import { formatPlotSubjectOptionLabel } from "@/lib/evaluator/chairman-plot-leclab";
 import { GEC_VACANT_INSTRUCTOR_USER_ID } from "@/lib/gec/gec-vacant";
 import {
   hoursExceedSubjectRequirement,
@@ -397,7 +398,7 @@ export function GecPlotScheduleModal({
                 <optgroup label="Available">
                   {availableSubjects.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.code} — {s.title}
+                      {formatPlotSubjectOptionLabel(s.code, s.title)}
                     </option>
                   ))}
                 </optgroup>
@@ -406,7 +407,7 @@ export function GecPlotScheduleModal({
                 <optgroup label="Add another time slot (same subject)">
                   {addAnotherSlotSubjects.map((s) => (
                     <option key={`split-${s.id}`} value={s.id}>
-                      + {s.code} — {s.title}
+                      + {formatPlotSubjectOptionLabel(s.code, s.title)}
                     </option>
                   ))}
                 </optgroup>
