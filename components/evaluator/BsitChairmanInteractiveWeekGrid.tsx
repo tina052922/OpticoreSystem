@@ -9,8 +9,10 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Plus, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { loadGeneratorHref, periodIdFromLocation } from "@/lib/ins/load-generator-href";
 import { ChairmanPlotScheduleModal } from "@/components/evaluator/ChairmanPlotScheduleModal";
 import {
   BSIT_ONE_HOUR_SLOTS,
@@ -256,6 +258,7 @@ export function BsitChairmanInteractiveWeekGrid({
   plottingActions,
   gridFooter,
 }: BsitChairmanInteractiveWeekGridProps) {
+  const router = useRouter();
   const slots = timeSlots ?? BSIT_ONE_HOUR_SLOTS;
   const days = weekdays;
   const buildingLabelsForGrid = useMemo(
@@ -352,9 +355,17 @@ export function BsitChairmanInteractiveWeekGrid({
   );
 
   const insSectionId = selectedSectionId || "";
-  const insPrintHref = insSectionId
-    ? `${insFormBasePath}?tab=section&sectionId=${encodeURIComponent(insSectionId)}&print=1`
-    : `${insFormBasePath}?tab=section`;
+
+  /** "Generate INS Form" hands off to the Load Generator, on this section and term. */
+  function openLoadGenerator() {
+    router.push(
+      loadGeneratorHref({
+        basePath: insFormBasePath,
+        sectionId: insSectionId,
+        periodId: periodIdFromLocation(),
+      }),
+    );
+  }
 
   const openModalForRow = useCallback(
     (row: PlotRow, anchor: CellAnchor, isNew: boolean) => {
@@ -489,7 +500,7 @@ export function BsitChairmanInteractiveWeekGrid({
             type="button"
             className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-9 text-xs shrink-0"
             disabled={!insSectionId}
-            onClick={() => window.open(insPrintHref, "_blank", "noopener,noreferrer")}
+            onClick={() => openLoadGenerator()}
           >
             Generate INS Form
           </Button>

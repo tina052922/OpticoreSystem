@@ -16,6 +16,23 @@ import {
   FACULTY_EMPLOYMENT_RESIDENT,
   normalizeFacultyProfileStatus,
 } from "@/lib/faculty/employment-status";
+import type { FacultyNameParts } from "@/lib/faculty/hr-form-23b";
+import {
+  duplicateFacultyReason,
+  MISSING_EMPLOYEE_ID_MESSAGE,
+} from "@/lib/faculty/duplicate-faculty";
+import { downloadHr23bWorkbook } from "@/lib/faculty/hr23b-export";
+import {
+  ACADEMIC_RANK_SUGGESTIONS,
+  compareFacultyAlphabetically,
+  composeFullName,
+  composeListName,
+  computeAge,
+  facultyNamePartsFrom,
+  formatDateOfBirth,
+  normalizeFacultySex,
+  toDateInputValue,
+} from "@/lib/faculty/hr-form-23b";
 import { FacultyLoadJustificationRecord } from "@/components/faculty/FacultyLoadJustificationRecord";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 
@@ -49,11 +66,23 @@ type ListRow = {
   profile: FacultyProfile | null;
 };
 
+/** A list row with its 23B name cells resolved (stored columns, else a split of `fullName`). */
+type ListRowView = ListRow & { parts: FacultyNameParts };
+
 /**
  * Designation is free text. These are suggestions only — typing a Merit System label exactly is what
  * links the profile to a teaching-hour cap; anything else is stored as-is and uses the standard load.
  */
 const DESIGNATION_SUGGESTIONS_ID = "faculty-designation-suggestions";
+
+/** Plantilla ranks offered for the 23B "ACADEMIC RANK" cell; the column itself stays free text. */
+const ACADEMIC_RANK_SUGGESTIONS_ID = "faculty-academic-rank-suggestions";
+
+/**
+ * Faculty list columns: the twelve HR Form 23B cells (No. … Eligibility) plus Employee ID,
+ * Designation, Advisory, Justification and Program. Save/Actions add two more when editing.
+ */
+const FACULTY_LIST_COLUMNS = 17;
 
 export function FacultyProfileWorkspace({
   chairmanCollegeId = null,
@@ -79,21 +108,16 @@ export function FacultyProfileWorkspace({
   const [tab, setTab] = useState<"profile" | "designation" | "advisory">("profile");
 
   const [employeeId, setEmployeeId] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [aka, setAka] = useState("");
-  const [bsDegree, setBsDegree] = useState("");
-  const [msDegree, setMsDegree] = useState("");
-  const [doctoralDegree, setDoctoralDegree] = useState("");
-  const [major1, setMajor1] = useState("");
-  const [major2, setMajor2] = useState("");
-  const [major3, setMajor3] = useState("");
-  const [minor1, setMinor1] = useState("");
-  const [minor2, setMinor2] = useState("");
-  const [minor3, setMinor3] = useState("");
-  const [research, setResearch] = useState("");
-  const [extension, setExtension] = useState("");
-  const [production, setProduction] = useState("");
-  const [specialTraining, setSpecialTraining] = useState("");
+  // HR Form 23B splits the name into three cells; `fullName` is recomposed from them on save.
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [academicRank, setAcademicRank] = useState("");
+  const [sex, setSex] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [educationalQualification, setEducationalQualification] = useState("");
+  const [experience, setExperience] = useState("");
+  const [eligibility, setEligibility] = useState("");
   const [status, setStatus] = useState<typeof FACULTY_EMPLOYMENT_RESIDENT | typeof FACULTY_EMPLOYMENT_NON_RESIDENT>(
     FACULTY_EMPLOYMENT_RESIDENT,
   );
@@ -102,6 +126,11 @@ export function FacultyProfileWorkspace({
 
   const [rows, setRows] = useState<ListRow[]>([]);
   const [facultyListSearch, setFacultyListSearch] = useState("");
+  // HR Form 23B column filters; they narrow the list on screen and therefore the Excel export too.
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sexFilter, setSexFilter] = useState("");
+  const [rankFilter, setRankFilter] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [editState, setEditState] = useState<
     Record<string, { status: string; designation: string; advisorySectionId: string }>
   >({});
@@ -115,6 +144,29 @@ export function FacultyProfileWorkspace({
   const [sections, setSections] = useState<Section[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [justificationByUserId, setJustificationByUserId] = useState<Record<string, string>>({});
+
+  /** What gets stored in `fullName`, so INS documents keep printing one readable name. */
+  const composedFullName = useMemo(
+    () => composeFullName({ lastName, firstName, middleName }),
+    [lastName, firstName, middleName],
+  );
+  const ageFromBirthDate = useMemo(() => computeAge(dateOfBirth), [dateOfBirth]);
+  /**
+   * Hourly rate for what is typed in the form: the designation override if the policy names one,
+   * else the tier read off the 23B educational qualification.
+   */
+  const ratePerHourForForm = useMemo(
+    () =>
+      computeRatePerHour(
+        {
+          educationalQualification: educationalQualification.trim() || null,
+          designation: designation.trim() || null,
+        } as Parameters<typeof computeRatePerHour>[0],
+        hourlyRateOverrides,
+        ratePerHourByDesignation,
+      ),
+    [educationalQualification, designation, hourlyRateOverrides, ratePerHourByDesignation],
+  );
 
   const loadFaculty = useCallback(async () => {
     if (!collegeId) {
@@ -248,17 +300,54 @@ export function FacultyProfileWorkspace({
     });
   }, [rows]);
 
+  /** "(Alphabetical Order)" on the form — by last name, then first, then middle. */
+  const viewRows = useMemo<ListRowView[]>(
+    () =>
+      rows
+        .map((r) => ({ ...r, parts: facultyNamePartsFrom(r.profile ?? {}, r.user.name) }))
+        .sort((a, b) => compareFacultyAlphabetically(a.parts, b.parts)),
+    [rows],
+  );
+
+  /** Academic ranks actually present, for the rank filter. */
+  const rankOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of viewRows) {
+      const rank = (r.profile?.academicRank ?? "").trim();
+      if (rank) set.add(rank);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+  }, [viewRows]);
+
   const filteredRows = useMemo(() => {
     const q = facultyListSearch.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(({ user, profile }) => {
-      const name = (profile?.fullName ?? user.name).toLowerCase();
-      const st = normalizeFacultyProfileStatus(profile?.status).toLowerCase();
-      const des = (profile?.designation ?? "").toLowerCase();
-      const eid = (user.employeeId ?? "").toLowerCase();
-      return name.includes(q) || st.includes(q) || des.includes(q) || eid.includes(q);
+    const columnFiltered = viewRows.filter(({ profile }) => {
+      if (statusFilter && normalizeFacultyProfileStatus(profile?.status) !== statusFilter) return false;
+      if (sexFilter && normalizeFacultySex(profile?.sex) !== sexFilter) return false;
+      if (rankFilter && (profile?.academicRank ?? "").trim() !== rankFilter) return false;
+      return true;
     });
-  }, [rows, facultyListSearch]);
+    if (!q) return columnFiltered;
+    return columnFiltered.filter(({ user, profile, parts }) => {
+      const haystack = [
+        parts.lastName,
+        parts.firstName,
+        parts.middleName,
+        profile?.fullName ?? user.name,
+        profile?.academicRank,
+        normalizeFacultyProfileStatus(profile?.status),
+        profile?.educationalQualification,
+        profile?.experience,
+        profile?.eligibility,
+        profile?.designation,
+        user.employeeId,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [viewRows, facultyListSearch, statusFilter, sexFilter, rankFilter]);
 
   useEffect(() => {
     if (!collegeId) {
@@ -317,9 +406,13 @@ export function FacultyProfileWorkspace({
           ratePerHour: ratePerHourVal,
         });
       } else {
+        const parts = facultyNamePartsFrom(row.profile ?? {}, name);
         await facultyProfileApi.create({
           userId,
           fullName: name,
+          lastName: parts.lastName || null,
+          firstName: parts.firstName || null,
+          middleName: parts.middleName || null,
           status: statusVal,
           designation: designationVal,
           advisorySectionId: advisorySectionIdVal,
@@ -344,42 +437,42 @@ export function FacultyProfileWorkspace({
 
   async function assertNoDuplicateFaculty() {
     const eid = employeeId.trim();
-    if (!eid) return "Employee ID is required.";
+    if (!eid) return MISSING_EMPLOYEE_ID_MESSAGE;
     const { apiFetch } = await import("@/lib/api/client");
 
     const byEid = await apiFetch<{ users: { id: string }[] }>(
       `/api/catalog/users?employeeId=${encodeURIComponent(eid)}`,
       { method: "GET" },
     ).catch(() => ({ users: [] }));
-    if (byEid.users.some((u) => u.id !== editingUserId)) return "Faculty already exists.";
 
-    const nameKey = fullName.trim().toLowerCase();
-    if (nameKey && collegeId) {
+    let collegeInstructors: { id: string; name: string }[] = [];
+    let profiles: { userId: string; fullName: string | null }[] = [];
+
+    if (composedFullName && collegeId) {
       const instructors = await apiFetch<{ users: { id: string; name: string }[] }>(
         `/api/catalog/users?collegeId=${collegeId}&role=instructor`,
         { method: "GET" },
       ).catch(() => ({ users: [] }));
-      const instList = instructors.users ?? [];
-      const hitName = instList.some(
-        (u: { id: string; name: string }) =>
-          u.id !== editingUserId && u.name.trim().toLowerCase() === nameKey,
-      );
-      if (hitName) return "Faculty already exists.";
+      collegeInstructors = instructors.users ?? [];
 
-      const instIds = instList.map((u: { id: string }) => u.id);
+      const instIds = collegeInstructors.map((u) => u.id);
       if (instIds.length > 0) {
-        const profiles = await apiFetch<{ profiles: { fullName: string }[] }>(
+        const profilesRes = await apiFetch<{ profiles: { userId: string; fullName: string | null }[] }>(
           `/api/catalog/faculty-profiles?userIds=${instIds.join(",")}`,
           { method: "GET" },
         ).catch(() => ({ profiles: [] }));
-        const hitProfile = (profiles.profiles ?? []).some(
-          (p: { fullName: string }) => p.fullName.trim().toLowerCase() === nameKey,
-        );
-        if (hitProfile) return "Faculty already exists.";
+        profiles = profilesRes.profiles ?? [];
       }
     }
 
-    return null;
+    return duplicateFacultyReason({
+      editingUserId,
+      employeeId: eid,
+      usersWithEmployeeId: byEid.users ?? [],
+      collegeInstructors,
+      profiles,
+      fullName: composedFullName,
+    });
   }
 
   async function onAddFaculty() {
@@ -396,44 +489,34 @@ export function FacultyProfileWorkspace({
       return;
     }
 
-    const nameTrim = fullName.trim();
-    if (!nameTrim) {
-      setError("Full Name is required.");
+    const nameTrim = composedFullName;
+    if (!lastName.trim() || !firstName.trim()) {
+      setError("Last Name and First Name are required.");
       return;
     }
 
+    /** HR Form 23B cells, written on both create and update. */
+    const hrFormFields = {
+      lastName: lastName.trim() || null,
+      firstName: firstName.trim() || null,
+      middleName: middleName.trim() || null,
+      academicRank: academicRank.trim() || null,
+      sex: normalizeFacultySex(sex) || null,
+      dateOfBirth: dateOfBirth.trim() || null,
+      educationalQualification: educationalQualification.trim() || null,
+      experience: experience.trim() || null,
+      eligibility: eligibility.trim() || null,
+    };
+
     setSaving(true);
     if (editingUserId) {
-      const computedRateEdit = computeRatePerHour(
-        {
-          bsDegree: bsDegree.trim() || null,
-          msDegree: msDegree.trim() || null,
-          doctoralDegree: doctoralDegree.trim() || null,
-          designation: designation.trim() || null,
-        } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree" | "designation">,
-        hourlyRateOverrides,
-        ratePerHourByDesignation,
-      );
       const profilePayload = {
         fullName: nameTrim,
-        aka: aka.trim() || null,
+        ...hrFormFields,
         advisorySectionId: advisorySectionId.trim() || null,
-        bsDegree: bsDegree.trim() || null,
-        msDegree: msDegree.trim() || null,
-        doctoralDegree: doctoralDegree.trim() || null,
-        major1: major1.trim() || null,
-        major2: major2.trim() || null,
-        major3: major3.trim() || null,
-        minor1: minor1.trim() || null,
-        minor2: minor2.trim() || null,
-        minor3: minor3.trim() || null,
-        research: research.trim() || null,
-        extension: extension.trim() || null,
-        production: production.trim() || null,
-        specialTraining: specialTraining.trim() || null,
         status: normalizeFacultyProfileStatus(status),
         designation: designation.trim() || null,
-        ratePerHour: computedRateEdit,
+        ratePerHour: ratePerHourForForm,
       };
       try {
         await userAdminApi.update(editingUserId, {
@@ -487,40 +570,16 @@ export function FacultyProfileWorkspace({
       return;
     }
 
-    const computedRate = computeRatePerHour(
-      {
-        bsDegree: bsDegree.trim() || null,
-        msDegree: msDegree.trim() || null,
-        doctoralDegree: doctoralDegree.trim() || null,
-        designation: designation.trim() || null,
-      } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree" | "designation">,
-      hourlyRateOverrides,
-      ratePerHourByDesignation,
-    );
-
     try {
       await facultyProfileApi.create({
         id: crypto.randomUUID(),
         userId: id,
         fullName: nameTrim,
-        aka: aka.trim() || null,
+        ...hrFormFields,
         advisorySectionId: advisorySectionId.trim() || null,
-        bsDegree: bsDegree.trim() || null,
-        msDegree: msDegree.trim() || null,
-        doctoralDegree: doctoralDegree.trim() || null,
-        major1: major1.trim() || null,
-        major2: major2.trim() || null,
-        major3: major3.trim() || null,
-        minor1: minor1.trim() || null,
-        minor2: minor2.trim() || null,
-        minor3: minor3.trim() || null,
-        research: research.trim() || null,
-        extension: extension.trim() || null,
-        production: production.trim() || null,
-        specialTraining: specialTraining.trim() || null,
         status: normalizeFacultyProfileStatus(status),
         designation: designation.trim() || null,
-        ratePerHour: computedRate,
+        ratePerHour: ratePerHourForForm,
       });
     } catch (err) {
       try { await userAdminApi.delete(id); } catch {}
@@ -544,21 +603,15 @@ export function FacultyProfileWorkspace({
   function resetFacultyForm() {
     setEditingUserId(null);
     setEmployeeId("");
-    setFullName("");
-    setAka("");
-    setBsDegree("");
-    setMsDegree("");
-    setDoctoralDegree("");
-    setMajor1("");
-    setMajor2("");
-    setMajor3("");
-    setMinor1("");
-    setMinor2("");
-    setMinor3("");
-    setResearch("");
-    setExtension("");
-    setProduction("");
-    setSpecialTraining("");
+    setLastName("");
+    setFirstName("");
+    setMiddleName("");
+    setAcademicRank("");
+    setSex("");
+    setDateOfBirth("");
+    setEducationalQualification("");
+    setExperience("");
+    setEligibility("");
     setStatus(FACULTY_EMPLOYMENT_RESIDENT);
     setDesignation("");
     setAdvisorySectionId("");
@@ -570,21 +623,16 @@ export function FacultyProfileWorkspace({
     setTab("profile");
     setEditingUserId(row.user.id);
     setEmployeeId(row.user.employeeId ?? "");
-    setFullName(row.profile?.fullName ?? row.user.name ?? "");
-    setAka(row.profile?.aka ?? "");
-    setBsDegree(row.profile?.bsDegree ?? "");
-    setMsDegree(row.profile?.msDegree ?? "");
-    setDoctoralDegree(row.profile?.doctoralDegree ?? "");
-    setMajor1(row.profile?.major1 ?? "");
-    setMajor2(row.profile?.major2 ?? "");
-    setMajor3(row.profile?.major3 ?? "");
-    setMinor1(row.profile?.minor1 ?? "");
-    setMinor2(row.profile?.minor2 ?? "");
-    setMinor3(row.profile?.minor3 ?? "");
-    setResearch(row.profile?.research ?? "");
-    setExtension(row.profile?.extension ?? "");
-    setProduction(row.profile?.production ?? "");
-    setSpecialTraining(row.profile?.specialTraining ?? "");
+    const parts = facultyNamePartsFrom(row.profile ?? {}, row.user.name);
+    setLastName(parts.lastName);
+    setFirstName(parts.firstName);
+    setMiddleName(parts.middleName);
+    setAcademicRank(row.profile?.academicRank ?? "");
+    setSex(normalizeFacultySex(row.profile?.sex));
+    setDateOfBirth(toDateInputValue(row.profile?.dateOfBirth));
+    setEducationalQualification(row.profile?.educationalQualification ?? "");
+    setExperience(row.profile?.experience ?? "");
+    setEligibility(row.profile?.eligibility ?? "");
     setStatus(normalizeFacultyProfileStatus(row.profile?.status));
     setDesignation(row.profile?.designation ?? "");
     setAdvisorySectionId(row.profile?.advisorySectionId ?? "");
@@ -614,6 +662,38 @@ export function FacultyProfileWorkspace({
     }
   }
 
+  /** Program code when one is in scope, else the college — used for the export file name. */
+  const exportScopeLabel = useMemo(() => {
+    if (programLabel && programLabel !== "\u2014") return programLabel;
+    const scoped = programs.find((p) => p.id === scopeProgramId);
+    return scoped?.code ?? "";
+  }, [programLabel, programs, scopeProgramId]);
+
+  async function exportFacultyList() {
+    setError(null);
+    setSuccess(null);
+    if (filteredRows.length === 0) {
+      setError("Nothing to export \u2014 no faculty match the current filters.");
+      return;
+    }
+    setExporting(true);
+    try {
+      const period = semester?.selectedPeriod ?? null;
+      const academicYear = period
+        ? [period.academicYear, period.semester].filter(Boolean).join(" \u00b7 ")
+        : "";
+      await downloadHr23bWorkbook(
+        filteredRows.map(({ user, profile }) => ({ user, profile })),
+        { academicYear, scopeLabel: exportScopeLabel },
+      );
+      setSuccess(`Exported ${filteredRows.length} faculty to Excel (HR Form 23B).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export the faculty list.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
     sections.forEach((s) => m.set(s.id, s.name));
@@ -622,6 +702,12 @@ export function FacultyProfileWorkspace({
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6 max-h-[min(85vh,1200px)] overflow-y-auto">
+      <datalist id={ACADEMIC_RANK_SUGGESTIONS_ID}>
+        {ACADEMIC_RANK_SUGGESTIONS.map((r) => (
+          <option key={r} value={r} />
+        ))}
+      </datalist>
+
       <datalist id={DESIGNATION_SUGGESTIONS_ID}>
         {DESIGNATION_POLICIES.filter((d) => d.key !== "Regular Faculty").map((d) => (
           <option key={d.key} value={d.label}>
@@ -679,15 +765,59 @@ export function FacultyProfileWorkspace({
 
       {tab === "profile" || tab === "designation" ? (
         <div className="bg-white rounded-xl border border-black/10 p-4 shadow-[0px_2px_4px_rgba(0,0,0,0.06)]">
-          <div className="w-full max-w-md space-y-1">
-            <div className="text-[11px] font-medium text-black/60">Search faculty</div>
-            <Input
-              placeholder="Name, status, designation, employee ID…"
-              value={facultyListSearch}
-              onChange={(e) => setFacultyListSearch(e.target.value)}
-              disabled={!collegeId}
-              className="h-9 text-sm border-black/20 focus-visible:ring-[#ff990a]/40"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-black/60">Search faculty</div>
+              <Input
+                placeholder="Name, rank, qualification, employee ID…"
+                value={facultyListSearch}
+                onChange={(e) => setFacultyListSearch(e.target.value)}
+                disabled={!collegeId}
+                className="h-9 text-sm border-black/20 focus-visible:ring-[#ff990a]/40"
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-black/60">Status</div>
+              <select
+                className="h-9 w-full rounded-md border border-black/20 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                disabled={!collegeId}
+              >
+                <option value="">All statuses</option>
+                <option value={FACULTY_EMPLOYMENT_RESIDENT}>{FACULTY_EMPLOYMENT_RESIDENT}</option>
+                <option value={FACULTY_EMPLOYMENT_NON_RESIDENT}>{FACULTY_EMPLOYMENT_NON_RESIDENT}</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-black/60">Sex</div>
+              <select
+                className="h-9 w-full rounded-md border border-black/20 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={sexFilter}
+                onChange={(e) => setSexFilter(e.target.value)}
+                disabled={!collegeId}
+              >
+                <option value="">All</option>
+                <option value="M">M</option>
+                <option value="F">F</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-black/60">Academic rank</div>
+              <select
+                className="h-9 w-full rounded-md border border-black/20 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={rankFilter}
+                onChange={(e) => setRankFilter(e.target.value)}
+                disabled={!collegeId || rankOptions.length === 0}
+              >
+                <option value="">All ranks</option>
+                {rankOptions.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       ) : null}
@@ -709,7 +839,12 @@ export function FacultyProfileWorkspace({
             </p>
           ) : null}
 
-          <div className="text-[16px] font-semibold mb-3">{editingUserId ? "Edit faculty" : "New faculty"}</div>
+          <div className="mb-3">
+            <div className="text-[16px] font-semibold">{editingUserId ? "Edit faculty" : "New faculty"}</div>
+            <p className="text-[11px] text-black/55">
+              Fields follow CTU HR Form 23B — Faculty Profile as to their Educational Qualification (June 2012, Rev. 0).
+            </p>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
             <div className="space-y-1">
               <div className="text-sm font-medium">Employee ID</div>
@@ -721,64 +856,90 @@ export function FacultyProfileWorkspace({
               />
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">Full Name</div>
-              <Input placeholder="Juan Dela Cruz" value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Last Name</div>
+              <Input placeholder="Dela Cruz" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={!collegeId} />
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">A.K.A.</div>
-              <Input placeholder="Juan" value={aka} onChange={(e) => setAka(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">First Name</div>
+              <Input placeholder="Juan" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={!collegeId} />
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">BS Degree</div>
-              <Input placeholder="BS Information Technology" value={bsDegree} onChange={(e) => setBsDegree(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Middle Name</div>
+              <Input placeholder="Miguel" value={middleName} onChange={(e) => setMiddleName(e.target.value)} disabled={!collegeId} />
+              <p className="text-[11px] text-black/50">
+                Stored as <strong>{composedFullName || "—"}</strong> for INS documents.
+              </p>
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">MS Degree</div>
-              <Input value={msDegree} onChange={(e) => setMsDegree(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Academic Rank</div>
+              <Input
+                list={ACADEMIC_RANK_SUGGESTIONS_ID}
+                placeholder="Instructor I"
+                value={academicRank}
+                onChange={(e) => setAcademicRank(e.target.value)}
+                disabled={!collegeId}
+              />
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">Doctoral Degree</div>
-              <Input value={doctoralDegree} onChange={(e) => setDoctoralDegree(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Sex</div>
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={sex}
+                onChange={(e) => setSex(normalizeFacultySex(e.target.value))}
+                disabled={!collegeId}
+              >
+                <option value="">—</option>
+                <option value="M">M</option>
+                <option value="F">F</option>
+              </select>
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">Major 1</div>
-              <Input placeholder="Software Engineering" value={major1} onChange={(e) => setMajor1(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Date of Birth</div>
+              <Input
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                disabled={!collegeId}
+              />
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">Major 2</div>
-              <Input value={major2} onChange={(e) => setMajor2(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Age</div>
+              <Input
+                readOnly
+                tabIndex={-1}
+                className="bg-black/[0.04] text-black/70"
+                placeholder="—"
+                value={ageFromBirthDate != null ? String(ageFromBirthDate) : ""}
+                disabled={!collegeId}
+              />
+              <p className="text-[11px] text-black/50">Computed from the date of birth.</p>
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">Major 3</div>
-              <Input value={major3} onChange={(e) => setMajor3(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Educational Qualification</div>
+              <Input
+                placeholder="MS Information Technology"
+                value={educationalQualification}
+                onChange={(e) => setEducationalQualification(e.target.value)}
+                disabled={!collegeId}
+              />
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">Minor 1</div>
-              <Input placeholder="Web Development" value={minor1} onChange={(e) => setMinor1(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Experience</div>
+              <Input
+                placeholder="8 years teaching, 3 years industry"
+                value={experience}
+                onChange={(e) => setExperience(e.target.value)}
+                disabled={!collegeId}
+              />
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-medium">Minor 2</div>
-              <Input value={minor2} onChange={(e) => setMinor2(e.target.value)} disabled={!collegeId} />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Minor 3</div>
-              <Input value={minor3} onChange={(e) => setMinor3(e.target.value)} disabled={!collegeId} />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Research</div>
-              <Input value={research} onChange={(e) => setResearch(e.target.value)} disabled={!collegeId} />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Extension</div>
-              <Input value={extension} onChange={(e) => setExtension(e.target.value)} disabled={!collegeId} />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Production</div>
-              <Input value={production} onChange={(e) => setProduction(e.target.value)} disabled={!collegeId} />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Special Training</div>
-              <Input value={specialTraining} onChange={(e) => setSpecialTraining(e.target.value)} disabled={!collegeId} />
+              <div className="text-sm font-medium">Eligibility</div>
+              <Input
+                placeholder="CSC Professional / LET / PRC licence"
+                value={eligibility}
+                onChange={(e) => setEligibility(e.target.value)}
+                disabled={!collegeId}
+              />
             </div>
             <div className="space-y-1">
               <div className="text-sm font-medium">Status</div>
@@ -805,21 +966,12 @@ export function FacultyProfileWorkspace({
                 const matched = getDesignationPolicyByLabel(designation);
                 const pol = matched ?? DESIGNATION_POLICIES.find((d) => d.key === "Regular Faculty")!;
                 const custom = Boolean(designation.trim()) && !matched;
-                const rate = computeRatePerHour(
-                  {
-                    bsDegree: bsDegree.trim() || null,
-                    msDegree: msDegree.trim() || null,
-                    doctoralDegree: doctoralDegree.trim() || null,
-                    designation: designation.trim() || null,
-                  } as Pick<FacultyProfile, "bsDegree" | "msDegree" | "doctoralDegree" | "designation">,
-                  hourlyRateOverrides,
-                  ratePerHourByDesignation,
-                );
                 return (
                   <div className="text-[11px] text-black/55 leading-relaxed">
                     Teaching load: <strong>{pol.hoursPerWeekMin}–{pol.hoursPerWeekMax} hrs/week</strong>
                     {" · "}
-                    Rate/hour (highest degree): <strong>{rate != null ? `₱${rate}` : "—"}</strong>
+                    Rate/hour (educational qualification):{" "}
+                    <strong>{ratePerHourForForm != null ? `₱${ratePerHourForForm}` : "—"}</strong>
                     {custom ? (
                       <>
                         <br />
@@ -858,7 +1010,29 @@ export function FacultyProfileWorkspace({
           ) : null}
 
           <div className="mt-8 space-y-3">
-            <div className="text-[16px] font-semibold">Faculty List {loadingList ? "· Loading…" : ""}</div>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div>
+                <div className="text-[16px] font-semibold">Faculty List {loadingList ? "· Loading…" : ""}</div>
+                <p className="text-[12px] text-black/55">
+                  HR Form 23B — Faculty Profile as to their Educational Qualification, in alphabetical order by last
+                  name.
+                </p>
+              </div>
+              <div className="shrink-0 space-y-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 text-[12px] font-semibold"
+                  disabled={exporting || filteredRows.length === 0}
+                  onClick={() => void exportFacultyList()}
+                >
+                  {exporting ? "Preparing\u2026" : "Export to Excel"}
+                </Button>
+                <p className="text-[11px] text-black/50 text-right">
+                  {filteredRows.length} row{filteredRows.length === 1 ? "" : "s"} · print-ready HR Form 23B
+                </p>
+              </div>
+            </div>
             {enableFacultyListEdit ? (
               <p className="text-[12px] text-black/55">
                 Status (Resident / Non-resident) and designation drive teaching caps in the Evaluator policy engine
@@ -869,9 +1043,19 @@ export function FacultyProfileWorkspace({
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-[#ff990a] text-white text-[11px]">
-                    <th className="border border-black/10 px-2 py-2 text-left">Name</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Employee ID</th>
+                    <th className="border border-black/10 px-2 py-2 text-left w-10">No.</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Last Name</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">First Name</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Middle Name</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Academic Rank</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Status</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Sex</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Date of Birth</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Age</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Educational Qualification</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Experience</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Eligibility</th>
+                    <th className="border border-black/10 px-2 py-2 text-left">Employee ID</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Designation</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Advisory</th>
                     <th className="border border-black/10 px-2 py-2 text-left">Justification</th>
@@ -888,7 +1072,7 @@ export function FacultyProfileWorkspace({
                   {!collegeId ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 9 : 7}
+                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 2 : FACULTY_LIST_COLUMNS}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No college in scope.
@@ -897,7 +1081,7 @@ export function FacultyProfileWorkspace({
                   ) : rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 9 : 7}
+                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 2 : FACULTY_LIST_COLUMNS}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No instructors in the database for this college yet.
@@ -906,23 +1090,27 @@ export function FacultyProfileWorkspace({
                   ) : filteredRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? 9 : 7}
+                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 2 : FACULTY_LIST_COLUMNS}
                         className="border border-black/10 px-2 py-6 text-center text-black/45"
                       >
                         No faculty match &quot;{facultyListSearch.trim()}&quot;.
                       </td>
                     </tr>
                   ) : (
-                    filteredRows.map(({ user, profile }) => {
+                    filteredRows.map(({ user, profile, parts }, index) => {
                       const draft = editState[user.id] ?? {
                         status: normalizeFacultyProfileStatus(profile?.status),
                         designation: profile?.designation ?? "",
                         advisorySectionId: profile?.advisorySectionId ?? "",
                       };
+                      const age = computeAge(profile?.dateOfBirth);
                       return (
                         <tr key={user.id}>
-                          <td className="border border-black/10 px-2 py-2">{profile?.fullName ?? user.name}</td>
-                          <td className="border border-black/10 px-2 py-2 tabular-nums">{user.employeeId ?? "—"}</td>
+                          <td className="border border-black/10 px-2 py-2 tabular-nums text-black/55">{index + 1}</td>
+                          <td className="border border-black/10 px-2 py-2 font-semibold">{parts.lastName || "—"}</td>
+                          <td className="border border-black/10 px-2 py-2">{parts.firstName || "—"}</td>
+                          <td className="border border-black/10 px-2 py-2">{parts.middleName || "—"}</td>
+                          <td className="border border-black/10 px-2 py-2">{profile?.academicRank ?? "—"}</td>
                           <td className="border border-black/10 px-2 py-2 align-top">
                             {enableFacultyListEdit ? (
                               <select
@@ -942,6 +1130,17 @@ export function FacultyProfileWorkspace({
                               (profile ? normalizeFacultyProfileStatus(profile.status) : "—")
                             )}
                           </td>
+                          <td className="border border-black/10 px-2 py-2">{normalizeFacultySex(profile?.sex) || "—"}</td>
+                          <td className="border border-black/10 px-2 py-2 whitespace-nowrap">
+                            {formatDateOfBirth(profile?.dateOfBirth) || "—"}
+                          </td>
+                          <td className="border border-black/10 px-2 py-2 tabular-nums">{age != null ? age : "—"}</td>
+                          <td className="border border-black/10 px-2 py-2 max-w-[200px]">
+                            {profile?.educationalQualification ?? "—"}
+                          </td>
+                          <td className="border border-black/10 px-2 py-2 max-w-[180px]">{profile?.experience ?? "—"}</td>
+                          <td className="border border-black/10 px-2 py-2 max-w-[180px]">{profile?.eligibility ?? "—"}</td>
+                          <td className="border border-black/10 px-2 py-2 tabular-nums">{user.employeeId ?? "—"}</td>
                           <td className="border border-black/10 px-2 py-2 align-top">
                             {enableFacultyListEdit ? (
                               <input
@@ -1066,7 +1265,7 @@ export function FacultyProfileWorkspace({
                 ) : (
                   filteredRows.map((r) => (
                     <tr key={r.user.id}>
-                      <td className="border border-black/10 px-2 py-2">{r.profile?.fullName ?? r.user.name}</td>
+                      <td className="border border-black/10 px-2 py-2">{composeListName(r.parts) || r.user.name}</td>
                       <td className="border border-black/10 px-2 py-2">{r.profile?.designation ?? "—"}</td>
                       <td className="border border-black/10 px-2 py-2">—</td>
                     </tr>
@@ -1104,7 +1303,7 @@ export function FacultyProfileWorkspace({
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map(({ user, profile }) => {
+                  filteredRows.map(({ user, profile, parts }) => {
                     const draft = editState[user.id] ?? {
                       status: normalizeFacultyProfileStatus(profile?.status),
                       designation: profile?.designation ?? "",
@@ -1113,7 +1312,7 @@ export function FacultyProfileWorkspace({
                     const sec = draft.advisorySectionId ? sections.find((s) => s.id === draft.advisorySectionId) : null;
                     return (
                       <tr key={user.id}>
-                        <td className="border border-black/10 px-2 py-2">{profile?.fullName ?? user.name}</td>
+                        <td className="border border-black/10 px-2 py-2">{composeListName(parts) || user.name}</td>
                         <td className="border border-black/10 px-2 py-2 align-top">
                           {enableFacultyListEdit ? (
                             <select

@@ -1,5 +1,6 @@
 import { computeRatePerHour } from "@/lib/faculty/designation-system";
 import { normalizeFacultyProfileStatus } from "@/lib/faculty/employment-status";
+import { splitFullName } from "@/lib/faculty/hr-form-23b";
 
 /** Profile fields accepted at instructor self-registration (matches Faculty Profile workspace). */
 export type InstructorRegistrationProfileInput = {
@@ -37,9 +38,16 @@ export function facultyProfileRowFromRegistration(
   const status = normalizeFacultyProfileStatus(input.status);
   const designation = trimOrNull(input.designation);
 
+  // Registration collects one name field; HR Form 23B needs the three cells (the chairman can
+  // correct the split on the Faculty Profile page).
+  const parts = splitFullName(fullName);
+
   return {
     userId,
     fullName: fullName.trim(),
+    lastName: parts.lastName || null,
+    firstName: parts.firstName || null,
+    middleName: parts.middleName || null,
     aka: trimOrNull(input.aka),
     bsDegree,
     msDegree,

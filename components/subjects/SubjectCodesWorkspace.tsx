@@ -121,6 +121,12 @@ export function SubjectCodesWorkspace({
   const [title, setTitle] = useState("");
   const [lecUnits, setLecUnits] = useState("");
   const [labUnits, setLabUnits] = useState("");
+  // Hours are stored per subject and stay editable; the unit conversion only
+  // prefills them until someone types a value of their own.
+  const [lecHours, setLecHours] = useState("");
+  const [labHours, setLabHours] = useState("");
+  const [lecHoursTouched, setLecHoursTouched] = useState(false);
+  const [labHoursTouched, setLabHoursTouched] = useState(false);
   const [yearLevel, setYearLevel] = useState("1");
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -128,6 +134,8 @@ export function SubjectCodesWorkspace({
   const [subjectSearch, setSubjectSearch] = useState("");
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Subject | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -160,11 +168,24 @@ export function SubjectCodesWorkspace({
     setTitle("");
     setLecUnits("");
     setLabUnits("");
+    setLecHours("");
+    setLabHours("");
+    setLecHoursTouched(false);
+    setLabHoursTouched(false);
     setYearLevel("1");
     setSubjectSearch("");
     setSuccess(null);
     void loadSubjects();
   }, [loadSubjects]);
+
+  useEffect(() => {
+    if (!pendingDelete) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setPendingDelete(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pendingDelete]);
 
   const filteredDbSubjects = useMemo(() => {
     const base = gecCurriculumOnly ? dbSubjects.filter((s) => isGecCurriculumSubjectCode(s.code)) : dbSubjects;
@@ -223,6 +244,10 @@ export function SubjectCodesWorkspace({
     setTitle("");
     setLecUnits("");
     setLabUnits("");
+    setLecHours("");
+    setLabHours("");
+    setLecHoursTouched(false);
+    setLabHoursTouched(false);
     setYearLevel("1");
   }
 
@@ -232,6 +257,10 @@ export function SubjectCodesWorkspace({
     setTitle(s.title);
     setLecUnits(String(s.lecUnits ?? ""));
     setLabUnits(String(s.labUnits ?? ""));
+    setLecHours(String(s.lecHours ?? ""));
+    setLabHours(String(s.labHours ?? ""));
+    setLecHoursTouched(true);
+    setLabHoursTouched(true);
     setYearLevel(String(s.yearLevel ?? 1));
     setError(null);
     setSuccess(null);
@@ -263,13 +292,15 @@ export function SubjectCodesWorkspace({
     setSaving(true);
     const lec = parseFloat(lecUnits) || 0;
     const lab = parseFloat(labUnits) || 0;
+    const lecHrs = lecHours.trim() === "" ? lectureHoursFromUnits(lec) : parseFloat(lecHours) || 0;
+    const labHrs = labHours.trim() === "" ? labHoursFromUnits(lab) : parseFloat(labHours) || 0;
     const payload = {
       code: trimmedCode,
       title: trimmedTitle,
       lecUnits: lec,
-      lecHours: lectureHoursFromUnits(lec),
+      lecHours: lecHrs,
       labUnits: lab,
-      labHours: labHoursFromUnits(lab),
+      labHours: labHrs,
       programId,
       yearLevel: Math.min(6, Math.max(1, parseInt(yearLevel, 10) || 1)),
     };
@@ -295,17 +326,23 @@ export function SubjectCodesWorkspace({
     }
   }
 
-  async function onDeleteSubject(s: Subject) {
-    if (!window.confirm(`Delete subject “${s.code}”?`)) return;
+  async function onConfirmDelete() {
+    const s = pendingDelete;
+    if (!s) return;
     setError(null);
     setSuccess(null);
+    setDeleting(true);
     try {
       await subjectCodesApi.delete(s.id);
       if (editingId === s.id) resetForm();
       setSuccess(`Subject “${s.code}” deleted.`);
+      setPendingDelete(null);
       void loadSubjects();
     } catch (err: any) {
       setError(err?.message ?? "Failed to delete subject.");
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -368,7 +405,13 @@ export function SubjectCodesWorkspace({
               step={0.5}
               placeholder="0"
               value={lecUnits}
-              onChange={(e) => setLecUnits(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setLecUnits(v);
+                if (!lecHoursTouched) {
+                  setLecHours(v === "" ? "" : String(lectureHoursFromUnits(parseFloat(v) || 0)));
+                }
+              }}
               disabled={!programId}
             />
             <p className="text-[11px] text-black/50">1 unit = 1 hour</p>
@@ -377,12 +420,17 @@ export function SubjectCodesWorkspace({
             <div className="text-sm font-medium">Lec Hours</div>
             <Input
               type="number"
-              readOnly
-              tabIndex={-1}
-              className="bg-black/[0.04] text-black/70"
-              value={lecUnits === "" ? "" : lectureHoursFromUnits(parseFloat(lecUnits) || 0)}
+              min={0}
+              step={0.5}
+              placeholder="0"
+              value={lecHours}
+              onChange={(e) => {
+                setLecHoursTouched(true);
+                setLecHours(e.target.value);
+              }}
               disabled={!programId}
             />
+            <p className="text-[11px] text-black/50">Editable — prefilled from units, override as needed.</p>
           </div>
           <div className="space-y-1">
             <div className="text-sm font-medium">Year level</div>
@@ -408,7 +456,13 @@ export function SubjectCodesWorkspace({
               step={0.5}
               placeholder="0"
               value={labUnits}
-              onChange={(e) => setLabUnits(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setLabUnits(v);
+                if (!labHoursTouched) {
+                  setLabHours(v === "" ? "" : String(labHoursFromUnits(parseFloat(v) || 0)));
+                }
+              }}
               disabled={!programId}
             />
             <p className="text-[11px] text-black/50">1 unit = 3 hours</p>
@@ -417,12 +471,17 @@ export function SubjectCodesWorkspace({
             <div className="text-sm font-medium">Lab Hours</div>
             <Input
               type="number"
-              readOnly
-              tabIndex={-1}
-              className="bg-black/[0.04] text-black/70"
-              value={labUnits === "" ? "" : labHoursFromUnits(parseFloat(labUnits) || 0)}
+              min={0}
+              step={0.5}
+              placeholder="0"
+              value={labHours}
+              onChange={(e) => {
+                setLabHoursTouched(true);
+                setLabHours(e.target.value);
+              }}
               disabled={!programId}
             />
+            <p className="text-[11px] text-black/50">Editable — prefilled from units, override as needed.</p>
           </div>
         </div>
       </div>
@@ -492,9 +551,13 @@ export function SubjectCodesWorkspace({
                       <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
                       <td className="border border-black/10 px-2 py-2">{s.title}</td>
                       <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
+                      <td className="border border-black/10 px-2 py-2">
+                        {s.lecHours ?? lectureHoursFromUnits(s.lecUnits)}
+                      </td>
                       <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
+                      <td className="border border-black/10 px-2 py-2">
+                        {s.labHours ?? labHoursFromUnits(s.labUnits)}
+                      </td>
                       <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
                         <button
                           type="button"
@@ -506,7 +569,7 @@ export function SubjectCodesWorkspace({
                         <button
                           type="button"
                           className="text-red-800 font-semibold hover:underline"
-                          onClick={() => void onDeleteSubject(s)}
+                          onClick={() => setPendingDelete(s)}
                         >
                           Delete
                         </button>
@@ -594,6 +657,51 @@ export function SubjectCodesWorkspace({
           </div>
         )}
       </div>
+
+      {pendingDelete ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !deleting) setPendingDelete(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl border border-black/10"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-subject-title"
+          >
+            <h2 id="delete-subject-title" className="text-lg font-semibold text-gray-900 mb-1">
+              Delete subject
+            </h2>
+            <p className="text-sm text-gray-600">
+              Delete <span className="font-semibold text-gray-900">{pendingDelete.code}</span>
+              {pendingDelete.title ? ` — ${pendingDelete.title}` : ""}? This cannot be undone.
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              Subjects already used by a schedule entry cannot be deleted.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setPendingDelete(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-red-700 text-white hover:bg-red-800"
+                disabled={deleting}
+                onClick={() => void onConfirmDelete()}
+              >
+                {deleting ? "Deleting…" : "Delete subject"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

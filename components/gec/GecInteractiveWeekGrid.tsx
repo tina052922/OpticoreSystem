@@ -9,8 +9,10 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { loadGeneratorHref, periodIdFromLocation } from "@/lib/ins/load-generator-href";
 import { GecPlotScheduleModal } from "@/components/gec/GecPlotScheduleModal";
 import type { ChairmanGridPlottingActions } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
 import {
@@ -212,6 +214,7 @@ export function GecInteractiveWeekGrid({
   plottingActions,
   gridFooter,
 }: GecInteractiveWeekGridProps) {
+  const router = useRouter();
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
   const days = weekdays ?? evaluatorWeekdays(programMode);
   const buildingLabels = useMemo(() => sortedNavigationBuildingKeysFromRooms(rooms), [rooms]);
@@ -317,7 +320,16 @@ export function GecInteractiveWeekGrid({
     [sectionRows, vacantGecSourceIds, slots],
   );
 
-  const insPrintHref = `${insFormBasePath}?tab=section&sectionId=${encodeURIComponent(sectionId)}&print=1`;
+  /** "Generate INS Form" hands off to the Load Generator, on this section and term. */
+  function openLoadGenerator() {
+    router.push(
+      loadGeneratorHref({
+        basePath: insFormBasePath,
+        sectionId,
+        periodId: periodIdFromLocation(),
+      }),
+    );
+  }
 
   const openModalForEntry = useCallback(
     (e: ScheduleEntry, anchor: CellAnchor) => {
@@ -458,7 +470,7 @@ export function GecInteractiveWeekGrid({
           <Button
             type="button"
             className="bg-[#780301] hover:bg-[#5a0201] text-white font-bold h-9 text-xs shrink-0"
-            onClick={() => window.open(insPrintHref, "_blank", "noopener,noreferrer")}
+            onClick={() => openLoadGenerator()}
           >
             Generate INS Form
           </Button>

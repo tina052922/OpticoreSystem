@@ -105,8 +105,22 @@ export interface User {
 export interface FacultyProfile {
   id: string;
   userId: string;
+  /** Canonical display name (INS documents print it); recomposed from the name parts on save. */
   fullName: string;
   aka: string | null;
+  // ── CTU HR Form 23B (Faculty Profile as to their Educational Qualification) ──
+  // Added by migration 013; null on rows saved before it ran.
+  lastName?: string | null;
+  firstName?: string | null;
+  middleName?: string | null;
+  academicRank?: string | null;
+  /** 'M' | 'F' — the form has no third cell. */
+  sex?: string | null;
+  /** `YYYY-MM-DD`. AGE is derived from this, never stored. */
+  dateOfBirth?: string | null;
+  educationalQualification?: string | null;
+  experience?: string | null;
+  eligibility?: string | null;
   /** Optional: section this faculty advises (set by chairman/college admin). */
   advisorySectionId?: string | null;
   bsDegree: string | null;

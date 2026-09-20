@@ -71,11 +71,43 @@ export function designationTeachingCapHours(designation: string | null | undefin
 
 export type HighestDegree = "Doctorate" | "Master’s" | "Baccalaureate" | null;
 
-export function highestDegree(profile: Pick<
-  FacultyProfile,
-  "doctoralDegree" | "msDegree" | "bsDegree"
-> | null): HighestDegree {
+const DOCTORATE_PATTERN = /\b(doctor\w*|ph\.?\s?d|ed\.?\s?d|d\.?\s?sc|dit|dba|dpa|dm)\b/i;
+const MASTERS_PATTERN = /\b(master\w*|m\.?\s?s|m\.?\s?a|m\.?\s?ed|maed|mba|mit|msit|mpa|mph|llm)\b/i;
+const BACCALAUREATE_PATTERN = /\b(bachelor\w*|b\.?\s?s|b\.?\s?a|ab|bsed|bse|bsit|bsba)\b/i;
+
+/**
+ * Degree tier read off the HR Form 23B "EDUCATIONAL QUALIFICATION" cell, which is free text:
+ * "Doctor of Philosophy in IT", "MS Information Technology", "BS Computer Science".
+ * Null when the text names no recognizable degree — the caller then has no rate rather than a wrong one.
+ */
+export function degreeTierFromEducationalQualification(
+  educationalQualification: string | null | undefined,
+): HighestDegree {
+  const text = (educationalQualification ?? "").trim();
+  if (!text) return null;
+  if (DOCTORATE_PATTERN.test(text)) return "Doctorate";
+  if (MASTERS_PATTERN.test(text)) return "Master’s";
+  if (BACCALAUREATE_PATTERN.test(text)) return "Baccalaureate";
+  return null;
+}
+
+/**
+ * Highest degree for the rate.
+ *
+ * `educationalQualification` wins: it is the cell the Faculty Profile page maintains (HR Form 23B).
+ * The separate BS/MS/doctoral columns remain only as the fallback for profiles that predate the form
+ * or were filled in by instructor self-registration.
+ */
+export function highestDegree(
+  profile:
+    | (Pick<FacultyProfile, "doctoralDegree" | "msDegree" | "bsDegree"> & {
+        educationalQualification?: string | null;
+      })
+    | null,
+): HighestDegree {
   if (!profile) return null;
+  const fromForm = degreeTierFromEducationalQualification(profile.educationalQualification);
+  if (fromForm) return fromForm;
   if ((profile.doctoralDegree ?? "").trim()) return "Doctorate";
   if ((profile.msDegree ?? "").trim()) return "Master’s";
   if ((profile.bsDegree ?? "").trim()) return "Baccalaureate";
@@ -99,14 +131,18 @@ export function ratePerHourFromHighestDegree(
 }
 
 /**
- * Canonical hourly rate (undergraduate) derived from the highest degree fields in `FacultyProfile`.
+ * Canonical hourly rate (undergraduate) derived from the faculty's highest degree — the HR Form 23B
+ * educational qualification, else the legacy degree columns.
  * Stored in DB in `FacultyProfile.ratePerHour` for consistent evaluator rendering.
  *
  * If the faculty holds a designation (e.g. Campus Director, Department Chairperson) with a configured
  * `ratePerHourByDesignation` override, that takes precedence over the degree-based rate.
  */
 export function computeRatePerHour(
-  profile: Pick<FacultyProfile, "doctoralDegree" | "msDegree" | "bsDegree"> & { designation?: string | null },
+  profile: Pick<FacultyProfile, "doctoralDegree" | "msDegree" | "bsDegree"> & {
+    designation?: string | null;
+    educationalQualification?: string | null;
+  },
   overrides?: HourlyRateOverrides,
   ratePerHourByDesignation?: Record<string, number> | null,
 ): number | null {
