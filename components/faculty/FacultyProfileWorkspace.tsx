@@ -983,10 +983,10 @@ export function FacultyProfileWorkspace({
                 onChange={(e) => setDepartmentProgramId(e.target.value)}
                 disabled={!collegeId || Boolean(chairmanProgramId)}
               >
-                <option value="">\u2014 Unassigned \u2014</option>
+                <option value="">— Unassigned —</option>
                 {programs.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.code} \u2014 {p.name}
+                    {p.code} — {p.name}
                   </option>
                 ))}
               </select>
@@ -1074,7 +1074,7 @@ export function FacultyProfileWorkspace({
                 )}
               </div>
               <p className="text-[11px] text-black/50 leading-relaxed">
-                A faculty may advise more than one section \u2014 tick every section they handle.
+                A faculty may advise more than one section — tick every section they handle.
                 {advisorySectionIds.length > 0 ? ` Selected: ${advisorySectionIds.length}.` : ""}
               </p>
             </div>

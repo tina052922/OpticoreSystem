@@ -556,7 +556,7 @@ export function InstructorRegisterClient() {
               <legend className="text-sm font-bold text-[#780301]">Faculty profile (HR Form 23B)</legend>
               <p className="text-xs text-black/55">
                 The same details your chairman keeps on Faculty Profile. Leave a field blank if it does not
-                apply \u2014 your reviewer can complete it later.
+                apply — your reviewer can complete it later.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
@@ -587,7 +587,7 @@ export function InstructorRegisterClient() {
                     onChange={(e) => setSex(normalizeFacultySex(e.target.value))}
                     className={fieldClass}
                   >
-                    <option value="">\u2014</option>
+                    <option value="">—</option>
                     <option value="M">M</option>
                     <option value="F">F</option>
                   </select>
@@ -614,7 +614,7 @@ export function InstructorRegisterClient() {
                     id="ins-age"
                     readOnly
                     tabIndex={-1}
-                    placeholder="\u2014"
+                    placeholder="—"
                     value={ageFromBirthDate != null ? String(ageFromBirthDate) : ""}
                     className={`${fieldClass} bg-black/[0.04] text-black/70`}
                   />
