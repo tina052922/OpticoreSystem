@@ -5,6 +5,16 @@ import { splitFullName } from "@/lib/faculty/hr-form-23b";
 /** Profile fields accepted at instructor self-registration (matches Faculty Profile workspace). */
 export type InstructorRegistrationProfileInput = {
   aka?: string | null;
+  // HR Form 23B cells, matching the Faculty Profile page.
+  lastName?: string | null;
+  firstName?: string | null;
+  middleName?: string | null;
+  academicRank?: string | null;
+  sex?: string | null;
+  dateOfBirth?: string | null;
+  educationalQualification?: string | null;
+  experience?: string | null;
+  eligibility?: string | null;
   bsDegree?: string | null;
   msDegree?: string | null;
   doctoralDegree?: string | null;
@@ -38,16 +48,22 @@ export function facultyProfileRowFromRegistration(
   const status = normalizeFacultyProfileStatus(input.status);
   const designation = trimOrNull(input.designation);
 
-  // Registration collects one name field; HR Form 23B needs the three cells (the chairman can
-  // correct the split on the Faculty Profile page).
+  // Registration collects the three name cells; older clients send only `fullName`, so fall back to
+  // splitting it (the chairman can correct the split on the Faculty Profile page).
   const parts = splitFullName(fullName);
 
   return {
     userId,
     fullName: fullName.trim(),
-    lastName: parts.lastName || null,
-    firstName: parts.firstName || null,
-    middleName: parts.middleName || null,
+    lastName: trimOrNull(input.lastName) ?? parts.lastName ?? null,
+    firstName: trimOrNull(input.firstName) ?? parts.firstName ?? null,
+    middleName: trimOrNull(input.middleName) ?? parts.middleName ?? null,
+    academicRank: trimOrNull(input.academicRank),
+    sex: trimOrNull(input.sex),
+    dateOfBirth: trimOrNull(input.dateOfBirth),
+    educationalQualification: trimOrNull(input.educationalQualification),
+    experience: trimOrNull(input.experience),
+    eligibility: trimOrNull(input.eligibility),
     aka: trimOrNull(input.aka),
     bsDegree,
     msDegree,
@@ -64,6 +80,12 @@ export function facultyProfileRowFromRegistration(
     specialTraining: trimOrNull(input.specialTraining),
     status,
     designation,
-    ratePerHour: computeRatePerHour({ bsDegree, msDegree, doctoralDegree, designation }),
+    ratePerHour: computeRatePerHour({
+      bsDegree,
+      msDegree,
+      doctoralDegree,
+      designation,
+      educationalQualification: trimOrNull(input.educationalQualification),
+    }),
   };
 }

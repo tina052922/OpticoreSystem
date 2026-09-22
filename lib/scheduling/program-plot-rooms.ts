@@ -11,8 +11,12 @@ export type PlotRoomScope = Pick<
  *
  * Priority:
  * 1. Rooms assigned to this department (`programId`) — only that department may use them.
- * 2. BSIT legacy IT labs when no department rooms are configured for BSIT.
- * 3. Otherwise college (+ shared null-college) rooms that are not locked to another department.
+ * 2. College (+ shared null-college) rooms that are not locked to another department — this is what
+ *    College Admin / DOI manage in Buildings & Rooms, so a new COTE Building room shows up here.
+ * 3. BSIT legacy IT labs, only as a fallback when the college has no rooms configured at all.
+ *
+ * The BSIT allowlist used to be applied as a *filter* rather than a fallback, which hid every room
+ * added through Buildings & Rooms from the BSIT plotter.
  */
 export function isRoomEligibleForProgramPlot(
   room: PlotRoomScope,
@@ -28,10 +32,6 @@ export function isRoomEligibleForProgramPlot(
     return Boolean(deptId) && roomDept === deptId;
   }
 
-  const code = (programCode ?? "").trim().toUpperCase();
-  if (code === BSIT_PROGRAM_CODE) {
-    return isBsitPlotEligibleRoom(room);
-  }
   if (!chairmanCollegeId) return true;
   return !room.collegeId || room.collegeId === chairmanCollegeId;
 }
@@ -50,6 +50,12 @@ export function filterRoomsForProgramPlot(
   const deptId = (programId ?? "").trim();
   if (deptId && scoped.some((r) => (r.programId ?? "").trim() === deptId)) {
     return scoped.filter((r) => (r.programId ?? "").trim() === deptId);
+  }
+
+  // Nothing configured for this college yet: keep the BSIT labs usable rather than showing nothing.
+  const code = (programCode ?? "").trim().toUpperCase();
+  if (scoped.length === 0 && code === BSIT_PROGRAM_CODE) {
+    return rooms.filter((r) => !(r.programId ?? "").trim() && isBsitPlotEligibleRoom(r));
   }
 
   return scoped;

@@ -12,6 +12,12 @@ import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { apiFetch, registerApi, ApiClientError } from "@/lib/api/client";
 import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
 import {
+  ACADEMIC_RANK_SUGGESTIONS,
+  composeFullName,
+  computeAge,
+  normalizeFacultySex,
+} from "@/lib/faculty/hr-form-23b";
+import {
   FACULTY_EMPLOYMENT_NON_RESIDENT,
   FACULTY_EMPLOYMENT_RESIDENT,
 } from "@/lib/faculty/employment-status";
@@ -45,7 +51,7 @@ function isCtuEmail(value: string): boolean {
 export function InstructorRegisterClient() {
   const branding = useCampusBranding();
   const [phase, setPhase] = useState<"register" | "otp" | "submitted">("register");
-  const [fullName, setFullName] = useState("");
+  /** Composed from the three name cells; the account and the profile store the same string. */
   const [aka, setAka] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,19 +61,17 @@ export function InstructorRegisterClient() {
   const [collegeId, setCollegeId] = useState("");
   const [facultyCategory, setFacultyCategory] = useState<FacultyCategory>(FACULTY_CATEGORY_PROGRAM);
   const [programId, setProgramId] = useState("");
-  const [bsDegree, setBsDegree] = useState("");
-  const [msDegree, setMsDegree] = useState("");
-  const [doctoralDegree, setDoctoralDegree] = useState("");
-  const [major1, setMajor1] = useState("");
-  const [major2, setMajor2] = useState("");
-  const [major3, setMajor3] = useState("");
-  const [minor1, setMinor1] = useState("");
-  const [minor2, setMinor2] = useState("");
-  const [minor3, setMinor3] = useState("");
-  const [research, setResearch] = useState("");
-  const [extension, setExtension] = useState("");
-  const [production, setProduction] = useState("");
-  const [specialTraining, setSpecialTraining] = useState("");
+  // Same cells the Faculty Profile page keeps (CTU HR Form 23B), so a registration and a
+  // chairman-entered profile hold exactly the same information.
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [academicRank, setAcademicRank] = useState("");
+  const [sex, setSex] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [educationalQualification, setEducationalQualification] = useState("");
+  const [experience, setExperience] = useState("");
+  const [eligibility, setEligibility] = useState("");
   const [status, setStatus] = useState<typeof FACULTY_EMPLOYMENT_RESIDENT | typeof FACULTY_EMPLOYMENT_NON_RESIDENT>(
     FACULTY_EMPLOYMENT_RESIDENT,
   );
@@ -108,23 +112,21 @@ export function InstructorRegisterClient() {
   }, []);
 
   const programsForCollege = programs.filter((p) => p.collegeId === collegeId);
+  const fullName = composeFullName({ lastName, firstName, middleName });
+  const ageFromBirthDate = computeAge(dateOfBirth);
 
   function profilePayload() {
     return {
       aka: aka.trim() || null,
-      bsDegree: bsDegree.trim() || null,
-      msDegree: msDegree.trim() || null,
-      doctoralDegree: doctoralDegree.trim() || null,
-      major1: major1.trim() || null,
-      major2: major2.trim() || null,
-      major3: major3.trim() || null,
-      minor1: minor1.trim() || null,
-      minor2: minor2.trim() || null,
-      minor3: minor3.trim() || null,
-      research: research.trim() || null,
-      extension: extension.trim() || null,
-      production: production.trim() || null,
-      specialTraining: specialTraining.trim() || null,
+      lastName: lastName.trim() || null,
+      firstName: firstName.trim() || null,
+      middleName: middleName.trim() || null,
+      academicRank: academicRank.trim() || null,
+      sex: normalizeFacultySex(sex) || null,
+      dateOfBirth: dateOfBirth.trim() || null,
+      educationalQualification: educationalQualification.trim() || null,
+      experience: experience.trim() || null,
+      eligibility: eligibility.trim() || null,
       status,
       designation: designation.trim() || null,
     };
@@ -146,6 +148,10 @@ export function InstructorRegisterClient() {
     }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
+      return;
+    }
+    if (!lastName.trim() || !firstName.trim()) {
+      setError("Last name and first name are required.");
       return;
     }
     if (!collegeId) {
@@ -294,19 +300,48 @@ export function InstructorRegisterClient() {
         <form onSubmit={(e) => void onSubmit(e)} className="space-y-5 max-h-[min(70vh,640px)] overflow-y-auto pr-1">
             <fieldset className="space-y-3 border-0 p-0">
               <legend className="text-sm font-bold text-[#780301]">Account</legend>
-              <div>
-                <label htmlFor="ins-name" className={labelClass}>
-                  Full name
-                </label>
-                <Input
-                  id="ins-name"
-                  placeholder="Last name, First name M.I."
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  autoComplete="name"
-                  className={fieldClass}
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label htmlFor="ins-last-name" className={labelClass}>
+                    Last name
+                  </label>
+                  <Input
+                    id="ins-last-name"
+                    placeholder="Dela Cruz"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    autoComplete="family-name"
+                    className={fieldClass}
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ins-first-name" className={labelClass}>
+                    First name
+                  </label>
+                  <Input
+                    id="ins-first-name"
+                    placeholder="Juan"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    autoComplete="given-name"
+                    className={fieldClass}
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ins-middle-name" className={labelClass}>
+                    Middle name
+                  </label>
+                  <Input
+                    id="ins-middle-name"
+                    placeholder="Miguel"
+                    value={middleName}
+                    onChange={(e) => setMiddleName(e.target.value)}
+                    autoComplete="additional-name"
+                    className={fieldClass}
+                  />
+                </div>
               </div>
               <div>
                 <label htmlFor="ins-aka" className={labelClass}>
@@ -518,119 +553,106 @@ export function InstructorRegisterClient() {
             </fieldset>
 
             <fieldset className="space-y-3 border-0 p-0">
-              <legend className="text-sm font-bold text-[#780301]">Degrees & majors</legend>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <legend className="text-sm font-bold text-[#780301]">Faculty profile (HR Form 23B)</legend>
+              <p className="text-xs text-black/55">
+                The same details your chairman keeps on Faculty Profile. Leave a field blank if it does not
+                apply \u2014 your reviewer can complete it later.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label htmlFor="ins-bs" className={labelClass}>
-                    BS
-                  </label>
-                  <Input id="ins-bs" value={bsDegree} onChange={(e) => setBsDegree(e.target.value)} className={fieldClass} />
-                </div>
-                <div>
-                  <label htmlFor="ins-ms" className={labelClass}>
-                    MS
-                  </label>
-                  <Input id="ins-ms" value={msDegree} onChange={(e) => setMsDegree(e.target.value)} className={fieldClass} />
-                </div>
-                <div>
-                  <label htmlFor="ins-phd" className={labelClass}>
-                    Doctorate
+                  <label htmlFor="ins-rank" className={labelClass}>
+                    Academic rank
                   </label>
                   <Input
-                    id="ins-phd"
-                    value={doctoralDegree}
-                    onChange={(e) => setDoctoralDegree(e.target.value)}
+                    id="ins-rank"
+                    list="ins-academic-rank-suggestions"
+                    placeholder="Instructor I"
+                    value={academicRank}
+                    onChange={(e) => setAcademicRank(e.target.value)}
                     className={fieldClass}
                   />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div>
-                  <label htmlFor="ins-maj1" className={labelClass}>
-                    Major 1
-                  </label>
-                  <Input id="ins-maj1" value={major1} onChange={(e) => setMajor1(e.target.value)} className={fieldClass} />
+                  <datalist id="ins-academic-rank-suggestions">
+                    {ACADEMIC_RANK_SUGGESTIONS.map((r) => (
+                      <option key={r} value={r} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
-                  <label htmlFor="ins-maj2" className={labelClass}>
-                    Major 2
+                  <label htmlFor="ins-sex" className={labelClass}>
+                    Sex
                   </label>
-                  <Input id="ins-maj2" value={major2} onChange={(e) => setMajor2(e.target.value)} className={fieldClass} />
+                  <select
+                    id="ins-sex"
+                    value={sex}
+                    onChange={(e) => setSex(normalizeFacultySex(e.target.value))}
+                    className={fieldClass}
+                  >
+                    <option value="">\u2014</option>
+                    <option value="M">M</option>
+                    <option value="F">F</option>
+                  </select>
                 </div>
-                <div>
-                  <label htmlFor="ins-maj3" className={labelClass}>
-                    Major 3
-                  </label>
-                  <Input id="ins-maj3" value={major3} onChange={(e) => setMajor3(e.target.value)} className={fieldClass} />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div>
-                  <label htmlFor="ins-min1" className={labelClass}>
-                    Minor 1
-                  </label>
-                  <Input id="ins-min1" value={minor1} onChange={(e) => setMinor1(e.target.value)} className={fieldClass} />
-                </div>
-                <div>
-                  <label htmlFor="ins-min2" className={labelClass}>
-                    Minor 2
-                  </label>
-                  <Input id="ins-min2" value={minor2} onChange={(e) => setMinor2(e.target.value)} className={fieldClass} />
-                </div>
-                <div>
-                  <label htmlFor="ins-min3" className={labelClass}>
-                    Minor 3
-                  </label>
-                  <Input id="ins-min3" value={minor3} onChange={(e) => setMinor3(e.target.value)} className={fieldClass} />
-                </div>
-              </div>
-            </fieldset>
-
-            <fieldset className="space-y-3 border-0 p-0">
-              <legend className="text-sm font-bold text-[#780301]">Other (optional)</legend>
-              <div>
-                <label htmlFor="ins-research" className={labelClass}>
-                  Research
-                </label>
-                <Input
-                  id="ins-research"
-                  value={research}
-                  onChange={(e) => setResearch(e.target.value)}
-                  className={fieldClass}
-                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label htmlFor="ins-ext" className={labelClass}>
-                    Extension
+                  <label htmlFor="ins-dob" className={labelClass}>
+                    Date of birth
                   </label>
                   <Input
-                    id="ins-ext"
-                    value={extension}
-                    onChange={(e) => setExtension(e.target.value)}
+                    id="ins-dob"
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
                     className={fieldClass}
                   />
                 </div>
                 <div>
-                  <label htmlFor="ins-prod" className={labelClass}>
-                    Production
+                  <label htmlFor="ins-age" className={labelClass}>
+                    Age
                   </label>
                   <Input
-                    id="ins-prod"
-                    value={production}
-                    onChange={(e) => setProduction(e.target.value)}
-                    className={fieldClass}
+                    id="ins-age"
+                    readOnly
+                    tabIndex={-1}
+                    placeholder="\u2014"
+                    value={ageFromBirthDate != null ? String(ageFromBirthDate) : ""}
+                    className={`${fieldClass} bg-black/[0.04] text-black/70`}
                   />
                 </div>
               </div>
               <div>
-                <label htmlFor="ins-training" className={labelClass}>
-                  Special training
+                <label htmlFor="ins-qualification" className={labelClass}>
+                  Educational qualification
                 </label>
                 <Input
-                  id="ins-training"
-                  value={specialTraining}
-                  onChange={(e) => setSpecialTraining(e.target.value)}
+                  id="ins-qualification"
+                  placeholder="MS Information Technology"
+                  value={educationalQualification}
+                  onChange={(e) => setEducationalQualification(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+              <div>
+                <label htmlFor="ins-experience" className={labelClass}>
+                  Experience
+                </label>
+                <Input
+                  id="ins-experience"
+                  placeholder="8 years teaching, 3 years industry"
+                  value={experience}
+                  onChange={(e) => setExperience(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+              <div>
+                <label htmlFor="ins-eligibility" className={labelClass}>
+                  Eligibility
+                </label>
+                <Input
+                  id="ins-eligibility"
+                  placeholder="CSC Professional / LET / PRC licence"
+                  value={eligibility}
+                  onChange={(e) => setEligibility(e.target.value)}
                   className={fieldClass}
                 />
               </div>

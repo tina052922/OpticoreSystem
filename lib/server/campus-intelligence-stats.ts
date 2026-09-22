@@ -178,7 +178,9 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     const { count: rc } = await supabase
       .from("Room")
       .select("id", { count: "exact", head: true })
-      .or(`collegeId.eq.${collegeId},collegeId.is.null`);
+      // Scope must match what Buildings & Rooms lists: rooms owned by this college only.
+      // Counting `collegeId is null` as well pulled in legacy campus-wide rows and inflated the tile.
+      .eq("collegeId", collegeId);
     roomCount = rc ?? 0;
 
     const { data: secs, count: sc } = await supabase
@@ -207,7 +209,9 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     const { count: rc } = await supabase
       .from("Room")
       .select("id", { count: "exact", head: true })
-      .or(`collegeId.eq.${collegeId},collegeId.is.null`);
+      // Scope must match what Buildings & Rooms lists: rooms owned by this college only.
+      // Counting `collegeId is null` as well pulled in legacy campus-wide rows and inflated the tile.
+      .eq("collegeId", collegeId);
     roomCount = rc ?? 0;
 
     const { data: programs } = await supabase

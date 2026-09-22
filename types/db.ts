@@ -121,8 +121,10 @@ export interface FacultyProfile {
   educationalQualification?: string | null;
   experience?: string | null;
   eligibility?: string | null;
-  /** Optional: section this faculty advises (set by chairman/college admin). */
+  /** Legacy single advisory; mirrors the first entry of `advisorySectionIds`. */
   advisorySectionId?: string | null;
+  /** Every section this faculty advises (migration 014). */
+  advisorySectionIds?: string[] | null;
   bsDegree: string | null;
   msDegree: string | null;
   doctoralDegree: string | null;

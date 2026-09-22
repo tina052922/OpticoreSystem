@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch, authApi, catalogApi, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
+import { justificationLoadSnapshot } from "@/lib/scheduling/justification-coverage";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -403,12 +404,20 @@ export function GecCentralHubEvaluatorClient() {
   }, [collegeParam, isCampusWide]);
 
   /** College id for the section being plotted (required for conflict checks vs campus-wide URL). */
+  /**
+   * College the selected section plots into.
+   *
+   * The section's program is the source of truth, but a program row with no `collegeId` used to make
+   * this null, and the weekly grid is only rendered when it resolves — so picking a section opened
+   * nothing at all. The college already in scope is the correct fallback.
+   */
   const plotCollegeId = useMemo(() => {
     if (!sectionIdFilter) return null;
     const sec = sectionById.get(sectionIdFilter);
     const pr = sec ? programById.get(sec.programId) : null;
-    return pr?.collegeId ?? null;
-  }, [sectionIdFilter, sectionById, programById]);
+    if (pr?.collegeId) return pr.collegeId;
+    return isCampusWide ? null : collegeParam || null;
+  }, [sectionIdFilter, sectionById, programById, isCampusWide, collegeParam]);
 
   const grantScopeCollegeId = useMemo(() => {
     if (!isCampusWide) return collegeParam || null;
@@ -967,8 +976,13 @@ export function GecCentralHubEvaluatorClient() {
               violationsSnapshot: {
                 summary: snapRows.join("\n"),
                 detail: policy.rows,
-                facultyWeeklyHours: v.weeklyTotalContactHours,
+                // Same keys the Chairman worksheet writes, so coverage can be compared either way.
                 preparations: v.preparations,
+                ...justificationLoadSnapshot({
+                  instructorId: v.instructorId,
+                  weeklyTotalContactHours: v.weeklyTotalContactHours,
+                  preparations: v.preparations,
+                }),
               },
             },
           });
@@ -1703,7 +1717,9 @@ export function GecCentralHubEvaluatorClient() {
                   />
                 ) : (
                   <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                    Could not resolve this section&apos;s college — check program linkage in the database.
+                    {academicPeriodId
+                      ? `Could not resolve a college for ${selectedSection?.name ?? "this section"}. Set the program’s college in Programs & Sections, or open this hub from a college tile.`
+                      : "Select an academic term to open the plotting workspace."}
                   </p>
                 )}
               </div>

@@ -22,6 +22,28 @@ export function CollegePolicyReviewsClient({
     setRows(initialRows);
   }, [initialRows]);
 
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [clearingId, setClearingId] = useState<string | null>(null);
+  const [clearError, setClearError] = useState<string | null>(null);
+
+  /** Removing the record makes the Evaluator ask for a fresh justification on the next breach. */
+  async function clearJustification(id: string) {
+    setClearError(null);
+    setClearingId(id);
+    try {
+      const { apiFetch } = await import("@/lib/api/client");
+      await apiFetch(`/api/catalog/schedule-load-justifications/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      setRows((prev) => prev.filter((row) => row.id !== id));
+      setConfirmingId(null);
+    } catch (err) {
+      setClearError(err instanceof Error ? err.message : "Failed to clear the justification.");
+    } finally {
+      setClearingId(null);
+    }
+  }
+
   const shown = useMemo(
     () => [...rows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [rows],
@@ -43,6 +65,9 @@ export function CollegePolicyReviewsClient({
         Recorded overload justifications for this college. DOI is notified when each is submitted; there is no approval
         workflow. The same text appears on Summary of Teaching Load and the instructor’s Faculty Profile.
       </p>
+      {clearError ? (
+        <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2">{clearError}</p>
+      ) : null}
       <ul className="space-y-4">
         {shown.map((r) => {
           const snap = r.violationsSnapshot as { summary?: string } | null;
@@ -56,9 +81,42 @@ export function CollegePolicyReviewsClient({
                   <span>·</span>
                   <span>Recorded {new Date(r.createdAt).toLocaleString()}</span>
                 </div>
-                <span className="text-[11px] font-bold uppercase px-2 py-1 rounded-md border bg-black/[0.04] text-black/70 border-black/10">
-                  Recorded
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase px-2 py-1 rounded-md border bg-black/[0.04] text-black/70 border-black/10">
+                    Recorded
+                  </span>
+                  {confirmingId === r.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-red-800 hover:underline disabled:opacity-50"
+                        disabled={clearingId === r.id}
+                        onClick={() => void clearJustification(r.id)}
+                      >
+                        {clearingId === r.id ? "Clearing\u2026" : "Confirm clear"}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-[11px] text-black/55 hover:underline"
+                        disabled={clearingId === r.id}
+                        onClick={() => setConfirmingId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-[11px] font-semibold text-red-800 hover:underline"
+                      onClick={() => {
+                        setClearError(null);
+                        setConfirmingId(r.id);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="text-sm">
                 <span className="text-black/50">Author: </span>

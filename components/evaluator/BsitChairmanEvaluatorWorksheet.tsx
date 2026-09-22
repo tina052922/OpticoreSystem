@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/api/client";
+import { coveredFacultyIds, justificationLoadSnapshot } from "@/lib/scheduling/justification-coverage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useSearchParams } from "next/navigation";
@@ -602,6 +603,11 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const lastFetchAtRef = useRef(0);
   const staticLoadedForPeriodRef = useRef<string | null>(null);
+  /**
+   * Signature of the room catalog last applied. Rooms used to be stored once per term, so a building
+   * or room added (or deleted) in Buildings & Rooms never reached an open Evaluator.
+   */
+  const roomsSignatureRef = useRef("");
 
   const lastLoadedProgramIdRef = useRef<string | null>(null);
   const loadAllData = useCallback(async () => {
@@ -632,6 +638,17 @@ export function BsitChairmanEvaluatorWorksheet({
       bundleSections = (bundle.sections ?? []) as Section[];
       bundleSubjects = (bundle.subjects ?? []) as Subject[];
 
+      // Rooms refresh on every load, not only on the first one for a term.
+      const bundleRooms = (bundle.rooms ?? []) as Room[];
+      const roomsSignature = bundleRooms
+        .map((r) => [r.id, r.code, r.building ?? "", r.programId ?? "", r.collegeId ?? ""].join(":"))
+        .sort()
+        .join("|");
+      if (roomsSignature !== roomsSignatureRef.current) {
+        roomsSignatureRef.current = roomsSignature;
+        setRooms(bundleRooms);
+      }
+
       if (staticLoadedForPeriodRef.current !== academicPeriodId) {
         setSections(bundleSections);
         setProgramsCatalog(
@@ -643,7 +660,6 @@ export function BsitChairmanEvaluatorWorksheet({
           })) ?? [],
         );
         setSubjects(bundleSubjects);
-        setRooms(bundle.rooms ?? []);
         staticLoadedForPeriodRef.current = academicPeriodId;
       }
 
@@ -1402,17 +1418,25 @@ export function BsitChairmanEvaluatorWorksheet({
     });
   }, [policyRows, facultyProfiles, onPolicySnapshot]);
 
-  /** Instructors who already have a recorded justification this term — no approval; still may re-record. */
-  const recordedFacultyIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const j of loadJustifications) {
-      if (academicPeriodId && j.academicPeriodId !== academicPeriodId) continue;
-      if (!(j.justification ?? "").trim()) continue;
-      const fid = (j.facultyUserId ?? "").trim();
-      if (fid) ids.add(fid);
-    }
-    return ids;
-  }, [loadJustifications, academicPeriodId]);
+  /**
+   * Instructors whose CURRENT load is already covered by a record this term.
+   *
+   * Compared against the load that was justified, not merely "has a row": clearing a faculty's plots
+   * and re-plotting them up to the prep limit is a new breach and asks for a new justification.
+   */
+  const recordedFacultyIds = useMemo(
+    () =>
+      coveredFacultyIds(
+        loadJustifications,
+        policyRows.rows.map((r) => ({
+          instructorId: r.instructorId,
+          weeklyTotalContactHours: r.weeklyTotalContactHours,
+          preparations: r.preparations,
+        })),
+        academicPeriodId,
+      ),
+    [loadJustifications, policyRows.rows, academicPeriodId],
+  );
 
   /** Violators who still need a DOI justification record (drives FAQ, form, and red cell outline). */
   const unjustifiedPolicyRows = useMemo(
@@ -1442,7 +1466,9 @@ export function BsitChairmanEvaluatorWorksheet({
         : policyConstants.MAX_WEEKLY_RESIDENT_PREPS_WITHOUT_JUSTIFICATION;
       out.push({
         instructorId: r.instructorId,
-        name: r.instructorName || instructorDisplayById.get(r.instructorId) || "Instructor",
+        // The page's own User + FacultyProfile map wins over the policy engine's copy, so the notice
+        // always names the faculty the row belongs to.
+        name: instructorDisplayById.get(r.instructorId) || r.instructorName || "Instructor",
         preparations: r.preparations,
         limitWithoutJustification,
       });
@@ -1518,7 +1544,7 @@ export function BsitChairmanEvaluatorWorksheet({
       const violators = polJustif.rows.filter((r) => rowNeedsTeachingLoadJustification(r));
       const snapRows = violators.map(
         (r) =>
-          `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk — ${r.violations.map((v) => v.code).join(", ")}`,
+          `${instructorDisplayById.get(r.instructorId) || r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk \u00b7 ${r.preparations} preps — ${r.violations.map((v) => v.code).join(", ")}`,
       );
       for (const v of violators) {
         const plottedForFaculty = rowsForJustif.filter(
@@ -1540,7 +1566,11 @@ export function BsitChairmanEvaluatorWorksheet({
               summary: snapRows.join("\n"),
               detail: polJustif.rows,
               scheduleEntryIds: plottedForFaculty.map((r) => r.id),
-              facultyWeeklyHours: v.weeklyTotalContactHours,
+              ...justificationLoadSnapshot({
+                instructorId: v.instructorId,
+                weeklyTotalContactHours: v.weeklyTotalContactHours,
+                preparations: v.preparations,
+              }),
             },
           },
         });
@@ -1564,7 +1594,14 @@ export function BsitChairmanEvaluatorWorksheet({
             facultyUserId: v.instructorId,
             scheduleEntryId: rowsForJustif.find((r) => r.instructorId === v.instructorId)?.id ?? null,
             justification: t,
-            violationsSnapshot: { summary: snapRows.join("\n") },
+            violationsSnapshot: {
+              summary: snapRows.join("\n"),
+              ...justificationLoadSnapshot({
+                instructorId: v.instructorId,
+                weeklyTotalContactHours: v.weeklyTotalContactHours,
+                preparations: v.preparations,
+              }),
+            },
             createdAt: idx >= 0 ? next[idx]!.createdAt : nowIso,
             updatedAt: nowIso,
           };

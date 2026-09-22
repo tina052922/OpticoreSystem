@@ -17,6 +17,8 @@ type FacultyPayload = {
   sectionIds: string[];
   advisorySectionId?: string | null;
   advisorySectionName?: string | null;
+  /** Every section this faculty advises (migration 014); the singular fields are the first of these. */
+  advisorySections?: { id: string; name: string | null }[];
   weeklyHours: number;
   weeklyMeetingRowCount?: number;
   assignedSectionCount?: number;
@@ -98,12 +100,24 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
     [rows],
   );
 
+  /** Every advisory the profile carries; falls back to the single legacy field. */
+  const advisorySections = useMemo(() => {
+    const list = data?.advisorySections ?? [];
+    if (list.length > 0) return list;
+    return advisoryId ? [{ id: advisoryId, name: advisoryName || null }] : [];
+  }, [data?.advisorySections, advisoryId, advisoryName]);
+
+  const advisoryNames = useMemo(
+    () => advisorySections.map((sec) => (sec.name ?? "").trim()).filter(Boolean),
+    [advisorySections],
+  );
+
   /** Sections to teach + advisory (labels only; no student identifiers). */
   const assignedSectionLabels = useMemo(() => {
     const names = new Set<string>(scheduleSectionNames);
-    if (advisoryName) names.add(advisoryName);
+    for (const name of advisoryNames) names.add(name);
     return [...names].sort((a, b) => a.localeCompare(b));
-  }, [scheduleSectionNames, advisoryName]);
+  }, [scheduleSectionNames, advisoryNames]);
 
   const meetingRows = data?.weeklyMeetingRowCount ?? rows.length;
 
@@ -242,10 +256,13 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
             <span className="font-medium text-black/60">Sections with classes:</span>{" "}
             {scheduleSectionNames.length ? scheduleSectionNames.join(", ") : "—"}
           </p>
-          {advisoryId ? (
+          {advisorySections.length > 0 ? (
             <p className="text-xs text-black/60 mb-3">
-              <span className="font-medium text-[#780301]">Advisory:</span> {advisoryName || "Section on file"}
-              {rows.some((r) => r.section?.id === advisoryId) ? (
+              <span className="font-medium text-[#780301]">
+                {advisorySections.length > 1 ? "Advisory sections:" : "Advisory:"}
+              </span>{" "}
+              {advisoryNames.length > 0 ? advisoryNames.join(", ") : "Section on file"}
+              {advisorySections.some((sec) => rows.some((r) => r.section?.id === sec.id)) ? (
                 <span className="text-black/45"> (also listed above)</span>
               ) : null}
             </p>

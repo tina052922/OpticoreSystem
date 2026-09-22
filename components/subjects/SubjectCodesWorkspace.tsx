@@ -3,17 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BSIT_PROGRAM_CODE } from "@/lib/chairman/bsit-prospectus";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
-import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { normalizeSubjectCodeForCompare } from "@/lib/subjects/normalize-subject-code";
 import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
 import { subjectCodesApi } from "@/lib/api/client";
 import type { Subject } from "@/types/db";
-
-function formatProspectusSemester(sem: number): string {
-  return sem === 1 ? "1st" : "2nd";
-}
 
 function yearLevelHeading(yearLevel: number): string {
   const ordinal =
@@ -61,7 +55,8 @@ export type SubjectCodesWorkspaceProps = {
   scopeProgramId?: string | null;
   scopeProgramCode?: string | null;
   /**
-   * GEC Chairman: BSIT program only — prospectus and database rows limited to GEC-% / GEE-% codes.
+   * GEC Chairman: rows limited to GEC-% / GEE-% codes. GEC subjects are taught across colleges, so the
+   * list is loaded from every program, not just the one used for new rows.
    */
   gecCurriculumOnly?: boolean;
 };
@@ -111,12 +106,6 @@ export function SubjectCodesWorkspace({
     return resolvedProgramCode?.trim() ?? null;
   }, [lockedProgramCode, scopeProgramCode, resolvedProgramCode]);
 
-  const prospectusRows = useMemo(() => {
-    if (!effectiveProgramCode) return [];
-    const raw = getProspectusSubjectsForProgram(effectiveProgramCode);
-    return gecCurriculumOnly ? raw.filter((row) => isGecCurriculumSubjectCode(row.code)) : raw;
-  }, [effectiveProgramCode, gecCurriculumOnly]);
-
   const [code, setCode] = useState("");
   const [title, setTitle] = useState("");
   const [lecUnits, setLecUnits] = useState("");
@@ -131,6 +120,7 @@ export function SubjectCodesWorkspace({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
+  const [programCodeById, setProgramCodeById] = useState<Record<string, string>>({});
   const [subjectSearch, setSubjectSearch] = useState("");
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -140,7 +130,9 @@ export function SubjectCodesWorkspace({
   const [success, setSuccess] = useState<string | null>(null);
 
   const loadSubjects = useCallback(async () => {
-    if (!programId) {
+    // GEC codes are shared across departments, so that list is campus-wide; every other scope is
+    // locked to the selected program.
+    if (!programId && !gecCurriculumOnly) {
       setDbSubjects([]);
       setLoadingList(false);
       return;
@@ -150,17 +142,39 @@ export function SubjectCodesWorkspace({
     setDbSubjects([]);
     try {
       const { apiFetch } = await import("@/lib/api/client");
-      const data = await apiFetch<{ subjects: Subject[] }>(
-        `/api/catalog/subjects?programId=${encodeURIComponent(programId)}&limit=500`,
-        { method: "GET" },
-      );
+      const query = gecCurriculumOnly
+        ? "limit=1000"
+        : `programId=${encodeURIComponent(programId as string)}&limit=500`;
+      const data = await apiFetch<{ subjects: Subject[] }>(`/api/catalog/subjects?${query}`, {
+        method: "GET",
+      });
       setDbSubjects(data.subjects);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load subjects");
       setDbSubjects([]);
     }
     setLoadingList(false);
-  }, [programId]);
+  }, [programId, gecCurriculumOnly]);
+
+  /** Program code per id, so a campus-wide list can say which department a subject belongs to. */
+  const loadProgramCodes = useCallback(async () => {
+    if (!gecCurriculumOnly) {
+      setProgramCodeById({});
+      return;
+    }
+    try {
+      const { apiFetch } = await import("@/lib/api/client");
+      const data = await apiFetch<{ programs: { id: string; code: string }[] }>(
+        "/api/catalog/programs",
+        { method: "GET" },
+      );
+      const map: Record<string, string> = {};
+      for (const prog of data.programs ?? []) map[prog.id] = prog.code;
+      setProgramCodeById(map);
+    } catch {
+      setProgramCodeById({});
+    }
+  }, [gecCurriculumOnly]);
 
   useEffect(() => {
     setEditingId(null);
@@ -176,7 +190,8 @@ export function SubjectCodesWorkspace({
     setSubjectSearch("");
     setSuccess(null);
     void loadSubjects();
-  }, [loadSubjects]);
+    void loadProgramCodes();
+  }, [loadSubjects, loadProgramCodes]);
 
   useEffect(() => {
     if (!pendingDelete) return;
@@ -194,9 +209,10 @@ export function SubjectCodesWorkspace({
     return base.filter(
       (s) =>
         s.code.toLowerCase().includes(q) ||
-        (s.title && s.title.toLowerCase().includes(q)),
+        (s.title && s.title.toLowerCase().includes(q)) ||
+        (programCodeById[s.programId] ?? "").toLowerCase().includes(q),
     );
-  }, [dbSubjects, subjectSearch, gecCurriculumOnly]);
+  }, [dbSubjects, subjectSearch, gecCurriculumOnly, programCodeById]);
 
   const dbSubjectsByYear = useMemo(
     () =>
@@ -209,25 +225,6 @@ export function SubjectCodesWorkspace({
         }),
       ),
     [filteredDbSubjects],
-  );
-
-  const filteredProspectus = useMemo(() => {
-    const q = subjectSearch.trim().toLowerCase();
-    if (!q) return prospectusRows;
-    return prospectusRows.filter((row) => {
-      const semText = formatProspectusSemester(row.semester).toLowerCase();
-      return (
-        String(row.code).toLowerCase().includes(q) ||
-        row.title.toLowerCase().includes(q) ||
-        semText.includes(q) ||
-        String(row.semester).includes(q)
-      );
-    });
-  }, [prospectusRows, subjectSearch]);
-
-  const prospectusByYear = useMemo(
-    () => groupSubjectsByYearLevel(filteredProspectus),
-    [filteredProspectus],
   );
 
   const duplicateLocal = useMemo(() => {
@@ -345,13 +342,6 @@ export function SubjectCodesWorkspace({
       setDeleting(false);
     }
   }
-
-  const prospectusSubtitle =
-    gecCurriculumOnly && effectiveProgramCode?.toUpperCase() === BSIT_PROGRAM_CODE
-      ? "GEC / GEE rows only — CMO No. 25 s. 2015 (BSIT)"
-      : effectiveProgramCode?.toUpperCase() === BSIT_PROGRAM_CODE
-        ? "CMO No. 25 s. 2015 — effective A.Y. 2023–2024"
-        : "Static prospectus slice in `prospectus-registry` for this program code.";
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6 max-h-[min(78vh,960px)] overflow-y-auto">
@@ -491,7 +481,11 @@ export function SubjectCodesWorkspace({
           <div>
             <div className="text-[16px] font-semibold">Saved subject codes (database)</div>
             <p className="text-[12px] text-black/55 mt-1">
-              {programId ? "Rows in Supabase for the selected program." : "Select a program to load saved subjects."}
+              {gecCurriculumOnly
+                ? "GEC / GEE codes from every program — search by code, title, or program."
+                : programId
+                  ? "Rows in Supabase for the selected program."
+                  : "Select a program to load saved subjects."}
               {loadingList ? " Loading…" : ""}
             </p>
           </div>
@@ -517,19 +511,22 @@ export function SubjectCodesWorkspace({
                 <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lab Units</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lab Hours</th>
+                {gecCurriculumOnly ? (
+                  <th className="border border-black/10 px-2 py-2 text-left">Program</th>
+                ) : null}
                 <th className="border border-black/10 px-2 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="text-[12px]">
-              {!programId ? (
+              {!programId && !gecCurriculumOnly ? (
                 <tr>
-                  <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={gecCurriculumOnly ? 9 : 8} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     Select a program to load subjects for that program.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={gecCurriculumOnly ? 9 : 8} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     {dbSubjects.length === 0
                       ? "No subjects in the database for this program yet."
                       : "No saved subjects match your search."}
@@ -539,7 +536,7 @@ export function SubjectCodesWorkspace({
                 dbSubjectsByYear.flatMap((group) => [
                   <tr key={`yr-db-${group.yearLevel}`} className="bg-black/[0.04]">
                     <td
-                      colSpan={8}
+                      colSpan={gecCurriculumOnly ? 9 : 8}
                       className="border border-black/10 px-2 py-2 text-[12px] font-bold text-black/80"
                     >
                       {group.label}
@@ -558,6 +555,11 @@ export function SubjectCodesWorkspace({
                       <td className="border border-black/10 px-2 py-2">
                         {s.labHours ?? labHoursFromUnits(s.labUnits)}
                       </td>
+                      {gecCurriculumOnly ? (
+                        <td className="border border-black/10 px-2 py-2">
+                          {programCodeById[s.programId] ?? "—"}
+                        </td>
+                      ) : null}
                       <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
                         <button
                           type="button"
@@ -581,81 +583,6 @@ export function SubjectCodesWorkspace({
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
-        <div className="p-4 border-b border-black/10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-          <div>
-            <div className="text-[16px] font-semibold">Official prospectus (reference)</div>
-            <p className="text-[12px] text-black/55 mt-1">
-              {programId && effectiveProgramCode
-                ? `${effectiveProgramCode} — ${prospectusSubtitle}`
-                : "Select a program to load the static curriculum reference for that program code."}
-            </p>
-          </div>
-          <p className="text-[11px] text-black/45 sm:text-right">Uses the same search box as saved subjects above.</p>
-        </div>
-        {!programId ? (
-          <p className="text-[13px] text-black/45 px-4 py-6 text-center">No program selected.</p>
-        ) : !effectiveProgramCode ? (
-          <p className="text-[13px] text-amber-800 bg-amber-50 border-t border-amber-200 px-4 py-3">
-            Resolving program code… If this persists, ensure the Program row exists in Supabase.
-          </p>
-        ) : !hasProspectusForProgram(effectiveProgramCode) ? (
-          <p className="text-[13px] text-amber-800 bg-amber-50 border-t border-amber-200 px-4 py-3">
-            No static prospectus is registered for <strong>{effectiveProgramCode}</strong>. Add entries in{" "}
-            <code className="text-xs">prospectus-registry.ts</code> or use saved subjects only.
-          </p>
-        ) : (
-          <div className="overflow-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-[#ff990a] text-white text-[11px]">
-                  <th className="border border-black/10 px-2 py-2 text-left">Yr</th>
-                  <th className="border border-black/10 px-2 py-2 text-left">Sem</th>
-                  <th className="border border-black/10 px-2 py-2 text-left">Subject Code</th>
-                  <th className="border border-black/10 px-2 py-2 text-left">Descriptive Title</th>
-                  <th className="border border-black/10 px-2 py-2 text-left">Lec Units</th>
-                  <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
-                  <th className="border border-black/10 px-2 py-2 text-left">Lab Units</th>
-                  <th className="border border-black/10 px-2 py-2 text-left">Lab Hours</th>
-                </tr>
-              </thead>
-              <tbody className="text-[12px]">
-                {filteredProspectus.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="border border-black/10 px-2 py-6 text-center text-black/45">
-                      No prospectus rows match &quot;{subjectSearch.trim()}&quot;.
-                    </td>
-                  </tr>
-                ) : (
-                  prospectusByYear.flatMap((group) => [
-                    <tr key={`yr-pr-${group.yearLevel}`} className="bg-black/[0.04]">
-                      <td
-                        colSpan={8}
-                        className="border border-black/10 px-2 py-2 text-[12px] font-bold text-black/80"
-                      >
-                        {group.label}
-                      </td>
-                    </tr>,
-                    ...group.subjects.map((s) => (
-                      <tr key={`${s.yearLevel}-${s.semester}-${s.code}`}>
-                        <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
-                        <td className="border border-black/10 px-2 py-2">{formatProspectusSemester(s.semester)}</td>
-                        <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                        <td className="border border-black/10 px-2 py-2">{s.title}</td>
-                        <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
-                        <td className="border border-black/10 px-2 py-2">{lectureHoursFromUnits(s.lecUnits)}</td>
-                        <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                        <td className="border border-black/10 px-2 py-2">{labHoursFromUnits(s.labUnits)}</td>
-                      </tr>
-                    )),
-                  ])
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       {pendingDelete ? (

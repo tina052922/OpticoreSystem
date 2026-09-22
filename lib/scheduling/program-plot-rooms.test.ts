@@ -38,6 +38,25 @@ describe("department-scoped plot rooms", () => {
     const scoped = filterRoomsForProgramPlot([bsitLab, shared], "BSIT", "c1", "prog-bsit");
     expect(scoped.some((r) => r.id === "lab1")).toBe(true);
   });
+
+  it("shows rooms added in Buildings & Rooms to the BSIT plotter", () => {
+    // A COTE Building room created by College Admin: same college, no department lock.
+    const coteRoom = room({ id: "cote-1", code: "COTE-101", building: "COTE Building", programId: null });
+    const scoped = filterRoomsForProgramPlot([coteRoom, bsitLab], "BSIT", "c1", "prog-bsit");
+    expect(scoped.map((r) => r.id).sort()).toEqual(["cote-1", "lab1"]);
+  });
+
+  it("never shows a room from another college", () => {
+    const otherCollege = room({ id: "x9", code: "X-9", collegeId: "c2", programId: null });
+    const scoped = filterRoomsForProgramPlot([otherCollege, shared], "BIT-AUTO", "c1", "prog-a");
+    expect(scoped.map((r) => r.id)).toEqual(["s1"]);
+  });
+
+  it("falls back to the legacy IT labs only when the college has no rooms at all", () => {
+    const foreignLab = room({ id: "lab9", code: "IT LAB 2", displayName: "IT Lab 02", collegeId: "c2" });
+    const scoped = filterRoomsForProgramPlot([foreignLab], "BSIT", "c1", "prog-bsit");
+    expect(scoped.map((r) => r.id)).toEqual(["lab9"]);
+  });
 });
 
 describe("GEC-usable room filter", () => {
