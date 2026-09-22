@@ -8,7 +8,7 @@ import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 
 /**
  * Public home: unauthenticated landing.
- * Updated to match the Figma Landingpage layout (Home / About / Features + CTA), adapted to Next.js.
+ * Public landing layout (Home / Features / About + CTA), adapted to Next.js.
  */
 export function PublicLandingPage() {
   const branding = useCampusBranding();
@@ -40,11 +40,11 @@ export function PublicLandingPage() {
               <a href="#home" className="text-[#a30000] font-medium text-sm shrink-0 hover:opacity-80">
                 Home
               </a>
-              <a href="#about" className="text-[#a30000] text-sm shrink-0 hover:opacity-80">
-                About
-              </a>
               <a href="#features" className="text-[#a30000] text-sm shrink-0 hover:opacity-80">
                 Features
+              </a>
+              <a href="#about" className="text-[#a30000] text-sm shrink-0 hover:opacity-80">
+                About
               </a>
             </div>
             <Button
@@ -73,16 +73,12 @@ export function PublicLandingPage() {
         id="home"
         className="relative isolate w-full min-h-[100dvh] min-w-0 overflow-hidden scroll-mt-[4rem] sm:scroll-mt-[4.75rem]"
       >
-        {/* Full-viewport cover background (no distortion; crops edges on aspect mismatch) */}
-        <div
-          className="pointer-events-none absolute inset-0 z-0 bg-[#1a0505] bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: "url('/login/campus-photo.png')" }}
-          role="img"
-          aria-label="Aerial photograph of Cebu Technological University Argao campus"
-        />
-        <div
-          className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-[rgba(120,3,1,0.82)] via-[rgba(120,3,1,0.55)] to-[rgba(120,3,1,0.18)]"
-          aria-hidden
+        {/* Full-viewport cover photo — no overlay so the provided image is visible */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- static asset from public/ */}
+        <img
+          src="/landing-bg.jpg"
+          alt="Cebu Technological University Argao campus buildings"
+          className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-[center_70%] sm:object-center"
         />
         <div className="relative z-10 flex min-h-[100dvh] w-full flex-col justify-center px-4 sm:px-8 md:px-12 lg:px-16 xl:px-20 pt-[max(5.5rem,calc(env(safe-area-inset-top)+4.25rem))] sm:pt-[max(6.25rem,calc(env(safe-area-inset-top)+4.75rem))] pb-[max(2.5rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto w-full max-w-[min(56rem,calc(100vw-2rem))] text-center sm:mx-0 sm:max-w-none sm:text-left">
