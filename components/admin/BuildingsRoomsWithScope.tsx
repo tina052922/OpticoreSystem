@@ -19,31 +19,11 @@ export function BuildingsRoomsWithScope({ initialCollegeId }: { initialCollegeId
     [],
   );
 
+  // "All departments" stays all departments. This used to auto-pick the college's first program
+  // (COTE landed on BIT-AUTO), which silently narrowed the buildings list to one department.
   useEffect(() => {
-    const collegeChanged = scopeCollegeIdRef.current !== scopeCollegeId;
     scopeCollegeIdRef.current = scopeCollegeId;
-    if (!collegeChanged || !scopeCollegeId || scopeProgramId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { apiFetch } = await import("@/lib/api/client");
-        const data = await apiFetch<{ programs: { id: string; code: string }[] }>(
-          `/api/catalog/programs?collegeId=${scopeCollegeId}`,
-          { method: "GET" },
-        );
-        const row = data.programs?.[0];
-        if (!cancelled && row?.id) {
-          setScopeProgramId(row.id);
-          setScopeProgramCode(row.code ?? null);
-        }
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [scopeCollegeId, scopeProgramId]);
+  }, [scopeCollegeId]);
 
   return (
     <>

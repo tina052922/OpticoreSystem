@@ -34,7 +34,7 @@ import type { GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { slotDurationHours } from "@/lib/scheduling/time";
-import type { FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
+import type { Building, FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 import { isFacultyStaffRole, isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
@@ -121,6 +121,7 @@ import {
   requiredWeeklyContactHours,
   subjectHoursOverLimitMessage,
 } from "@/lib/scheduling/subject-semester-hours";
+import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
 
 export type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 
@@ -376,6 +377,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const [sections, setSections] = useState<Section[]>([]);
   const [programsCatalog, setProgramsCatalog] = useState<Pick<Program, "id" | "collegeId" | "code" | "name">[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  /** `Building` rows — what Buildings & Rooms manages, and what the plot modal may offer. */
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [dbInstructors, setDbInstructors] = useState<User[]>([]);
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
@@ -526,8 +529,10 @@ export function BsitChairmanEvaluatorWorksheet({
         if (!cancelled) {
           const list = (data.justifications ?? []) as ScheduleLoadJustification[];
           setLoadJustifications(list);
-          const lj = list[0];
-          setJustificationText(lj?.justification ?? "");
+          // The box starts empty on purpose. It used to be pre-filled with the newest record in the
+          // term, so the next faculty to breach policy inherited someone else's wording — and the
+          // "Save schedule" path silently recorded that text against them.
+          setJustificationText("");
         }
       } catch {}
     })();
@@ -637,6 +642,8 @@ export function BsitChairmanEvaluatorWorksheet({
 
       bundleSections = (bundle.sections ?? []) as Section[];
       bundleSubjects = (bundle.subjects ?? []) as Subject[];
+
+      setBuildings((bundle.buildings ?? []) as Building[]);
 
       // Rooms refresh on every load, not only on the first one for a term.
       const bundleRooms = (bundle.rooms ?? []) as Room[];
@@ -875,9 +882,10 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [rooms, roomsForEvaluatorGrid]);
 
+  /** Buildings that still exist; a deleted one must not survive as text on a room row. */
   const buildingLabelsForGrid = useMemo(
-    () => sortedNavigationBuildingKeysFromRooms(roomsForEvaluatorGrid),
-    [roomsForEvaluatorGrid],
+    () => buildingNamesForPlotting(buildings, roomsForEvaluatorGrid),
+    [buildings, roomsForEvaluatorGrid],
   );
 
   const sectionNameById = useMemo(() => {
@@ -1449,6 +1457,23 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const showJustification = unjustifiedPolicyRows.length > 0;
 
+  /** Names of the faculty this justification is for; the panel says so out loud. */
+  const unjustifiedFacultyNames = useMemo(
+    () =>
+      unjustifiedPolicyRows.map(
+        (r) => instructorDisplayById.get(r.instructorId) || r.instructorName || "Instructor",
+      ),
+    [unjustifiedPolicyRows, instructorDisplayById],
+  );
+
+  const unjustifiedFacultyLabel = useMemo(() => {
+    if (unjustifiedFacultyNames.length === 0) return "";
+    if (unjustifiedFacultyNames.length === 1) return unjustifiedFacultyNames[0];
+    return `${unjustifiedFacultyNames.slice(0, -1).join(", ")} and ${
+      unjustifiedFacultyNames[unjustifiedFacultyNames.length - 1]
+    }`;
+  }, [unjustifiedFacultyNames]);
+
   /** After justification: keep a simple prep-limit note only (no red outline / FAQ). */
   const justifiedPrepWarnings = useMemo(() => {
     const out: {
@@ -1541,16 +1566,39 @@ export function BsitChairmanEvaluatorWorksheet({
       }
       const author = dbInstructors.find((u) => u.id === user.id);
       const authorName = author?.name ?? user.email ?? user.id;
-      const violators = polJustif.rows.filter((r) => rowNeedsTeachingLoadJustification(r));
+      /**
+       * Only the faculty who still need one. Re-posting for someone already covered duplicated their
+       * record on Summary of Teaching Load, and a failure on that row aborted the whole save — so the
+       * faculty actually being plotted never got recorded and the prompt never cleared.
+       */
+      const alreadyCovered = coveredFacultyIds(
+        loadJustifications,
+        polJustif.rows.map((r) => ({
+          instructorId: r.instructorId,
+          weeklyTotalContactHours: r.weeklyTotalContactHours,
+          preparations: r.preparations,
+        })),
+        academicPeriodId,
+      );
+      const violators = polJustif.rows.filter(
+        (r) => rowNeedsTeachingLoadJustification(r) && !alreadyCovered.has(r.instructorId),
+      );
+      if (violators.length === 0) {
+        setJustificationMsg("Every faculty over policy already has a justification on record.");
+        return false;
+      }
       const snapRows = violators.map(
         (r) =>
           `${instructorDisplayById.get(r.instructorId) || r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk \u00b7 ${r.preparations} preps — ${r.violations.map((v) => v.code).join(", ")}`,
       );
+      const failed: string[] = [];
+      const recorded: typeof violators = [];
       for (const v of violators) {
         const plottedForFaculty = rowsForJustif.filter(
           (r) => r.instructorId === v.instructorId && rowFullyPlotted(r, programCodeForSummary),
         );
         const scheduleEntryId = plottedForFaculty[0]?.id ?? null;
+        try {
         await apiFetch("/api/catalog/schedule-load-justifications", {
           method: "POST",
           body: {
@@ -1574,11 +1622,16 @@ export function BsitChairmanEvaluatorWorksheet({
             },
           },
         });
+          recorded.push(v);
+        } catch (err) {
+          const who = instructorDisplayById.get(v.instructorId) || v.instructorName || "Instructor";
+          failed.push(`${who}: ${err instanceof Error ? err.message : "failed to record"}`);
+        }
       }
       const nowIso = new Date().toISOString();
       setLoadJustifications((prev) => {
         const next = [...prev];
-        for (const v of violators) {
+        for (const v of recorded) {
           const idx = next.findIndex(
             (j) =>
               j.academicPeriodId === academicPeriodId &&
@@ -1610,7 +1663,13 @@ export function BsitChairmanEvaluatorWorksheet({
         }
         return next;
       });
+      if (failed.length > 0) {
+        setJustificationMsg(`Could not record for ${failed.join("; ")}`);
+        toast.error("Justification not fully recorded", failed[0]);
+        return false;
+      }
       setPolicyJustificationModalOpen(false);
+      setJustificationText("");
       dispatchInsCatalogReload();
       void recordScheduleWrite({
           action: "chairman.policy_justification_upsert",
@@ -1630,6 +1689,8 @@ export function BsitChairmanEvaluatorWorksheet({
     chairmanCollegeId,
     justificationText,
     dbInstructors,
+    loadJustifications,
+    instructorDisplayById,
     rows,
     allTermScheduleEntries,
     programId,
@@ -2446,6 +2507,7 @@ export function BsitChairmanEvaluatorWorksheet({
         schedulePublished={schedulePublished || viewOnly}
         instructorPlotOptions={instructorPlotOptions}
         roomsForEvaluatorGrid={roomsForEvaluatorGrid}
+        buildingsCatalog={buildings}
         roomById={roomById}
         roomBuildingByRowId={roomBuildingByRowId}
         setRoomBuildingByRowId={setRoomBuildingByRowId}
@@ -2543,8 +2605,22 @@ export function BsitChairmanEvaluatorWorksheet({
 
       {showJustification && !viewOnly ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 space-y-2">
-          <div className="text-[14px] font-semibold text-amber-950">{JUSTIFICATION_PANEL_TITLE}</div>
+          <div className="text-[14px] font-semibold text-amber-950">
+            {JUSTIFICATION_PANEL_TITLE}
+            {unjustifiedFacultyLabel ? ` — ${unjustifiedFacultyLabel}` : ""}
+          </div>
           <p className="text-[12px] text-amber-950/85 leading-relaxed">{JUSTIFICATION_PANEL_HELP}</p>
+          {unjustifiedPolicyRows.length > 0 ? (
+            <ul className="text-[12px] text-amber-950/90 list-disc pl-4 space-y-0.5">
+              {unjustifiedPolicyRows.map((r) => (
+                <li key={r.instructorId}>
+                  <strong>{instructorDisplayById.get(r.instructorId) || r.instructorName}</strong>:{" "}
+                  {r.weeklyTotalContactHours.toFixed(1)} hrs/week · {r.preparations} preparation
+                  {r.preparations === 1 ? "" : "s"}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <textarea
             className="w-full min-h-[100px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
             value={justificationText}

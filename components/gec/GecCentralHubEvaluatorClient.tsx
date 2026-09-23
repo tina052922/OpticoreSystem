@@ -26,6 +26,7 @@ import { slotDurationHours } from "@/lib/scheduling/time";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import type {
   AcademicPeriod,
+  Building,
   College,
   FacultyProfile,
   Program,
@@ -140,6 +141,8 @@ export function GecCentralHubEvaluatorClient() {
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  /** `Building` rows — what Buildings & Rooms manages, and all the plot modal may offer. */
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
@@ -251,6 +254,7 @@ export function GecCentralHubEvaluatorClient() {
       setSections(bundle.sections ?? []);
       setSubjects(bundle.subjects ?? []);
       setRooms(bundle.rooms ?? []);
+      setBuildings((bundle.buildings ?? []) as Building[]);
       setUsers(bundle.users ?? []);
       setFacultyProfiles(bundle.facultyProfiles ?? []);
       setDoiScheduleLocked(Boolean(bundle.doiScheduleLocked));
@@ -1633,6 +1637,7 @@ export function GecCentralHubEvaluatorClient() {
                     gecSubjects={gecSubjectsForPlot}
                     instructorPlotOptions={instructorPlotOptionsBase}
                     rooms={roomsForPlotting}
+                    buildingsCatalog={buildings}
                     roomBuildingByEntryId={roomBuildingByEntryId}
                     setRoomBuildingByEntryId={setRoomBuildingByEntryId}
                     canEditVacant={canEditVacant}

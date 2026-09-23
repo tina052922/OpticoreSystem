@@ -41,7 +41,8 @@ import {
   roomsInBuildingSorted,
 } from "@/lib/evaluator/room-by-building";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
-import type { Room, ScheduleEntry, Subject } from "@/types/db";
+import type { Building, Room, ScheduleEntry, Subject } from "@/types/db";
+import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
 
 const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -86,6 +87,8 @@ export type GecPlotScheduleModalProps = {
   instructorPlotOptions: InstructorPlotOption[];
   rooms: Room[];
   buildingLabels: string[];
+  /** `Building` rows, so a room is matched to its building by id rather than by leftover text. */
+  buildingsCatalog?: Building[];
   conflictFlags: RowConflictFlags;
   conflictDetailLines?: string[];
   /** Consecutive 1-hour slots for this meeting (default 1 — split across rows). */
@@ -120,6 +123,7 @@ export function GecPlotScheduleModal({
   instructorPlotOptions,
   rooms,
   buildingLabels,
+  buildingsCatalog = [],
   conflictFlags,
   conflictDetailLines = [],
   durationSlots,
@@ -200,7 +204,9 @@ export function GecPlotScheduleModal({
       .map((m) => `${m.day} ${formatTimeRangeFromSlots(m.startSlotIndex, m.durationSlots, slots)}`)
       .join(" · ");
   }, [meetings, slots, programMode, maxDur, days, sub]);
-  const roomsInB = buildingValue ? roomsInBuildingSorted(rooms, buildingValue) : [];
+  const roomsInB = buildingValue
+    ? sortedRoomsInBuildingNamed(rooms, buildingValue, buildingsCatalog)
+    : [];
 
   const { availableSubjects, addAnotherSlotSubjects } = useMemo(() => {
     const isCurrent = (id: string) => id === draft.subjectId;

@@ -7,7 +7,13 @@ import { facultyProfileApi, userAdminApi, apiFetch } from "@/lib/api/client";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { FacultyProfile, Program, ScheduleLoadJustification, Section, User } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
-import { isGecInstructorUser } from "@/lib/faculty/faculty-category";
+import {
+  FACULTY_CATEGORY_GEC,
+  FACULTY_CATEGORY_PROGRAM,
+  isGecInstructorUser,
+  parseFacultyCategory,
+  type FacultyCategory,
+} from "@/lib/faculty/faculty-category";
 import { computeRatePerHour, DESIGNATION_POLICIES, getDesignationPolicyByLabel } from "@/lib/faculty/designation-system";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { resolveHourlyRates } from "@/lib/system-configuration/scheduling-policy";
@@ -67,7 +73,7 @@ export type FacultyProfileWorkspaceProps = {
 };
 
 type ListRow = {
-  user: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId">;
+  user: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory">;
   profile: FacultyProfile | null;
 };
 
@@ -130,6 +136,13 @@ export function FacultyProfileWorkspace({
   const [advisorySectionIds, setAdvisorySectionIds] = useState<string[]>([]);
   /** Department the instructor belongs to (`User.chairmanProgramId`). Locked for a Program Chairman. */
   const [departmentProgramId, setDepartmentProgramId] = useState("");
+  /**
+   * Teaching category. A GEC instructor is college-scoped and teaches across departments, so they
+   * carry no home department — a Program Chairman can enroll one from here.
+   */
+  const [facultyCategory, setFacultyCategory] = useState<FacultyCategory>(
+    gecFacultyFilter ? FACULTY_CATEGORY_GEC : FACULTY_CATEGORY_PROGRAM,
+  );
 
   const [rows, setRows] = useState<ListRow[]>([]);
   const [facultyListSearch, setFacultyListSearch] = useState("");
@@ -185,7 +198,7 @@ export function FacultyProfileWorkspace({
     setLoadingList(true);
     setError(null);
 
-    let users: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId">[] = [];
+    let users: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory">[] = [];
     try {
       const { apiFetch } = await import("@/lib/api/client");
       const data = await apiFetch<{
@@ -211,12 +224,16 @@ export function FacultyProfileWorkspace({
           name: u.name,
           employeeId: u.employeeId,
           chairmanProgramId: u.chairmanProgramId ?? null,
+          facultyCategory: u.facultyCategory ?? null,
         }));
     } catch {
       setLoadingList(false);
       return;
     }
-    let list = (users ?? []) as Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId">[];
+    let list = (users ?? []) as Pick<
+      User,
+      "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory"
+    >[];
     if (list.length === 0) {
       setRows([]);
       setLoadingList(false);
@@ -292,6 +309,7 @@ export function FacultyProfileWorkspace({
           name: u.name,
           employeeId: u.employeeId,
           chairmanProgramId: u.chairmanProgramId ?? null,
+          facultyCategory: u.facultyCategory ?? null,
         },
         profile: byUser.get(u.id) ?? null,
       })),
@@ -526,6 +544,8 @@ export function FacultyProfileWorkspace({
       eligibility: eligibility.trim() || null,
     };
 
+    const isGec = facultyCategory === FACULTY_CATEGORY_GEC;
+
     setSaving(true);
     if (editingUserId) {
       const profilePayload = {
@@ -540,7 +560,9 @@ export function FacultyProfileWorkspace({
         await userAdminApi.update(editingUserId, {
           name: nameTrim,
           employeeId: employeeId.trim() || null,
-          chairmanProgramId: departmentProgramId.trim() || null,
+          // A GEC instructor is not tied to one department.
+          chairmanProgramId: isGec ? null : departmentProgramId.trim() || null,
+          facultyCategory,
         });
         const row = rows.find((r) => r.user.id === editingUserId);
         if (row?.profile) {
@@ -575,7 +597,8 @@ export function FacultyProfileWorkspace({
         role: "instructor",
         collegeId,
         employeeId: employeeId.trim() || null,
-        chairmanProgramId: chairmanProgramId || departmentProgramId.trim() || null,
+        chairmanProgramId: isGec ? null : chairmanProgramId || departmentProgramId.trim() || null,
+        facultyCategory,
         instructorValidation: "active",
       });
     } catch (err: any) {
@@ -632,6 +655,7 @@ export function FacultyProfileWorkspace({
     setExperience("");
     setEligibility("");
     setDepartmentProgramId(chairmanProgramId ?? "");
+    setFacultyCategory(gecFacultyFilter ? FACULTY_CATEGORY_GEC : FACULTY_CATEGORY_PROGRAM);
     setStatus(FACULTY_EMPLOYMENT_RESIDENT);
     setDesignation("");
     setAdvisorySectionIds([]);
@@ -654,6 +678,7 @@ export function FacultyProfileWorkspace({
     setExperience(row.profile?.experience ?? "");
     setEligibility(row.profile?.eligibility ?? "");
     setDepartmentProgramId(row.user.chairmanProgramId ?? chairmanProgramId ?? "");
+    setFacultyCategory(parseFacultyCategory(row.user.facultyCategory));
     setStatus(normalizeFacultyProfileStatus(row.profile?.status));
     setDesignation(row.profile?.designation ?? "");
     setAdvisorySectionIds(advisorySectionIdsOf(row.profile));
@@ -976,12 +1001,33 @@ export function FacultyProfileWorkspace({
               />
             </div>
             <div className="space-y-1">
+              <div className="text-sm font-medium">Instructor category</div>
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={facultyCategory}
+                onChange={(e) => setFacultyCategory(parseFacultyCategory(e.target.value))}
+                disabled={!collegeId}
+              >
+                <option value={FACULTY_CATEGORY_PROGRAM}>Program / department instructor</option>
+                <option value={FACULTY_CATEGORY_GEC}>GEC instructor</option>
+              </select>
+              <p className="text-[11px] text-black/50 leading-relaxed">
+                {facultyCategory === FACULTY_CATEGORY_GEC
+                  ? "Teaches GEC subjects across departments; the GEC Chairman plots their load."
+                  : "Belongs to one department, plotted by that Program Chairman."}
+              </p>
+            </div>
+            <div className="space-y-1">
               <div className="text-sm font-medium">Program (department)</div>
               <select
                 className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
-                value={departmentProgramId}
+                value={facultyCategory === FACULTY_CATEGORY_GEC ? "" : departmentProgramId}
                 onChange={(e) => setDepartmentProgramId(e.target.value)}
-                disabled={!collegeId || Boolean(chairmanProgramId)}
+                disabled={
+                  !collegeId ||
+                  facultyCategory === FACULTY_CATEGORY_GEC ||
+                  Boolean(chairmanProgramId)
+                }
               >
                 <option value="">— Unassigned —</option>
                 {programs.map((p) => (
@@ -991,9 +1037,11 @@ export function FacultyProfileWorkspace({
                 ))}
               </select>
               <p className="text-[11px] text-black/50 leading-relaxed">
-                {chairmanProgramId
-                  ? "Locked to your department."
-                  : "Which department this instructor belongs to. Used for Faculty Profile scope and plotting."}
+                {facultyCategory === FACULTY_CATEGORY_GEC
+                  ? "Not applicable — GEC instructors are college-scoped."
+                  : chairmanProgramId
+                    ? "Locked to your department."
+                    : "Which department this instructor belongs to. Used for Faculty Profile scope and plotting."}
               </p>
             </div>
             <div className="space-y-1">
@@ -1288,7 +1336,13 @@ export function FacultyProfileWorkspace({
                             )}
                           </td>
                           <td className="border border-black/10 px-2 py-2">
-                            {departmentLabelFor({ user, profile })}
+                            {isGecInstructorUser(user) ? (
+                              <span className="inline-flex items-center rounded-md bg-[#ff990a]/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#8a5200]">
+                                GEC instructor
+                              </span>
+                            ) : (
+                              departmentLabelFor({ user, profile })
+                            )}
                           </td>
                           {enableFacultyListEdit ? (
                             <td className="border border-black/10 px-2 py-2">

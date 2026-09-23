@@ -1,31 +1,22 @@
-import { ChairmanScopedPage } from "@/components/chairman/ChairmanScopedPage";
+import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { SubjectCodesWorkspace } from "@/components/subjects/SubjectCodesWorkspace";
-import { BSIT_PROGRAM_CODE, BSIT_PROGRAM_ID } from "@/lib/chairman/bsit-prospectus";
-import { getAuthenticatedProfile } from "@/lib/auth/require-role";
-
-const GEC_ROUTING_COLLEGE_ID = "col-tech-eng";
 
 /**
- * Subject codes — BSIT prospectus and database rows filtered to GEC-% / GEE-% only (general education).
+ * Subject codes — the whole campus catalog.
+ *
+ * GEC subjects are taught across departments, so this page carries no "Search & scope" bar: there is
+ * no single department to scope to. Every subject is listed, GEC and major/minor alike, grouped by
+ * year level with its semester and department on the row, and the chairman may add, edit and delete
+ * like any other chairman.
  */
-export default async function GecSubjectCodesPage() {
-  const profile = await getAuthenticatedProfile();
-  const collegeId = profile.collegeId ?? GEC_ROUTING_COLLEGE_ID;
-
+export default function GecSubjectCodesPage() {
   return (
-    <ChairmanScopedPage
-      title="Subject Codes (GEC / GEE)"
-      subtitle="BSIT prospectus — GEC- and GEE-prefixed codes only. Major subjects stay with the Program Chairman."
-      chairmanCollegeId={collegeId}
-      chairmanProgramId={BSIT_PROGRAM_ID}
-      chairmanProgramCode={BSIT_PROGRAM_CODE}
-      chairmanProgramName="Bachelor of Science in Information Technology"
-    >
-      <SubjectCodesWorkspace
-        lockedProgramId={BSIT_PROGRAM_ID}
-        lockedProgramCode={BSIT_PROGRAM_CODE}
-        gecCurriculumOnly
+    <div>
+      <ChairmanPageHeader
+        title="Subject Codes"
+        subtitle="Every department's subjects, grouped by year level — semester and department are shown per row."
       />
-    </ChairmanScopedPage>
+      <SubjectCodesWorkspace allProgramsCatalog />
+    </div>
   );
 }

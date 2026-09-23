@@ -15,7 +15,6 @@ export default async function DoiLayout({ children }: { children: React.ReactNod
       navItems={DOI_ADMIN_NAV}
       roleLabel="DOI · VPAA"
       profileHref="/doi/profile"
-      settingsHref="/doi/system-configuration"
       auditLogUnreadScope="doi"
     >
       {children}

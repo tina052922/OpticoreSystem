@@ -1,4 +1,5 @@
 import "server-only";
+import { campusRoomCount } from "@/lib/campus/room-count";
 
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
@@ -157,7 +158,20 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
     period = Array.isArray(latest) ? latest[0] : latest;
   }
 
-  let roomCount = 0;
+  /**
+   * Rooms are a campus resource: the same number for every role, and the same number Buildings &
+   * Rooms lists. Faculty, sections and plotted schedules stay scoped below.
+   */
+  const roomCount = await campusRoomCount(
+    async () => {
+      const res = await supabase.from("Room").select("id, buildingId, building");
+      return { data: res.data as { buildingId?: string | null; building?: string | null }[] | null, error: res.error };
+    },
+    async () => {
+      const res = await supabase.from("Building").select("id, name");
+      return { data: res.data as { id?: string | null; name?: string | null }[] | null, error: res.error };
+    },
+  );
   let sectionCount = 0;
   let facultyCount = 0;
   let draftScheduleCount = 0;
@@ -175,14 +189,6 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
   }
 
   if (mode === "program" && collegeId && programId) {
-    const { count: rc } = await supabase
-      .from("Room")
-      .select("id", { count: "exact", head: true })
-      // Scope must match what Buildings & Rooms lists: rooms owned by this college only.
-      // Counting `collegeId is null` as well pulled in legacy campus-wide rows and inflated the tile.
-      .eq("collegeId", collegeId);
-    roomCount = rc ?? 0;
-
     const { data: secs, count: sc } = await supabase
       .from("Section")
       .select("id", { count: "exact" })
@@ -206,14 +212,6 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
       draftScheduleCount = new Set((plotted || []).map((r: { sectionId?: string }) => r.sectionId).filter(Boolean)).size;
     }
   } else if (mode === "college" && collegeId) {
-    const { count: rc } = await supabase
-      .from("Room")
-      .select("id", { count: "exact", head: true })
-      // Scope must match what Buildings & Rooms lists: rooms owned by this college only.
-      // Counting `collegeId is null` as well pulled in legacy campus-wide rows and inflated the tile.
-      .eq("collegeId", collegeId);
-    roomCount = rc ?? 0;
-
     const { data: programs } = await supabase
       .from("Program")
       .select("id")
@@ -243,10 +241,6 @@ async function fetchAnalyticsDirectly(supabase: any, args: {
       }
     }
   } else if (mode === "campus") {
-    const { count: rc } = await supabase
-      .from("Room")
-      .select("id", { count: "exact", head: true });
-    roomCount = rc ?? 0;
     const { data: secs, count: sc } = await supabase
       .from("Section")
       .select("id", { count: "exact" });

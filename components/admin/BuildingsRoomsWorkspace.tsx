@@ -60,22 +60,18 @@ export function BuildingsRoomsWorkspace({
   const canEdit = Boolean(scopeCollegeId && scopeProgramId);
 
   const load = useCallback(async () => {
-    if (!scopeCollegeId) {
-      setBuildings([]);
-      setRooms([]);
-      return;
-    }
+    // No college in scope means "all colleges": list every building rather than nothing.
     setLoading(true);
     setError(null);
     try {
       const [bRes, rRes] = await Promise.all([
         buildingsRoomsApi.listBuildings({
-          collegeId: scopeCollegeId,
-          programId: scopeProgramId,
+          collegeId: scopeCollegeId || null,
+          programId: scopeProgramId || null,
         }),
         buildingsRoomsApi.listRooms({
-          collegeId: scopeCollegeId,
-          programId: scopeProgramId,
+          collegeId: scopeCollegeId || null,
+          programId: scopeProgramId || null,
         }),
       ]);
       const nextBuildings = bRes.buildings ?? [];
@@ -407,7 +403,9 @@ export function BuildingsRoomsWorkspace({
 
       {!canEdit ? (
         <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Select a college and department above to manage buildings and rooms.
+          {scopeCollegeId
+            ? "Pick a department above to add or edit — a building belongs to one. The list below shows every building in this college."
+            : "Showing every building on campus. Pick a college and department above to add or edit."}
         </p>
       ) : null}
 

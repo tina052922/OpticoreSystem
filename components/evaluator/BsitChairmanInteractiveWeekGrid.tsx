@@ -36,8 +36,9 @@ import { formatLecLabDisplay } from "@/lib/evaluator/chairman-plot-leclab";
 import type { MajorOption } from "@/components/evaluator/ChairmanPlotScheduleModal";
 import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
 import type { InstructorPlotOption } from "@/lib/evaluator/instructor-employee-id";
-import type { Room, Section } from "@/types/db";
+import type { Building, Room, Section } from "@/types/db";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
+import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
 
 export type { RowConflictFlags };
 
@@ -129,6 +130,8 @@ export type BsitChairmanInteractiveWeekGridProps = {
   schedulePublished: boolean;
   instructorPlotOptions: InstructorPlotOption[];
   roomsForEvaluatorGrid: Room[];
+  /** `Building` rows; empty on a database without migration 010, which falls back to room text. */
+  buildingsCatalog?: Building[];
   roomById: Map<string, Room>;
   roomBuildingByRowId: Record<string, string>;
   setRoomBuildingByRowId: Dispatch<SetStateAction<Record<string, string>>>;
@@ -237,6 +240,7 @@ export function BsitChairmanInteractiveWeekGrid({
   schedulePublished,
   instructorPlotOptions,
   roomsForEvaluatorGrid,
+  buildingsCatalog = [],
   roomById,
   roomBuildingByRowId,
   setRoomBuildingByRowId,
@@ -262,8 +266,8 @@ export function BsitChairmanInteractiveWeekGrid({
   const slots = timeSlots ?? BSIT_ONE_HOUR_SLOTS;
   const days = weekdays;
   const buildingLabelsForGrid = useMemo(
-    () => sortedNavigationBuildingKeysFromRooms(roomsForEvaluatorGrid),
-    [roomsForEvaluatorGrid],
+    () => buildingNamesForPlotting(buildingsCatalog, roomsForEvaluatorGrid),
+    [buildingsCatalog, roomsForEvaluatorGrid],
   );
 
   const [highlightedCell, setHighlightedCell] = useState<CellAnchor | null>(null);
@@ -724,6 +728,7 @@ export function BsitChairmanInteractiveWeekGrid({
         instructorPlotOptions={instructorPlotOptions}
         roomsForEvaluatorGrid={roomsForEvaluatorGrid}
         buildingLabelsForGrid={buildingLabelsForGrid}
+        buildingsCatalog={buildingsCatalog}
         sectionNameById={sectionNameById}
         termProspectusSemester={termProspectusSemester}
         plottedCodesBySectionId={plottedCodesBySectionId}

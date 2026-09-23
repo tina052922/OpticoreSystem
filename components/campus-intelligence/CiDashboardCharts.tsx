@@ -1,6 +1,7 @@
 "use client";
 
 import { TrendingUp, BarChart3 } from "lucide-react";
+import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { useEffect, useState } from "react";
 import {
   BarChart,
@@ -13,9 +14,15 @@ import {
   PieChart,
   Pie,
   Cell,
+  LabelList,
 } from "recharts";
 
 /** Split out so the main dashboard shell can load without the heavy recharts chunk. */
+/** Empty charts almost always mean "nothing plotted in this term yet" — say so by name. */
+function emptyStateLine(termLabel: string, what: string): string {
+  return termLabel ? `No ${what} in ${termLabel} yet.` : `No ${what} for this scope yet.`;
+}
+
 export function CiDashboardCharts({
   analyticsScope,
   chartsData,
@@ -42,6 +49,8 @@ export function CiDashboardCharts({
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const semester = useSemesterFilterOptional();
+  const termLabel = semester?.selectedPeriod?.name ?? "";
 
   const hasServerData = chartsData !== null && chartsData !== undefined;
 
@@ -136,11 +145,22 @@ export function CiDashboardCharts({
     );
   }
 
-  const hasRoomData = roomUtilizationData.length > 0;
-  const hasFacultyData = facultyLoadData.length > 0;
+  /**
+   * A block with no room in use is not data. Against a campus-wide denominator a real schedule can
+   * sit at 1–2%, which reads as an empty chart — so the bars also carry the room count.
+   */
+  const hasRoomData = roomUtilizationData.some((d) => d.utilization > 0);
+  const hasFacultyData = facultyLoadData.some((d) => d.value > 0);
 
-  // Y-axis domain 0–100 with fixed ticks
-  const yDomain: [number, number] = [0, 100];
+  /**
+   * Utilisation is measured against every campus room, so a real schedule often sits in the low
+   * single digits. A fixed 0–100 axis rendered those bars as a hairline and the chart read as
+   * empty; the ceiling now follows the data (minimum 10%) and each bar carries its value.
+   */
+  const peakUtilization = roomUtilizationData.reduce((max, d) => Math.max(max, d.utilization), 0);
+  const yMax = Math.min(100, Math.max(10, Math.ceil(peakUtilization / 10) * 10));
+  const yDomain: [number, number] = [0, yMax];
+  const yTicks = [0, Math.round(yMax / 4), Math.round(yMax / 2), Math.round((yMax * 3) / 4), yMax];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -150,7 +170,7 @@ export function CiDashboardCharts({
           Room utilization by time slot
         </h3>
         <p className="text-xs text-gray-600 mb-3">
-          Rooms in use per period (% of rooms in scope).
+          Rooms in use per period (% of campus rooms){termLabel ? ` · ${termLabel}` : ""}.
         </p>
         {hasRoomData ? (
           <ResponsiveContainer width="100%" height={350}>
@@ -170,7 +190,7 @@ export function CiDashboardCharts({
               <YAxis
                 fontSize={12}
                 domain={yDomain}
-                ticks={[0, 25, 50, 75, 100]}
+                ticks={yTicks}
                 tickFormatter={(v) => `${v}%`}
                 label={{
                   value: "% of rooms in use",
@@ -189,12 +209,23 @@ export function CiDashboardCharts({
                 name="Rooms in use"
                 fill="#FF990A"
                 radius={[4, 4, 0, 0]}
-              />
+              >
+                <LabelList
+                  dataKey="utilization"
+                  position="top"
+                  fontSize={10}
+                  fill="#6b7280"
+                  formatter={(v: number) => (v > 0 ? `${v}%` : "")}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
-            No schedule data available for this scope.
+          <div className="flex h-64 flex-col items-center justify-center gap-1 px-6 text-center">
+            <p className="text-sm text-gray-500">{emptyStateLine(termLabel, "plotted schedules")}</p>
+            <p className="text-xs text-gray-400">
+              Plot a schedule in the Evaluator, or switch the term above to one that has plots.
+            </p>
           </div>
         )}
       </div>
@@ -263,8 +294,11 @@ export function CiDashboardCharts({
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
-            No finalized schedules yet for this scope.
+          <div className="flex h-64 flex-col items-center justify-center gap-1 px-6 text-center">
+            <p className="text-sm text-gray-500">{emptyStateLine(termLabel, "faculty load")}</p>
+            <p className="text-xs text-gray-400">
+              Bands appear once instructors are assigned to plotted meetings in this term.
+            </p>
           </div>
         )}
       </div>

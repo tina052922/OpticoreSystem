@@ -57,8 +57,9 @@ import {
   type SparseScheduleBlock,
 } from "@/lib/scheduling/conflicts";
 import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
-import type { Room, Section } from "@/types/db";
+import type { Building, Room, Section } from "@/types/db";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
+import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
 
 const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -128,6 +129,8 @@ export type ChairmanPlotScheduleModalProps = {
   instructorPlotOptions: InstructorPlotOption[];
   roomsForEvaluatorGrid: Room[];
   buildingLabelsForGrid: string[];
+  /** `Building` rows, so a room is matched to its building by id rather than by leftover text. */
+  buildingsCatalog?: Building[];
   sectionNameById: Map<string, string>;
   termProspectusSemester: BsitSemester | null;
   plottedCodesBySectionId: Map<string, Set<string>>;
@@ -166,6 +169,7 @@ export function ChairmanPlotScheduleModal({
   instructorPlotOptions,
   roomsForEvaluatorGrid,
   buildingLabelsForGrid,
+  buildingsCatalog = [],
   sectionNameById,
   termProspectusSemester,
   plottedCodesBySectionId,
@@ -338,7 +342,7 @@ export function ChairmanPlotScheduleModal({
         : (lecLabModes[0] ?? draft.lecLabMode ?? "lec");
 
   const roomsInB = buildingValue
-    ? roomsInBuildingSorted(roomsForEvaluatorGrid, buildingValue)
+    ? sortedRoomsInBuildingNamed(roomsForEvaluatorGrid, buildingValue, buildingsCatalog)
     : [];
 
   const noSections = programSections.length === 0;
@@ -902,14 +906,14 @@ export function ChairmanPlotScheduleModal({
                   onBuildingChange(b);
                   const keep =
                     draft.roomId &&
-                    roomsForEvaluatorGrid.some(
-                      (r) => r.id === draft.roomId && roomBuildingKey(r) === b,
+                    sortedRoomsInBuildingNamed(roomsForEvaluatorGrid, b, buildingsCatalog).some(
+                      (r) => r.id === draft.roomId,
                     );
                   if (!keep) onDraftChange({ ...draft, roomId: "" });
                 }}
               >
                 <option value="">
-                  {noBuildings ? "No rooms in catalog" : "Select building…"}
+                  {noBuildings ? "No buildings configured" : "Select building…"}
                 </option>
                 {buildingLabelsForGrid.map((b) => (
                   <option key={b} value={b}>

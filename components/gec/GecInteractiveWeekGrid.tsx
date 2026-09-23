@@ -42,8 +42,9 @@ import {
 import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
 import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
-import type { FacultyProfile, Room, ScheduleEntry, Subject, User } from "@/types/db";
+import type { Building, FacultyProfile, Room, ScheduleEntry, Subject, User } from "@/types/db";
 import { AlertTriangle, Save } from "lucide-react";
+import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
 
 function hhmm(t: string): string {
   return normalizeSlotHHMM(t);
@@ -142,6 +143,8 @@ export type GecInteractiveWeekGridProps = {
   gecSubjects: Subject[];
   instructorPlotOptions: InstructorPlotOption[];
   rooms: Room[];
+  /** `Building` rows; empty on a database without migration 010, which falls back to room text. */
+  buildingsCatalog?: Building[];
   roomBuildingByEntryId: Record<string, string>;
   setRoomBuildingByEntryId: Dispatch<SetStateAction<Record<string, string>>>;
   canEditVacant: boolean;
@@ -193,6 +196,7 @@ export function GecInteractiveWeekGrid({
   gecSubjects,
   instructorPlotOptions,
   rooms,
+  buildingsCatalog = [],
   roomBuildingByEntryId,
   setRoomBuildingByEntryId,
   canEditVacant,
@@ -217,7 +221,20 @@ export function GecInteractiveWeekGrid({
   const router = useRouter();
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
   const days = weekdays ?? evaluatorWeekdays(programMode);
-  const buildingLabels = useMemo(() => sortedNavigationBuildingKeysFromRooms(rooms), [rooms]);
+  /**
+   * Buildings GEC may plot into: the ones flagged "Set for GEC" in Buildings & Rooms. Until an admin
+   * flags any, every building stays available so plotting is never blocked.
+   */
+  const gecBuildings = useMemo(() => {
+    const flagged = buildingsCatalog.filter((b) => b.gecUsable);
+    return flagged.length > 0 ? flagged : buildingsCatalog;
+  }, [buildingsCatalog]);
+
+  /** Buildings that still exist; a deleted one must not survive as text on a room row. */
+  const buildingLabels = useMemo(
+    () => buildingNamesForPlotting(gecBuildings, rooms),
+    [gecBuildings, rooms],
+  );
 
   const [highlightedCell, setHighlightedCell] = useState<CellAnchor | null>(null);
   const [modal, setModal] = useState<ModalSession | null>(null);
@@ -730,6 +747,7 @@ export function GecInteractiveWeekGrid({
         instructorPlotOptions={instructorPlotOptions}
         rooms={rooms}
         buildingLabels={buildingLabels}
+        buildingsCatalog={gecBuildings}
         conflictFlags={modalConflictFlags}
         conflictDetailLines={modalConflictLines}
         durationSlots={modal?.durationSlots ?? 1}

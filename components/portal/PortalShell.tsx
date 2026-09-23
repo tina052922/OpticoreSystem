@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { KeyRound, LogOut, MapPin, Menu, X } from "lucide-react";
+import { KeyRound, LogOut, MapPin, Menu, UserRound, X } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CTU_LOGO_PNG } from "@/lib/branding";
@@ -139,27 +140,41 @@ export function PortalShell({
                 <UserShellAvatar name={userName} imageUrl={profileImageUrl} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[220px]">
-              <div className="px-2 py-1.5 text-xs text-black/60 border-b border-black/10 mb-1">
-                <div className="font-semibold text-black text-sm">{userName}</div>
-                {userEmail ? <div className="truncate">{userEmail}</div> : null}
+            <DropdownMenuContent align="end" className="w-[264px]">
+              <div className="flex items-center gap-3 px-2.5 pb-3 pt-2">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-black/[0.04]">
+                  <UserShellAvatar name={userName} imageUrl={profileImageUrl} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold leading-tight text-black">
+                    {userName}
+                  </span>
+                  {userEmail ? (
+                    <span className="block truncate text-[11px] leading-tight text-black/50">{userEmail}</span>
+                  ) : null}
+                </span>
               </div>
+              <DropdownMenuSeparator />
               {profileHref ? (
                 <DropdownMenuItem asChild>
-                  <Link href={profileHref}>Profile</Link>
+                  <Link href={profileHref}>
+                    <UserRound aria-hidden />
+                    Profile
+                  </Link>
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuItem asChild>
-                <Link href="/account/change-password" className="flex items-center gap-2 cursor-pointer">
-                  <KeyRound className="w-4 h-4 shrink-0 text-black/70" aria-hidden />
+                <Link href="/account/change-password">
+                  <KeyRound aria-hidden />
                   Change password
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => void logout()}
-                className="text-red-700 focus:text-red-800 focus:bg-red-50"
+                className="text-red-700 focus:bg-red-50 focus:text-red-800 data-[highlighted]:bg-red-50 data-[highlighted]:text-red-800 [&_svg]:text-red-600"
               >
-                <LogOut className="w-4 h-4 mr-2" />
+                <LogOut aria-hidden />
                 Logout
               </DropdownMenuItem>
             </DropdownMenuContent>

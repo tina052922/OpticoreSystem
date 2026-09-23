@@ -484,11 +484,11 @@ export function INSFormRoom({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-52">
                     <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
-                      <Download className="w-4 h-4 mr-2" />
+                      <Download className="w-4 h-4" />
                       Download / Save as PDF
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => void onShare()}>
-                      <Share2 className="w-4 h-4 mr-2" />
+                      <Share2 className="w-4 h-4" />
                       Share INS Form
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>

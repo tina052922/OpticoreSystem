@@ -55,10 +55,16 @@ export type SubjectCodesWorkspaceProps = {
   scopeProgramId?: string | null;
   scopeProgramCode?: string | null;
   /**
-   * GEC Chairman: rows limited to GEC-% / GEE-% codes. GEC subjects are taught across colleges, so the
-   * list is loaded from every program, not just the one used for new rows.
+   * GEC Chairman: rows limited to GEC-% / GEE-% codes.
+   * @deprecated Superseded by {@link SubjectCodesWorkspaceProps.allProgramsCatalog}; GEC now keeps the
+   * whole catalog so its chairman can see how a GEC code sits beside the major subjects of a year.
    */
   gecCurriculumOnly?: boolean;
+  /**
+   * Campus-wide catalog: every program's subjects in one list, with the department chosen per row
+   * instead of through a scope bar. Used by the GEC Chairman, who works across departments.
+   */
+  allProgramsCatalog?: boolean;
 };
 
 export function SubjectCodesWorkspace({
@@ -67,8 +73,14 @@ export function SubjectCodesWorkspace({
   scopeProgramId = null,
   scopeProgramCode = null,
   gecCurriculumOnly = false,
+  allProgramsCatalog = false,
 }: SubjectCodesWorkspaceProps) {
-  const programId = lockedProgramId ?? scopeProgramId ?? null;
+  const scopedProgramId = lockedProgramId ?? scopeProgramId ?? null;
+  /** Every program's subjects are listed; new rows pick their department in the form. */
+  const campusWide = allProgramsCatalog || gecCurriculumOnly;
+  /** Department a new / edited subject belongs to. */
+  const [formProgramId, setFormProgramId] = useState("");
+  const programId = campusWide ? formProgramId || scopedProgramId : scopedProgramId;
 
   const [resolvedProgramCode, setResolvedProgramCode] = useState<string | null>(null);
 
@@ -121,6 +133,7 @@ export function SubjectCodesWorkspace({
 
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
   const [programCodeById, setProgramCodeById] = useState<Record<string, string>>({});
+  const [programOptions, setProgramOptions] = useState<{ id: string; code: string }[]>([]);
   const [subjectSearch, setSubjectSearch] = useState("");
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -132,7 +145,7 @@ export function SubjectCodesWorkspace({
   const loadSubjects = useCallback(async () => {
     // GEC codes are shared across departments, so that list is campus-wide; every other scope is
     // locked to the selected program.
-    if (!programId && !gecCurriculumOnly) {
+    if (!scopedProgramId && !campusWide) {
       setDbSubjects([]);
       setLoadingList(false);
       return;
@@ -142,9 +155,9 @@ export function SubjectCodesWorkspace({
     setDbSubjects([]);
     try {
       const { apiFetch } = await import("@/lib/api/client");
-      const query = gecCurriculumOnly
+      const query = campusWide
         ? "limit=1000"
-        : `programId=${encodeURIComponent(programId as string)}&limit=500`;
+        : `programId=${encodeURIComponent(scopedProgramId as string)}&limit=500`;
       const data = await apiFetch<{ subjects: Subject[] }>(`/api/catalog/subjects?${query}`, {
         method: "GET",
       });
@@ -154,11 +167,11 @@ export function SubjectCodesWorkspace({
       setDbSubjects([]);
     }
     setLoadingList(false);
-  }, [programId, gecCurriculumOnly]);
+  }, [scopedProgramId, campusWide]);
 
   /** Program code per id, so a campus-wide list can say which department a subject belongs to. */
   const loadProgramCodes = useCallback(async () => {
-    if (!gecCurriculumOnly) {
+    if (!campusWide) {
       setProgramCodeById({});
       return;
     }
@@ -171,10 +184,14 @@ export function SubjectCodesWorkspace({
       const map: Record<string, string> = {};
       for (const prog of data.programs ?? []) map[prog.id] = prog.code;
       setProgramCodeById(map);
+      setProgramOptions(
+        [...(data.programs ?? [])].sort((a, b) => a.code.localeCompare(b.code)),
+      );
     } catch {
       setProgramCodeById({});
+      setProgramOptions([]);
     }
-  }, [gecCurriculumOnly]);
+  }, [campusWide]);
 
   useEffect(() => {
     setEditingId(null);
@@ -203,7 +220,11 @@ export function SubjectCodesWorkspace({
   }, [pendingDelete]);
 
   const filteredDbSubjects = useMemo(() => {
-    const base = gecCurriculumOnly ? dbSubjects.filter((s) => isGecCurriculumSubjectCode(s.code)) : dbSubjects;
+    // GEC keeps the whole catalog now; only the legacy flag still narrows to GEC / GEE codes.
+    const base =
+      gecCurriculumOnly && !allProgramsCatalog
+        ? dbSubjects.filter((s) => isGecCurriculumSubjectCode(s.code))
+        : dbSubjects;
     const q = subjectSearch.trim().toLowerCase();
     if (!q) return base;
     return base.filter(
@@ -212,7 +233,7 @@ export function SubjectCodesWorkspace({
         (s.title && s.title.toLowerCase().includes(q)) ||
         (programCodeById[s.programId] ?? "").toLowerCase().includes(q),
     );
-  }, [dbSubjects, subjectSearch, gecCurriculumOnly, programCodeById]);
+  }, [dbSubjects, subjectSearch, gecCurriculumOnly, allProgramsCatalog, programCodeById]);
 
   const dbSubjectsByYear = useMemo(
     () =>
@@ -246,6 +267,7 @@ export function SubjectCodesWorkspace({
     setLecHoursTouched(false);
     setLabHoursTouched(false);
     setYearLevel("1");
+    if (campusWide) setFormProgramId("");
   }
 
   function startEdit(s: Subject) {
@@ -259,6 +281,7 @@ export function SubjectCodesWorkspace({
     setLecHoursTouched(true);
     setLabHoursTouched(true);
     setYearLevel(String(s.yearLevel ?? 1));
+    if (campusWide) setFormProgramId(s.programId ?? "");
     setError(null);
     setSuccess(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -268,7 +291,11 @@ export function SubjectCodesWorkspace({
     setError(null);
     setSuccess(null);
     if (!programId) {
-      setError("Select a program (use the scope bar) before saving a subject.");
+      setError(
+        campusWide
+          ? "Choose the department this subject belongs to."
+          : "Select a program (use the scope bar) before saving a subject.",
+      );
       return;
     }
     const trimmedCode = code.trim();
@@ -277,7 +304,7 @@ export function SubjectCodesWorkspace({
       setError("Subject Code and Descriptive Title are required.");
       return;
     }
-    if (gecCurriculumOnly && !isGecCurriculumSubjectCode(trimmedCode)) {
+    if (gecCurriculumOnly && !allProgramsCatalog && !isGecCurriculumSubjectCode(trimmedCode)) {
       setError("GEC Chairman may only add subjects whose codes start with GEC- or GEE- (general education).");
       return;
     }
@@ -367,7 +394,9 @@ export function SubjectCodesWorkspace({
 
         {!programId ? (
           <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            Select a program first. Subjects load only for the chosen program, grouped by year level.
+            {campusWide
+              ? "Choose a department above to add or edit a subject. The list below already covers every department."
+              : "Select a program first. Subjects load only for the chosen program, grouped by year level."}
           </p>
         ) : null}
 
@@ -379,6 +408,24 @@ export function SubjectCodesWorkspace({
         ) : null}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {campusWide ? (
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Department (program)</div>
+              <select
+                className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                value={formProgramId}
+                onChange={(e) => setFormProgramId(e.target.value)}
+              >
+                <option value="">Select department…</option>
+                {programOptions.map((prog) => (
+                  <option key={prog.id} value={prog.id}>
+                    {prog.code}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-black/50">Which curriculum this subject belongs to.</p>
+            </div>
+          ) : null}
           <div className="space-y-1">
             <div className="text-sm font-medium">Subject Code</div>
             <Input placeholder="e.g. CC-111" value={code} onChange={(e) => setCode(e.target.value)} disabled={!programId} />
@@ -481,9 +528,9 @@ export function SubjectCodesWorkspace({
           <div>
             <div className="text-[16px] font-semibold">Saved subject codes (database)</div>
             <p className="text-[12px] text-black/55 mt-1">
-              {gecCurriculumOnly
-                ? "GEC / GEE codes from every program — search by code, title, or program."
-                : programId
+              {campusWide
+                ? "Every department's subjects — grouped by year level, with semester and department per row."
+                : scopedProgramId
                   ? "Rows in Supabase for the selected program."
                   : "Select a program to load saved subjects."}
               {loadingList ? " Loading…" : ""}
@@ -511,22 +558,22 @@ export function SubjectCodesWorkspace({
                 <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lab Units</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lab Hours</th>
-                {gecCurriculumOnly ? (
+                {campusWide ? (
                   <th className="border border-black/10 px-2 py-2 text-left">Program</th>
                 ) : null}
                 <th className="border border-black/10 px-2 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="text-[12px]">
-              {!programId && !gecCurriculumOnly ? (
+              {!scopedProgramId && !campusWide ? (
                 <tr>
-                  <td colSpan={gecCurriculumOnly ? 9 : 8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={campusWide ? 10 : 8} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     Select a program to load subjects for that program.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={gecCurriculumOnly ? 9 : 8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={campusWide ? 10 : 8} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     {dbSubjects.length === 0
                       ? "No subjects in the database for this program yet."
                       : "No saved subjects match your search."}
@@ -536,7 +583,7 @@ export function SubjectCodesWorkspace({
                 dbSubjectsByYear.flatMap((group) => [
                   <tr key={`yr-db-${group.yearLevel}`} className="bg-black/[0.04]">
                     <td
-                      colSpan={gecCurriculumOnly ? 9 : 8}
+                      colSpan={campusWide ? 10 : 8}
                       className="border border-black/10 px-2 py-2 text-[12px] font-bold text-black/80"
                     >
                       {group.label}
@@ -555,10 +602,15 @@ export function SubjectCodesWorkspace({
                       <td className="border border-black/10 px-2 py-2">
                         {s.labHours ?? labHoursFromUnits(s.labUnits)}
                       </td>
-                      {gecCurriculumOnly ? (
-                        <td className="border border-black/10 px-2 py-2">
-                          {programCodeById[s.programId] ?? "—"}
-                        </td>
+                      {campusWide ? (
+                        <>
+                          <td className="border border-black/10 px-2 py-2 tabular-nums">
+                            {s.semester ? (s.semester === 1 ? "1st" : "2nd") : "—"}
+                          </td>
+                          <td className="border border-black/10 px-2 py-2">
+                            {programCodeById[s.programId] ?? "—"}
+                          </td>
+                        </>
                       ) : null}
                       <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
                         <button
