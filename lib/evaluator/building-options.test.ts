@@ -37,8 +37,10 @@ const balikRoom = room({ id: "r-balik", code: "BLK-1", buildingId: null, buildin
 
 describe("buildingNamesForPlotting", () => {
   it("lists the Building table, not leftover text on room rows", () => {
+    // "BALIK" was deleted from Building but its name is still on a room row.
     const rooms = [
       room({ id: "r1", code: "COTE-101", buildingId: "b-cote", building: "COTE Building" }),
+      room({ id: "r2", code: "NEW-1", buildingId: "b-new", building: "New Building" }),
       balikRoom,
     ];
     expect(buildingNamesForPlotting([cote, newBuilding], rooms)).toEqual([
@@ -47,9 +49,21 @@ describe("buildingNamesForPlotting", () => {
     ]);
   });
 
+  it("omits a building whose rooms are all out of the caller's scope", () => {
+    // Picking such a building used to open an empty Room select with nothing explaining why.
+    const rooms = [room({ id: "r1", code: "COTE-101", buildingId: "b-cote" })];
+    expect(buildingNamesForPlotting([cote, newBuilding], rooms)).toEqual(["COTE Building"]);
+    expect(buildingNamesForPlotting([cote, newBuilding], [])).toEqual([]);
+  });
+
   it("keeps the campus-navigation order before the alphabetical tail", () => {
     const admin = building({ id: "b-adm", name: "Admin Building" });
-    expect(buildingNamesForPlotting([newBuilding, cote, admin], [])).toEqual([
+    const ordered = [
+      room({ id: "r1", code: "N-1", buildingId: "b-new" }),
+      room({ id: "r2", code: "C-1", buildingId: "b-cote" }),
+      room({ id: "r3", code: "A-1", buildingId: "b-adm" }),
+    ];
+    expect(buildingNamesForPlotting([newBuilding, cote, admin], ordered)).toEqual([
       "Admin Building",
       "COTE Building",
       "New Building",
@@ -68,7 +82,8 @@ describe("buildingNamesForPlotting", () => {
   });
 
   it("ignores blank building names", () => {
-    expect(buildingNamesForPlotting([building({ id: "b0", name: "  " }), cote], [])).toEqual([
+    const rooms = [room({ id: "r1", code: "C-1", buildingId: "b-cote" })];
+    expect(buildingNamesForPlotting([building({ id: "b0", name: "  " }), cote], rooms)).toEqual([
       "COTE Building",
     ]);
   });

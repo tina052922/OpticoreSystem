@@ -46,12 +46,14 @@ export function filterRoomsForProgramPlot(
     isRoomEligibleForProgramPlot(r, programCode, chairmanCollegeId, programId),
   );
 
-  // If this department has explicit rooms, prefer them (do not fall back to campus-wide noise).
-  const deptId = (programId ?? "").trim();
-  if (deptId && scoped.some((r) => (r.programId ?? "").trim() === deptId)) {
-    return scoped.filter((r) => (r.programId ?? "").trim() === deptId);
-  }
-
+  /**
+   * Owning a room does not cost a department the shared ones.
+   *
+   * This used to return ONLY the department's own rooms as soon as it had any. With two rooms tagged
+   * `prog-bsit`, the BSIT chairman lost every general classroom — so picking "COTE Building" in the
+   * plot modal listed no rooms at all. Rooms belonging to another department are still excluded, by
+   * `isRoomEligibleForProgramPlot`.
+   */
   // Nothing configured for this college yet: keep the BSIT labs usable rather than showing nothing.
   const code = (programCode ?? "").trim().toUpperCase();
   if (scoped.length === 0 && code === BSIT_PROGRAM_CODE) {

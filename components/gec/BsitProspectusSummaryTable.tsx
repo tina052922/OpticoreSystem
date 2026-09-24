@@ -96,12 +96,7 @@ export function BsitProspectusSummaryTable({
       ) : !hasProspectusForProgram(programCode) ? (
         <div className="px-2 py-4 text-sm text-amber-950 bg-amber-50">
           <p className="font-semibold">No static prospectus for program code &quot;{programCode}&quot;</p>
-          <p className="mt-2 text-black/75">
-            Add an array of <code className="text-xs bg-black/[0.06] px-1">ProspectusSubjectRow</code> to{" "}
-            <code className="text-xs bg-black/[0.06] px-1">PROGRAM_PROSPECTUS_SUBJECTS</code> in{" "}
-            <code className="text-xs bg-black/[0.06] px-1">prospectus-registry.ts</code> using the same code as in
-            Supabase <code className="text-xs bg-black/[0.06] px-1">Program.code</code> (case-insensitive).
-          </p>
+         
         </div>
       ) : (
         <div className="px-2 pb-2">

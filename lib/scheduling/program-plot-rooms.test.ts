@@ -23,10 +23,14 @@ describe("department-scoped plot rooms", () => {
   const deptB = room({ id: "b1", code: "B-201", programId: "prog-b", building: "North" });
   const shared = room({ id: "s1", code: "SHARED-1", programId: null, collegeId: null });
 
-  it("lets a department use only its assigned rooms once configured", () => {
+  it("keeps a department's own rooms AND the shared ones", () => {
+    // Owning a room must not cost the department every general classroom: when BSIT had two tagged
+    // rooms, picking "COTE Building" in the plot modal listed no rooms at all.
     const rooms = [deptA, deptB, shared, bsitLab];
     const scoped = filterRoomsForProgramPlot(rooms, "BIT-AUTO", "c1", "prog-a");
-    expect(scoped.map((r) => r.id)).toEqual(["a1"]);
+    expect(scoped.map((r) => r.id).sort()).toEqual(["a1", "lab1", "s1"]);
+    // Another department's room is still off limits.
+    expect(scoped.some((r) => r.id === "b1")).toBe(false);
   });
 
   it("blocks another department from assigning foreign department rooms", () => {

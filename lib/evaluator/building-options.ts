@@ -41,9 +41,21 @@ export function buildingNamesForPlotting(
   buildings: readonly Building[] | null | undefined,
   rooms: readonly Room[],
 ): string[] {
-  const named = (buildings ?? []).map((b) => (b.name ?? "").trim()).filter(Boolean);
-  if (named.length > 0) return sortBuildingNames([...new Set(named)]);
-  return sortBuildingNames([...new Set(rooms.map(roomBuildingKey))]);
+  const list = buildings ?? [];
+  const named = list.map((b) => (b.name ?? "").trim()).filter(Boolean);
+  if (named.length === 0) {
+    return sortBuildingNames([...new Set(rooms.map(roomBuildingKey))]);
+  }
+
+  /**
+   * Only buildings that hold at least one room the caller may plot into. The dropdown and the room
+   * list are built from the same room set on purpose: offering a building whose rooms are all out of
+   * scope left the Room select empty with nothing explaining why.
+   */
+  const withRooms = [...new Set(named)].filter(
+    (name) => roomsInBuildingNamed(rooms, name, list).length > 0,
+  );
+  return sortBuildingNames(withRooms);
 }
 
 /**

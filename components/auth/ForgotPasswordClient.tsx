@@ -118,7 +118,7 @@ export function ForgotPasswordClient() {
       setLastSentAt(Date.now());
       setStage("code");
     } catch (err) {
-      setError(messageOf(err, "Could not send the reset code."));
+      setError(messageOf(err, "We couldn't send your code. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -141,7 +141,7 @@ export function ForgotPasswordClient() {
       if (apiErr?.code === "EXPIRED" || apiErr?.code === "TOO_MANY_ATTEMPTS") {
         setDead(true);
       }
-      setError(messageOf(err, "Could not verify that code."));
+      setError(messageOf(err, "We couldn't check that code. Please try again."));
       setCode("");
       codeRef.current?.focus();
     } finally {
@@ -168,10 +168,10 @@ export function ForgotPasswordClient() {
       setLastSentAt(Date.now());
       setDead(false);
       setCode("");
-      setNotice("We sent a new code. The previous one no longer works.");
+      setNotice("New code sent. The old one no longer works.");
       codeRef.current?.focus();
     } catch (err) {
-      setError(messageOf(err, "Could not resend the code."));
+      setError(messageOf(err, "We couldn't send another code. Please try again."));
     } finally {
       setResending(false);
     }
@@ -187,7 +187,7 @@ export function ForgotPasswordClient() {
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError("Those passwords don't match.");
       return;
     }
 
@@ -209,7 +209,7 @@ export function ForgotPasswordClient() {
         setStage("email");
         setCode("");
       }
-      setError(messageOf(err, "Could not update the password."));
+      setError(messageOf(err, "We couldn't update your password. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -373,8 +373,7 @@ export function ForgotPasswordClient() {
           <div className="space-y-2">
             <h1 className="text-2xl font-bold text-black">Enter your code</h1>
             <p className="text-base text-black/80">
-              If an account exists for <strong>{email}</strong>, we sent it a{" "}
-              {CODE_LENGTH}-digit code.
+              If <strong>{email}</strong> has an account, we sent it a {CODE_LENGTH}-digit code.
             </p>
             <p className="text-sm text-black/55">
               Can&apos;t find it? Check your spam folder.
@@ -398,7 +397,7 @@ export function ForgotPasswordClient() {
               className="h-16 w-full rounded-xl border border-black/25 bg-white text-center text-3xl font-semibold tracking-[0.4em] shadow-md outline-none focus-visible:ring-2 focus-visible:ring-[#FF990A]/40 disabled:opacity-60"
             />
             <p className="text-sm text-black/55">
-              The code expires shortly — request a new one if it stops working.
+              Codes expire after a few minutes.
             </p>
           </div>
 
@@ -465,8 +464,7 @@ export function ForgotPasswordClient() {
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold text-black">Forgot password</h1>
           <p className="text-base text-black/80">
-            Enter your email and we&apos;ll send you a {CODE_LENGTH}-digit code
-            to reset your password.
+            Enter your email and we&apos;ll send a {CODE_LENGTH}-digit code to reset your password.
           </p>
         </div>
 

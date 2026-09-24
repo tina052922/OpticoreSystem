@@ -25,13 +25,32 @@ export function emptyPlotMeetingSlot(): PlotMeetingSlotFields {
 }
 
 /**
+ * Slot text as a trimmed string.
+ *
+ * The fields are typed `string`, but a draft is seeded from a `ScheduleEntry`, and a vacant or
+ * freshly created row can carry no `day` at all. That `undefined` reached `slot.day.trim()` and threw
+ * "Cannot read properties of undefined (reading 'trim')", taking the whole plot modal down.
+ */
+function text(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** One slot of a draft, tolerant of a missing entry in the array. */
+function slotText(slot: PlotMeetingSlotFields | undefined): { day: string; durationHours: string } {
+  return { day: text(slot?.day), durationHours: text(slot?.durationHours) };
+}
+
+/**
  * When Day is cleared, Hours must clear too (never keep a leftover default like "1").
  * When Day is newly selected and Hours is empty, default to 1 hour for convenience.
  */
-export function durationHoursAfterDayChange(day: string, currentDurationHours: string): string {
-  if (!day.trim()) return "";
-  if (!currentDurationHours.trim()) return "1";
-  return currentDurationHours;
+export function durationHoursAfterDayChange(
+  day: string | null | undefined,
+  currentDurationHours: string | null | undefined,
+): string {
+  if (!text(day)) return "";
+  if (!text(currentDurationHours)) return "1";
+  return currentDurationHours as string;
 }
 
 export function emptyPlotMeetingsDraft(): PlotMeetingsDraft {
@@ -42,7 +61,8 @@ export function emptyPlotMeetingsDraft(): PlotMeetingsDraft {
 }
 
 export function seedPlotMeetingsDraft(args: {
-  day: string;
+  /** May be absent: a vacant or brand-new row has no day yet. */
+  day: string | null | undefined;
   startSlotIndex: number;
   durationSlots?: number;
   slots: HourSlot[];
@@ -50,15 +70,18 @@ export function seedPlotMeetingsDraft(args: {
   const draft = emptyPlotMeetingsDraft();
   const first = draft.slots[0];
   if (!first) return draft;
-  first.day = args.day;
-  first.durationHours = String(Math.max(1, Math.round(args.durationSlots ?? 1)));
+  const day = text(args.day);
+  first.day = day;
+  // No day means nothing is plotted yet, so it must not carry a duration either.
+  first.durationHours = day ? String(Math.max(1, Math.round(args.durationSlots ?? 1))) : "";
+  const startIndex = Number.isFinite(args.startSlotIndex) ? args.startSlotIndex : -1;
   draft.timeText =
-    args.startSlotIndex >= 0 ? formatSlotStartForInput(args.slots[args.startSlotIndex]) : "";
+    startIndex >= 0 ? formatSlotStartForInput(args.slots[startIndex]) : "";
   return draft;
 }
 
-function parseDurationHours(raw: string, maxDur: number): number | null {
-  const n = parseFloat(raw.trim());
+function parseDurationHours(raw: string | null | undefined, maxDur: number): number | null {
+  const n = parseFloat(text(raw));
   if (!Number.isFinite(n)) return null;
   const rounded = Math.round(n);
   if (rounded < 1 || rounded > maxDur) return null;
@@ -66,14 +89,15 @@ function parseDurationHours(raw: string, maxDur: number): number | null {
 }
 
 export function filledPlotMeetingCount(draft: PlotMeetingsDraft): number {
-  return draft.slots.filter((s) => s.day.trim()).length;
+  return (draft?.slots ?? []).filter((s) => slotText(s).day).length;
 }
 
 export function totalPlotMeetingHours(draft: PlotMeetingsDraft, maxDur: number): number {
   let sum = 0;
-  for (const slot of draft.slots) {
-    if (!slot.day.trim()) continue;
-    const d = parseDurationHours(slot.durationHours, maxDur);
+  for (const slot of draft?.slots ?? []) {
+    const { day, durationHours } = slotText(slot);
+    if (!day) continue;
+    const d = parseDurationHours(durationHours, maxDur);
     if (d != null) sum += d;
   }
   return sum;
@@ -92,7 +116,7 @@ export function resolvePlotMeetings(
     weekdays: readonly string[];
   },
 ): ResolvePlotMeetingsResult {
-  const timeText = draft.timeText.trim();
+  const timeText = text(draft?.timeText);
   if (!timeText) {
     return { ok: false, error: "Type a start time (for example 8:00 AM)." };
   }
@@ -100,11 +124,9 @@ export function resolvePlotMeetings(
   const meetings: ResolvedPlotMeeting[] = [];
   const seenDays = new Set<string>();
 
-  for (let i = 0; i < draft.slots.length; i++) {
-    const slot = draft.slots[i];
-    if (!slot) continue;
-    const day = slot.day.trim();
-    const durRaw = slot.durationHours.trim();
+  const slotList = draft?.slots ?? [];
+  for (let i = 0; i < slotList.length; i++) {
+    const { day, durationHours: durRaw } = slotText(slotList[i]);
     const hasAny = Boolean(day || durRaw);
     if (!hasAny) continue;
 
