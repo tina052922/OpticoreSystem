@@ -9,9 +9,10 @@ export default async function CollegeSubjectCodesPage() {
     <div>
       <ChairmanPageHeader
         title="Subject Codes"
-        subtitle="Filter by college and department"
+        subtitle="Subjects in your college — filter by department"
       />
-      <SubjectCodesWithScope initialCollegeId={profile.collegeId} />
+      {/* College Admin sees only their own college. */}
+      <SubjectCodesWithScope lockedCollegeId={profile.collegeId} />
     </div>
   );
 }

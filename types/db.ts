@@ -156,6 +156,8 @@ export interface Subject {
   yearLevel: number;
   /** Official prospectus semester when seeded (1 or 2). */
   semester?: number | null;
+  /** major | minor | gec | elective | nstp | pe (migration 016); null until set. */
+  category?: string | null;
   /** Curriculum prerequisite line (mirrors catalog tables). */
   prerequisiteNote?: string | null;
 }

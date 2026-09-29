@@ -8,6 +8,8 @@ export type ChairmanSession = {
   name: string | null;
   role: "chairman_admin";
   collegeId: string | null;
+  /** Code of `collegeId`, for labelling the shell. */
+  collegeCode: string | null;
   programId: string | null;
   programCode: string | null;
   programName: string | null;
@@ -28,6 +30,7 @@ export async function getChairmanSession(): Promise<ChairmanSession> {
     name: user.name,
     role: "chairman_admin",
     collegeId: user.collegeId ?? null,
+    collegeCode: user.collegeCode ?? null,
     programId: user.chairmanProgramId ?? null,
     programCode: user.chairmanProgramCode ?? null,
     programName: user.chairmanProgramName ?? null,

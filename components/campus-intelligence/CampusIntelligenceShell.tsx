@@ -156,16 +156,14 @@ export function CampusIntelligenceShell({
     setMobileNavOpen(false);
   }, [pathname]);
 
+  /**
+   * The shell is the scroll container; the document behind it must not scroll too. Without this a
+   * stray pixel of extra height gives the page a second scrollbar and pushes the header out of view.
+   */
   useEffect(() => {
-    if (mobileNavOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [mobileNavOpen]);
+    document.body.classList.add("oc-shell-scroll-lock");
+    return () => document.body.classList.remove("oc-shell-scroll-lock");
+  }, []);
 
   const toast = useOpticoreToast();
 
@@ -184,7 +182,7 @@ export function CampusIntelligenceShell({
     <SystemConfigurationProvider>
     <ProgramModeProvider>
     <SemesterFilterProvider>
-      <div className="flex h-screen flex-col bg-[var(--color-opticore-bg)] overflow-hidden">
+      <div className="flex h-[100dvh] flex-col bg-[var(--color-opticore-bg)] overflow-hidden">
       <header
         className="w-full h-[99px] flex-none flex items-center justify-between px-4 md:px-8 no-print shrink-0 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
         style={{
@@ -386,7 +384,13 @@ export function CampusIntelligenceShell({
           </div>
         </aside>
 
-        <main className="flex-1 overflow-auto min-w-0 bg-[#F8F8F8]">{children}</main>
+        {/* `data-app-scroll` marks the one scroll container pages may scroll programmatically. */}
+        <main
+          data-app-scroll
+          className="flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain bg-[#F8F8F8]"
+        >
+          {children}
+        </main>
       </div>
       </div>
     </SemesterFilterProvider>

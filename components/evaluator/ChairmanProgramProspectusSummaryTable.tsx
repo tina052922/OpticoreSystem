@@ -34,7 +34,15 @@ type Props = {
   plottedHoursBySubjectCode?: ReadonlyMap<string, number>;
   /** Latest code the chairman just plotted — extra emphasis (pulse) in the summary. */
   lastPlottedSubjectCode?: string | null;
-  /** Catalog subjects when the program has no static prospectus (BIT / BSIE). */
+  /** College the section belongs to, shown so the scope of the list is never in doubt. */
+  collegeLabel?: string | null;
+  /** Section the summary is scoped to (its name, not its id). */
+  sectionLabel?: string | null;
+  /**
+   * Subjects from Subject Codes for this program. These are the PRIMARY source: the summary shows
+   * what the chairman maintains there, and only falls back to the built-in prospectus when Subject
+   * Codes holds nothing for the program.
+   */
   fallbackSubjects?: Array<{
     code: string;
     title: string;
@@ -61,42 +69,58 @@ export function ChairmanProgramProspectusSummaryTable({
   plottedSubjectCodes,
   plottedHoursBySubjectCode,
   lastPlottedSubjectCode = null,
+  collegeLabel = null,
+  sectionLabel = null,
   fallbackSubjects = [],
   className = "",
 }: Props) {
   const [activeCode, setActiveCode] = useState<string | null>(null);
 
+  /**
+   * Subject Codes first.
+   *
+   * The built-in prospectus used to win whenever one existed, so a subject a chairman added or
+   * edited in Subject Codes never reached this table. It is now the fallback for programs whose
+   * Subject Codes are still empty.
+   */
+  const usingCatalog = fallbackSubjects.length > 0;
+
   const groups = useMemo(() => {
-    const rows = hasProspectusForProgram(programCode)
-      ? getProspectusSubjectsForProgram(programCode)
-      : fallbackSubjects.map((s) => ({
+    const rows = usingCatalog
+      ? fallbackSubjects.map((s) => ({
           code: s.code,
           title: s.title,
           lecUnits: s.lecUnits ?? 0,
           lecHours: s.lecHours ?? 0,
           labUnits: s.labUnits ?? 0,
           labHours: s.labHours ?? 0,
-          yearLevel: s.yearLevel && s.yearLevel >= 1 && s.yearLevel <= 4 ? s.yearLevel : 1,
+          yearLevel: s.yearLevel && s.yearLevel >= 1 ? s.yearLevel : 1,
           semester: (s.semester === 2 ? 2 : 1) as 1 | 2,
-        }));
+        }))
+      : getProspectusSubjectsForProgram(programCode);
     if (yearLevelFilter == null) return [];
     let list = rows.filter((r) => r.yearLevel === yearLevelFilter);
     if (filterSemester != null) {
       list = list.filter((r) => r.semester === filterSemester);
     }
     return groupProspectusByYearAndSemester(list);
-  }, [programCode, yearLevelFilter, filterSemester, fallbackSubjects]);
+  }, [programCode, yearLevelFilter, filterSemester, fallbackSubjects, usingCatalog]);
 
   useEffect(() => {
     setActiveCode(null);
   }, [programCode, selectedSectionId, yearLevelFilter, filterSemester]);
 
+  /** "COTE · BSIT 3A · Year 3 · 1st semester" — the college and section this list is for. */
   const scopeDescription = useMemo(() => {
     if (yearLevelFilter == null) return null;
-    const y = `Year ${yearLevelFilter}`;
-    if (filterSemester == null) return `${y} · both semesters`;
-    return `${y} · ${filterSemester === 1 ? "1st" : "2nd"} semester`;
-  }, [yearLevelFilter, filterSemester]);
+    const parts = [
+      (collegeLabel ?? "").trim(),
+      (sectionLabel ?? "").trim(),
+      `Year ${yearLevelFilter}`,
+      filterSemester == null ? "both semesters" : `${filterSemester === 1 ? "1st" : "2nd"} semester`,
+    ].filter(Boolean);
+    return parts.join(" · ");
+  }, [yearLevelFilter, filterSemester, collegeLabel, sectionLabel]);
 
   return (
     <div className={`${className}`}>
@@ -105,12 +129,12 @@ export function ChairmanProgramProspectusSummaryTable({
         {scopeDescription ? (
           <div className="text-[11px] text-black/55">{scopeDescription}</div>
         ) : null}
-        <div className="text-[10px] text-black/45 mt-0.5">
-          Weekly hours: lecture 1 unit = 1 hour · lab 1 unit = 3 hours
-        </div>
-        {!hasProspectusForProgram(programCode) && programCode.trim() ? (
+
+        {programCode.trim() ? (
           <div className="text-[11px] text-black/50 mt-0.5">
-            Curriculum for {programCode} uses catalog subjects (no static CMO prospectus file).
+            {usingCatalog
+              ? "From Subject Codes."
+              : `No subjects in Subject Codes for ${programCode} — showing the built-in prospectus.`}
           </div>
         ) : null}
       </div>
@@ -131,7 +155,10 @@ export function ChairmanProgramProspectusSummaryTable({
         </div>
       ) : groups.length === 0 ? (
         <p className="text-sm text-black/55 px-2 py-4">
-          No prospectus rows for {scopeDescription ?? `year ${yearLevelFilter}`}. Try another term or check the registry.
+          No subjects for {scopeDescription ?? `year ${yearLevelFilter}`}.{" "}
+          {usingCatalog
+            ? "Add them in Subject Codes with this year level and semester, or switch term."
+            : "Try another term."}
         </p>
       ) : (
         <div className="px-2 pb-2">

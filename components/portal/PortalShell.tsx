@@ -80,10 +80,19 @@ export function PortalShell({
 
   const navHrefs = navItems.map((n) => n.href);
 
+  /**
+   * The shell is the scroll container; the document behind it must not scroll too. Without this a
+   * stray pixel of extra height gives the page a second scrollbar and pushes the header out of view.
+   */
+  useEffect(() => {
+    document.body.classList.add("oc-shell-scroll-lock");
+    return () => document.body.classList.remove("oc-shell-scroll-lock");
+  }, []);
+
   return (
     <ProgramModeProvider>
     <SemesterFilterProvider>
-    <div className="flex h-screen flex-col bg-[#F8F8F8] overflow-hidden">
+    <div className="flex h-[100dvh] flex-col bg-[#F8F8F8] overflow-hidden">
       <header
         className="h-[99px] w-full flex-none flex items-center justify-between px-4 md:px-8 no-print shrink-0 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
         style={{ background: "linear-gradient(90deg, #780301 0%, #DE0602 100%)" }}

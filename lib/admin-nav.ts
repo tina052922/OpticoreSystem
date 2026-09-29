@@ -108,6 +108,7 @@ export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "Load justifications", href: "/doi/reviews", icon: "Scale" },
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
+  { label: "College Admins & Chairmen", href: "/doi/campus-accounts", icon: "UserPlus" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },
   { label: "Programs & Sections", href: "/doi/academic-structure", icon: "Network" },
   { label: "Buildings & Rooms", href: "/doi/buildings-rooms", icon: "Building2" },

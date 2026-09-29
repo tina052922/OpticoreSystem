@@ -11,7 +11,8 @@ export default async function CollegeBuildingsRoomsPage() {
         title="Buildings & Rooms"
         subtitle="Department-scoped facilities for Evaluator and GEC plotting"
       />
-      <BuildingsRoomsWithScope initialCollegeId={profile.collegeId} />
+      {/* College Admin sees only their own college. */}
+      <BuildingsRoomsWithScope lockedCollegeId={profile.collegeId} />
     </div>
   );
 }

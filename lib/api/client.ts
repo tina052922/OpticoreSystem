@@ -61,6 +61,9 @@ export type SafeUser = {
   role: Role;
   name: string | null;
   collegeId?: string | null;
+  /** Code and name of `collegeId`, so shells can label the scope without another fetch. */
+  collegeCode?: string | null;
+  collegeName?: string | null;
   employeeId?: string | null;
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
@@ -1398,6 +1401,42 @@ export const facultyProfileApi = {
   delete(id: string) {
     return apiFetch<{ ok: true }>(`/api/catalog/faculty-profiles/${id}`, { method: "DELETE" });
   },
+};
+
+/** College Admin and Chairman accounts (DOI only). One holder per college / department. */
+export const campusAccountsApi = {
+  list() {
+    return apiFetch<{ accounts: CampusAccount[] }>("/api/admin/campus-accounts", { method: "GET", forceRefresh: true });
+  },
+  create(input: {
+    role: "college_admin" | "chairman_admin";
+    collegeId: string | null;
+    programId: string | null;
+    name: string;
+    email: string;
+    password: string;
+  }) {
+    return apiFetch<{ account: CampusAccount }>("/api/admin/campus-accounts", { method: "POST", body: input });
+  },
+  update(id: string, input: Record<string, unknown>) {
+    return apiFetch<{ account: CampusAccount; warning?: string }>(`/api/admin/campus-accounts/${id}`, {
+      method: "PUT",
+      body: input,
+    });
+  },
+  remove(id: string) {
+    return apiFetch<{ ok: true }>(`/api/admin/campus-accounts/${id}`, { method: "DELETE" });
+  },
+};
+
+export type CampusAccount = {
+  id: string;
+  email: string;
+  name: string;
+  role: "college_admin" | "chairman_admin";
+  collegeId: string | null;
+  chairmanProgramId: string | null;
+  createdAt?: string;
 };
 
 export const subjectCodesApi = {

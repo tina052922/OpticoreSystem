@@ -87,9 +87,6 @@ export function BsitProspectusSummaryTable({
         <div className="text-[11px] text-black/55">
           Program: <span className="font-medium text-black/70">{label}</span> · Scope: {scopeLabel}
         </div>
-        <div className="text-[10px] text-black/45 mt-0.5">
-          Weekly hours: lecture 1 unit = 1 hour · lab 1 unit = 3 hours
-        </div>
       </div>
       {!programCode.trim() ? (
         <p className="text-sm text-black/55 px-2 py-4">Select a section to load that program&apos;s prospectus.</p>

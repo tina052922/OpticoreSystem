@@ -21,6 +21,41 @@ describe("prospectusSubjectsForProgramYearAndSemester", () => {
   });
 });
 
+describe("catalogSubjectsToProspectusRows hours and year", () => {
+  function subject(over: Partial<Subject> & Pick<Subject, "id" | "code">): Subject {
+    return {
+      subcode: null,
+      title: over.code,
+      lecUnits: 0,
+      lecHours: 0,
+      labUnits: 0,
+      labHours: 0,
+      programId: "prog-1",
+      yearLevel: 1,
+      ...over,
+    } as Subject;
+  }
+
+  it("keeps the hours stored on the subject, which are editable per row", () => {
+    const [row] = catalogSubjectsToProspectusRows([
+      subject({ id: "s1", code: "CC-111", lecUnits: 2, lecHours: 5, labUnits: 1, labHours: 2 }),
+    ]);
+    expect(row).toMatchObject({ lecHours: 5, labHours: 2 });
+  });
+
+  it("falls back to the unit conversion when hours are not stored", () => {
+    const [row] = catalogSubjectsToProspectusRows([
+      subject({ id: "s1", code: "CC-111", lecUnits: 2, lecHours: null, labUnits: 1, labHours: null } as never),
+    ]);
+    expect(row).toMatchObject({ lecHours: 2, labHours: 3 });
+  });
+
+  it("keeps year levels beyond the fourth instead of clamping them", () => {
+    const [row] = catalogSubjectsToProspectusRows([subject({ id: "s1", code: "MD-501", yearLevel: 5 })]);
+    expect(row.yearLevel).toBe(5);
+  });
+});
+
 describe("catalogSubjectsToProspectusRows", () => {
   it("maps catalog subjects into curriculum rows by year and semester", () => {
     const subjects: Subject[] = [

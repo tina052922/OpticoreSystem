@@ -151,3 +151,29 @@ body {
     animation: none;
   }
 }
+
+/**
+ * App shell pages own their scrolling.
+ *
+ * The shell is a full-viewport flex column whose <main> scrolls. Without this, anything that makes
+ * the document even slightly taller than the viewport gives the BODY a second scrollbar: the red
+ * header scrolls out of view and empty page background appears below the shell. Standalone pages
+ * (login, register, print views) are unaffected — only a mounted shell adds this class.
+ */
+.oc-shell-scroll-lock {
+  /**
+   * `clip` rather than `hidden`: an `overflow: hidden` element is still a scroll container, so
+   * `scrollIntoView()` inside the app could scroll the BODY — sliding the red header out of view and
+   * exposing page background below the shell. `clip` creates no scroll container at all, so nothing
+   * can scroll it, by the user or by script. `hidden` stays first as the fallback.
+   */
+  overflow: hidden;
+  overflow: clip;
+}
+
+@media print {
+  /* Printing must be free to run past one screen. */
+  .oc-shell-scroll-lock {
+    overflow: visible !important;
+  }
+}

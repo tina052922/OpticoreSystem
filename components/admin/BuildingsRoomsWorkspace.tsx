@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { buildingsRoomsApi, ApiClientError } from "@/lib/api/client";
+import { ScopeSearchPicker } from "@/components/campus/ScopeSearchPicker";
+import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import type { Building, Room } from "@/types/db";
 
 function norm(s: string | null | undefined): string {
@@ -41,12 +43,29 @@ export function BuildingsRoomsWorkspace({
   const [floorCount, setFloorCount] = useState("2");
   const [gecUsable, setGecUsable] = useState(false);
   const [savingBuilding, setSavingBuilding] = useState(false);
+  /** Quick add inside the "Rooms in …" panel, for a building that already exists. */
+  const [panelAddOpen, setPanelAddOpen] = useState(false);
+  const [panelRoomCode, setPanelRoomCode] = useState("");
+  const [panelRoomFloor, setPanelRoomFloor] = useState("1");
+  const [panelRoomCapacity, setPanelRoomCapacity] = useState("");
+  const [savingPanelRoom, setSavingPanelRoom] = useState(false);
+  /**
+   * Rooms typed on the same form as the building.
+   *
+   * With no building name these are saved as standalone rooms, which is why the department is
+   * required: a room with neither a building nor a department belongs to nobody and cannot be
+   * plotted by any chairman.
+   */
+  const [newRooms, setNewRooms] = useState<{ code: string; floor: string; capacity: string }[]>([
+    { code: "", floor: "1", capacity: "" },
+  ]);
+  /** Department for this form; defaults to the page scope but can be set per entry. */
+  const [formScope, setFormScope] = useState<{ collegeId: string | null; programId: string | null }>({
+    collegeId: null,
+    programId: null,
+  });
 
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
-  const [roomCode, setRoomCode] = useState("");
-  const [roomFloor, setRoomFloor] = useState("1");
-  const [roomCapacity, setRoomCapacity] = useState("");
-  const [savingRoom, setSavingRoom] = useState(false);
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
   const [editingBuildingId, setEditingBuildingId] = useState<string | null>(null);
   const [editBuildingName, setEditBuildingName] = useState("");
@@ -57,7 +76,18 @@ export function BuildingsRoomsWorkspace({
   const [editRoomCapacity, setEditRoomCapacity] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
-  const canEdit = Boolean(scopeCollegeId && scopeProgramId);
+  /**
+   * Follow the page scope only when it names a department, and never overwrite one already chosen
+   * here. A College Admin's scope is their college with no department, which used to land in this
+   * field as the college itself — unchangeable, and never a valid department.
+   */
+  useEffect(() => {
+    if (!scopeProgramId) return;
+    setFormScope({ collegeId: scopeCollegeId, programId: scopeProgramId });
+  }, [scopeCollegeId, scopeProgramId]);
+
+  /** A department is what makes a building or a standalone room belong to someone. */
+  const canEdit = Boolean(formScope.programId);
 
   const load = useCallback(async () => {
     // No college in scope means "all colleges": list every building rather than nothing.
@@ -110,6 +140,37 @@ export function BuildingsRoomsWorkspace({
     void load();
   }, [load]);
 
+  /**
+   * "Manage rooms" selects a building whose panel renders below the lists. On a long page that is
+   * off-screen, so the click looked like it did nothing — bring the panel into view.
+   */
+  const roomsPanelRef = useRef<HTMLDivElement | null>(null);
+  const alertsRef = useRef<HTMLDivElement | null>(null);
+  const scrollToRoomsRef = useRef(false);
+
+  function openRoomsFor(buildingId: string) {
+    scrollToRoomsRef.current = true;
+    setSelectedBuildingId(buildingId);
+  }
+
+  useEffect(() => {
+    if (!error && !success && !warning) return;
+    scrollIntoAppView(alertsRef.current);
+  }, [error, success, warning]);
+
+  useEffect(() => {
+    setPanelAddOpen(false);
+    setPanelRoomCode("");
+    setPanelRoomCapacity("");
+    setPanelRoomFloor("1");
+  }, [selectedBuildingId]);
+
+  useEffect(() => {
+    if (!selectedBuildingId || !scrollToRoomsRef.current) return;
+    scrollToRoomsRef.current = false;
+    scrollIntoAppView(roomsPanelRef.current);
+  }, [selectedBuildingId]);
+
   const selectedBuilding = useMemo(
     () => buildings.find((b) => b.id === selectedBuildingId) ?? null,
     [buildings, selectedBuildingId],
@@ -161,45 +222,140 @@ export function BuildingsRoomsWorkspace({
     return floors.map((floor) => ({ floor, rooms: map.get(floor) ?? [] }));
   }, [roomsInSelected]);
 
+  /**
+   * Rooms with no building, for the scope in view. Without a list of their own these were invisible:
+   * every other view groups rooms under a building.
+   */
+  const standaloneRooms = useMemo(() => {
+    const q = searchQ;
+    return rooms
+      .filter((r) => !buildings.some((b) => roomBelongsToBuilding(r, b)))
+      .filter(
+        (r) =>
+          !q ||
+          norm(r.code).includes(q) ||
+          norm(r.displayName).includes(q) ||
+          norm(r.building).includes(q),
+      )
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [rooms, buildings, searchQ]);
+
   const floorOptions = useMemo(() => {
     const n = selectedBuilding?.floorCount ?? Math.max(1, parseInt(floorCount, 10) || 1);
     return Array.from({ length: n }, (_, i) => i + 1);
   }, [selectedBuilding?.floorCount, floorCount]);
 
-  async function onAddBuilding() {
-    if (!canEdit) return;
+  function patchNewRoom(index: number, patch: Partial<{ code: string; floor: string; capacity: string }>) {
+    setNewRooms((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  }
+
+  function resetCreateForm() {
+    setBuildingName("");
+    setBuildingCode("");
+    setFloorCount("2");
+    setGecUsable(false);
+    setNewRooms([{ code: "", floor: "1", capacity: "" }]);
+  }
+
+  /**
+   * Saves the building and its rooms in one go.
+   *
+   * With no building name, the rooms are saved standalone under the chosen department — the case for
+   * a room that is not part of any building on file.
+   */
+  async function onCreate() {
     const name = buildingName.trim();
-    if (!name) {
-      setError("Building name is required.");
+    const roomRows = newRooms
+      .map((r) => ({ ...r, code: r.code.trim() }))
+      .filter((r) => r.code);
+
+    if (!formScope.programId) {
+      setError("Choose a department. A building or room has to belong to one.");
       return;
     }
+    if (!name && roomRows.length === 0) {
+      setError("Enter a building name, one or more room codes, or both.");
+      return;
+    }
+
     setSavingBuilding(true);
     setError(null);
     setSuccess(null);
     try {
-      const { building } = await buildingsRoomsApi.createBuilding({
-        name,
-        code: buildingCode.trim() || null,
-        floorCount: Math.max(1, parseInt(floorCount, 10) || 1),
-        collegeId: scopeCollegeId,
-        programId: scopeProgramId,
-        gecUsable,
-      });
-      setBuildingName("");
-      setBuildingCode("");
-      setFloorCount("2");
-      setGecUsable(false);
-      setBuildings((prev) => {
-        if (prev.some((b) => b.id === building.id)) {
-          return prev.map((b) => (b.id === building.id ? building : b));
+      let building: Building | null = null;
+      if (name) {
+        const created = await buildingsRoomsApi.createBuilding({
+          name,
+          code: buildingCode.trim() || null,
+          floorCount: Math.max(1, parseInt(floorCount, 10) || 1),
+          collegeId: formScope.collegeId,
+          programId: formScope.programId,
+          gecUsable,
+        });
+        building = created.building;
+        setBuildings((prev) => {
+          const next = prev.some((b) => b.id === created.building.id)
+            ? prev.map((b) => (b.id === created.building.id ? created.building : b))
+            : [...prev, created.building];
+          return next.sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setSelectedBuildingId(created.building.id);
+      }
+
+      const savedRooms: Room[] = [];
+      const failed: string[] = [];
+      for (const row of roomRows) {
+        const floor = Math.max(1, parseInt(row.floor, 10) || 1);
+        try {
+          const { room, warning: w } = await buildingsRoomsApi.createRoom({
+            code: row.code,
+            buildingId: building?.id ?? null,
+            floor,
+            capacity: row.capacity.trim() ? parseInt(row.capacity, 10) : null,
+            collegeId: formScope.collegeId,
+            programId: formScope.programId,
+            gecUsable: building?.gecUsable ?? gecUsable,
+            building: building?.name ?? null,
+          });
+          savedRooms.push({
+            ...room,
+            buildingId: room.buildingId ?? building?.id ?? null,
+            building: room.building ?? building?.name ?? null,
+            programId: room.programId ?? formScope.programId,
+            collegeId: room.collegeId ?? formScope.collegeId,
+            floor: room.floor ?? floor,
+            gecUsable: room.gecUsable ?? building?.gecUsable ?? gecUsable,
+          });
+          if (w) setWarning(w);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "could not be saved";
+          failed.push(`${row.code} (${msg})`);
         }
-        return [...prev, building].sort((a, b) => a.name.localeCompare(b.name));
-      });
-      setSelectedBuildingId(building.id);
-      setSuccess(`Building “${building.name}” saved for ${scopeProgramCode ?? "department"}.`);
+      }
+
+      if (savedRooms.length > 0) {
+        setRooms((prev) => {
+          const byId = new Map(prev.map((r) => [r.id, r]));
+          for (const r of savedRooms) byId.set(r.id, r);
+          return [...byId.values()];
+        });
+      }
+
+      const parts: string[] = [];
+      if (building) parts.push(`Building “${building.name}” saved`);
+      if (savedRooms.length > 0) {
+        parts.push(
+          `${savedRooms.length} room${savedRooms.length === 1 ? "" : "s"} added${
+            building ? ` under it` : " without a building"
+          }`,
+        );
+      }
+      if (parts.length > 0) setSuccess(`${parts.join(" · ")}.`);
+      if (failed.length > 0) setError(`Could not save: ${failed.join("; ")}`);
+      if (failed.length === 0) resetCreateForm();
       void load();
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to save building.");
+      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to save.");
     } finally {
       setSavingBuilding(false);
     }
@@ -247,57 +403,6 @@ export function BuildingsRoomsWorkspace({
     }
   }
 
-  async function onAddRoom() {
-    if (!canEdit || !selectedBuilding) return;
-    const code = roomCode.trim();
-    if (!code) {
-      setError("Room code is required.");
-      return;
-    }
-    setSavingRoom(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const floor = Math.max(1, parseInt(roomFloor, 10) || 1);
-      const { room, warning: w } = await buildingsRoomsApi.createRoom({
-        code,
-        buildingId: selectedBuilding.id,
-        floor,
-        capacity: roomCapacity.trim() ? parseInt(roomCapacity, 10) : null,
-        collegeId: scopeCollegeId,
-        programId: scopeProgramId,
-        gecUsable: selectedBuilding.gecUsable,
-        building: selectedBuilding.name,
-      });
-      // Ensure the row is listable under this building even if the API omitted FK fields.
-      const linked: Room = {
-        ...room,
-        buildingId: room.buildingId ?? selectedBuilding.id,
-        building: room.building ?? selectedBuilding.name,
-        programId: room.programId ?? scopeProgramId,
-        collegeId: room.collegeId ?? scopeCollegeId,
-        floor: room.floor ?? floor,
-        gecUsable: room.gecUsable ?? selectedBuilding.gecUsable,
-      };
-      setRooms((prev) => {
-        if (prev.some((r) => r.id === linked.id)) {
-          return prev.map((r) => (r.id === linked.id ? linked : r));
-        }
-        return [...prev, linked];
-      });
-      setRoomCode("");
-      setRoomCapacity("");
-      setSuccess(`Room “${linked.code}” added under ${selectedBuilding.name}.`);
-      if (w) setWarning(w);
-      // Background reconcile with server (does not clear optimistic row first).
-      void load();
-    } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to save room.");
-    } finally {
-      setSavingRoom(false);
-    }
-  }
-
   async function onDeleteRoom(room: Room) {
     if (!window.confirm(`Delete room “${room.code}”?`)) return;
     try {
@@ -307,6 +412,67 @@ export function BuildingsRoomsWorkspace({
       setSuccess(`Room “${room.code}” deleted.`);
     } catch (e) {
       setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to delete room.");
+    }
+  }
+
+  /**
+   * Adds one room straight into the building whose panel is open.
+   *
+   * The form at the top of the page creates a building with its rooms; this is for a building that
+   * already exists, where opening its panel and typing a code is the whole job.
+   */
+  async function onAddRoomToOpenBuilding() {
+    if (!selectedBuilding) return;
+    const code = panelRoomCode.trim();
+    if (!code) {
+      setError("Room code is required.");
+      return;
+    }
+    setSavingPanelRoom(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const floor = Math.min(
+        selectedBuilding.floorCount,
+        Math.max(1, parseInt(panelRoomFloor, 10) || 1),
+      );
+      const capacityRaw = panelRoomCapacity.trim();
+      const { room, warning: w } = await buildingsRoomsApi.createRoom({
+        code,
+        buildingId: selectedBuilding.id,
+        floor,
+        capacity: capacityRaw === "" ? null : Math.max(0, parseInt(capacityRaw, 10) || 0),
+        collegeId: selectedBuilding.collegeId,
+        programId: selectedBuilding.programId,
+        gecUsable: selectedBuilding.gecUsable,
+        building: selectedBuilding.name,
+      });
+      // Keep the row listable under this building even if the API omitted the link fields.
+      const linked: Room = {
+        ...room,
+        buildingId: room.buildingId ?? selectedBuilding.id,
+        building: room.building ?? selectedBuilding.name,
+        programId: room.programId ?? selectedBuilding.programId,
+        collegeId: room.collegeId ?? selectedBuilding.collegeId,
+        floor: room.floor ?? floor,
+        gecUsable: room.gecUsable ?? selectedBuilding.gecUsable,
+      };
+      setRooms((prev) => {
+        const byId = new Map(prev.map((r) => [r.id, r]));
+        byId.set(linked.id, linked);
+        return [...byId.values()];
+      });
+      setPanelRoomCode("");
+      setPanelRoomCapacity("");
+      setSuccess(`Room \u201c${linked.code}\u201d added to ${selectedBuilding.name}.`);
+      if (w) setWarning(w);
+      void load();
+    } catch (e) {
+      setError(
+        e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to save room.",
+      );
+    } finally {
+      setSavingPanelRoom(false);
     }
   }
 
@@ -359,29 +525,38 @@ export function BuildingsRoomsWorkspace({
   }
 
   async function onSaveRoomEdit() {
-    if (!editingRoomId || !selectedBuilding) return;
+    if (!editingRoomId) return;
     const code = editRoomCode.trim();
     if (!code) {
       setError("Room code is required.");
       return;
     }
+    /**
+     * A room with no building is edited from its own list, so there is no `selectedBuilding` to read
+     * the floor cap or the links from. Saving used to return silently in that case.
+     */
+    const editingRoom = rooms.find((r) => r.id === editingRoomId) ?? null;
+    const building =
+      selectedBuilding && editingRoom && roomBelongsToBuilding(editingRoom, selectedBuilding)
+        ? selectedBuilding
+        : null;
+
     setSavingEdit(true);
     setError(null);
     try {
-      const floor = Math.min(
-        selectedBuilding.floorCount,
-        Math.max(1, parseInt(editRoomFloor, 10) || 1),
-      );
+      const floorCap = building?.floorCount ?? 50;
+      const floor = Math.min(floorCap, Math.max(1, parseInt(editRoomFloor, 10) || 1));
       const capacityRaw = editRoomCapacity.trim();
       const { room: updated } = await buildingsRoomsApi.updateRoom(editingRoomId, {
         code,
         floor,
         capacity: capacityRaw === "" ? null : Math.max(0, parseInt(capacityRaw, 10) || 0),
-        building: selectedBuilding.name,
-        buildingId: selectedBuilding.id,
-        programId: scopeProgramId,
-        collegeId: scopeCollegeId,
-        gecUsable: selectedBuilding.gecUsable,
+        // Keep a standalone room standalone: only a room inside a building carries the links.
+        building: building?.name ?? editingRoom?.building ?? null,
+        buildingId: building?.id ?? editingRoom?.buildingId ?? null,
+        programId: editingRoom?.programId ?? scopeProgramId,
+        collegeId: editingRoom?.collegeId ?? scopeCollegeId,
+        gecUsable: building?.gecUsable ?? editingRoom?.gecUsable ?? false,
       });
       setRooms((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
       setEditingRoomId(null);
@@ -409,66 +584,176 @@ export function BuildingsRoomsWorkspace({
         </p>
       ) : null}
 
-      {warning ? (
-        <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{warning}</p>
-      ) : null}
-      {error ? (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>
-      ) : null}
-      {success ? (
-        <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2">{success}</p>
-      ) : null}
+      {/* Row actions happen far down the page; `alertsRef` brings their outcome into view. */}
+      <div ref={alertsRef} className="space-y-3 scroll-mt-4 empty:hidden">
+        {warning ? (
+          <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {warning}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {success ? (
+          <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2" role="status">
+            {success}
+          </p>
+        ) : null}
+      </div>
 
-      <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-4">
-        <div className="text-[16px] font-semibold">Add building</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <label className="space-y-1 sm:col-span-2">
-            <span className="text-[12px] font-semibold text-black/75">Building name</span>
-            <Input
-              value={buildingName}
-              onChange={(e) => setBuildingName(e.target.value)}
-              placeholder="e.g. Technology Building"
+      <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-5">
+        <div>
+          <div className="text-[16px] font-semibold">Add building and rooms</div>
+          <p className="text-[12px] text-black/55 mt-0.5">
+            Fill both halves to create a building with its rooms, or leave the building blank to add
+            standalone rooms to a department.
+          </p>
+        </div>
+
+        <ScopeSearchPicker
+          value={formScope}
+          onChange={(next) => setFormScope({ collegeId: next.collegeId, programId: next.programId })}
+          label="Department"
+          placeholder="Search a department — code or name"
+          helpText="Required. A building, and any standalone room, belongs to one department."
+          requireScope
+          kind="program"
+          className="max-w-xl"
+        />
+
+        <div className="space-y-3">
+          <div className="text-[13px] font-semibold text-black/80">Building (optional)</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <label className="space-y-1 sm:col-span-2">
+              <span className="text-[12px] font-semibold text-black/75">Building name</span>
+              <Input
+                value={buildingName}
+                onChange={(e) => setBuildingName(e.target.value)}
+                placeholder="e.g. Technology Building"
+                disabled={!canEdit || savingBuilding}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[12px] font-semibold text-black/75">Code</span>
+              <Input
+                value={buildingCode}
+                onChange={(e) => setBuildingCode(e.target.value)}
+                placeholder="e.g. TECH"
+                disabled={!canEdit || savingBuilding}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[12px] font-semibold text-black/75">Number of floors</span>
+              <Input
+                type="number"
+                min={1}
+                max={50}
+                value={floorCount}
+                onChange={(e) => setFloorCount(e.target.value)}
+                disabled={!canEdit || savingBuilding}
+              />
+            </label>
+          </div>
+          <label className="inline-flex items-center gap-2 text-[13px] text-black/80">
+            <input
+              type="checkbox"
+              checked={gecUsable}
+              onChange={(e) => setGecUsable(e.target.checked)}
               disabled={!canEdit || savingBuilding}
             />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[12px] font-semibold text-black/75">Code (optional)</span>
-            <Input
-              value={buildingCode}
-              onChange={(e) => setBuildingCode(e.target.value)}
-              placeholder="e.g. TECH"
-              disabled={!canEdit || savingBuilding}
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[12px] font-semibold text-black/75">Number of floors</span>
-            <Input
-              type="number"
-              min={1}
-              max={50}
-              value={floorCount}
-              onChange={(e) => setFloorCount(e.target.value)}
-              disabled={!canEdit || savingBuilding}
-            />
+            Usable for GEC subjects
           </label>
         </div>
-        <label className="inline-flex items-center gap-2 text-[13px] text-black/80">
-          <input
-            type="checkbox"
-            checked={gecUsable}
-            onChange={(e) => setGecUsable(e.target.checked)}
+
+        <div className="space-y-3 border-t border-black/10 pt-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="text-[13px] font-semibold text-black/80">Rooms</div>
+            <p className="text-[11px] text-black/50">
+              {buildingName.trim()
+                ? "Saved inside the building above."
+                : "No building name — these are saved as standalone rooms for the department."}
+            </p>
+          </div>
+
+          {newRooms.map((row, i) => (
+            <div key={`new-room-${i}`} className="grid grid-cols-1 sm:grid-cols-[1fr_7rem_7rem_auto] gap-3 items-end">
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Room code</span>
+                <Input
+                  value={row.code}
+                  onChange={(e) => patchNewRoom(i, { code: e.target.value })}
+                  placeholder="e.g. TECH 101"
+                  disabled={!canEdit || savingBuilding}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Floor</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={row.floor}
+                  onChange={(e) => patchNewRoom(i, { floor: e.target.value })}
+                  disabled={!canEdit || savingBuilding}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Capacity</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={row.capacity}
+                  onChange={(e) => patchNewRoom(i, { capacity: e.target.value })}
+                  placeholder="optional"
+                  disabled={!canEdit || savingBuilding}
+                />
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 text-[12px]"
+                disabled={savingBuilding || newRooms.length === 1}
+                onClick={() => setNewRooms((prev) => prev.filter((_, j) => j !== i))}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 text-[12px]"
             disabled={!canEdit || savingBuilding}
-          />
-          Usable for GEC subjects
-        </label>
-        <Button
-          type="button"
-          className="bg-[#780301] hover:bg-[#5a0201] text-white"
-          disabled={!canEdit || savingBuilding}
-          onClick={() => void onAddBuilding()}
-        >
-          {savingBuilding ? "Saving…" : "Save building"}
-        </Button>
+            onClick={() => setNewRooms((prev) => [...prev, { code: "", floor: "1", capacity: "" }])}
+          >
+            + Add another room
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 border-t border-black/10 pt-4">
+          <Button
+            type="button"
+            className="bg-[#780301] hover:bg-[#5a0201] text-white"
+            disabled={!canEdit || savingBuilding}
+            onClick={() => void onCreate()}
+          >
+            {savingBuilding ? "Saving…" : "Save"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={savingBuilding}
+            onClick={() => resetCreateForm()}
+          >
+            Clear form
+          </Button>
+          {!canEdit ? (
+            <span className="text-[12px] text-amber-900">Choose a department to save.</span>
+          ) : null}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
@@ -486,7 +771,9 @@ export function BuildingsRoomsWorkspace({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by building or room…"
-              disabled={!scopeCollegeId}
+              // Not gated on a college: the list is campus-wide until a scope is chosen, so the
+              // search has to work there too.
+              disabled={loading}
             />
           </label>
         </div>
@@ -572,8 +859,15 @@ export function BuildingsRoomsWorkspace({
                       <Button type="button" variant="outline" size="sm" onClick={() => void onToggleGec(b)}>
                         {b.gecUsable ? "Unset GEC" : "Mark GEC"}
                       </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => setSelectedBuildingId(b.id)}>
-                        Manage rooms
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-pressed={active}
+                        className={active ? "border-[#780301] text-[#780301]" : undefined}
+                        onClick={() => openRoomsFor(b.id)}
+                      >
+                        {active ? "Viewing rooms" : "Manage rooms"}
                       </Button>
                       <Button type="button" variant="outline" size="sm" onClick={() => void onDeleteBuilding(b)}>
                         Delete
@@ -588,61 +882,186 @@ export function BuildingsRoomsWorkspace({
         )}
       </div>
 
-      {selectedBuilding ? (
-        <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-4">
+      {standaloneRooms.length > 0 ? (
+        <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-3">
           <div>
-            <div className="text-[16px] font-semibold">Rooms in {selectedBuilding.name}</div>
+            <div className="text-[16px] font-semibold">Rooms without a building</div>
             <p className="text-[12px] text-black/55 mt-0.5">
-              Listed by floor ({selectedBuilding.floorCount} floor
-              {selectedBuilding.floorCount === 1 ? "" : "s"}). New rooms appear here as soon as they are saved.
+              {standaloneRooms.length} room{standaloneRooms.length === 1 ? "" : "s"} that belong to a
+              department but sit in no building on file. They are plottable exactly like any other room.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <label className="space-y-1 sm:col-span-2">
-              <span className="text-[12px] font-semibold text-black/75">Room code</span>
-              <Input
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value)}
-                placeholder="e.g. TECH 201"
-                disabled={savingRoom}
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-[12px] font-semibold text-black/75">Floor</span>
-              <select
-                className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
-                value={roomFloor}
-                onChange={(e) => setRoomFloor(e.target.value)}
-                disabled={savingRoom}
+          <ul className="divide-y divide-black/10 rounded-lg border border-black/10">
+            {standaloneRooms.map((r) => (
+              <li
+                key={r.id}
+                className={`flex flex-wrap items-center gap-2 px-3 py-2 ${
+                  editingRoomId === r.id ? "bg-amber-50/80" : ""
+                }`}
               >
-                {floorOptions.map((f) => (
-                  <option key={f} value={String(f)}>
-                    Floor {f}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1">
-              <span className="text-[12px] font-semibold text-black/75">Capacity</span>
-              <Input
-                type="number"
-                min={1}
-                value={roomCapacity}
-                onChange={(e) => setRoomCapacity(e.target.value)}
-                placeholder="optional"
-                disabled={savingRoom}
-              />
-            </label>
-          </div>
-          <Button
-            type="button"
-            className="bg-[#ff990a] hover:bg-[#e68a09] text-white"
-            disabled={savingRoom}
-            onClick={() => void onAddRoom()}
-          >
-            {savingRoom ? "Saving…" : "Add room"}
-          </Button>
+                {editingRoomId === r.id ? (
+                  /* Edit in place: a room with no building has no other panel to open. */
+                  <div className="flex w-full flex-wrap items-end gap-2">
+                    <label className="space-y-1 flex-1 min-w-[140px]">
+                      <span className="text-[11px] text-black/60">Room code</span>
+                      <Input
+                        value={editRoomCode}
+                        onChange={(e) => setEditRoomCode(e.target.value)}
+                        disabled={savingEdit}
+                      />
+                    </label>
+                    <label className="space-y-1 w-24">
+                      <span className="text-[11px] text-black/60">Floor</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={editRoomFloor}
+                        onChange={(e) => setEditRoomFloor(e.target.value)}
+                        disabled={savingEdit}
+                      />
+                    </label>
+                    <label className="space-y-1 w-28">
+                      <span className="text-[11px] text-black/60">Capacity</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={editRoomCapacity}
+                        onChange={(e) => setEditRoomCapacity(e.target.value)}
+                        placeholder="optional"
+                        disabled={savingEdit}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-[#780301] text-white hover:bg-[#5a0201]"
+                      disabled={savingEdit}
+                      onClick={() => void onSaveRoomEdit()}
+                    >
+                      {savingEdit ? "Saving…" : "Save"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={savingEdit}
+                      onClick={() => setEditingRoomId(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-[13px] font-semibold">{r.code}</span>
+                    <span className="text-[12px] text-black/55">
+                      Floor {r.floor ?? 1}
+                      {r.capacity ? ` · ${r.capacity} seats` : ""}
+                    </span>
+                    <div className="ml-auto flex gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => startEditRoom(r)}>
+                        Edit
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => void onDeleteRoom(r)}>
+                        Delete
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
+      {selectedBuilding ? (
+        <div
+          ref={roomsPanelRef}
+          className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-4 scroll-mt-4"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="text-[16px] font-semibold">Rooms in {selectedBuilding.name}</div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 bg-[#780301] text-[11px] text-white hover:bg-[#5a0201]"
+                onClick={() => setPanelAddOpen((open) => !open)}
+              >
+                {panelAddOpen ? "Cancel" : "+ Add room"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-[11px]"
+                onClick={() => setSelectedBuildingId(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+          <div>
+            <p className="text-[12px] text-black/55 mt-0.5">
+              Listed by floor ({selectedBuilding.floorCount} floor
+              {selectedBuilding.floorCount === 1 ? "" : "s"}). Use <strong>+ Add room</strong> for this building,
+              or the form at the top of the page to create a building with its rooms.
+            </p>
+          </div>
+
+          {panelAddOpen ? (
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_8rem_8rem_auto] gap-3 items-end rounded-lg border border-black/10 bg-black/[0.02] p-3">
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Room code</span>
+                <Input
+                  value={panelRoomCode}
+                  onChange={(e) => setPanelRoomCode(e.target.value)}
+                  placeholder={`e.g. ${selectedBuilding.code?.trim() || "ROOM"} 101`}
+                  disabled={savingPanelRoom}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void onAddRoomToOpenBuilding();
+                    }
+                  }}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Floor</span>
+                <select
+                  className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                  value={panelRoomFloor}
+                  onChange={(e) => setPanelRoomFloor(e.target.value)}
+                  disabled={savingPanelRoom}
+                >
+                  {floorOptions.map((f) => (
+                    <option key={f} value={String(f)}>
+                      Floor {f}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Capacity</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={panelRoomCapacity}
+                  onChange={(e) => setPanelRoomCapacity(e.target.value)}
+                  placeholder="optional"
+                  disabled={savingPanelRoom}
+                />
+              </label>
+              <Button
+                type="button"
+                className="h-10 bg-[#780301] text-white hover:bg-[#5a0201]"
+                disabled={savingPanelRoom}
+                onClick={() => void onAddRoomToOpenBuilding()}
+              >
+                {savingPanelRoom ? "Adding\u2026" : "Add"}
+              </Button>
+            </div>
+          ) : null}
           {roomsByFloor.length === 0 ? (
             <p className="text-center text-[13px] text-black/50 border border-black/10 rounded-lg py-8">
               {searchQ ? "No rooms match your search in this building." : "No rooms in this building yet."}

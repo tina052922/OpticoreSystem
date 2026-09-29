@@ -4,7 +4,14 @@ import { useCallback, useState } from "react";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { SubjectCodesWorkspace } from "@/components/subjects/SubjectCodesWorkspace";
 
-export function SubjectCodesWithScope({ initialCollegeId }: { initialCollegeId?: string | null }) {
+export function SubjectCodesWithScope({
+  initialCollegeId,
+  lockedCollegeId = null,
+}: {
+  initialCollegeId?: string | null;
+  /** College Admin: only their own college's departments may be scoped to. */
+  lockedCollegeId?: string | null;
+}) {
   const [scopeProgramId, setScopeProgramId] = useState<string | null>(null);
   const [scopeProgramCode, setScopeProgramCode] = useState<string | null>(null);
 
@@ -18,6 +25,7 @@ export function SubjectCodesWithScope({ initialCollegeId }: { initialCollegeId?:
       <div className="px-4 sm:px-6 lg:px-8 pb-2">
         <CampusScopeFilters
           initialCollegeId={initialCollegeId ?? undefined}
+          lockedCollegeId={lockedCollegeId}
           requireProgram
           onScopeChange={handleScopeChange}
         />

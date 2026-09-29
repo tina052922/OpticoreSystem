@@ -24,6 +24,7 @@ import { formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
 import type { ConflictHit, GASuggestion, ScheduleBlock } from "@/lib/scheduling/types";
 import type {
   AcademicPeriod,
+  Building,
   College,
   FacultyProfile,
   Program,
@@ -127,6 +128,8 @@ export function EvaluatorTimetablingPanel({
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  /** Needed to tell which college a room sits in: most rooms carry no `collegeId` of their own. */
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [collegeUsers, setCollegeUsers] = useState<User[]>([]);
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [loadJustifications, setLoadJustifications] = useState<ScheduleLoadJustification[]>([]);
@@ -185,6 +188,7 @@ export function EvaluatorTimetablingPanel({
       setSections(bundle.sections ?? []);
       setSubjects(bundle.subjects ?? []);
       setRooms(bundle.rooms ?? []);
+      setBuildings((bundle.buildings ?? []) as Building[]);
       setCollegeUsers(bundle.users ?? []);
       setFacultyProfiles(bundle.facultyProfiles ?? []);
       setLoading(false);
@@ -351,8 +355,9 @@ export function EvaluatorTimetablingPanel({
       programCode,
       effectiveCollegeId,
       programId,
+      buildings,
     );
-  }, [roomsCatalogAligned, effectiveCollegeId, programId, chairmanProgramCode, programs]);
+  }, [roomsCatalogAligned, buildings, effectiveCollegeId, programId, chairmanProgramCode, programs]);
 
   /** Cascading step 1: one entry per distinct `Room.building` (normalized), alphabetically sorted. */
   const plotterBuildingLabels = useMemo(() => sortedBuildingKeysFromRooms(roomsForPlotter), [roomsForPlotter]);

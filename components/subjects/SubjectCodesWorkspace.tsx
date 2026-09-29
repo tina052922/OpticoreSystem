@@ -5,6 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { normalizeSubjectCodeForCompare } from "@/lib/subjects/normalize-subject-code";
+import {
+  SUBJECT_CATEGORIES,
+  SUBJECT_SEMESTERS,
+  normalizeSubjectCategory,
+  normalizeSubjectSemester,
+  subjectCategoryLabel,
+  subjectSemesterLabel,
+  suggestSubjectCategory,
+} from "@/lib/subjects/subject-category";
 import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
 import { subjectCodesApi } from "@/lib/api/client";
 import type { Subject } from "@/types/db";
@@ -129,6 +138,10 @@ export function SubjectCodesWorkspace({
   const [lecHoursTouched, setLecHoursTouched] = useState(false);
   const [labHoursTouched, setLabHoursTouched] = useState(false);
   const [yearLevel, setYearLevel] = useState("1");
+  const [semester, setSemester] = useState("");
+  const [category, setCategory] = useState("");
+  /** Once the category is chosen by hand, typing a code must not change it back. */
+  const [categoryTouched, setCategoryTouched] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
@@ -231,7 +244,8 @@ export function SubjectCodesWorkspace({
       (s) =>
         s.code.toLowerCase().includes(q) ||
         (s.title && s.title.toLowerCase().includes(q)) ||
-        (programCodeById[s.programId] ?? "").toLowerCase().includes(q),
+        (programCodeById[s.programId] ?? "").toLowerCase().includes(q) ||
+        subjectCategoryLabel(s.category, "").toLowerCase().includes(q),
     );
   }, [dbSubjects, subjectSearch, gecCurriculumOnly, allProgramsCatalog, programCodeById]);
 
@@ -267,6 +281,9 @@ export function SubjectCodesWorkspace({
     setLecHoursTouched(false);
     setLabHoursTouched(false);
     setYearLevel("1");
+    setSemester("");
+    setCategory("");
+    setCategoryTouched(false);
     if (campusWide) setFormProgramId("");
   }
 
@@ -281,6 +298,9 @@ export function SubjectCodesWorkspace({
     setLecHoursTouched(true);
     setLabHoursTouched(true);
     setYearLevel(String(s.yearLevel ?? 1));
+    setSemester(String(normalizeSubjectSemester(s.semester) ?? ""));
+    setCategory(normalizeSubjectCategory(s.category));
+    setCategoryTouched(true);
     if (campusWide) setFormProgramId(s.programId ?? "");
     setError(null);
     setSuccess(null);
@@ -327,6 +347,8 @@ export function SubjectCodesWorkspace({
       labHours: labHrs,
       programId,
       yearLevel: Math.min(6, Math.max(1, parseInt(yearLevel, 10) || 1)),
+      semester: normalizeSubjectSemester(semester),
+      category: normalizeSubjectCategory(category) || null,
     };
     try {
       if (editingId) {
@@ -428,7 +450,18 @@ export function SubjectCodesWorkspace({
           ) : null}
           <div className="space-y-1">
             <div className="text-sm font-medium">Subject Code</div>
-            <Input placeholder="e.g. CC-111" value={code} onChange={(e) => setCode(e.target.value)} disabled={!programId} />
+            <Input
+              placeholder="e.g. CC-111"
+              value={code}
+              onChange={(e) => {
+                const next = e.target.value;
+                setCode(next);
+                // GEC-, GEE-, NSTP- and PATHFIT- codes say their own category; major vs minor never
+                // does, so this only ever fills a blank the user has not touched.
+                if (!categoryTouched) setCategory(suggestSubjectCategory(next));
+              }}
+              disabled={!programId}
+            />
           </div>
           <div className="space-y-1 lg:col-span-2">
             <div className="text-sm font-medium">Descriptive Title</div>
@@ -468,6 +501,43 @@ export function SubjectCodesWorkspace({
               disabled={!programId}
             />
             <p className="text-[11px] text-black/50">Editable — prefilled from units, override as needed.</p>
+          </div>
+          <div className="space-y-1">
+            <div className="text-sm font-medium">Semester</div>
+            <select
+              className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
+              value={semester}
+              onChange={(e) => setSemester(e.target.value)}
+              disabled={!programId}
+            >
+              <option value="">— Not set —</option>
+              {SUBJECT_SEMESTERS.map((s) => (
+                <option key={s.value} value={String(s.value)}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-black/50">When this subject is offered.</p>
+          </div>
+          <div className="space-y-1">
+            <div className="text-sm font-medium">Category</div>
+            <select
+              className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
+              value={category}
+              onChange={(e) => {
+                setCategoryTouched(true);
+                setCategory(normalizeSubjectCategory(e.target.value));
+              }}
+              disabled={!programId}
+            >
+              <option value="">— Not set —</option>
+              {SUBJECT_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-black/50">Major, Minor, GEC, Elective, NSTP or PE.</p>
           </div>
           <div className="space-y-1">
             <div className="text-sm font-medium">Year level</div>
@@ -552,6 +622,8 @@ export function SubjectCodesWorkspace({
             <thead>
               <tr className="bg-[#ff990a] text-white text-[11px]">
                 <th className="border border-black/10 px-2 py-2 text-left">Yr</th>
+                <th className="border border-black/10 px-2 py-2 text-left">Sem</th>
+                <th className="border border-black/10 px-2 py-2 text-left">Category</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Subject Code</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Descriptive Title</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lec Units</th>
@@ -567,13 +639,13 @@ export function SubjectCodesWorkspace({
             <tbody className="text-[12px]">
               {!scopedProgramId && !campusWide ? (
                 <tr>
-                  <td colSpan={campusWide ? 10 : 8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={campusWide ? 11 : 10} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     Select a program to load subjects for that program.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={campusWide ? 10 : 8} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={campusWide ? 11 : 10} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     {dbSubjects.length === 0
                       ? "No subjects in the database for this program yet."
                       : "No saved subjects match your search."}
@@ -583,7 +655,7 @@ export function SubjectCodesWorkspace({
                 dbSubjectsByYear.flatMap((group) => [
                   <tr key={`yr-db-${group.yearLevel}`} className="bg-black/[0.04]">
                     <td
-                      colSpan={campusWide ? 10 : 8}
+                      colSpan={campusWide ? 11 : 10}
                       className="border border-black/10 px-2 py-2 text-[12px] font-bold text-black/80"
                     >
                       {group.label}
@@ -592,6 +664,8 @@ export function SubjectCodesWorkspace({
                   ...group.subjects.map((s) => (
                     <tr key={s.id} className={editingId === s.id ? "bg-amber-50/80" : undefined}>
                       <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
+                      <td className="border border-black/10 px-2 py-2">{subjectSemesterLabel(s.semester)}</td>
+                      <td className="border border-black/10 px-2 py-2">{subjectCategoryLabel(s.category)}</td>
                       <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
                       <td className="border border-black/10 px-2 py-2">{s.title}</td>
                       <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
@@ -603,14 +677,9 @@ export function SubjectCodesWorkspace({
                         {s.labHours ?? labHoursFromUnits(s.labUnits)}
                       </td>
                       {campusWide ? (
-                        <>
-                          <td className="border border-black/10 px-2 py-2 tabular-nums">
-                            {s.semester ? (s.semester === 1 ? "1st" : "2nd") : "—"}
-                          </td>
-                          <td className="border border-black/10 px-2 py-2">
-                            {programCodeById[s.programId] ?? "—"}
-                          </td>
-                        </>
+                        <td className="border border-black/10 px-2 py-2">
+                          {programCodeById[s.programId] ?? "—"}
+                        </td>
                       ) : null}
                       <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
                         <button

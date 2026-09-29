@@ -9,9 +9,10 @@ export default async function CollegeFacultyProfilePage() {
     <div>
       <ChairmanPageHeader
         title="Faculty Profile"
-        subtitle="Filter by college and department"
+        subtitle="Faculty in your college — filter by department"
       />
-      <FacultyProfileWithScope initialCollegeId={profile.collegeId} />
+      {/* College Admin sees only their own college. */}
+      <FacultyProfileWithScope lockedCollegeId={profile.collegeId} />
     </div>
   );
 }

@@ -63,6 +63,52 @@ describe("department-scoped plot rooms", () => {
   });
 });
 
+describe("a chairman stays inside their own college", () => {
+  // Most rooms carry no collegeId of their own; the building is what puts them in a college.
+  const buildings = [
+    { id: "b-cote", name: "COTE Building", collegeId: "c1" },
+    { id: "b-agri", name: "Agriculture Building", collegeId: "c2" },
+    { id: "b-shared", name: "Admin Building", collegeId: null },
+  ];
+  const coteRoom = room({ id: "r1", code: "COTE-101", buildingId: "b-cote", collegeId: null });
+  const agriRoom = room({ id: "r2", code: "AGRI-1", buildingId: "b-agri", collegeId: null });
+  const sharedRoom = room({ id: "r3", code: "ADM-1", buildingId: "b-shared", collegeId: null });
+  const looseRoom = room({ id: "r4", code: "LOOSE-1", buildingId: null, collegeId: null, building: null });
+
+  it("never offers a room that belongs to another college", () => {
+    const scoped = filterRoomsForProgramPlot(
+      [coteRoom, agriRoom, sharedRoom, looseRoom],
+      "BSIT",
+      "c1",
+      "prog-bsit",
+      buildings,
+    );
+    expect(scoped.map((r) => r.id).sort()).toEqual(["r1", "r3", "r4"]);
+    expect(scoped.some((r) => r.id === "r2")).toBe(false);
+  });
+
+  it("reads the college from the building even when the room text is the only link", () => {
+    const byName = room({ id: "r5", code: "AGRI-2", buildingId: null, building: "Agriculture Building" });
+    expect(isRoomEligibleForProgramPlot(byName, "BSIT", "c1", "prog-bsit", buildings)).toBe(false);
+    expect(isRoomEligibleForProgramPlot(byName, "BSAG", "c2", "prog-ag", buildings)).toBe(true);
+  });
+
+  it("keeps campus-shared rooms available to every college", () => {
+    expect(isRoomEligibleForProgramPlot(sharedRoom, "BSIT", "c1", "prog-bsit", buildings)).toBe(true);
+    expect(isRoomEligibleForProgramPlot(looseRoom, "BSIT", "c1", "prog-bsit", buildings)).toBe(true);
+  });
+
+  it("still honours a room's own college when it sits in no building", () => {
+    const owned = room({ id: "r6", code: "X-1", buildingId: null, building: null, collegeId: "c2" });
+    expect(isRoomEligibleForProgramPlot(owned, "BSIT", "c1", "prog-bsit", buildings)).toBe(false);
+  });
+
+  it("applies the same rule to GEC plotting", () => {
+    const scoped = filterRoomsForGecPlot([coteRoom, agriRoom, sharedRoom], "c1", buildings);
+    expect(scoped.map((r) => r.id).sort()).toEqual(["r1", "r3"]);
+  });
+});
+
 describe("GEC-usable room filter", () => {
   it("prefers gecUsable rooms when any exist for the college", () => {
     const rooms = [

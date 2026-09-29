@@ -688,9 +688,9 @@ export function GecCentralHubEvaluatorClient() {
 
   const roomsForPlotting = useMemo(() => {
     if (!plotCollegeId) return [];
-    const scoped = filterRoomsForGecPlot(rooms, plotCollegeId);
+    const scoped = filterRoomsForGecPlot(rooms, plotCollegeId, buildings);
     return dedupeLegacyItLabsForCampusNavigation(scoped);
-  }, [rooms, plotCollegeId]);
+  }, [rooms, buildings, plotCollegeId]);
 
   function patchEdit(entryId: string, patch: GecPlotEditPatch) {
     setEdits((prev) => ({

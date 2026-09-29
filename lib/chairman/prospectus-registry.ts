@@ -99,14 +99,17 @@ export function catalogSubjectsToProspectusRows(subjects: Subject[]): Prospectus
     if (seen.has(key)) continue;
     seen.add(key);
     const semester: BsitSemester = s.semester === 2 ? 2 : 1;
-    const yearLevel = Number.isFinite(s.yearLevel) ? Math.max(1, Math.min(4, Math.round(s.yearLevel))) : 1;
+    // Up to year 6: some programs run beyond four, and clamping to 4 filed those rows under the
+    // wrong year in the summary.
+    const yearLevel = Number.isFinite(s.yearLevel) ? Math.max(1, Math.min(6, Math.round(s.yearLevel))) : 1;
     out.push({
       code,
       title: (s.title ?? "").trim() || code,
       lecUnits: s.lecUnits ?? 0,
-      lecHours: lectureHoursFromUnits(s.lecUnits),
+      // Hours are editable per subject, so the stored value wins; units are only the fallback.
+      lecHours: s.lecHours ?? lectureHoursFromUnits(s.lecUnits),
       labUnits: s.labUnits ?? 0,
-      labHours: labHoursFromUnits(s.labUnits),
+      labHours: s.labHours ?? labHoursFromUnits(s.labUnits),
       yearLevel,
       semester,
     });

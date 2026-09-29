@@ -28,6 +28,11 @@ export type CampusScopeFiltersProps = {
    * Placeholder becomes “Select program”.
    */
   requireProgram?: boolean;
+  /**
+   * College Admin: pin the scope to their own college. The picker becomes a read-only label and no
+   * other college — nor campus-wide — can be selected, so every list on the page stays inside it.
+   */
+  lockedCollegeId?: string | null;
 };
 
 /**
@@ -43,6 +48,7 @@ export function CampusScopeFilters({
   chairmanProgramCode = null,
   chairmanProgramName = null,
   requireProgram = false,
+  lockedCollegeId = null,
 }: CampusScopeFiltersProps) {
   const [loading, setLoading] = useState(true);
   const [colleges, setColleges] = useState<College[]>([]);
@@ -51,6 +57,7 @@ export function CampusScopeFilters({
   const [programId, setProgramId] = useState<string>("");
 
   const isChairman = variant === "chairman";
+  const collegeLocked = Boolean(lockedCollegeId) && !isChairman;
   const hasChairmanCollege = Boolean(chairmanCollegeId);
   const chairmanProgramLocked = Boolean(isChairman && chairmanProgramId);
 
@@ -76,8 +83,10 @@ export function CampusScopeFilters({
 
   useEffect(() => {
     if (isChairman && chairmanCollegeId) setCollegeId(chairmanCollegeId);
+    // A locked college wins over `initialCollegeId`, and re-applies if anything clears it.
+    else if (collegeLocked && lockedCollegeId) setCollegeId(lockedCollegeId);
     else if (!isChairman && initialCollegeId) setCollegeId(initialCollegeId);
-  }, [initialCollegeId, isChairman, chairmanCollegeId]);
+  }, [initialCollegeId, isChairman, chairmanCollegeId, collegeLocked, lockedCollegeId]);
 
   useEffect(() => {
     if (chairmanProgramLocked && chairmanProgramId) setProgramId(chairmanProgramId);
@@ -90,17 +99,31 @@ export function CampusScopeFilters({
       if (chairmanProgramId) list = list.filter((p) => p.id === chairmanProgramId);
       return list;
     }
+    if (collegeLocked) return programs.filter((p) => p.collegeId === lockedCollegeId);
     if (!collegeId) return programs;
     return programs.filter((p) => p.collegeId === collegeId);
-  }, [programs, collegeId, isChairman, chairmanCollegeId, chairmanProgramId]);
+  }, [programs, collegeId, isChairman, chairmanCollegeId, chairmanProgramId, collegeLocked, lockedCollegeId]);
 
   useEffect(() => {
-    const cid = isChairman ? chairmanCollegeId ?? null : collegeId || null;
+    const cid = isChairman
+      ? chairmanCollegeId ?? null
+      : collegeLocked
+        ? lockedCollegeId ?? null
+        : collegeId || null;
     const pid = programId || null;
     const programCode =
       pid && programs.length ? (programs.find((p) => p.id === pid)?.code ?? null) : null;
     onScopeChange?.({ collegeId: cid, programId: pid, programCode });
-  }, [collegeId, programId, onScopeChange, isChairman, chairmanCollegeId, programs]);
+  }, [
+    collegeId,
+    programId,
+    onScopeChange,
+    isChairman,
+    chairmanCollegeId,
+    programs,
+    collegeLocked,
+    lockedCollegeId,
+  ]);
 
   return (
     <div
@@ -110,7 +133,23 @@ export function CampusScopeFilters({
         <p className="text-[13px] font-bold text-black/85">Search & scope</p>
       </div>
       <div className={`grid grid-cols-1 gap-4 ${isChairman ? "" : "md:grid-cols-2"}`}>
-        {!isChairman ? (
+        {!isChairman && collegeLocked ? (
+          <div className="text-[13px] font-semibold text-black/75">
+            College
+            <div className={`mt-1 ${selectClass} flex items-center text-black/85`} aria-readonly>
+              {loading
+                ? "Loading\u2026"
+                : (() => {
+                    const own = colleges.find((c) => c.id === lockedCollegeId);
+                    return own ? `${own.code} \u2014 ${own.name}` : "Your college";
+                  })()}
+            </div>
+            <span className="mt-1 block text-[11px] font-normal text-black/50">
+              Your college. Every list on this page is limited to it.
+            </span>
+          </div>
+        ) : null}
+        {!isChairman && !collegeLocked ? (
           <label className="text-[13px] font-semibold text-black/75">
             College
             <select

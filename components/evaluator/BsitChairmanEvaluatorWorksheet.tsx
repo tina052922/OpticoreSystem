@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/api/client";
+import { filterInstructorsForDepartment } from "@/lib/evaluator/instructor-scope";
 import { coveredFacultyIds, justificationLoadSnapshot } from "@/lib/scheduling/justification-coverage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -376,6 +377,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const maxFacultyHours = systemConfig?.defaultMaxFacultyHoursPerWeek;
   const [sections, setSections] = useState<Section[]>([]);
   const [programsCatalog, setProgramsCatalog] = useState<Pick<Program, "id" | "collegeId" | "code" | "name">[]>([]);
+  const [collegesCatalog, setCollegesCatalog] = useState<{ id: string; code: string; name: string }[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   /** `Building` rows — what Buildings & Rooms manages, and what the plot modal may offer. */
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -644,6 +646,7 @@ export function BsitChairmanEvaluatorWorksheet({
       bundleSubjects = (bundle.subjects ?? []) as Subject[];
 
       setBuildings((bundle.buildings ?? []) as Building[]);
+      setCollegesCatalog((bundle.colleges ?? []) as { id: string; code: string; name: string }[]);
 
       // Rooms refresh on every load, not only on the first one for a term.
       const bundleRooms = (bundle.rooms ?? []) as Room[];
@@ -675,12 +678,24 @@ export function BsitChairmanEvaluatorWorksheet({
       setDoiScheduleLocked(Boolean(bundle.doiScheduleLocked));
 
       const allUsers = (bundle.users ?? []) as User[];
-      const campusFac = allUsers.filter(
+      const collegeFac = allUsers.filter(
         (u) =>
           isPlottableFacultyUser(u) &&
           (!chairmanCollegeId || u.collegeId === chairmanCollegeId),
       );
       const instrIds = [...new Set(entries.map((e) => e.instructorId).filter(Boolean))] as string[];
+      /**
+       * A Program Chairman plots their own department only, so sibling departments in the same
+       * college must not appear in the instructor picker. College Admin and DOI keep the wider list:
+       * they work across departments, and `lockedDepartmentId` is blank for them.
+       */
+      const lockedDepartmentId =
+        collegeWidePrograms || campusWidePrograms ? null : chairmanProgramId;
+      const campusFac = filterInstructorsForDepartment(
+        collegeFac,
+        lockedDepartmentId,
+        new Set(instrIds),
+      );
       const rowFac = allUsers.filter(
         (u) => instrIds.includes(u.id) && isFacultyStaffRole(u.role),
       );
@@ -824,7 +839,16 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     setDayRows((prev) => mergeHydrate(prev, dayNext));
     setNightRows((prev) => mergeHydrate(prev, nightNext));
-  }, [chairmanCollegeId, academicPeriodId, programCodeForSummary, programId]);
+  }, [
+    chairmanCollegeId,
+    academicPeriodId,
+    programCodeForSummary,
+    programId,
+    // The instructor list is scoped by the locked department, so a scope change must refetch.
+    chairmanProgramId,
+    collegeWidePrograms,
+    campusWidePrograms,
+  ]);
 
   useEffect(() => {
     void loadAllData();
@@ -838,6 +862,7 @@ export function BsitChairmanEvaluatorWorksheet({
       programCodeForSummary,
       chairmanCollegeId,
       programId,
+      buildings,
     );
     const sorted = [...scoped].sort((a, b) => {
       const ba = (a.building ?? "").localeCompare(b.building ?? "");
@@ -845,7 +870,7 @@ export function BsitChairmanEvaluatorWorksheet({
       return a.code.localeCompare(b.code);
     });
     return sorted.length > 0 ? sorted : rooms;
-  }, [rooms, chairmanCollegeId, programCodeForSummary, programId]);
+  }, [rooms, buildings, chairmanCollegeId, programCodeForSummary, programId]);
 
   const rowInstructorIds = useMemo(() => rows.map((r) => r.instructorId).filter(Boolean) as string[], [rows]);
 
@@ -942,6 +967,20 @@ export function BsitChairmanEvaluatorWorksheet({
       },
     ],
     [programCodeForSummary, activeProgramName],
+  );
+
+  /** College the plotted section belongs to — shown on the Summary of Subjects. */
+  const summaryCollegeLabel = useMemo(() => {
+    const programCollegeId =
+      programsCatalog.find((p) => p.id === programId)?.collegeId ?? chairmanCollegeId ?? null;
+    if (!programCollegeId) return "";
+    const college = collegesCatalog.find((c) => c.id === programCollegeId);
+    return college?.code || college?.name || "";
+  }, [programsCatalog, programId, chairmanCollegeId, collegesCatalog]);
+
+  const summarySectionLabel = useMemo(
+    () => (selectedSectionId ? (sectionNameById.get(selectedSectionId) ?? "") : ""),
+    [selectedSectionId, sectionNameById],
   );
 
   const catalogSubjectRows = useMemo(
@@ -2457,6 +2496,8 @@ export function BsitChairmanEvaluatorWorksheet({
         plottedSubjectCodes={plottedSubjectCodesForSection}
         plottedHoursBySubjectCode={plottedHoursBySubjectCodeForSection}
         lastPlottedSubjectCode={lastPlottedSubjectFlash}
+        collegeLabel={summaryCollegeLabel}
+        sectionLabel={summarySectionLabel}
         fallbackSubjects={catalogSubjectRows}
       />
       {overLimitSubjectCodesForSection.size > 0 && !viewOnly ? (

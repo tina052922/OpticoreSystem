@@ -13,7 +13,8 @@ export default async function CollegeAdminLayout({ children }: { children: React
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       navItems={COLLEGE_ADMIN_NAV}
-      roleLabel="College admin · COTE"
+      // The label follows the account: a CAFE admin must not read "COTE".
+      roleLabel={profile.collegeCode ? `College admin · ${profile.collegeCode}` : "College admin"}
       profileHref="/admin/college/profile"
       auditLogUnreadScope="college"
     >

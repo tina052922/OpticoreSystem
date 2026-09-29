@@ -420,10 +420,11 @@ export function FacultyProfileWorkspace({
   async function saveFacultyEdits(userId: string) {
     setError(null);
     setSuccess(null);
-    const draft = editState[userId];
-    if (!draft || !collegeId) return;
+    if (!collegeId) return;
     const row = rows.find((r) => r.user.id === userId);
     if (!row) return;
+    // Same builder the table renders from, so a save can never read a half-filled draft.
+    const draft = draftForRow(row);
 
     const name = row.profile?.fullName ?? row.user.name;
     const statusVal = normalizeFacultyProfileStatus(draft.status);
@@ -751,6 +752,26 @@ export function FacultyProfileWorkspace({
     const own = (row.user.chairmanProgramId ?? "").trim();
     if (own) return programLabelById.get(own) ?? own;
     return programLabel && programLabel !== "\u2014" ? programLabel : "Unassigned";
+  }
+
+  /**
+   * The editable draft for a row.
+   *
+   * Always returns `advisorySectionIds` as an array. Reading it straight from `editState` crashed
+   * the page: the Faculty List fell back to the old single-value shape, so the first render — before
+   * the effect fills `editState` — hit `undefined.includes(...)`.
+   */
+  function draftForRow(row: ListRow): {
+    status: string;
+    designation: string;
+    advisorySectionIds: string[];
+  } {
+    const stored = editState[row.user.id];
+    return {
+      status: normalizeFacultyProfileStatus(stored?.status ?? row.profile?.status),
+      designation: stored?.designation ?? row.profile?.designation ?? "",
+      advisorySectionIds: stored?.advisorySectionIds ?? advisorySectionIdsOf(row.profile),
+    };
   }
 
   const sectionNameById = useMemo(() => {
@@ -1227,11 +1248,7 @@ export function FacultyProfileWorkspace({
                     </tr>
                   ) : (
                     filteredRows.map(({ user, profile, parts }, index) => {
-                      const draft = editState[user.id] ?? {
-                        status: normalizeFacultyProfileStatus(profile?.status),
-                        designation: profile?.designation ?? "",
-                        advisorySectionId: profile?.advisorySectionId ?? "",
-                      };
+                      const draft = draftForRow({ user, profile });
                       const age = computeAge(profile?.dateOfBirth);
                       return (
                         <tr key={user.id}>
@@ -1454,11 +1471,7 @@ export function FacultyProfileWorkspace({
                   </tr>
                 ) : (
                   filteredRows.map(({ user, profile, parts }) => {
-                    const draft = editState[user.id] ?? {
-                      status: normalizeFacultyProfileStatus(profile?.status),
-                      designation: profile?.designation ?? "",
-                      advisorySectionIds: advisorySectionIdsOf(profile),
-                    };
+                    const draft = draftForRow({ user, profile });
                     // Students column sums every section the faculty advises.
                     const advisedSections = sections.filter((sec) => draft.advisorySectionIds.includes(sec.id));
                     const advisedStudents = advisedSections.reduce(

@@ -13,7 +13,10 @@ export default async function ChairmanLayout({ children }: { children: React.Rea
       profileImageUrl={session.profileImageUrl}
       userEmail={session.email}
       navItems={CHAIRMAN_NAV}
-      roleLabel="Chairman admin · COTE"
+      // Follows the account: college code when known, else the department.
+      roleLabel={`Chairman admin${
+        session.collegeCode ? ` · ${session.collegeCode}` : session.programCode ? ` · ${session.programCode}` : ""
+      }`}
       profileHref="/chairman/profile"
       instructorRequestsBadge
     >
