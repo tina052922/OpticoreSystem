@@ -9,7 +9,14 @@ import { LoginContainer } from "@/components/login/LoginContainer";
 import { OtpVerificationPanel } from "@/components/register/OtpVerificationPanel";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
-import { apiFetch, registerApi, ApiClientError } from "@/lib/api/client";
+import { apiFetch, instructorEmailPolicyApi, registerApi, ApiClientError } from "@/lib/api/client";
+import {
+  DEFAULT_INSTRUCTOR_EMAIL_POLICY,
+  enabledInstructorDomains,
+  instructorEmailDomainHint,
+  isAllowedInstructorEmail,
+  type InstructorEmailPolicy,
+} from "@/lib/system-configuration/instructor-email-policy";
 import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
 import {
   ACADEMIC_RANK_SUGGESTIONS,
@@ -35,18 +42,6 @@ const labelClass = "block text-sm font-medium text-[#181818] mb-1";
 
 /** Must match the backend's MIN_PASSWORD_LENGTH. */
 const MIN_PASSWORD_LENGTH = 8;
-/** Must match `isAllowedInstructorEmail` on the server. */
-const INSTRUCTOR_DOMAIN = "ctu.edu.ph";
-
-/**
- * Mirrors the server check. Client-side validation is a UX convenience only —
- * the server re-validates, and is the sole authority.
- */
-function isCtuEmail(value: string): boolean {
-  const domain = value.trim().toLowerCase().split("@")[1];
-  if (!domain || domain.endsWith(".")) return false;
-  return domain === INSTRUCTOR_DOMAIN || domain.endsWith(`.${INSTRUCTOR_DOMAIN}`);
-}
 
 export function InstructorRegisterClient() {
   const branding = useCampusBranding();
@@ -84,6 +79,27 @@ export function InstructorRegisterClient() {
   const [success, setSuccess] = useState<string | null>(null);
   /** Epoch ms of the last code send, for the resend countdown. */
   const [lastSentAt, setLastSentAt] = useState(0);
+  /**
+   * Which domains DOI accepts, from System Configuration. Starts at the institutional default so the
+   * form reads correctly on first paint; the real policy lands a moment later.
+   */
+  const [emailPolicy, setEmailPolicy] = useState<InstructorEmailPolicy>(DEFAULT_INSTRUCTOR_EMAIL_POLICY);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { policy } = await instructorEmailPolicyApi.get();
+        if (!cancelled && policy) setEmailPolicy(policy);
+      } catch {
+        // Keep the default. The server refuses anything it does not accept anyway, so the worst
+        // case is a hint that is narrower than the real rule.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +126,12 @@ export function InstructorRegisterClient() {
       cancelled = true;
     };
   }, []);
+
+  const acceptedDomains = enabledInstructorDomains(emailPolicy);
+  const primaryDomain = acceptedDomains[0] ?? "ctu.edu.ph";
+  const domainHint = instructorEmailDomainHint(emailPolicy);
+  /** Only an institutional domain accepted — the copy can then name CTU directly. */
+  const institutionalOnly = acceptedDomains.every((d) => d.endsWith("ctu.edu.ph"));
 
   const programsForCollege = programs.filter((p) => p.collegeId === collegeId);
   const fullName = composeFullName({ lastName, firstName, middleName });
@@ -138,8 +160,8 @@ export function InstructorRegisterClient() {
     setSuccess(null);
 
     const normalizedEmail = email.trim().toLowerCase();
-    if (!isCtuEmail(normalizedEmail)) {
-      setError(`Use your CTU email address (@${INSTRUCTOR_DOMAIN}).`);
+    if (!isAllowedInstructorEmail(normalizedEmail, emailPolicy)) {
+      setError(`Use ${instructorEmailDomainHint(emailPolicy)} — that is what sign-up accepts.`);
       return;
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
@@ -357,12 +379,12 @@ export function InstructorRegisterClient() {
               </div>
               <div>
                 <label htmlFor="ins-email" className={labelClass}>
-                  CTU email address
+                  {institutionalOnly ? "CTU email address" : "Email address"}
                 </label>
                 <Input
                   id="ins-email"
                   type="email"
-                  placeholder={`you@${INSTRUCTOR_DOMAIN}`}
+                  placeholder={`you@${primaryDomain}`}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
@@ -371,8 +393,16 @@ export function InstructorRegisterClient() {
                   required
                 />
                 <p id="ins-email-hint" className="mt-1 text-xs text-black/55">
-                  Must be your institutional <strong>@{INSTRUCTOR_DOMAIN}</strong>{" "}
-                  address — we email your verification code there.
+                  {institutionalOnly ? (
+                    <>
+                      Must be your institutional <strong>{domainHint}</strong> address
+                    </>
+                  ) : (
+                    <>
+                      Use <strong>{domainHint}</strong>
+                    </>
+                  )}{" "}
+                  — we email your verification code there.
                 </p>
               </div>
               <div>

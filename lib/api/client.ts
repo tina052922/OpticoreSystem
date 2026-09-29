@@ -28,6 +28,7 @@ import {
   writeApiCache,
 } from "./request-cache";
 import type { CampusBrandingConfig, ResolvedCampusBranding } from "@/lib/system-configuration/campus-branding";
+import type { InstructorEmailPolicy } from "@/lib/system-configuration/instructor-email-policy";
 
 export {
   API_CACHE_TTL,
@@ -218,6 +219,8 @@ export type SystemConfiguration = {
   doiSignatureImageUrl?: string | null;
   schedulingPolicy: unknown;
   branding?: CampusBrandingConfig | null;
+  /** Email domains instructor sign-up accepts. Always present — the server fills in a default. */
+  instructorEmailPolicy?: InstructorEmailPolicy | null;
   updatedAt: string;
 };
 
@@ -580,6 +583,26 @@ export const semestersApi = {
   },
 };
 
+/**
+ * Email domains instructor sign-up accepts, readable logged out.
+ *
+ * /register/instructor has no session, so it cannot use `systemConfigApi.get`. The server re-checks
+ * every sign-up against the same policy; this only decides what the form says and pre-validates.
+ */
+export const instructorEmailPolicyApi = {
+  get(opts: { forceRefresh?: boolean } = {}) {
+    return apiFetch<{ policy: InstructorEmailPolicy; hint: string }>(
+      "/api/public/instructor-email-policy",
+      {
+        method: "GET",
+        retryOn401: false,
+        cacheTtlMs: 60_000,
+        forceRefresh: opts.forceRefresh,
+      },
+    );
+  },
+};
+
 export const systemConfigApi = {
   get(opts: { cookieHeader?: string; forceRefresh?: boolean } = {}) {
     return apiFetch<{ config: SystemConfiguration }>(
@@ -596,6 +619,7 @@ export const systemConfigApi = {
     campusDirectorSignatureImageUrl?: string | null;
     schedulingPolicy?: unknown;
     branding?: CampusBrandingConfig;
+    instructorEmailPolicy?: InstructorEmailPolicy;
   }) {
     return apiFetch<{ config: SystemConfiguration }>(
       "/api/admin/system-configuration",

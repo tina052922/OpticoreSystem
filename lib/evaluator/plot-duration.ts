@@ -12,13 +12,16 @@ function clampConsecutiveHours(hours: number): number {
 
 /**
  * Max consecutive 1-hour slots for one meeting.
+ *
+ * Recorded hours first, units only as a fallback — the same order as
+ * `requiredWeeklyContactHours`, so the cap on one meeting and the term requirement cannot disagree.
  * Lecture: 1 unit = 1 hour. Laboratory: 1 unit = 3 hours.
  */
 export function maxPlotDurationSlots(p: ProspectusSubjectRow): number {
-  const fromUnits = weeklyContactHoursFromUnits(p.lecUnits, p.labUnits);
-  if (fromUnits > 0) return clampConsecutiveHours(fromUnits);
   const fromHours = (p.lecHours ?? 0) + (p.labHours ?? 0);
   if (fromHours > 0) return clampConsecutiveHours(fromHours);
+  const fromUnits = weeklyContactHoursFromUnits(p.lecUnits, p.labUnits);
+  if (fromUnits > 0) return clampConsecutiveHours(fromUnits);
   return 1;
 }
 
@@ -64,12 +67,14 @@ export function maxPlotDurationSlotsForSubject(
   subject: Subject | undefined,
 ): number {
   if (!subject?.code) return 1;
-  const row = prospectusRowForProgram(programCode, subject.code);
-  if (row) return maxPlotDurationSlots(row);
+  // The subject's own hours win over the prospectus, which may be a stale hardcoded copy.
+  const fromHours = (subject.lecHours ?? 0) + (subject.labHours ?? 0);
+  if (fromHours > 0) return clampConsecutiveHours(fromHours);
   const fromUnits = weeklyContactHoursFromUnits(subject.lecUnits, subject.labUnits);
   if (fromUnits > 0) return clampConsecutiveHours(fromUnits);
-  const fromHours = (subject.lecHours ?? 0) + (subject.labHours ?? 0);
-  return clampConsecutiveHours(fromHours || 1);
+  const row = prospectusRowForProgram(programCode, subject.code);
+  if (row) return maxPlotDurationSlots(row);
+  return 1;
 }
 
 /** Default 1 slot per meeting so GEC / chairman can split contact across rows. */

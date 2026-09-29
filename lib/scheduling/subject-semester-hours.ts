@@ -3,7 +3,16 @@ import { weeklyContactHoursFromUnits } from "@/lib/subjects/contact-hours";
 
 /**
  * Weekly contact hours required for a subject in the term.
- * Lecture: 1 unit = 1 hour. Laboratory: 1 unit = 3 hours.
+ *
+ * Order: the hours stored on the subject, then its units, then the static prospectus. Lec/Lab Hours
+ * are editable in Subject Codes, so a chairman who sets 2 lecture + 3 lab hours means 5 — the value
+ * they typed is not a hint to be recomputed from units.
+ *
+ * The prospectus used to be checked first and returned immediately, which made the edit invisible:
+ * AP-6 is hardcoded there as lecture-only, so the term still demanded 3 hours and plotting the lab
+ * tripped the over-limit guard.
+ *
+ * Units are the fallback when no hours are recorded. Lecture: 1 unit = 1 hour. Laboratory: 1 unit = 3 hours.
  */
 export function requiredWeeklyContactHours(args: {
   programCode?: string | null;
@@ -13,14 +22,22 @@ export function requiredWeeklyContactHours(args: {
   lecHours?: number | null;
   labHours?: number | null;
 }): number {
+  const fromHours = Math.max(0, (args.lecHours ?? 0) + (args.labHours ?? 0));
+  if (fromHours > 0) return fromHours;
+
+  const fromUnits = weeklyContactHoursFromUnits(args.lecUnits, args.labUnits);
+  if (fromUnits > 0) return fromUnits;
+
   const code = args.subjectCode?.trim();
   if (code) {
     const p = prospectusRowForProgram(args.programCode, code);
-    if (p) return weeklyContactHoursFromUnits(p.lecUnits, p.labUnits);
+    if (p) {
+      const prospectusHours = (p.lecHours ?? 0) + (p.labHours ?? 0);
+      if (prospectusHours > 0) return prospectusHours;
+      return weeklyContactHoursFromUnits(p.lecUnits, p.labUnits);
+    }
   }
-  const fromUnits = weeklyContactHoursFromUnits(args.lecUnits, args.labUnits);
-  if (fromUnits > 0) return fromUnits;
-  return Math.max(0, (args.lecHours ?? 0) + (args.labHours ?? 0));
+  return 0;
 }
 
 export type SubjectHourMeeting = {

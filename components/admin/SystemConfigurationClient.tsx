@@ -7,6 +7,7 @@ import { InsSignerLabelsEditor } from "@/components/ins/InsSignerLabelsEditor";
 import { DoiCampusDirectorSignatureCard } from "@/components/doi/DoiCampusDirectorSignatureCard";
 import { SystemConfigBrandingCard } from "@/components/admin/SystemConfigBrandingCard";
 import { SystemConfigElectronicSignatureCard } from "@/components/admin/SystemConfigElectronicSignatureCard";
+import { SystemConfigInstructorEmailCard } from "@/components/admin/SystemConfigInstructorEmailCard";
 import { SystemConfigSchedulingPolicyCard } from "@/components/admin/SystemConfigSchedulingPolicyCard";
 import { SystemConfigClearSubjectsCard } from "@/components/admin/SystemConfigClearSubjectsCard";
 import {
@@ -99,6 +100,13 @@ export function SystemConfigurationClient({ mode, collegeId = null, collegeName 
       <SectionCard title="Faculty load limits">
         <SystemConfigSchedulingPolicyCard />
       </SectionCard>
+
+      {/* DOI only: this decides who may register campus-wide, not per college. */}
+      {mode === "doi" ? (
+        <SectionCard title="Instructor sign-up email domains">
+          <SystemConfigInstructorEmailCard />
+        </SectionCard>
+      ) : null}
       <SectionCard title="INS form signatories">
         {mode === "doi" ? (
           <div className="space-y-4">

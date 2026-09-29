@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,9 +36,10 @@ import {
   getLecLabPair,
   inferLecLabMode,
   lecLabModesAvailable,
-  prospectusSubjectsForSectionPlot,
   resolveSubjectCodeForLecLabMode,
+  subjectRowFor,
   subjectRowsForPlotDropdown,
+  subjectsForSectionPlot,
   type PlotLecLabMode,
 } from "@/lib/evaluator/chairman-plot-leclab";
 import { yearLevelFromSchedulingSectionName } from "@/lib/chairman/section-year-level";
@@ -234,15 +235,12 @@ export function ChairmanPlotScheduleModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const pr = draft.subjectCode
-    ? prospectusRowForProgram(programCodeForSummary, draft.subjectCode)
-    : undefined;
-  const catalogMatch = !pr && draft.subjectCode
-    ? (catalogSubjectRows ?? []).find(
-        (s) => s.code.trim().toUpperCase() === draft.subjectCode.trim().toUpperCase(),
-      )
-    : undefined;
-  const durationSource = pr ?? catalogMatch;
+  /** Prospectus first, then Subject Codes — the same order every lookup in this modal uses. */
+  const rowForCode = useCallback(
+    (code: string) => subjectRowFor(programCodeForSummary, code, catalogSubjectRows),
+    [programCodeForSummary, catalogSubjectRows],
+  );
+  const durationSource = draft.subjectCode ? rowForCode(draft.subjectCode) : undefined;
   const dur = plotRowDurationSlots(durationSource, draft);
   const maxDur = durationSource ? maxPlotDurationSlots(durationSource) : Math.max(1, draft.durationSlots ?? 1);
   const additionalHours = Math.max(dur, totalPlotMeetingHours(meetings, maxDur));
@@ -268,23 +266,26 @@ export function ChairmanPlotScheduleModal({
     : null;
 
   const rawSubjectOptions = useMemo(() => {
-    const fromProspectus = subjectRowsForPlotDropdown(
+    const forSection = subjectRowsForPlotDropdown(
       programCodeForSummary,
-      prospectusSubjectsForSectionPlot({
+      subjectsForSectionPlot({
         programCode: programCodeForSummary,
         yearLevel,
         termSemester: termProspectusSemester,
+        catalogRows: catalogSubjectRows,
       }),
+      catalogSubjectRows,
     );
-    if (fromProspectus.length > 0) return fromProspectus;
+    if (forSection.length > 0) return forSection;
+    // Nothing matched the section's year/semester: offer the whole catalog rather than an empty list.
     return subjectRowsForPlotDropdown(programCodeForSummary, catalogSubjectRows ?? []);
   }, [programCodeForSummary, yearLevel, termProspectusSemester, catalogSubjectRows]);
 
   const subjectSelectValue = useMemo(() => {
     if (!draft.subjectCode) return "";
-    const pair = getLecLabPair(programCodeForSummary, draft.subjectCode);
+    const pair = getLecLabPair(programCodeForSummary, draft.subjectCode, catalogSubjectRows);
     return pair.lecCode ?? draft.subjectCode;
-  }, [draft.subjectCode, programCodeForSummary]);
+  }, [draft.subjectCode, programCodeForSummary, catalogSubjectRows]);
 
   const { availableSubjects, addAnotherSlotSubjects } = useMemo(() => {
     const plotted = draft.sectionId
@@ -317,11 +318,11 @@ export function ChairmanPlotScheduleModal({
   ]);
 
   const lecLabModes = draft.subjectCode
-    ? lecLabModesAvailable(programCodeForSummary, draft.subjectCode)
+    ? lecLabModesAvailable(programCodeForSummary, draft.subjectCode, catalogSubjectRows)
     : [];
   const lecLabSelectable = lecLabModes.length > 1;
   const lecLabPair = draft.subjectCode
-    ? getLecLabPair(programCodeForSummary, draft.subjectCode)
+    ? getLecLabPair(programCodeForSummary, draft.subjectCode, catalogSubjectRows)
     : null;
   const lecLabIsPaired = Boolean(
     lecLabPair?.lecCode &&
@@ -336,7 +337,7 @@ export function ChairmanPlotScheduleModal({
   const lecLabModeValue: PlotLecLabMode = !draft.subjectCode
     ? "lec"
     : lecLabIsPaired
-      ? inferLecLabMode(programCodeForSummary, draft.subjectCode)
+      ? inferLecLabMode(programCodeForSummary, draft.subjectCode, catalogSubjectRows)
       : lecLabModes.includes(draft.lecLabMode)
         ? draft.lecLabMode
         : (lecLabModes[0] ?? draft.lecLabMode ?? "lec");
@@ -665,11 +666,9 @@ export function ChairmanPlotScheduleModal({
                     programCodeForSummary,
                     base,
                     mode,
+                    catalogSubjectRows,
                   );
-                  const p = prospectusRowForProgram(
-                    programCodeForSummary,
-                    subjectCode,
-                  );
+                  const p = rowForCode(subjectCode);
                   let startSlotIndex = draft.startSlotIndex;
                   if (p) {
                     const d = plotRowDurationSlots(p, draft);
@@ -727,13 +726,12 @@ export function ChairmanPlotScheduleModal({
                 const yl = yearLevelFromSchedulingSectionName(name);
                 let subjectCode = draft.subjectCode;
                 if (subjectCode && yl != null) {
-                  const s = prospectusRowForProgram(
-                    programCodeForSummary,
-                    subjectCode,
-                  );
+                  const s = rowForCode(subjectCode);
                   const sem = termProspectusSemester;
-                  if (!s || s.yearLevel !== yl) subjectCode = "";
-                  else if (sem != null && s.semester !== sem) subjectCode = "";
+                  // An unknown subject is kept: only a row that actually disagrees clears the pick.
+                  if (s && (s.yearLevel !== yl || (sem != null && s.semester !== sem))) {
+                    subjectCode = "";
+                  }
                 }
                 onDraftChange({ ...draft, sectionId, subjectCode });
               }}
@@ -770,16 +768,14 @@ export function ChairmanPlotScheduleModal({
                   });
                   return;
                 }
-                const mode = inferLecLabMode(programCodeForSummary, picked);
+                const mode = inferLecLabMode(programCodeForSummary, picked, catalogSubjectRows);
                 const subjectCode = resolveSubjectCodeForLecLabMode(
                   programCodeForSummary,
                   picked,
                   mode,
+                  catalogSubjectRows,
                 );
-                const p = prospectusRowForProgram(
-                  programCodeForSummary,
-                  subjectCode,
-                );
+                const p = rowForCode(subjectCode);
                 let startSlotIndex = draft.startSlotIndex;
                 if (p) {
                   const d = plotRowDurationSlots(p, { durationSlots: 1 });

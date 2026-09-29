@@ -712,6 +712,9 @@ export function BsitChairmanEvaluatorWorksheet({
       bundleSections.filter((s) => Boolean(programId) && s.programId === programId).map((s) => s.id),
     );
     const localCodeById = new Map(bundleSubjects.map((s) => [s.id, s.code]));
+    const localCatalogRows = catalogSubjectsToProspectusRows(
+      bundleSubjects.filter((s) => !programId || s.programId === programId),
+    );
 
     const relevant =
       localSectionIdSet.size === 0
@@ -755,6 +758,7 @@ export function BsitChairmanEvaluatorWorksheet({
             lockedByDoiAt: e.lockedByDoiAt ?? null,
           },
           programCodeForSummary,
+          localCatalogRows,
         );
       });
     };
@@ -2087,6 +2091,7 @@ export function BsitChairmanEvaluatorWorksheet({
               lockedByDoiAt: null,
             },
             programCodeForSummary,
+            catalogSubjectRows,
           ),
         ),
       );

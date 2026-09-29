@@ -8,6 +8,43 @@ import {
 
 export type PlotLecLabMode = "lec" | "lab";
 
+/**
+ * The program's rows from Subject Codes — what the chairman actually maintains.
+ *
+ * These lookups used to read the static prospectus alone, which broke two ways. A subject that
+ * exists only in Subject Codes resolved to nothing, and — worse — a subject the chairman EDITED in
+ * Subject Codes was overruled by the hardcoded row. AP-6 ships in the BSIT prospectus as
+ * `labUnits: 0`, so adding 3 lab units to it in Subject Codes changed nothing: the evaluator kept
+ * reading the static row and offered lecture only.
+ */
+export type ExtraSubjectRows = readonly ProspectusSubjectRow[] | undefined;
+
+/**
+ * Subject Codes wins over the prospectus wherever both carry a code.
+ *
+ * The prospectus is a seed for programs whose catalog is not filled in yet; the catalog is live data
+ * the chairman edits, so it is the one that decides units and hours.
+ */
+function allRowsFor(programCode: string, extraRows: ExtraSubjectRows): ProspectusSubjectRow[] {
+  const base = getProspectusSubjectsForProgram(programCode);
+  if (!extraRows || extraRows.length === 0) return base;
+  const byCode = new Map(base.map((r) => [normalizeProspectusCode(r.code), r]));
+  for (const r of extraRows) byCode.set(normalizeProspectusCode(r.code), r);
+  return [...byCode.values()];
+}
+
+/** One subject row: Subject Codes first, the prospectus only as a fallback. */
+export function subjectRowFor(
+  programCode: string,
+  subjectCode: string,
+  extraRows: ExtraSubjectRows,
+): ProspectusSubjectRow | undefined {
+  const norm = normalizeProspectusCode(subjectCode);
+  const fromCatalog = extraRows?.find((r) => normalizeProspectusCode(r.code) === norm);
+  if (fromCatalog) return fromCatalog;
+  return prospectusRowForProgram(programCode, subjectCode);
+}
+
 function stripLecLabTitleSuffix(title: string): string {
   return title.replace(/\s*\((?:Lec|Lab|Lecture|Laboratory)\)\s*/gi, "").trim();
 }
@@ -20,10 +57,14 @@ function isLabProspectusRow(row: ProspectusSubjectRow): boolean {
   return false;
 }
 
-export function inferLecLabMode(programCode: string, subjectCode: string): PlotLecLabMode {
+export function inferLecLabMode(
+  programCode: string,
+  subjectCode: string,
+  extraRows?: ExtraSubjectRows,
+): PlotLecLabMode {
   if (!subjectCode) return "lec";
-  const p = prospectusRowForProgram(programCode, subjectCode);
-  const all = getProspectusSubjectsForProgram(programCode);
+  const p = subjectRowFor(programCode, subjectCode, extraRows);
+  const all = allRowsFor(programCode, extraRows);
   const norm = normalizeProspectusCode(subjectCode);
 
   // Explicit lab twin of another prospectus code (…L), even when units are mis-keyed.
@@ -38,14 +79,15 @@ export function inferLecLabMode(programCode: string, subjectCode: string): PlotL
 export function getLecLabPair(
   programCode: string,
   subjectCode: string,
+  extraRows?: ExtraSubjectRows,
 ): { lecCode: string | null; labCode: string | null; mode: PlotLecLabMode } {
-  const row = subjectCode ? prospectusRowForProgram(programCode, subjectCode) : undefined;
+  const row = subjectCode ? subjectRowFor(programCode, subjectCode, extraRows) : undefined;
   if (!row || !subjectCode) {
     return { lecCode: null, labCode: null, mode: "lec" };
   }
-  const all = getProspectusSubjectsForProgram(programCode);
+  const all = allRowsFor(programCode, extraRows);
   const norm = normalizeProspectusCode(subjectCode);
-  const mode = inferLecLabMode(programCode, subjectCode);
+  const mode = inferLecLabMode(programCode, subjectCode, extraRows);
   const baseTitle = stripLecLabTitleSuffix(row.title);
 
   if (mode === "lab") {
@@ -71,11 +113,16 @@ export function getLecLabPair(
   return { lecCode: subjectCode, labCode: labRow?.code ?? null, mode: "lec" };
 }
 
-export function lecLabModesAvailable(programCode: string, subjectCode: string): PlotLecLabMode[] {
-  const { lecCode, labCode } = getLecLabPair(programCode, subjectCode);
+export function lecLabModesAvailable(
+  programCode: string,
+  subjectCode: string,
+  extraRows?: ExtraSubjectRows,
+): PlotLecLabMode[] {
+  const { lecCode, labCode } = getLecLabPair(programCode, subjectCode, extraRows);
   if (lecCode && labCode) return ["lec", "lab"];
-  const p = subjectCode ? prospectusRowForProgram(programCode, subjectCode) : undefined;
-  if (!p) return [];
+  const p = subjectCode ? subjectRowFor(programCode, subjectCode, extraRows) : undefined;
+  // Unknown subject: offer lecture rather than nothing, or the plot cannot be completed at all.
+  if (!p) return subjectCode ? ["lec"] : [];
   // Single catalog row carrying both lecture and lab contact hours.
   if (p.lecUnits > 0 && p.labUnits > 0) return ["lec", "lab"];
   if ((p.lecHours ?? 0) > 0 && (p.labHours ?? 0) > 0) return ["lec", "lab"];
@@ -87,8 +134,9 @@ export function resolveSubjectCodeForLecLabMode(
   programCode: string,
   subjectCode: string,
   mode: PlotLecLabMode,
+  extraRows?: ExtraSubjectRows,
 ): string {
-  const pair = getLecLabPair(programCode, subjectCode);
+  const pair = getLecLabPair(programCode, subjectCode, extraRows);
   if (mode === "lab" && pair.labCode) return pair.labCode;
   if (mode === "lec" && pair.lecCode) return pair.lecCode;
   return subjectCode;
@@ -98,10 +146,11 @@ export function resolveSubjectCodeForLecLabMode(
 export function subjectRowsForPlotDropdown(
   programCode: string,
   rows: ProspectusSubjectRow[],
+  extraRows?: ExtraSubjectRows,
 ): ProspectusSubjectRow[] {
   const out: ProspectusSubjectRow[] = [];
   for (const s of rows) {
-    const pair = getLecLabPair(programCode, s.code);
+    const pair = getLecLabPair(programCode, s.code, extraRows ?? rows);
     if (pair.lecCode && pair.labCode && pair.labCode === s.code && pair.lecCode !== s.code) continue;
     out.push(s);
   }
@@ -121,6 +170,46 @@ export function formatLecLabDisplay(mode: PlotLecLabMode): string {
 }
 
 /** Prospectus slice for the plot modal — avoids empty subject lists when year parsing fails. */
+/**
+ * Subjects offered when plotting one section: the static prospectus PLUS anything the chairman added
+ * in Subject Codes for the same program, year and semester.
+ *
+ * These two sources used to be either/or — the prospectus won whenever it held a single row — so a
+ * subject added to a program that ships a CMO prospectus never reached the dropdown at all. A code
+ * present in both is taken from Subject Codes, so an edit there is what gets plotted.
+ */
+export function subjectsForSectionPlot(args: {
+  programCode: string;
+  yearLevel: number | null;
+  termSemester: BsitSemester | null;
+  catalogRows?: ExtraSubjectRows;
+}): ProspectusSubjectRow[] {
+  const { yearLevel, termSemester } = args;
+  const prospectus = prospectusSubjectsForSectionPlot(args);
+  const extra = args.catalogRows ?? [];
+  if (extra.length === 0) return prospectus;
+
+  const byCode = new Map<string, ProspectusSubjectRow>();
+  for (const r of prospectus) byCode.set(normalizeProspectusCode(r.code), r);
+
+  const belongsToSection = (r: ProspectusSubjectRow) =>
+    (yearLevel == null || r.yearLevel === yearLevel) &&
+    (termSemester == null || r.semester === termSemester);
+
+  for (const r of extra) {
+    const key = normalizeProspectusCode(r.code);
+    // Already offered here: swap in the catalog row so its edited units and hours are the ones used.
+    // Its own year/semester is not re-checked — a blank semester in the catalog must not drop a
+    // subject the prospectus places in this term.
+    if (byCode.has(key)) {
+      byCode.set(key, r);
+      continue;
+    }
+    if (belongsToSection(r)) byCode.set(key, r);
+  }
+  return [...byCode.values()];
+}
+
 export function prospectusSubjectsForSectionPlot(args: {
   programCode: string;
   yearLevel: number | null;

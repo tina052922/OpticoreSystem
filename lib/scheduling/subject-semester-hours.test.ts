@@ -136,4 +136,39 @@ describe("subjectWeeklyHoursCaption", () => {
     expect(cap.overLimit).toBe(false);
     expect(cap.text).toContain("1 remaining");
   });
+
+  /**
+   * AP-6 is hardcoded in the BSIT prospectus as lecture-only (3 units, no lab). A chairman who gives
+   * it 2 lecture + 3 lab hours in Subject Codes needs the term to require 5, not the prospectus' 3 —
+   * otherwise the over-limit guard fires the moment the lab is plotted.
+   */
+  it("takes the hours recorded on the subject over a stale prospectus row", () => {
+    expect(
+      requiredWeeklyContactHours({
+        programCode: "BSIT",
+        subjectCode: "AP-6",
+        lecUnits: 3,
+        labUnits: 3,
+        lecHours: 2,
+        labHours: 3,
+      }),
+    ).toBe(5);
+
+    expect(
+      hoursExceedSubjectRequirement({
+        requiredHours: 5,
+        alreadyPlottedHours: 2,
+        additionalHours: 3,
+      }),
+    ).toBe(false);
+  });
+
+  it("falls back to units, then to the prospectus, when no hours are recorded", () => {
+    expect(
+      requiredWeeklyContactHours({ programCode: "BSIT", subjectCode: "AP-6", lecUnits: 3, labUnits: 3 }),
+    ).toBe(3 + 9);
+    // Nothing passed in at all: the prospectus still answers.
+    expect(requiredWeeklyContactHours({ programCode: "BSIT", subjectCode: "AP-6" })).toBe(3);
+    expect(requiredWeeklyContactHours({ programCode: "BSIT", subjectCode: "NOPE-1" })).toBe(0);
+  });
 });

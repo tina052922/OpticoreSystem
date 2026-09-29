@@ -149,7 +149,13 @@ export function useSystemConfigurationOptional(): SystemConfigurationContextValu
 
 /** After admin saves policy, branding, or signers — refresh policy context + INS catalog for all roles. */
 export function notifySystemConfigurationSaved(
-  source: "schedulingPolicy" | "academicPeriod" | "collegeSigners" | "insSigners" | "branding",
+  source:
+    | "schedulingPolicy"
+    | "academicPeriod"
+    | "collegeSigners"
+    | "insSigners"
+    | "branding"
+    | "instructorEmailPolicy",
 ) {
   dispatchSystemConfigReload({ source });
   if (source === "insSigners" || source === "collegeSigners") {

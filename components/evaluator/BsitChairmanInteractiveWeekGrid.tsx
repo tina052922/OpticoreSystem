@@ -378,13 +378,13 @@ export function BsitChairmanInteractiveWeekGrid({
       const buildingValue = roomBuildingByRowId[row.id] ?? (pickedRoom ? roomBuildingKey(pickedRoom) : "");
       setHighlightedCell(anchor);
       setModal({
-        draft: normalizePlotRow({ ...row }, programCodeForSummary),
+        draft: normalizePlotRow({ ...row }, programCodeForSummary, catalogSubjectRows),
         buildingValue,
         isNew,
         anchor,
       });
     },
-    [schedulePublished, roomById, roomBuildingByRowId, programCodeForSummary],
+    [schedulePublished, roomById, roomBuildingByRowId, programCodeForSummary, catalogSubjectRows],
   );
 
   const openModalForEmptyCell = useCallback(
@@ -398,11 +398,12 @@ export function BsitChairmanInteractiveWeekGrid({
           sectionId: selectedSectionId,
         },
         programCodeForSummary,
+        catalogSubjectRows,
       );
       setHighlightedCell({ day, slotIdx });
       setModal({ draft, buildingValue: "", isNew: true, anchor: { day, slotIdx } });
     },
-    [schedulePublished, selectedSectionId, programCodeForSummary],
+    [schedulePublished, selectedSectionId, programCodeForSummary, catalogSubjectRows],
   );
 
   const closeModal = useCallback(() => {
@@ -423,6 +424,7 @@ export function BsitChairmanInteractiveWeekGrid({
           durationSlots: first.durationSlots,
         },
         programCodeForSummary,
+        catalogSubjectRows,
       );
       const extras: PlotRow[] = rest.map((m) =>
         normalizePlotRow(
@@ -440,12 +442,13 @@ export function BsitChairmanInteractiveWeekGrid({
             durationSlots: m.durationSlots,
           },
           programCodeForSummary,
+          catalogSubjectRows,
         ),
       );
       onApplyPlot(primary, modal.buildingValue, extras);
       closeModal();
     },
-    [modal, onApplyPlot, closeModal, programCodeForSummary],
+    [modal, onApplyPlot, closeModal, programCodeForSummary, catalogSubjectRows],
   );
 
   const handleRemove = useCallback(() => {

@@ -1,6 +1,6 @@
 import type { BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import type { ProgramSessionWeekday } from "@/lib/scheduling/program-session";
-import type { PlotLecLabMode } from "@/lib/evaluator/chairman-plot-leclab";
+import type { ExtraSubjectRows, PlotLecLabMode } from "@/lib/evaluator/chairman-plot-leclab";
 import {
   getLecLabPair,
   inferLecLabMode,
@@ -51,18 +51,26 @@ export function emptyPlotRow(): PlotRow {
  * - Paired curricula (CC-112 / CC-112L): derive mode from the subject code.
  * - Unpaired combined subjects: keep the explicit Lec/Lab choice when valid.
  */
-export function normalizePlotRow(row: PlotRow, programCode: string): PlotRow {
+export function normalizePlotRow(
+  row: PlotRow,
+  programCode: string,
+  /**
+   * Subject Codes rows. Without them a subject that is not in the prospectus had no modes at all,
+   * so an explicit "lab" choice was silently rewritten back to "lec" on every normalize.
+   */
+  extraRows?: ExtraSubjectRows,
+): PlotRow {
   if (!row.subjectCode) {
     const lecLabMode = row.lecLabMode ?? "lec";
     return row.lecLabMode === lecLabMode ? row : { ...row, lecLabMode };
   }
-  const pair = getLecLabPair(programCode, row.subjectCode);
+  const pair = getLecLabPair(programCode, row.subjectCode, extraRows);
   const paired = Boolean(pair.lecCode && pair.labCode && pair.lecCode !== pair.labCode);
   if (paired) {
-    const lecLabMode = inferLecLabMode(programCode, row.subjectCode);
+    const lecLabMode = inferLecLabMode(programCode, row.subjectCode, extraRows);
     return row.lecLabMode === lecLabMode ? row : { ...row, lecLabMode };
   }
-  const modes = lecLabModesAvailable(programCode, row.subjectCode);
+  const modes = lecLabModesAvailable(programCode, row.subjectCode, extraRows);
   const lecLabMode =
     row.lecLabMode && modes.includes(row.lecLabMode)
       ? row.lecLabMode
