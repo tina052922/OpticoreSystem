@@ -27,6 +27,7 @@ import {
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
 import { subjectCodesApi } from "@/lib/api/client";
+import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import type { Subject } from "@/types/db";
 
 function yearLevelHeading(yearLevel: number): string {
@@ -185,7 +186,6 @@ export function SubjectCodesWorkspace({
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Subject | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -423,25 +423,6 @@ export function SubjectCodesWorkspace({
     }
   }
 
-  async function onConfirmDelete() {
-    const s = pendingDelete;
-    if (!s) return;
-    setError(null);
-    setSuccess(null);
-    setDeleting(true);
-    try {
-      await subjectCodesApi.delete(s.id);
-      if (editingId === s.id) resetForm();
-      setSuccess(`Subject “${s.code}” deleted.`);
-      setPendingDelete(null);
-      void loadSubjects();
-    } catch (err: any) {
-      setError(err?.message ?? "Failed to delete subject.");
-      setPendingDelete(null);
-    } finally {
-      setDeleting(false);
-    }
-  }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8 space-y-6 max-h-[min(78vh,960px)] overflow-y-auto">
@@ -779,48 +760,19 @@ export function SubjectCodesWorkspace({
       </div>
 
       {pendingDelete ? (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !deleting) setPendingDelete(null);
+        <DeleteWithImpactDialog
+          entity="subject"
+          id={pendingDelete.id}
+          name={pendingDelete.code}
+          title="Delete subject"
+          open
+          onClose={() => setPendingDelete(null)}
+          onDeleted={() => {
+            if (editingId === pendingDelete.id) resetForm();
+            setSuccess(`Subject “${pendingDelete.code}” deleted.`);
+            void loadSubjects();
           }}
-        >
-          <div
-            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl border border-black/10"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-subject-title"
-          >
-            <h2 id="delete-subject-title" className="text-lg font-semibold text-gray-900 mb-1">
-              Delete subject
-            </h2>
-            <p className="text-sm text-gray-600">
-              Delete <span className="font-semibold text-gray-900">{pendingDelete.code}</span>
-              {pendingDelete.title ? ` — ${pendingDelete.title}` : ""}? This cannot be undone.
-            </p>
-            <p className="text-xs text-gray-500 mt-2">
-              Subjects already used by a schedule entry cannot be deleted.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={deleting}
-                onClick={() => setPendingDelete(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-red-700 text-white hover:bg-red-800"
-                disabled={deleting}
-                onClick={() => void onConfirmDelete()}
-              >
-                {deleting ? "Deleting…" : "Delete subject"}
-              </Button>
-            </div>
-          </div>
-        </div>
+        />
       ) : null}
     </div>
   );

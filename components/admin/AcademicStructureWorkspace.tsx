@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { academicStructureApi, apiFetch, ApiClientError } from "@/lib/api/client";
+import { academicStructureApi, apiFetch, ApiClientError, type CascadeEntity } from "@/lib/api/client";
+import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import type { College, Program, Section } from "@/types/db";
+
+/** The record whose delete dialog is open. `noun` only shapes the heading and the success line. */
+type PendingDelete = { entity: CascadeEntity; id: string; name: string; noun: string };
 
 export type AcademicStructureWorkspaceProps = {
   /** When set (College Admin), lock to that college and hide Add College. */
@@ -33,6 +37,7 @@ export function AcademicStructureWorkspace({
 
   const [selectedCollegeId, setSelectedCollegeId] = useState<string | null>(lockedCollegeId);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [selectedYearLevel, setSelectedYearLevel] = useState<number | null>(null);
 
   const [collegeCode, setCollegeCode] = useState("");
@@ -187,21 +192,35 @@ export function AcademicStructureWorkspace({
     }
   }
 
-  async function handleDeleteCollege(id: string) {
+  /**
+   * The three deletes open the shared dialog rather than refusing.
+   *
+   * This page used to stop at "Delete programs under this college first", leaving the person to
+   * unpick a college by hand from the bottom up. The dialog counts what is underneath — programs,
+   * their sections and subjects, buildings, rooms, plotted meetings — and removes it on confirm.
+   * Accounts and audit history are detached, never deleted; the dialog lists those separately.
+   */
+  function askDeleteCollege(c: College) {
     if (!canManageColleges) return;
-    if (!window.confirm("Delete this college? Programs must be removed first.")) return;
-    setError(null);
-    try {
-      await academicStructureApi.deleteCollege(id);
-      if (selectedCollegeId === id) {
-        setSelectedCollegeId(lockedCollegeId);
-        setSelectedProgramId(null);
-      }
-      await load();
-      flashOk("College deleted");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete college");
+    setPendingDelete({ entity: "college", id: c.id, name: c.code || c.name, noun: "College" });
+  }
+
+  function askDeleteProgram(p: Program) {
+    setPendingDelete({ entity: "program", id: p.id, name: p.code || p.name, noun: "Program" });
+  }
+
+  function askDeleteSection(sec: Section) {
+    setPendingDelete({ entity: "section", id: sec.id, name: sec.name, noun: "Section" });
+  }
+
+  async function afterDeleted(pending: PendingDelete) {
+    if (pending.entity === "college" && selectedCollegeId === pending.id) {
+      setSelectedCollegeId(lockedCollegeId);
+      setSelectedProgramId(null);
     }
+    if (pending.entity === "program" && selectedProgramId === pending.id) setSelectedProgramId(null);
+    await load();
+    flashOk(`${pending.noun} deleted`);
   }
 
   async function handleCreateProgram() {
@@ -239,19 +258,6 @@ export function AcademicStructureWorkspace({
       flashOk("Program updated");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update program");
-    }
-  }
-
-  async function handleDeleteProgram(id: string) {
-    if (!window.confirm("Delete this program? Sections must be removed first.")) return;
-    setError(null);
-    try {
-      await academicStructureApi.deleteProgram(id);
-      if (selectedProgramId === id) setSelectedProgramId(null);
-      await load();
-      flashOk("Program deleted");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete program");
     }
   }
 
@@ -309,18 +315,6 @@ export function AcademicStructureWorkspace({
       flashOk("Section updated");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update section");
-    }
-  }
-
-  async function handleDeleteSection(id: string) {
-    if (!window.confirm("Delete this section?")) return;
-    setError(null);
-    try {
-      await academicStructureApi.deleteSection(id);
-      await load();
-      flashOk("Section deleted");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete section");
     }
   }
 
@@ -435,7 +429,7 @@ export function AcademicStructureWorkspace({
                           variant="outline"
                           size="sm"
                           className="border-red-200 text-red-800"
-                          onClick={() => void handleDeleteCollege(c.id)}
+                          onClick={() => askDeleteCollege(c)}
                         >
                           Delete
                         </Button>
@@ -548,7 +542,7 @@ export function AcademicStructureWorkspace({
                             variant="outline"
                             size="sm"
                             className="border-red-200 text-red-800"
-                            onClick={() => void handleDeleteProgram(p.id)}
+                            onClick={() => askDeleteProgram(p)}
                           >
                             Delete
                           </Button>
@@ -701,7 +695,7 @@ export function AcademicStructureWorkspace({
                             variant="outline"
                             size="sm"
                             className="border-red-200 text-red-800"
-                            onClick={() => void handleDeleteSection(s.id)}
+                            onClick={() => askDeleteSection(s)}
                           >
                             Delete
                           </Button>
@@ -717,6 +711,18 @@ export function AcademicStructureWorkspace({
           <p className="text-sm text-black/45">Select a program and year above to add sections.</p>
         )}
       </section>
+      {pendingDelete ? (
+        <DeleteWithImpactDialog
+          entity={pendingDelete.entity}
+          id={pendingDelete.id}
+          name={pendingDelete.name}
+          title={`Delete ${pendingDelete.noun.toLowerCase()}`}
+          open
+          onClose={() => setPendingDelete(null)}
+          onDeleted={() => void afterDeleted(pendingDelete)}
+        />
+      ) : null}
+
     </div>
   );
 }

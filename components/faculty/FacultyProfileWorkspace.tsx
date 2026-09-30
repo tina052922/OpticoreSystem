@@ -38,6 +38,7 @@ import {
   facultyRowIsDirty,
   type FacultyRowDraft,
 } from "@/lib/faculty/faculty-row-edits";
+import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import {
   isAwaitingFacultyApproval,
   isFacultyRosterUser,
@@ -175,7 +176,8 @@ export function FacultyProfileWorkspace({
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  /** The faculty whose delete dialog is open, with the name to confirm against. */
+  const [pendingFacultyDelete, setPendingFacultyDelete] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -704,27 +706,26 @@ export function FacultyProfileWorkspace({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function deleteFaculty(row: ListRow) {
+  /**
+   * Deleting is now a dialog, not a `window.confirm`.
+   *
+   * The plain endpoint refuses a faculty who still has plots, which told the user to go and clear
+   * them without saying how many there were. The dialog asks the server, lists what goes, and
+   * deletes it all on confirm.
+   */
+  function askDeleteFaculty(row: ListRow) {
     if (!enableFacultyListEdit) return;
-    const label = row.profile?.fullName ?? row.user.name;
-    if (!window.confirm(`Delete faculty record for ${label}? This cannot be undone.`)) return;
-    setError(null);
-    setSuccess(null);
-    setDeletingUserId(row.user.id);
-    try {
-      if (row.profile?.id) {
-        await facultyProfileApi.delete(row.profile.id);
-      }
-      await userAdminApi.delete(row.user.id);
-      if (editingUserId === row.user.id) resetFacultyForm();
-      setSuccess("Faculty deleted.");
-      dispatchInsCatalogReload();
-      void loadFaculty();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete faculty.");
-    } finally {
-      setDeletingUserId(null);
-    }
+    setPendingFacultyDelete({
+      id: row.user.id,
+      name: row.profile?.fullName ?? row.user.name ?? "this faculty",
+    });
+  }
+
+  function afterFacultyDeleted(userId: string) {
+    if (editingUserId === userId) resetFacultyForm();
+    setSuccess("Faculty deleted.");
+    dispatchInsCatalogReload();
+    void loadFaculty();
   }
 
   /** Program code when one is in scope, else the college — used for the export file name. */
@@ -1538,10 +1539,9 @@ export function FacultyProfileWorkspace({
                                   size="sm"
                                   variant="outline"
                                   className="h-8 px-2.5 text-[11px] text-red-800 border-red-200 hover:bg-red-50"
-                                  disabled={deletingUserId === user.id}
-                                  onClick={() => void deleteFaculty({ user, profile })}
+                                  onClick={() => askDeleteFaculty({ user, profile })}
                                 >
-                                  {deletingUserId === user.id ? "…" : "Delete"}
+                                  Delete
                                 </Button>
                               </div>
                             </td>
@@ -1555,6 +1555,18 @@ export function FacultyProfileWorkspace({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {pendingFacultyDelete ? (
+        <DeleteWithImpactDialog
+          entity="facultyUser"
+          id={pendingFacultyDelete.id}
+          name={pendingFacultyDelete.name}
+          title="Delete faculty"
+          open
+          onClose={() => setPendingFacultyDelete(null)}
+          onDeleted={() => afterFacultyDeleted(pendingFacultyDelete.id)}
+        />
       ) : null}
 
       {tab === "designation" ? (

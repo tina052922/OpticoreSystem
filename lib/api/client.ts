@@ -603,6 +603,55 @@ export const instructorEmailPolicyApi = {
   },
 };
 
+export type CascadeEntity =
+  | "subject"
+  | "room"
+  | "building"
+  | "section"
+  | "facultyUser"
+  | "program"
+  | "college";
+
+export type CascadeImpactRow = {
+  table: string;
+  column: string;
+  action: "delete" | "detach" | "prune";
+  label: string;
+  count: number;
+};
+
+export type CascadeImpact = {
+  entity: CascadeEntity;
+  id: string;
+  name: string | null;
+  destroys: CascadeImpactRow[];
+  detaches: CascadeImpactRow[];
+  /** Nothing references the record — the ordinary delete is enough. */
+  clean: boolean;
+};
+
+/**
+ * Deleting a record together with what depends on it.
+ *
+ * Deliberately two calls: `impact` counts and writes nothing, `cascade` does it. The ordinary
+ * delete endpoints still refuse when something references the record, so nothing cascades unless
+ * this is called.
+ */
+export const cascadeDeleteApi = {
+  impact(entity: CascadeEntity, id: string) {
+    return apiFetch<{ impact: CascadeImpact }>(
+      `/api/catalog/deletion-impact/${entity}/${encodeURIComponent(id)}`,
+      { method: "GET", forceRefresh: true },
+    );
+  },
+  cascade(entity: CascadeEntity, id: string) {
+    return apiFetch<{ ok: true; removed: { table: string; count: number }[] }>(
+      `/api/catalog/deletion-cascade/${entity}/${encodeURIComponent(id)}`,
+      { method: "DELETE", body: { confirm: true } },
+    );
+  },
+};
+
 export const systemConfigApi = {
   get(opts: { cookieHeader?: string; forceRefresh?: boolean } = {}) {
     return apiFetch<{ config: SystemConfiguration }>(

@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { buildingsRoomsApi, ApiClientError } from "@/lib/api/client";
+import { buildingsRoomsApi, ApiClientError, type CascadeEntity } from "@/lib/api/client";
+import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import { ScopeSearchPicker } from "@/components/campus/ScopeSearchPicker";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import type { Building, Room } from "@/types/db";
+
+type PendingDelete = { entity: CascadeEntity; id: string; name: string; noun: string };
 
 function norm(s: string | null | undefined): string {
   return (s ?? "").trim().toLowerCase();
@@ -67,6 +70,7 @@ export function BuildingsRoomsWorkspace({
 
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [editingBuildingId, setEditingBuildingId] = useState<string | null>(null);
   const [editBuildingName, setEditBuildingName] = useState("");
   const [editBuildingCode, setEditBuildingCode] = useState("");
@@ -383,36 +387,31 @@ export function BuildingsRoomsWorkspace({
     }
   }
 
-  async function onDeleteBuilding(building: Building) {
-    if (!window.confirm(`Delete building “${building.name}”? Rooms stay in the catalog but lose this building link.`)) {
-      return;
-    }
-    setError(null);
-    try {
-      await buildingsRoomsApi.deleteBuilding(building.id);
-      setBuildings((prev) => prev.filter((b) => b.id !== building.id));
-      setRooms((prev) =>
-        prev.map((r) =>
-          r.buildingId === building.id ? { ...r, buildingId: null } : r,
-        ),
-      );
-      if (selectedBuildingId === building.id) setSelectedBuildingId(null);
-      setSuccess(`Building “${building.name}” deleted.`);
-    } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to delete building.");
-    }
+  /**
+   * Both deletes open the shared dialog, which asks the server what goes with the record first.
+   *
+   * This changes what deleting a building means. It used to keep the rooms and null their building
+   * link; the dialog now offers to remove them, and says how many, because that is what "delete
+   * this and everything under it" has to mean for a building.
+   */
+  function askDeleteBuilding(building: Building) {
+    setPendingDelete({ entity: "building", id: building.id, name: building.name, noun: "Building" });
   }
 
-  async function onDeleteRoom(room: Room) {
-    if (!window.confirm(`Delete room “${room.code}”?`)) return;
-    try {
-      await buildingsRoomsApi.deleteRoom(room.id);
-      setRooms((prev) => prev.filter((r) => r.id !== room.id));
-      if (editingRoomId === room.id) setEditingRoomId(null);
-      setSuccess(`Room “${room.code}” deleted.`);
-    } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to delete room.");
+  function askDeleteRoom(room: Room) {
+    setPendingDelete({ entity: "room", id: room.id, name: room.code, noun: "Room" });
+  }
+
+  function afterDeleted(pending: PendingDelete) {
+    if (pending.entity === "building") {
+      setBuildings((prev) => prev.filter((b) => b.id !== pending.id));
+      setRooms((prev) => prev.filter((r) => r.buildingId !== pending.id));
+      if (selectedBuildingId === pending.id) setSelectedBuildingId(null);
+    } else {
+      setRooms((prev) => prev.filter((r) => r.id !== pending.id));
+      if (editingRoomId === pending.id) setEditingRoomId(null);
     }
+    setSuccess(`${pending.noun} “${pending.name}” deleted.`);
   }
 
   /**
@@ -869,7 +868,7 @@ export function BuildingsRoomsWorkspace({
                       >
                         {active ? "Viewing rooms" : "Manage rooms"}
                       </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => void onDeleteBuilding(b)}>
+                      <Button type="button" variant="outline" size="sm" onClick={() => askDeleteBuilding(b)}>
                         Delete
                       </Button>
                     </div>
@@ -956,7 +955,7 @@ export function BuildingsRoomsWorkspace({
                       <Button type="button" size="sm" variant="outline" onClick={() => startEditRoom(r)}>
                         Edit
                       </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => void onDeleteRoom(r)}>
+                      <Button type="button" size="sm" variant="outline" onClick={() => askDeleteRoom(r)}>
                         Delete
                       </Button>
                     </div>
@@ -1158,7 +1157,7 @@ export function BuildingsRoomsWorkspace({
                                 <button
                                   type="button"
                                   className="text-red-800 font-semibold hover:underline"
-                                  onClick={() => void onDeleteRoom(r)}
+                                  onClick={() => askDeleteRoom(r)}
                                 >
                                   Delete
                                 </button>
@@ -1175,6 +1174,18 @@ export function BuildingsRoomsWorkspace({
           )}
         </div>
       ) : null}
+      {pendingDelete ? (
+        <DeleteWithImpactDialog
+          entity={pendingDelete.entity}
+          id={pendingDelete.id}
+          name={pendingDelete.name}
+          title={`Delete ${pendingDelete.noun.toLowerCase()}`}
+          open
+          onClose={() => setPendingDelete(null)}
+          onDeleted={() => afterDeleted(pendingDelete)}
+        />
+      ) : null}
+
     </div>
   );
 }

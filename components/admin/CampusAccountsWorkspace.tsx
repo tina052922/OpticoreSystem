@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { ApiClientError, apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
+import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import {
   campusAccountFileName,
@@ -49,6 +50,7 @@ export function CampusAccountsWorkspace() {
 
   // ── form ────────────────────────────────────────────────────────────────
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string; postCode: string } | null>(null);
   const [assignmentId, setAssignmentId] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -208,22 +210,24 @@ export function CampusAccountsWorkspace() {
     }
   }
 
-  async function onDelete(post: Post) {
+  /**
+   * Removing a post holder deletes their account, so the dialog first says what that account is
+   * still attached to — plots, justifications, notifications — instead of failing on a foreign key.
+   */
+  function askDelete(post: Post) {
     const holder = post.holder;
     if (!holder) return;
-    if (!window.confirm(`Remove ${holder.name || holder.email} from ${post.code}? Their sign-in is deleted.`)) {
-      return;
-    }
-    setError(null);
-    setSuccess(null);
-    try {
-      await campusAccountsApi.remove(holder.id);
-      if (editingId === holder.id) resetForm();
-      setSuccess(`${holder.name || holder.email} removed from ${post.code}.`);
-      await load();
-    } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Could not remove.");
-    }
+    setPendingDelete({
+      id: holder.id,
+      name: holder.name || holder.email,
+      postCode: post.code,
+    });
+  }
+
+  async function afterDeleted(pending: { id: string; name: string; postCode: string }) {
+    if (editingId === pending.id) resetForm();
+    setSuccess(`${pending.name} removed from ${pending.postCode}.`);
+    await load();
   }
 
   // ── Excel ───────────────────────────────────────────────────────────────
@@ -528,7 +532,7 @@ export function CampusAccountsWorkspace() {
                       <Button type="button" size="sm" variant="outline" onClick={() => startEdit(post)}>
                         Edit
                       </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => void onDelete(post)}>
+                      <Button type="button" size="sm" variant="outline" onClick={() => askDelete(post)}>
                         Remove
                       </Button>
                     </>
@@ -543,6 +547,18 @@ export function CampusAccountsWorkspace() {
           </ul>
         )}
       </div>
+      {pendingDelete ? (
+        <DeleteWithImpactDialog
+          entity="facultyUser"
+          id={pendingDelete.id}
+          name={pendingDelete.name}
+          title="Remove account"
+          open
+          onClose={() => setPendingDelete(null)}
+          onDeleted={() => void afterDeleted(pendingDelete)}
+        />
+      ) : null}
+
     </div>
   );
 }
