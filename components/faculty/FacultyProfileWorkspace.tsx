@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { facultyProfileApi, userAdminApi, apiFetch } from "@/lib/api/client";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { FacultyProfile, Program, ScheduleLoadJustification, Section, User } from "@/types/db";
-import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import {
   FACULTY_CATEGORY_GEC,
   FACULTY_CATEGORY_PROGRAM,
@@ -33,6 +33,21 @@ import {
   advisorySectionIdsOf,
   advisoryWriteFields,
 } from "@/lib/faculty/advisory-sections";
+import {
+  advisorySummaryLabel,
+  facultyRowIsDirty,
+  type FacultyRowDraft,
+} from "@/lib/faculty/faculty-row-edits";
+import {
+  isAwaitingFacultyApproval,
+  isFacultyRosterUser,
+} from "@/lib/faculty/faculty-roster-visibility";
+import {
+  advisoryHoldersBySection,
+  advisoryTakenLabel,
+  canAssignAdvisorySection,
+  type AdvisoryAssignment,
+} from "@/lib/faculty/advisory-availability";
 import {
   ACADEMIC_RANK_SUGGESTIONS,
   compareFacultyAlphabetically,
@@ -73,7 +88,9 @@ export type FacultyProfileWorkspaceProps = {
 };
 
 type ListRow = {
-  user: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory">;
+  user: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory"> & {
+    instructorValidation?: string | null;
+  };
   profile: FacultyProfile | null;
 };
 
@@ -198,7 +215,7 @@ export function FacultyProfileWorkspace({
     setLoadingList(true);
     setError(null);
 
-    let users: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory">[] = [];
+    let users: ListRow["user"][] = [];
     try {
       const { apiFetch } = await import("@/lib/api/client");
       const data = await apiFetch<{
@@ -211,7 +228,9 @@ export function FacultyProfileWorkspace({
       );
       users = data.users
         .filter((u) => {
-          if (u.role !== "instructor" || !isPlottableFacultyUser(u)) return false;
+          // Roster, not schedule: a self-registration awaiting approval still has a profile to
+          // review. `isPlottableFacultyUser` stays the rule wherever a faculty is put on a plot.
+          if (!isFacultyRosterUser(u)) return false;
           const locked = String(chairmanProgramId ?? "").trim();
           // Department chairs manage program faculty only — GEC instructors are college-scoped.
           if (locked && isGecInstructorUser(u)) return false;
@@ -225,15 +244,13 @@ export function FacultyProfileWorkspace({
           employeeId: u.employeeId,
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
+          instructorValidation: u.instructorValidation ?? null,
         }));
     } catch {
       setLoadingList(false);
       return;
     }
-    let list = (users ?? []) as Pick<
-      User,
-      "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory"
-    >[];
+    let list = (users ?? []) as ListRow["user"][];
     if (list.length === 0) {
       setRows([]);
       setLoadingList(false);
@@ -310,6 +327,7 @@ export function FacultyProfileWorkspace({
           employeeId: u.employeeId,
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
+          instructorValidation: u.instructorValidation ?? null,
         },
         profile: byUser.get(u.id) ?? null,
       })),
@@ -774,6 +792,41 @@ export function FacultyProfileWorkspace({
     };
   }
 
+  /**
+   * The row as stored, for telling an edited row from an untouched one.
+   *
+   * `draftForRow` folds in any pending edit, so it cannot answer that on its own.
+   */
+  function storedDraftForRow(row: ListRow): FacultyRowDraft {
+    return {
+      status: normalizeFacultyProfileStatus(row.profile?.status),
+      designation: row.profile?.designation ?? "",
+      advisorySectionIds: advisorySectionIdsOf(row.profile),
+    };
+  }
+
+  /**
+   * Advisory as it currently stands on screen, pending edits included.
+   *
+   * Reading the saved profiles alone would let a section be ticked in two rows before either is
+   * saved, and the second save would silently win.
+   */
+  const advisoryAssignments = useMemo<AdvisoryAssignment[]>(
+    () =>
+      rows.map(({ user, profile }) => ({
+        userId: user.id,
+        name: user.name ?? "",
+        sectionIds: editState[user.id]?.advisorySectionIds ?? advisorySectionIdsOf(profile),
+      })),
+    [rows, editState],
+  );
+
+  /** Sections taken by someone other than the faculty open in the form above. */
+  const formAdvisoryHolders = useMemo(
+    () => advisoryHoldersBySection(advisoryAssignments, { excludeUserId: editingUserId }),
+    [advisoryAssignments, editingUserId],
+  );
+
   const sectionNameById = useMemo(() => {
     const m = new Map<string, string>();
     sections.forEach((s) => m.set(s.id, s.name));
@@ -1117,16 +1170,26 @@ export function FacultyProfileWorkspace({
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                     {sections.map((sec) => {
                       const checked = advisorySectionIds.includes(sec.id);
+                      const holder = formAdvisoryHolders.get(sec.id);
+                      const assignable = canAssignAdvisorySection(sec.id, {
+                        holders: formAdvisoryHolders,
+                        alreadySelected: checked,
+                      });
                       return (
                         <label
                           key={sec.id}
-                          className="flex items-center gap-2 text-[12px] px-1 py-1 rounded hover:bg-black/[0.03] cursor-pointer"
+                          title={assignable ? undefined : advisoryTakenLabel(holder)}
+                          className={`flex items-center gap-2 text-[12px] px-1 py-1 rounded ${
+                            assignable
+                              ? "hover:bg-black/[0.03] cursor-pointer"
+                              : "cursor-not-allowed text-black/35"
+                          }`}
                         >
                           <input
                             type="checkbox"
                             className="accent-[#ff990a]"
                             checked={checked}
-                            disabled={!collegeId}
+                            disabled={!collegeId || !assignable}
                             onChange={(e) =>
                               setAdvisorySectionIds((prev) =>
                                 e.target.checked
@@ -1135,7 +1198,8 @@ export function FacultyProfileWorkspace({
                               )
                             }
                           />
-                          <span>{sec.name}</span>
+                          {/* Struck through rather than hidden: the section still exists, it is just spoken for. */}
+                          <span className={assignable ? "" : "line-through decoration-black/30"}>{sec.name}</span>
                         </label>
                       );
                     })}
@@ -1143,7 +1207,8 @@ export function FacultyProfileWorkspace({
                 )}
               </div>
               <p className="text-[11px] text-black/50 leading-relaxed">
-                A faculty may advise more than one section — tick every section they handle.
+                A faculty may advise more than one section — tick every section they handle. A section
+                already advised by someone else is struck through; free it from their profile first.
                 {advisorySectionIds.length > 0 ? ` Selected: ${advisorySectionIds.length}.` : ""}
               </p>
             </div>
@@ -1189,32 +1254,38 @@ export function FacultyProfileWorkspace({
                 (non-resident weekly limits and designation-based caps).
               </p>
             ) : null}
-            <div className="overflow-auto rounded-xl border border-black/10">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-[#ff990a] text-white text-[11px]">
-                    <th className="border border-black/10 px-2 py-2 text-left w-10">No.</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Last Name</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">First Name</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Middle Name</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Academic Rank</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Status</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Sex</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Date of Birth</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Age</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Educational Qualification</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Experience</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Eligibility</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Employee ID</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Designation</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Advisory</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Justification</th>
-                    <th className="border border-black/10 px-2 py-2 text-left">Program</th>
+            {/*
+              A wide table, so: the header stays put while you scroll, and No. + Last Name stay put
+              while you scroll sideways. Without those two, reading row 6 column 14 means losing
+              track of both which row and which column you are in.
+            */}
+            <div className="max-h-[70vh] overflow-auto rounded-xl border border-black/10">
+              <table className="w-full min-w-[1500px] border-collapse text-left">
+                <thead className="sticky top-0 z-20">
+                  <tr className="bg-[#ff990a] text-white text-[11px] uppercase tracking-wide">
+                    <th className="sticky left-0 z-30 bg-[#ff990a] px-3 py-2.5 font-semibold w-12">No.</th>
+                    <th className="sticky left-12 z-30 bg-[#ff990a] px-3 py-2.5 font-semibold min-w-[130px] shadow-[2px_0_0_rgba(0,0,0,0.08)]">
+                      Last Name
+                    </th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[110px]">First Name</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[90px]">Middle</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[120px]">Academic Rank</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[130px]">Status</th>
+                    <th className="px-3 py-2.5 font-semibold w-14">Sex</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[120px]">Date of Birth</th>
+                    <th className="px-3 py-2.5 font-semibold w-14">Age</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[170px]">Educational Qualification</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[130px]">Experience</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[120px]">Eligibility</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[110px]">Employee ID</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[160px]">Designation</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[170px]">Advisory</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[180px]">Justification</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[110px]">Program</th>
                     {enableFacultyListEdit ? (
-                      <th className="border border-black/10 px-2 py-2 text-left w-28">Save</th>
-                    ) : null}
-                    {enableFacultyListEdit ? (
-                      <th className="border border-black/10 px-2 py-2 text-left w-40">Actions</th>
+                      <th className="sticky right-0 z-30 bg-[#ff990a] px-3 py-2.5 font-semibold min-w-[170px] shadow-[-2px_0_0_rgba(0,0,0,0.08)]">
+                        Actions
+                      </th>
                     ) : null}
                   </tr>
                 </thead>
@@ -1222,8 +1293,8 @@ export function FacultyProfileWorkspace({
                   {!collegeId ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 2 : FACULTY_LIST_COLUMNS}
-                        className="border border-black/10 px-2 py-6 text-center text-black/45"
+                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 1 : FACULTY_LIST_COLUMNS}
+                        className="px-3 py-8 text-center text-black/45"
                       >
                         No college in scope.
                       </td>
@@ -1231,8 +1302,8 @@ export function FacultyProfileWorkspace({
                   ) : rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 2 : FACULTY_LIST_COLUMNS}
-                        className="border border-black/10 px-2 py-6 text-center text-black/45"
+                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 1 : FACULTY_LIST_COLUMNS}
+                        className="px-3 py-8 text-center text-black/45"
                       >
                         No instructors in the database for this college yet.
                       </td>
@@ -1240,8 +1311,8 @@ export function FacultyProfileWorkspace({
                   ) : filteredRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 2 : FACULTY_LIST_COLUMNS}
-                        className="border border-black/10 px-2 py-6 text-center text-black/45"
+                        colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 1 : FACULTY_LIST_COLUMNS}
+                        className="px-3 py-8 text-center text-black/45"
                       >
                         No faculty match &quot;{facultyListSearch.trim()}&quot;.
                       </td>
@@ -1249,18 +1320,48 @@ export function FacultyProfileWorkspace({
                   ) : (
                     filteredRows.map(({ user, profile, parts }, index) => {
                       const draft = draftForRow({ user, profile });
+                      // Sections spoken for by anyone other than this row's faculty.
+                      const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
+                        excludeUserId: user.id,
+                      });
+                      const dirty =
+                        enableFacultyListEdit && facultyRowIsDirty(draft, storedDraftForRow({ user, profile }));
                       const age = computeAge(profile?.dateOfBirth);
+                      // Zebra stripes make a 17-column row easier to follow across; an edited row
+                      // is tinted so it stands out from the ones already saved.
+                      const rowBg = dirty ? "bg-amber-50" : index % 2 === 1 ? "bg-black/[0.015]" : "bg-white";
                       return (
-                        <tr key={user.id}>
-                          <td className="border border-black/10 px-2 py-2 tabular-nums text-black/55">{index + 1}</td>
-                          <td className="border border-black/10 px-2 py-2 font-semibold">{parts.lastName || "—"}</td>
-                          <td className="border border-black/10 px-2 py-2">{parts.firstName || "—"}</td>
-                          <td className="border border-black/10 px-2 py-2">{parts.middleName || "—"}</td>
-                          <td className="border border-black/10 px-2 py-2">{profile?.academicRank ?? "—"}</td>
-                          <td className="border border-black/10 px-2 py-2 align-top">
+                        <tr key={user.id} className={`${rowBg} border-b border-black/[0.07] hover:bg-[#ff990a]/[0.06]`}>
+                          <td className={`sticky left-0 z-10 ${rowBg} px-3 py-2.5 tabular-nums text-black/45`}>
+                            {index + 1}
+                          </td>
+                          <td
+                            className={`sticky left-12 z-10 ${rowBg} px-3 py-2.5 font-semibold text-black/85 shadow-[2px_0_0_rgba(0,0,0,0.05)]`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className="truncate">
+                                {parts.lastName || <span className="text-black/30">—</span>}
+                              </span>
+                              {/* Listed, but the evaluator will not offer them until a chairman approves. */}
+                              {isAwaitingFacultyApproval(user) ? (
+                                <span
+                                  title="Self-registered — awaiting chairman approval. Cannot be plotted yet."
+                                  className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-900"
+                                >
+                                  Pending
+                                </span>
+                              ) : null}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5">{parts.firstName || <span className="text-black/30">—</span>}</td>
+                          <td className="px-3 py-2.5">{parts.middleName || <span className="text-black/30">—</span>}</td>
+                          <td className="px-3 py-2.5">
+                            {profile?.academicRank || <span className="text-black/30">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 align-top">
                             {enableFacultyListEdit ? (
                               <select
-                                className="w-full min-h-9 rounded-md border border-gray-300 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+                                className="w-full h-8 rounded-md border border-black/15 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
                                 value={draft.status}
                                 onChange={(e) =>
                                   setEditState((s) => ({
@@ -1276,21 +1377,38 @@ export function FacultyProfileWorkspace({
                               (profile ? normalizeFacultyProfileStatus(profile.status) : "—")
                             )}
                           </td>
-                          <td className="border border-black/10 px-2 py-2">{normalizeFacultySex(profile?.sex) || "—"}</td>
-                          <td className="border border-black/10 px-2 py-2 whitespace-nowrap">
-                            {formatDateOfBirth(profile?.dateOfBirth) || "—"}
+                          <td className="px-3 py-2.5">
+                            {normalizeFacultySex(profile?.sex) || <span className="text-black/30">—</span>}
                           </td>
-                          <td className="border border-black/10 px-2 py-2 tabular-nums">{age != null ? age : "—"}</td>
-                          <td className="border border-black/10 px-2 py-2 max-w-[200px]">
-                            {profile?.educationalQualification ?? "—"}
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            {formatDateOfBirth(profile?.dateOfBirth) || <span className="text-black/30">—</span>}
                           </td>
-                          <td className="border border-black/10 px-2 py-2 max-w-[180px]">{profile?.experience ?? "—"}</td>
-                          <td className="border border-black/10 px-2 py-2 max-w-[180px]">{profile?.eligibility ?? "—"}</td>
-                          <td className="border border-black/10 px-2 py-2 tabular-nums">{user.employeeId ?? "—"}</td>
-                          <td className="border border-black/10 px-2 py-2 align-top">
+                          <td className="px-3 py-2.5 tabular-nums">
+                            {age != null ? age : <span className="text-black/30">—</span>}
+                          </td>
+                          {/* Long free text: one line with the full value on hover, so a row stays one row. */}
+                          <td className="px-3 py-2.5 max-w-[190px]">
+                            <span className="block truncate" title={profile?.educationalQualification ?? ""}>
+                              {profile?.educationalQualification || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[150px]">
+                            <span className="block truncate" title={profile?.experience ?? ""}>
+                              {profile?.experience || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[140px]">
+                            <span className="block truncate" title={profile?.eligibility ?? ""}>
+                              {profile?.eligibility || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 tabular-nums">
+                            {user.employeeId || <span className="text-black/30">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 align-top">
                             {enableFacultyListEdit ? (
                               <input
-                                className="w-full min-h-9 rounded-md border border-gray-300 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
+                                className="w-full h-8 rounded-md border border-black/15 bg-white px-2 text-[12px] focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
                                 list={DESIGNATION_SUGGESTIONS_ID}
                                 placeholder="Regular Faculty (no designation)"
                                 value={draft.designation}
@@ -1305,22 +1423,46 @@ export function FacultyProfileWorkspace({
                               (profile?.designation ?? "—")
                             )}
                           </td>
-                          <td className="border border-black/10 px-2 py-2 align-top">
+                          <td className="px-3 py-2.5 align-top">
                             {enableFacultyListEdit ? (
-<div className="space-y-1">
-                                <div className="max-h-28 overflow-auto rounded-md border border-gray-300 bg-white p-1">
+                              /*
+                                Collapsed by default. A scrolling checkbox list in all seventeen rows
+                                at once is what made this read as a form rather than a list; closed,
+                                the cell simply states which sections the faculty advises.
+                              */
+                              <details className="group">
+                                <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] text-black/75 hover:text-black">
+                                  <span className="truncate">
+                                    {advisorySummaryLabel(draft.advisorySectionIds, sectionNameById)}
+                                  </span>
+                                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-black/40 transition-transform group-open:rotate-180" aria-hidden />
+                                </summary>
+                                <div className="mt-1 max-h-40 overflow-auto rounded-md border border-black/15 bg-white p-1">
                                   {sections.length === 0 ? (
                                     <span className="text-[11px] text-black/45 px-1">No sections in scope.</span>
                                   ) : (
-                                    sections.map((sec) => (
+                                    sections.map((sec) => {
+                                      const picked = draft.advisorySectionIds.includes(sec.id);
+                                      const holder = rowHolders.get(sec.id);
+                                      const assignable = canAssignAdvisorySection(sec.id, {
+                                        holders: rowHolders,
+                                        alreadySelected: picked,
+                                      });
+                                      return (
                                       <label
                                         key={sec.id}
-                                        className="flex items-center gap-2 text-[11px] px-1 py-0.5 rounded hover:bg-black/[0.03] cursor-pointer"
+                                        title={assignable ? undefined : advisoryTakenLabel(holder)}
+                                        className={`flex items-center gap-2 text-[11px] px-1 py-0.5 rounded ${
+                                          assignable
+                                            ? "hover:bg-black/[0.03] cursor-pointer"
+                                            : "cursor-not-allowed text-black/35"
+                                        }`}
                                       >
                                         <input
                                           type="checkbox"
                                           className="accent-[#ff990a]"
-                                          checked={draft.advisorySectionIds.includes(sec.id)}
+                                          disabled={!assignable}
+                                          checked={picked}
                                           onChange={(e) =>
                                             setEditState((st) => ({
                                               ...st,
@@ -1333,26 +1475,32 @@ export function FacultyProfileWorkspace({
                                             }))
                                           }
                                         />
-                                        <span>{sec.name}</span>
+                                        <span className={assignable ? "" : "line-through decoration-black/30"}>
+                                          {sec.name}
+                                        </span>
                                       </label>
-                                    ))
+                                      );
+                                    })
                                   )}
                                 </div>
-                              </div>
+                              </details>
                             ) : (
                               advisoryLabel(profile, sectionNameById)
                             )}
                           </td>
-                          <td className="border border-black/10 px-2 py-2 max-w-[220px]">
+                          <td className="px-3 py-2.5 max-w-[200px]">
                             {justificationByUserId[user.id] ? (
-                              <span className="line-clamp-3 whitespace-pre-wrap text-black/80">
+                              <span
+                                className="line-clamp-2 whitespace-pre-wrap text-black/75"
+                                title={justificationByUserId[user.id]}
+                              >
                                 {justificationByUserId[user.id]}
                               </span>
                             ) : (
-                              "—"
+                              <span className="text-black/30">—</span>
                             )}
                           </td>
-                          <td className="border border-black/10 px-2 py-2">
+                          <td className="px-3 py-2.5">
                             {isGecInstructorUser(user) ? (
                               <span className="inline-flex items-center rounded-md bg-[#ff990a]/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#8a5200]">
                                 GEC instructor
@@ -1362,26 +1510,25 @@ export function FacultyProfileWorkspace({
                             )}
                           </td>
                           {enableFacultyListEdit ? (
-                            <td className="border border-black/10 px-2 py-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="bg-[#ff990a] text-white hover:bg-[#e68a09] h-8 text-[11px]"
-                                disabled={savingRowId === user.id}
-                                onClick={() => void saveFacultyEdits(user.id)}
-                              >
-                                {savingRowId === user.id ? "…" : "Save"}
-                              </Button>
-                            </td>
-                          ) : null}
-                          {enableFacultyListEdit ? (
-                            <td className="border border-black/10 px-2 py-2">
-                              <div className="flex flex-wrap gap-1">
+                            <td className={`sticky right-0 z-10 ${rowBg} px-3 py-2.5 shadow-[-2px_0_0_rgba(0,0,0,0.05)]`}>
+                              <div className="flex items-center gap-1.5">
+                                {/* Save only where there is something to save; see facultyRowIsDirty. */}
+                                {dirty || savingRowId === user.id ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="bg-[#ff990a] text-white hover:bg-[#e68a09] h-8 px-2.5 text-[11px]"
+                                    disabled={savingRowId === user.id}
+                                    onClick={() => void saveFacultyEdits(user.id)}
+                                  >
+                                    {savingRowId === user.id ? "Saving…" : "Save"}
+                                  </Button>
+                                ) : null}
                                 <Button
                                   type="button"
                                   size="sm"
                                   variant="outline"
-                                  className="h-8 text-[11px]"
+                                  className="h-8 px-2.5 text-[11px]"
                                   onClick={() => startEditFaculty({ user, profile })}
                                 >
                                   Edit
@@ -1390,7 +1537,7 @@ export function FacultyProfileWorkspace({
                                   type="button"
                                   size="sm"
                                   variant="outline"
-                                  className="h-8 text-[11px] text-red-800 border-red-200"
+                                  className="h-8 px-2.5 text-[11px] text-red-800 border-red-200 hover:bg-red-50"
                                   disabled={deletingUserId === user.id}
                                   onClick={() => void deleteFaculty({ user, profile })}
                                 >
@@ -1472,6 +1619,10 @@ export function FacultyProfileWorkspace({
                 ) : (
                   filteredRows.map(({ user, profile, parts }) => {
                     const draft = draftForRow({ user, profile });
+                    // Sections spoken for by anyone other than this row's faculty.
+                    const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
+                      excludeUserId: user.id,
+                    });
                     // Students column sums every section the faculty advises.
                     const advisedSections = sections.filter((sec) => draft.advisorySectionIds.includes(sec.id));
                     const advisedStudents = advisedSections.reduce(
@@ -1488,15 +1639,28 @@ export function FacultyProfileWorkspace({
                                   {sections.length === 0 ? (
                                     <span className="text-[11px] text-black/45 px-1">No sections in scope.</span>
                                   ) : (
-                                    sections.map((sec) => (
+                                    sections.map((sec) => {
+                                      const picked = draft.advisorySectionIds.includes(sec.id);
+                                      const holder = rowHolders.get(sec.id);
+                                      const assignable = canAssignAdvisorySection(sec.id, {
+                                        holders: rowHolders,
+                                        alreadySelected: picked,
+                                      });
+                                      return (
                                       <label
                                         key={sec.id}
-                                        className="flex items-center gap-2 text-[11px] px-1 py-0.5 rounded hover:bg-black/[0.03] cursor-pointer"
+                                        title={assignable ? undefined : advisoryTakenLabel(holder)}
+                                        className={`flex items-center gap-2 text-[11px] px-1 py-0.5 rounded ${
+                                          assignable
+                                            ? "hover:bg-black/[0.03] cursor-pointer"
+                                            : "cursor-not-allowed text-black/35"
+                                        }`}
                                       >
                                         <input
                                           type="checkbox"
                                           className="accent-[#ff990a]"
-                                          checked={draft.advisorySectionIds.includes(sec.id)}
+                                          disabled={!assignable}
+                                          checked={picked}
                                           onChange={(e) =>
                                             setEditState((st) => ({
                                               ...st,
@@ -1509,9 +1673,12 @@ export function FacultyProfileWorkspace({
                                             }))
                                           }
                                         />
-                                        <span>{sec.name}</span>
+                                        <span className={assignable ? "" : "line-through decoration-black/30"}>
+                                          {sec.name}
+                                        </span>
                                       </label>
-                                    ))
+                                      );
+                                    })
                                   )}
                                 </div>
                               </div>

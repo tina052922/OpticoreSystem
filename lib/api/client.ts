@@ -1721,6 +1721,39 @@ export const authExtraApi = {
 };
 
 export const profileApi = {
+  /** Your own name and employee ID. Role, college and email are not writable from here. */
+  updateDetails(body: { name?: string; employeeId?: string | null }) {
+    return apiFetch<{ ok: true; profile: { id: string; name: string | null; employeeId: string | null } }>(
+      "/api/profile",
+      {
+        method: "PATCH",
+        body,
+        // The shells render the name from /api/auth/me, so that cache has to go.
+        invalidates: ["/api/auth/me"],
+      },
+    );
+  },
+  /**
+   * Step 1 of an email change: sends a 6-digit code to the NEW address. Nothing moves yet.
+   * Calling it again with the same address resends, subject to the cooldown.
+   */
+  requestEmailChange(email: string) {
+    return apiFetch<{ ok: true; email: string; resent?: boolean }>("/api/profile/email-change", {
+      method: "POST",
+      body: { email },
+    });
+  },
+  /** Step 2: the code confirms the address and the account moves. */
+  verifyEmailChange(code: string) {
+    return apiFetch<{ ok: true; email: string }>("/api/profile/email-change/verify", {
+      method: "POST",
+      body: { code },
+      invalidates: ["/api/auth/me"],
+    });
+  },
+  cancelEmailChange() {
+    return apiFetch<{ ok: true }>("/api/profile/email-change", { method: "DELETE" });
+  },
   uploadAvatar(file: File) {
     const formData = new FormData();
     formData.append("file", file);

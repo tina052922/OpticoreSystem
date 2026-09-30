@@ -86,8 +86,9 @@ export const GEC_CHAIRMAN_NAV: AdminNavItem[] = [
 /** Instructor (faculty portal) — Campus Intelligence shell + semester filter. */
 export const INSTRUCTOR_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/faculty", icon: "LayoutDashboard" },
+  // Load Generator was a second door to the same schedules, and an unfiltered one. Its Faculty,
+  // Section and Room views now live under My schedule, each limited to this instructor's classes.
   { label: "My schedule", href: "/faculty/schedule", icon: "CalendarPlus" },
-  { label: LOAD_GENERATOR_NAV_LABEL, href: "/faculty/ins?tab=faculty", icon: "BookOpen" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 

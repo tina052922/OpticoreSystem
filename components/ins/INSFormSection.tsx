@@ -45,6 +45,8 @@ export type INSFormSectionProps = {
   campusWide?: boolean;
   /** Faculty portal: narrow catalog to sections this instructor teaches. */
   instructorPortalUserId?: string | null;
+  /** Faculty portal: show only this instructor's own classes, not the whole section or room. */
+  instructorOwnEntriesOnly?: boolean;
   hideInnerInsTabs?: boolean;
   /** Deep link from evaluator schedule preview — pre-select section. */
   initialSectionId?: string | null;
@@ -79,6 +81,7 @@ export function INSFormSection({
   viewerCollegeId = null,
   campusWide = false,
   instructorPortalUserId = null,
+  instructorOwnEntriesOnly = false,
   hideInnerInsTabs = false,
   initialSectionId = null,
   printOnLoad = false,
@@ -96,6 +99,7 @@ export function INSFormSection({
     programId: chairmanProgramId,
     campusWide,
     instructorPortalUserId,
+    instructorOwnEntriesOnly,
   });
 
   const enableInsAltApply =
@@ -349,7 +353,12 @@ export function INSFormSection({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       <div className="no-print">
-        {!campusWide && !studentPortal ? (
+        {/*
+          Not in the faculty or student portal. Those views are scoped to the signed-in person, so a
+          College / Program picker offering "All colleges (campus-wide)" both contradicts that and
+          invites a browse of everyone else's schedule.
+        */}
+        {!campusWide && !readOnlyPortal ? (
           <div className="mb-6 max-w-[1200px] mx-auto">
             <CampusScopeFilters
               variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
@@ -449,13 +458,15 @@ export function INSFormSection({
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
           {useLiveData ? (
             <InsScheduleEntitySearch
-              label="Section (search)"
+              label={readOnlyPortal ? "Section" : "Section (search)"}
               placeholder="Type section name (e.g. BSIT-1A)"
               options={catalog.sectionOptions}
               selectedId={selectedSectionId}
               onSelectedIdChange={setSelectedSectionId}
               disabled={catalog.loading || catalog.sectionOptions.length === 0}
               listId="ins-section-list"
+              mode={readOnlyPortal ? "select" : "search"}
+              emptyLabel="Select a section…"
             />
           ) : (
             <p className="text-sm text-gray-500">

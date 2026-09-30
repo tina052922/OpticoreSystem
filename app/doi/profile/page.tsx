@@ -1,12 +1,18 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { AdminProfileCard } from "@/components/admin/AdminProfileCard";
-import { DoiCampusDirectorSignatureCard } from "@/components/doi/DoiCampusDirectorSignatureCard";
 import { ProfileAvatarUpload } from "@/components/profile/ProfileAvatarUpload";
-import { ProfileSignatureSectionGate } from "@/components/profile/ProfileSignatureSectionGate";
 import { getAuthenticatedProfile } from "@/lib/auth/require-role";
 import { collegeDisplayName } from "@/lib/college-labels";
 import { adminRoleLabel } from "@/lib/role-labels";
 
+/**
+ * DOI profile.
+ *
+ * No signature cards here. The DOI e-signature and the Campus Director signature are campus-wide
+ * settings that print on every INS form, so they live in System Configuration with the other
+ * signatories — having a second copy on this page meant two places could disagree about what gets
+ * printed.
+ */
 export default async function DoiProfilePage() {
   const profile = await getAuthenticatedProfile();
 
@@ -19,14 +25,15 @@ export default async function DoiProfilePage() {
         </div>
         <AdminProfileCard
           fullName={profile.name ?? ""}
-          employeeId={profile.id.slice(0, 8).toUpperCase()}
+          employeeId={profile.employeeId?.trim() || profile.id.slice(0, 8).toUpperCase()}
+          storedEmployeeId={profile.employeeId ?? ""}
           roleLabel={adminRoleLabel(profile.role)}
           collegeLine={collegeDisplayName(profile.collegeId ?? null)}
           email={profile.email}
           subheading={`${adminRoleLabel(profile.role)} • ${collegeDisplayName(profile.collegeId ?? null)}`}
+          editable
+          showChangePassword={false}
         />
-        <ProfileSignatureSectionGate role={profile.role} initialSignatureUrl={profile.signatureImageUrl} />
-        <DoiCampusDirectorSignatureCard />
       </div>
     </div>
   );

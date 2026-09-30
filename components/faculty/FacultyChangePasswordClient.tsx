@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { authApi, authMutationsApi } from "@/lib/api/client";
 
 export function FacultyChangePasswordClient() {
@@ -79,8 +79,7 @@ export function FacultyChangePasswordClient() {
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm">
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-800">Current password</label>
-          <Input
-            type="password"
+          <PasswordInput
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             autoComplete="current-password"
@@ -90,8 +89,7 @@ export function FacultyChangePasswordClient() {
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-800">New password</label>
-          <Input
-            type="password"
+          <PasswordInput
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             autoComplete="new-password"
@@ -102,8 +100,7 @@ export function FacultyChangePasswordClient() {
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-800">Confirm new password</label>
-          <Input
-            type="password"
+          <PasswordInput
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"

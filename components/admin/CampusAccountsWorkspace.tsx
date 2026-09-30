@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { ApiClientError, apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import {
@@ -386,18 +387,21 @@ export function CampusAccountsWorkspace() {
             />
           </label>
 
-          <label className="space-y-1">
-            <span className="text-[12px] font-semibold text-black/75">
+          <div className="space-y-1">
+            <label className="block text-[12px] font-semibold text-black/75" htmlFor="campus-account-password">
               {editingId ? "New password (optional)" : "Password"}
-            </span>
-            <Input
-              type="password"
+            </label>
+            <PasswordInput
+              id="campus-account-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={editingId ? "Leave blank to keep" : `At least ${MIN_PASSWORD_LENGTH} characters`}
               disabled={saving}
+              autoComplete="new-password"
+              // Back to hidden whenever the form switches rows or is reset.
+              hiddenKey={editingId ?? "new"}
             />
-          </label>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -429,16 +433,19 @@ export function CampusAccountsWorkspace() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end">
-          <label className="space-y-1">
-            <span className="text-[12px] font-semibold text-black/75">Temporary password for imported accounts</span>
-            <Input
-              type="password"
+          <div className="space-y-1">
+            <label className="block text-[12px] font-semibold text-black/75" htmlFor="campus-account-import-password">
+              Temporary password for imported accounts
+            </label>
+            <PasswordInput
+              id="campus-account-import-password"
               value={importPassword}
               onChange={(e) => setImportPassword(e.target.value)}
               placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
               disabled={importing}
+              autoComplete="new-password"
             />
-          </label>
+          </div>
           <Button type="button" variant="outline" disabled={importing} onClick={() => void onExport()}>
             Export to Excel
           </Button>

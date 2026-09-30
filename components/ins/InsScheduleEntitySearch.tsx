@@ -5,8 +5,16 @@ import { Input } from "@/components/ui/input";
 
 type Option = { id: string; name: string };
 
+export type InsScheduleEntityPickerMode = "search" | "select";
+
 /**
- * Search narrows options; a single match or exact name match applies the selection immediately (no extra step).
+ * Picker for the INS section / room forms.
+ *
+ * `select` is a plain dropdown with no effects at all. It is what the read-only portals use: a
+ * faculty member has a handful of sections, and a free-text box that guesses at your selection as
+ * you type is a worse way to choose between three things than a list of three things.
+ *
+ * `search` keeps the type-ahead for the chairman and DOI forms, where the list runs to hundreds.
  */
 export function InsScheduleEntitySearch({
   label,
@@ -16,6 +24,8 @@ export function InsScheduleEntitySearch({
   onSelectedIdChange,
   disabled,
   listId,
+  mode = "search",
+  emptyLabel = "Select…",
 }: {
   label: string;
   placeholder: string;
@@ -24,6 +34,8 @@ export function InsScheduleEntitySearch({
   onSelectedIdChange: (id: string) => void;
   disabled?: boolean;
   listId: string;
+  mode?: InsScheduleEntityPickerMode;
+  emptyLabel?: string;
 }) {
   const [q, setQ] = useState("");
 
@@ -32,28 +44,45 @@ export function InsScheduleEntitySearch({
 
   const lastExternalIdRef = useRef<string>("");
 
-  /** Keep the text field aligned only when the parent *externally* changes `selectedId` (e.g. deep-link or initial load),
-   *  NOT when the user is actively typing. We track the last id we synced to avoid overwriting typed input. */
+  /**
+   * The option list, reduced to something that only changes when the options really do.
+   *
+   * The catalog rebuilds this array on most renders, so depending on its identity made the effect
+   * below run every render — and a single `notify` inside it then re-rendered the parent, which
+   * rebuilt the array, which ran the effect again. That is the "Maximum update depth exceeded" this
+   * component has been blamed for twice.
+   */
+  const optionsKey = useMemo(() => options.map((o) => `${o.id}:${o.name}`).join("|"), [options]);
+
+  /**
+   * Keep the text field aligned only when the parent *externally* changes `selectedId` (e.g. a deep
+   * link or the initial load), never while the user is typing.
+   */
   useEffect(() => {
+    if (mode !== "search") return;
     if (!selectedId) return;
     if (selectedId === lastExternalIdRef.current) return;
     lastExternalIdRef.current = selectedId;
     const opt = options.find((o) => o.id === selectedId);
     if (opt) setQ(opt.name);
-  }, [selectedId, options]);
+    // `optionsKey` stands in for `options` on purpose; see above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, selectedId, optionsKey]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return options;
     return options.filter((o) => o.name.toLowerCase().includes(t));
-  }, [options, q]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optionsKey, q]);
 
   useEffect(() => {
+    if (mode !== "search") return;
     const t = q.trim().toLowerCase();
     const notify = onSelectedIdChangeRef.current;
 
-    // Empty query must NOT clear selection: parents often re-apply a default id when selection becomes "",
-    // which retriggered this effect and caused "Maximum update depth exceeded".
+    // An empty query must NOT clear the selection: parents re-apply a default id when selection
+    // becomes "", which retriggers this effect.
     if (!t) return;
 
     if (filtered.length === 1) {
@@ -68,7 +97,32 @@ export function InsScheduleEntitySearch({
     if (selectedId && !filtered.some((f) => f.id === selectedId)) {
       notify("");
     }
-  }, [q, filtered, options, selectedId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, q, filtered, optionsKey, selectedId]);
+
+  if (mode === "select") {
+    return (
+      <div className="w-full lg:max-w-md">
+        <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor={listId}>
+          {label}
+        </label>
+        <select
+          id={listId}
+          className="h-9 w-full rounded-md border border-black/15 bg-white px-2 text-sm outline-none transition focus-visible:ring-[3px] focus-visible:ring-black/10 disabled:opacity-60"
+          value={selectedId}
+          disabled={disabled}
+          onChange={(e) => onSelectedIdChange(e.target.value)}
+        >
+          <option value="">{options.length === 0 ? "None available" : emptyLabel}</option>
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full lg:max-w-md">

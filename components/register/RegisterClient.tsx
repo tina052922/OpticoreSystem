@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
@@ -320,14 +321,14 @@ export function RegisterClient() {
             <label htmlFor="reg-password" className="block text-lg font-medium text-[#181818]">
               Password
             </label>
-            <Input
+            <PasswordInput
               id="reg-password"
-              type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
               className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
+              buttonClassName="right-3"
               required
               minLength={8}
             />
@@ -337,14 +338,14 @@ export function RegisterClient() {
             <label htmlFor="confirmPassword" className="block text-lg font-medium text-[#181818]">
               Confirm password
             </label>
-            <Input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               autoComplete="new-password"
               className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
+              buttonClassName="right-3"
               required
               minLength={8}
             />

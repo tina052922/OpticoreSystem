@@ -8,11 +8,8 @@
 
 export const SUBJECT_CATEGORIES = [
   { value: "major", label: "Major" },
-  { value: "minor", label: "Minor" },
   { value: "gec", label: "GEC" },
-  { value: "elective", label: "Elective" },
   { value: "nstp", label: "NSTP" },
-  { value: "pe", label: "PE" },
 ] as const;
 
 export type SubjectCategory = (typeof SUBJECT_CATEGORIES)[number]["value"];
@@ -43,9 +40,7 @@ export function suggestSubjectCategory(code: string | null | undefined): Subject
   const value = (code ?? "").trim().toUpperCase();
   if (!value) return "";
   if (value.startsWith("GEC")) return "gec";
-  if (value.startsWith("GEE")) return "elective";
   if (value.startsWith("NSTP")) return "nstp";
-  if (value.startsWith("PATHFIT") || /^PE[\s-]/.test(value) || value === "PE") return "pe";
   return "";
 }
 

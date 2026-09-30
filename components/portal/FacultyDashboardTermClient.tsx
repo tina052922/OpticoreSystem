@@ -297,11 +297,12 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
               My schedule (INS Form)
               <ChevronRight className="w-4 h-4" />
             </Link>
+            {/* The section and room views moved under My schedule, so this lands on the same page. */}
             <Link
-              href="/faculty/ins?tab=faculty"
+              href="/faculty/schedule?tab=section"
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-opticore-orange)] text-white px-4 py-2.5 text-sm font-semibold shadow-sm"
             >
-              INS Form — all views
+              By section &amp; room
               <ChevronRight className="w-4 h-4" />
             </Link>
           </div>

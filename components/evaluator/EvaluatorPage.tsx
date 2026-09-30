@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
@@ -59,6 +58,22 @@ export function EvaluatorPage({
 
   const collegeWide = variant === "college";
   const doiCampusWide = variant === "doi";
+  /**
+   * College Admin reads teaching load on its own page, not as a tab here.
+   *
+   * The same numbers are on /admin/college/teaching-load-summary, which is the printable form, so a
+   * second copy behind a tab was two places to look and two places to disagree.
+   */
+  const showLoadTab = !collegeWide;
+  // A tab that is not rendered must not stay selected from an earlier render.
+  const activeTab = showLoadTab ? tab : "timetabling";
+  /**
+   * One tab is not a choice, so the strip only earns its space when something can be switched.
+   *
+   * For College Admin nothing can: the Colleges tab is gone (they plot their own college and have no
+   * other to switch to) and so is the load tab, which leaves Timetabling alone.
+   */
+  const showTabStrip = showLoadTab;
 
   return (
     <div>
@@ -66,33 +81,35 @@ export function EvaluatorPage({
 
       <div className="px-4 md:px-8 pb-8">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          {/* Same order/labels as hub shells: Colleges → Timetabling → Hrs */}
-          <div className="flex gap-2 border-b border-gray-200 flex-wrap">
-            {collegeWide ? (
-              <Link href="/admin/college/evaluator?hub=1" className={evaluatorTabClass(false)}>
-                {EVALUATOR_TAB_LABELS.colleges}
-              </Link>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setTab("timetabling")}
-              className={evaluatorTabClass(tab === "timetabling")}
-            >
-              {EVALUATOR_TAB_LABELS.timetabling}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("load")}
-              className={evaluatorTabClass(tab === "load")}
-            >
-              {EVALUATOR_TAB_LABELS.hrs}
-            </button>
-          </div>
+          {/* Same order/labels as the hub shells: Timetabling → Hrs */}
+          {showTabStrip ? (
+            <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setTab("timetabling")}
+                className={evaluatorTabClass(activeTab === "timetabling")}
+              >
+                {EVALUATOR_TAB_LABELS.timetabling}
+              </button>
+              {showLoadTab ? (
+                <button
+                  type="button"
+                  onClick={() => setTab("load")}
+                  className={evaluatorTabClass(activeTab === "load")}
+                >
+                  {EVALUATOR_TAB_LABELS.hrs}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {collegeWide ? (
-            <NotifyGecReadyButton
-              academicPeriodId={selectedPeriodId}
-              periodLabel={selectedPeriod?.name ?? null}
-            />
+            // Keeps the action on the right now that no tab strip sits beside it.
+            <div className="ml-auto">
+              <NotifyGecReadyButton
+                academicPeriodId={selectedPeriodId}
+                periodLabel={selectedPeriod?.name ?? null}
+              />
+            </div>
           ) : doiCampusWide ? null : (
             <NotifyProgramPlottedButton
               academicPeriodId={selectedPeriodId}
@@ -106,7 +123,7 @@ export function EvaluatorPage({
         {collegeWide ? (
           <p className="text-[13px] text-black/65 mb-4">
             Same week-grid as Program Chairman. Choose a department, then plot any section in this college. Conflict
-            check is campus-wide. Peer-college hubs remain view-only.
+            check is campus-wide.
           </p>
         ) : null}
         {doiCampusWide ? (
@@ -116,7 +133,7 @@ export function EvaluatorPage({
           </p>
         ) : null}
 
-        <div className={tab !== "timetabling" ? "hidden" : ""}>
+        <div className={activeTab !== "timetabling" ? "hidden" : ""}>
           <BsitChairmanEvaluatorWorksheet
             chairmanCollegeId={chairmanCollegeId}
             chairmanProgramId={chairmanProgramId}
@@ -130,9 +147,11 @@ export function EvaluatorPage({
           />
         </div>
 
-        <div className={tab !== "load" ? "hidden" : ""}>
-          <ChairmanEvaluatorLoadPanel snapshot={policySnapshot} />
-        </div>
+        {showLoadTab ? (
+          <div className={activeTab !== "load" ? "hidden" : ""}>
+            <ChairmanEvaluatorLoadPanel snapshot={policySnapshot} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

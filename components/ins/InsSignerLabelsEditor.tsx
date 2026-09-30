@@ -21,8 +21,11 @@ import type { CollegeInsSignerDisplay } from "@/types/db";
  *     /chairman/profile). It is NOT sourced from this editor — an admin
  *     cannot rename a chairman on official forms from here. The `prepared`
  *     row below is the fallback used only when no chairman is resolved.
- *   - "Reviewed, Certified True and Correct: Director/Dean" → `approved` (DOI),
- *     `dean` used only as a name override when DOI is blank.
+ *   - "Reviewed, Certified True and Correct: Director/Dean" prints the DOI's own
+ *     account name + the DOI / VPAA e-signature uploaded in System Configuration.
+ *     There is NO editor row for it: the DOI signs in as themselves, so the name
+ *     comes from their profile the same way the chairman's does. `dean` is still
+ *     a name override for when no DOI account is resolved.
  *   - "Approved: Campus Director"                       → `campus` slot.
  *
  * The `review` slot still exists on the on-screen 6-slot strip for display
@@ -30,7 +33,6 @@ import type { CollegeInsSignerDisplay } from "@/types/db";
  * Prepared line — hence no editor row for it here.
  */
 export const INS_SIGNATORY_SLOT_DEFS: { key: string; label: string; hint?: string }[] = [
-  { key: "approved", label: "VPAA / DOI (Reviewed — Director/Dean e-sig)" },
   { key: "campus", label: "Campus Director (Approved)" },
   { key: "dean", label: "Dean (Reviewed name override)" },
   { key: "contract", label: "Contract signatory" },
@@ -56,7 +58,28 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const profileSlot = insSignerSlotKeyForRole(user?.role);
+  /**
+   * Each role edits only the line it is answerable for.
+   *
+   * DOI: the Campus Director line. Their own name is read from the signed-in account, and their
+   * e-signature is uploaded in the card below this one.
+   *
+   * College Admin: the "Prepared by" fallback for their college, and nothing else. The Campus
+   * Director name is DOI's to set (a college copy always lost to it anyway), and Dean and Contract
+   * were rows nobody was answerable for.
+   */
+  const keys =
+    mode === "doi"
+      ? INS_SIGNATORY_SLOT_DEFS.filter((s) => s.key === "campus")
+      : INS_SIGNATORY_SLOT_DEFS.filter((s) => s.key === "prepared");
+
+  const roleSlot = insSignerSlotKeyForRole(user?.role);
+  /**
+   * Only prefill a slot this editor actually shows. Without the guard, a DOI opening the page would
+   * seed `approved.signerName` into state and write it back on save - a value nothing renders and
+   * nothing reads, left behind for someone to wonder about later.
+   */
+  const profileSlot = roleSlot && keys.some((k) => k.key === roleSlot) ? roleSlot : null;
   const profileName = (user?.name ?? "").trim();
 
   const load = useCallback(async () => {
@@ -76,17 +99,19 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
         loaded = (data.settings?.insSignerDisplay ?? {}) as CollegeInsSignerDisplay;
       }
       setDisplay(
-        withProfileSignerAutofill(loaded, {
-          role: user?.role,
-          name: user?.name,
-        }) as CollegeInsSignerDisplay,
+        profileSlot
+          ? (withProfileSignerAutofill(loaded, {
+              role: user?.role,
+              name: user?.name,
+            }) as CollegeInsSignerDisplay)
+          : loaded,
       );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Load failed");
     } finally {
       setLoading(false);
     }
-  }, [mode, collegeId, userLoading, user?.role, user?.name]);
+  }, [mode, collegeId, userLoading, user?.role, user?.name, profileSlot]);
 
   useEffect(() => {
     void load();
@@ -118,11 +143,6 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
       setSaving(false);
     }
   }
-
-  const keys =
-    mode === "doi"
-      ? INS_SIGNATORY_SLOT_DEFS.filter((s) => s.key === "approved" || s.key === "campus")
-      : INS_SIGNATORY_SLOT_DEFS.filter((s) => s.key !== "approved");
 
   if (mode === "college" && !collegeId) {
     return (

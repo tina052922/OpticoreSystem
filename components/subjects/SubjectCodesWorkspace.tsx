@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
+import {
+  GEC_SUBJECT_SCOPE_MESSAGE,
+  canGecChairmanCreateSubjectCode,
+  isGecEditableSubject,
+} from "@/lib/subjects/gec-subject-scope";
 import { normalizeSubjectCodeForCompare } from "@/lib/subjects/normalize-subject-code";
 import {
   SUBJECT_CATEGORIES,
@@ -14,6 +19,12 @@ import {
   subjectSemesterLabel,
   suggestSubjectCategory,
 } from "@/lib/subjects/subject-category";
+import {
+  filterSubjectsBySemester,
+  semesterFilterForPeriod,
+  subjectSemesterFilterLabel,
+} from "@/lib/subjects/subject-semester-filter";
+import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
 import { subjectCodesApi } from "@/lib/api/client";
 import type { Subject } from "@/types/db";
@@ -74,6 +85,13 @@ export type SubjectCodesWorkspaceProps = {
    * instead of through a scope bar. Used by the GEC Chairman, who works across departments.
    */
   allProgramsCatalog?: boolean;
+  /**
+   * `"gec"` lets the viewer read the whole catalog but change only general education subjects.
+   *
+   * The GEC Chairman needs the surrounding rows as context — general education is taught across
+   * every department — while a major subject stays its own chairman's to edit.
+   */
+  editableScope?: "all" | "gec";
 };
 
 export function SubjectCodesWorkspace({
@@ -83,10 +101,18 @@ export function SubjectCodesWorkspace({
   scopeProgramCode = null,
   gecCurriculumOnly = false,
   allProgramsCatalog = false,
+  editableScope = "all",
 }: SubjectCodesWorkspaceProps) {
   const scopedProgramId = lockedProgramId ?? scopeProgramId ?? null;
   /** Every program's subjects are listed; new rows pick their department in the form. */
   const campusWide = allProgramsCatalog || gecCurriculumOnly;
+  const gecOnlyEditing = editableScope === "gec";
+  /** The server enforces the same rule; this only decides which controls are worth showing. */
+  const canEditSubject = useCallback(
+    (s: { code: string; category?: string | null }) =>
+      !gecOnlyEditing || isGecEditableSubject({ code: s.code, category: s.category ?? null }),
+    [gecOnlyEditing],
+  );
   /** Department a new / edited subject belongs to. */
   const [formProgramId, setFormProgramId] = useState("");
   const programId = campusWide ? formProgramId || scopedProgramId : scopedProgramId;
@@ -148,6 +174,14 @@ export function SubjectCodesWorkspace({
   const [programCodeById, setProgramCodeById] = useState<Record<string, string>>({});
   const [programOptions, setProgramOptions] = useState<{ id: string; code: string }[]>([]);
   const [subjectSearch, setSubjectSearch] = useState("");
+  /**
+   * The saved list follows the term in the sidebar. There is no control for it here on purpose:
+   * the sidebar is the single place a term is chosen, so the page cannot disagree with the rest of
+   * the shell. Subjects with no semester recorded stay visible under every term.
+   */
+  const semesterNav = useSemesterFilterOptional();
+  const selectedPeriod = semesterNav?.selectedPeriod ?? null;
+  const semesterFilter = semesterFilterForPeriod(selectedPeriod);
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Subject | null>(null);
@@ -234,10 +268,11 @@ export function SubjectCodesWorkspace({
 
   const filteredDbSubjects = useMemo(() => {
     // GEC keeps the whole catalog now; only the legacy flag still narrows to GEC / GEE codes.
-    const base =
+    const scoped =
       gecCurriculumOnly && !allProgramsCatalog
         ? dbSubjects.filter((s) => isGecCurriculumSubjectCode(s.code))
         : dbSubjects;
+    const base = filterSubjectsBySemester(scoped, semesterFilter);
     const q = subjectSearch.trim().toLowerCase();
     if (!q) return base;
     return base.filter(
@@ -247,7 +282,14 @@ export function SubjectCodesWorkspace({
         (programCodeById[s.programId] ?? "").toLowerCase().includes(q) ||
         subjectCategoryLabel(s.category, "").toLowerCase().includes(q),
     );
-  }, [dbSubjects, subjectSearch, gecCurriculumOnly, allProgramsCatalog, programCodeById]);
+  }, [
+    dbSubjects,
+    subjectSearch,
+    semesterFilter,
+    gecCurriculumOnly,
+    allProgramsCatalog,
+    programCodeById,
+  ]);
 
   const dbSubjectsByYear = useMemo(
     () =>
@@ -288,6 +330,11 @@ export function SubjectCodesWorkspace({
   }
 
   function startEdit(s: Subject) {
+    // The row hides its buttons, but a stale render must not open a form that cannot be saved.
+    if (!canEditSubject(s)) {
+      setError(GEC_SUBJECT_SCOPE_MESSAGE);
+      return;
+    }
     setEditingId(s.id);
     setCode(s.code);
     setTitle(s.title);
@@ -326,6 +373,10 @@ export function SubjectCodesWorkspace({
     }
     if (gecCurriculumOnly && !allProgramsCatalog && !isGecCurriculumSubjectCode(trimmedCode)) {
       setError("GEC Chairman may only add subjects whose codes start with GEC- or GEE- (general education).");
+      return;
+    }
+    if (gecOnlyEditing && !canGecChairmanCreateSubjectCode(trimmedCode)) {
+      setError(GEC_SUBJECT_SCOPE_MESSAGE);
       return;
     }
     if (duplicateLocal) {
@@ -537,7 +588,6 @@ export function SubjectCodesWorkspace({
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-black/50">Major, Minor, GEC, Elective, NSTP or PE.</p>
           </div>
           <div className="space-y-1">
             <div className="text-sm font-medium">Year level</div>
@@ -605,10 +655,21 @@ export function SubjectCodesWorkspace({
                   : "Select a program to load saved subjects."}
               {loadingList ? " Loading…" : ""}
             </p>
+            {/* Names the term doing the hiding, so withheld rows never look deleted. */}
+            {!loadingList && filteredDbSubjects.length !== dbSubjects.length ? (
+              <p className="text-[12px] text-black/70 mt-1">
+                Showing <span className="font-semibold tabular-nums">{filteredDbSubjects.length}</span> of{" "}
+                <span className="tabular-nums">{dbSubjects.length}</span> subjects
+                {selectedPeriod ? <> for {selectedPeriod.name}</> : null}.
+              </p>
+            ) : null}
           </div>
           <div className="w-full sm:max-w-xs space-y-1">
-            <div className="text-[11px] font-medium text-black/60">Search by code or title</div>
+            <label className="text-[11px] font-medium text-black/60" htmlFor="subject-search">
+              Search by code or title
+            </label>
             <Input
+              id="subject-search"
               placeholder="e.g. CC-111 or Programming"
               value={subjectSearch}
               onChange={(e) => setSubjectSearch(e.target.value)}
@@ -648,7 +709,11 @@ export function SubjectCodesWorkspace({
                   <td colSpan={campusWide ? 11 : 10} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     {dbSubjects.length === 0
                       ? "No subjects in the database for this program yet."
-                      : "No saved subjects match your search."}
+                      : semesterFilter === "all"
+                        ? "No saved subjects match your search."
+                        : `No ${subjectSemesterFilterLabel(semesterFilter)} subjects${
+                            subjectSearch.trim() ? " match your search" : ""
+                          }. Switch the term in the sidebar to see the other semester.`}
                   </td>
                 </tr>
               ) : (
@@ -682,6 +747,11 @@ export function SubjectCodesWorkspace({
                         </td>
                       ) : null}
                       <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
+                        {!canEditSubject(s) ? (
+                          // Readable as context, but another department's to change.
+                          <span className="text-[11px] text-black/40">Not GEC</span>
+                        ) : (
+                        <>
                         <button
                           type="button"
                           className="text-[#780301] font-semibold hover:underline mr-3"
@@ -696,6 +766,8 @@ export function SubjectCodesWorkspace({
                         >
                           Delete
                         </button>
+                        </>
+                        )}
                       </td>
                     </tr>
                   )),

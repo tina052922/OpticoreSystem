@@ -346,7 +346,7 @@ export function BuildingsRoomsWorkspace({
       if (savedRooms.length > 0) {
         parts.push(
           `${savedRooms.length} room${savedRooms.length === 1 ? "" : "s"} added${
-            building ? ` under it` : " without a building"
+            building ? ` under it` : " as standalone rooms"
           }`,
         );
       }
@@ -884,13 +884,7 @@ export function BuildingsRoomsWorkspace({
 
       {standaloneRooms.length > 0 ? (
         <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-3">
-          <div>
-            <div className="text-[16px] font-semibold">Rooms without a building</div>
-            <p className="text-[12px] text-black/55 mt-0.5">
-              {standaloneRooms.length} room{standaloneRooms.length === 1 ? "" : "s"} that belong to a
-              department but sit in no building on file. They are plottable exactly like any other room.
-            </p>
-          </div>
+          <div className="text-[16px] font-semibold">Standalone Rooms</div>
           <ul className="divide-y divide-black/10 rounded-lg border border-black/10">
             {standaloneRooms.map((r) => (
               <li

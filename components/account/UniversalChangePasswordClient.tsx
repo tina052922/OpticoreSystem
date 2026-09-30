@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { ApiClientError, authApi, authExtraApi } from "@/lib/api/client";
 import type { UserRole } from "@/types/db";
 
@@ -138,8 +138,7 @@ export function UniversalChangePasswordClient() {
         {!firstTime ? (
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-800">Current password</label>
-            <Input
-              type="password"
+            <PasswordInput
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               autoComplete="current-password"
@@ -150,8 +149,7 @@ export function UniversalChangePasswordClient() {
         ) : null}
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-800">New password</label>
-          <Input
-            type="password"
+          <PasswordInput
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             autoComplete="new-password"
@@ -162,8 +160,7 @@ export function UniversalChangePasswordClient() {
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-800">Confirm new password</label>
-          <Input
-            type="password"
+          <PasswordInput
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"

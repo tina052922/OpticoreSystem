@@ -44,6 +44,8 @@ export type INSFormRoomProps = {
   viewerCollegeId?: string | null;
   campusWide?: boolean;
   instructorPortalUserId?: string | null;
+  /** Faculty portal: show only this instructor's own classes, not the whole section or room. */
+  instructorOwnEntriesOnly?: boolean;
   hideInnerInsTabs?: boolean;
 };
 
@@ -69,6 +71,7 @@ export function INSFormRoom({
   viewerCollegeId = null,
   campusWide = false,
   instructorPortalUserId = null,
+  instructorOwnEntriesOnly = false,
   hideInnerInsTabs = false,
 }: INSFormRoomProps) {
   const { programMode } = useProgramMode();
@@ -83,6 +86,7 @@ export function INSFormRoom({
     programId: chairmanProgramId,
     campusWide,
     instructorPortalUserId,
+    instructorOwnEntriesOnly,
   });
 
   const enableInsAltApply =
@@ -330,7 +334,12 @@ export function INSFormRoom({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       <div className="no-print">
-        {!campusWide && !studentPortal ? (
+        {/*
+          Not in the faculty or student portal. Those views are scoped to the signed-in person, so a
+          College / Program picker offering "All colleges (campus-wide)" both contradicts that and
+          invites a browse of everyone else's schedule.
+        */}
+        {!campusWide && !readOnlyPortal ? (
           <div className="mb-6 max-w-[1200px] mx-auto">
             <CampusScopeFilters
               variant={chairmanCollegeId !== undefined ? "chairman" : "default"}
@@ -428,13 +437,15 @@ export function INSFormRoom({
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
           {useLiveData ? (
             <InsScheduleEntitySearch
-              label="Room (search)"
+              label={readOnlyPortal ? "Room" : "Room (search)"}
               placeholder="Type room code (e.g. IT LAB 1)"
               options={catalog.roomOptions}
               selectedId={selectedRoomId}
               onSelectedIdChange={setSelectedRoomId}
               disabled={catalog.loading || catalog.roomOptions.length === 0}
               listId="ins-room-list"
+              mode={readOnlyPortal ? "select" : "search"}
+              emptyLabel="Select a room…"
             />
           ) : (
             <p className="text-sm text-gray-500">

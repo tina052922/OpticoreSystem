@@ -11,6 +11,7 @@ import {
   subscribeScheduleEntryBroadcast,
 } from "@/lib/ins/ins-catalog-reload";
 import { subscribeScheduleEntryRealtimePool } from "@/lib/ins/schedule-entry-realtime-pool";
+import { instructorPortalEntries } from "@/lib/ins/instructor-portal-entries";
 import { preserveListIdentity } from "@/lib/collections/preserve-identity";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
@@ -90,6 +91,11 @@ export function useInsCatalog(args: {
    * at least one class (so Section/Room INS tabs show peers in shared sections, not the whole college).
    */
   instructorPortalUserId?: string | null;
+  /**
+   * Faculty portal "My schedule": keep only rows this instructor teaches, not every row of the
+   * sections they teach. Without it a shared section shows a colleague's classes too.
+   */
+  instructorOwnEntriesOnly?: boolean;
   /**
    * INS Form 5A (faculty-by-name): include every program in the college for the term.
    * When false, a chairman `programId` limits **worksflow subject maps** — not INS 5B/5C rows
@@ -467,13 +473,11 @@ export function useInsCatalog(args: {
         return true;
       });
     }
-    const uid = args.instructorPortalUserId?.trim();
-    if (!uid) return base;
-    const teachingSectionIds = new Set(
-      base.filter((e) => e.instructorId === uid).map((e) => e.sectionId),
-    );
-    if (teachingSectionIds.size === 0) return [];
-    return base.filter((e) => teachingSectionIds.has(e.sectionId));
+    return instructorPortalEntries({
+      entries: base,
+      instructorUserId: args.instructorPortalUserId,
+      ownEntriesOnly: args.instructorOwnEntriesOnly,
+    });
   }, [
     modeEntries,
     args.collegeId,
@@ -481,6 +485,7 @@ export function useInsCatalog(args: {
     args.campusWide,
     args.ignoreProgramScope,
     args.instructorPortalUserId,
+    args.instructorOwnEntriesOnly,
     sectionById,
     programById,
   ]);
@@ -495,15 +500,22 @@ export function useInsCatalog(args: {
       return modeEntries.filter((e) => sectionById.has(e.sectionId));
     }
     if (!args.collegeId) return modeEntries;
-    const uid = args.instructorPortalUserId?.trim();
-    if (uid) {
-      const termAll = modeEntries.filter((e) => e.academicPeriodId === academicPeriodId);
-      const teachingSectionIds = new Set(termAll.filter((e) => e.instructorId === uid).map((e) => e.sectionId));
-      if (teachingSectionIds.size === 0) return [];
-      return modeEntries.filter((e) => teachingSectionIds.has(e.sectionId));
-    }
-    return modeEntries;
-  }, [modeEntries, args.campusWide, args.collegeId, args.instructorPortalUserId, academicPeriodId, sectionById]);
+    return instructorPortalEntries({
+      entries: modeEntries,
+      // Which sections count is decided within the current term only.
+      teachingSource: modeEntries.filter((e) => e.academicPeriodId === academicPeriodId),
+      instructorUserId: args.instructorPortalUserId,
+      ownEntriesOnly: args.instructorOwnEntriesOnly,
+    });
+  }, [
+    modeEntries,
+    args.campusWide,
+    args.collegeId,
+    args.instructorPortalUserId,
+    args.instructorOwnEntriesOnly,
+    academicPeriodId,
+    sectionById,
+  ]);
 
   const termResourceEntries = useMemo(
     () => insResourceEntries.filter((e) => e.academicPeriodId === academicPeriodId),
