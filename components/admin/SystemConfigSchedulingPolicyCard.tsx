@@ -109,38 +109,12 @@ export function SystemConfigSchedulingPolicyCard() {
           }
         />
         <Field
-          label="Max weekly lab contact hours"
-          value={draft.maxWeeklyLabContactHours ?? 36}
-          onChange={(n) => setDraft((d) => ({ ...d, maxWeeklyLabContactHours: n }))}
-        />
-        <Field
-          label="Max weekly lecture overload track"
-          value={draft.maxWeeklyLectureOverloadHours ?? 30}
-          onChange={(n) => setDraft((d) => ({ ...d, maxWeeklyLectureOverloadHours: n }))}
-        />
-        <Field
-          label="Heavy overload — resident"
-          value={draft.maxWeeklyResidentContactHours ?? 30}
-          onChange={(n) => setDraft((d) => ({ ...d, maxWeeklyResidentContactHours: n }))}
-        />
-        <Field
-          label="Heavy overload — non-resident"
-          value={draft.maxWeeklyNonResidentContactHours ?? 30}
-          onChange={(n) => setDraft((d) => ({ ...d, maxWeeklyNonResidentContactHours: n }))}
-        />
-        <Field
           label="Maximum preps for resident"
           hint="Max distinct subject preparations allowed without justification."
           value={draft.maxWeeklyResidentPrepsWithoutJustification ?? 3}
           onChange={(n) =>
             setDraft((d) => ({ ...d, maxWeeklyResidentPrepsWithoutJustification: n }))
           }
-        />
-        <Field
-          label="Default max faculty hours (GA / suggestions)"
-          hint="Soft cap used by conflict suggestions."
-          value={draft.defaultMaxFacultyHoursPerWeek ?? 24}
-          onChange={(n) => setDraft((d) => ({ ...d, defaultMaxFacultyHoursPerWeek: n }))}
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">

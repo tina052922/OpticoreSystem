@@ -3,30 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  BookOpen,
-  Building2,
-  CalendarPlus,
-  ClipboardList,
-  History,
-  Inbox,
-  KeyRound,
-  Layers,
-  LayoutDashboard,
-  LogOut,
-  MapPin,
-  Megaphone,
-  Menu,
-  Network,
-  Scale,
-  Send,
-  Settings,
-  UserRound,
-  UserCircle,
-  UserPlus,
-  X,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { KeyRound, LogOut, MapPin, Menu, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -39,8 +16,9 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi } from "@/lib/api/client";
-import type { AdminNavItem, NavIconKey } from "@/lib/admin-nav";
+import type { AdminNavItem } from "@/lib/admin-nav";
 import { isNavItemActive } from "@/lib/nav-active";
+import { NAV_ICONS } from "@/components/nav/nav-icons";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { SystemConfigurationProvider } from "@/contexts/SystemConfigurationContext";
@@ -52,25 +30,7 @@ import { usePendingPolicyReviewsCount } from "@/hooks/use-pending-policy-reviews
 import { useAuditLogUnreadCount } from "@/hooks/use-audit-log-unread-count";
 import { usePendingInstructorRequestsCount } from "@/hooks/use-pending-instructor-requests-count";
 
-const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
-  LayoutDashboard,
-  BookOpen,
-  ClipboardList,
-  Inbox,
-  UserCircle,
-  Layers,
-  Send,
-  MapPin,
-  Building2,
-  Scale,
-  CalendarPlus,
-  KeyRound,
-  History,
-  Megaphone,
-  UserPlus,
-  Settings,
-  Network,
-};
+
 
 const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
 /** College Admin: same data as DOI queue, scoped by RLS to their college. */

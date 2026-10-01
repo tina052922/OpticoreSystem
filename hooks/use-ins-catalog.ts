@@ -12,6 +12,7 @@ import {
 } from "@/lib/ins/ins-catalog-reload";
 import { subscribeScheduleEntryRealtimePool } from "@/lib/ins/schedule-entry-realtime-pool";
 import { instructorPortalEntries } from "@/lib/ins/instructor-portal-entries";
+import { filterInsEntriesForScope } from "@/lib/ins/ins-entity-scope";
 import { preserveListIdentity } from "@/lib/collections/preserve-identity";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
@@ -98,10 +99,15 @@ export function useInsCatalog(args: {
   instructorOwnEntriesOnly?: boolean;
   /**
    * INS Form 5A (faculty-by-name): include every program in the college for the term.
-   * When false, a chairman `programId` limits **worksflow subject maps** — not INS 5B/5C rows
-   * (`insResourceEntries` stays campus-wide within RLS).
+   * When false, a chairman `programId` limits **workflow subject maps** only.
    */
   ignoreProgramScope?: boolean;
+  /**
+   * GEC Chairman: general education rows only, across every college.
+   *
+   * Their post is campus-wide, so a college cannot narrow them — the subject does.
+   */
+  gecOnly?: boolean;
 }) {
   const semesterFilter = useSemesterFilterOptional();
   const { programMode } = useProgramMode();
@@ -473,6 +479,14 @@ export function useInsCatalog(args: {
         return true;
       });
     }
+    // GEC Chairman: general education only, whichever college it is taught in.
+    if (args.gecOnly) {
+      base = filterInsEntriesForScope(
+        modeEntries,
+        { gecOnly: true },
+        { sectionById, programById, subjectById },
+      );
+    }
     return instructorPortalEntries({
       entries: base,
       instructorUserId: args.instructorPortalUserId,
@@ -483,11 +497,13 @@ export function useInsCatalog(args: {
     args.collegeId,
     args.programId,
     args.campusWide,
+    args.gecOnly,
     args.ignoreProgramScope,
     args.instructorPortalUserId,
     args.instructorOwnEntriesOnly,
     sectionById,
     programById,
+    subjectById,
   ]);
 
   /**
@@ -495,26 +511,44 @@ export function useInsCatalog(args: {
    * Home-college instructors may teach CAS (etc.) sections; those rows must appear here for correct grids and counts.
    * Faculty portal: when set, limits 5B/5C to sections where this user teaches (omit for full college browse on `/faculty/ins`).
    */
+  /**
+   * The rows behind the Section and Room pickers.
+   *
+   * These used to ignore the viewer's college entirely — the comment above `ignoreProgramScope` said
+   * as much — so every role's Section and Room lists were campus-wide. They now follow the same
+   * scope the Faculty picker does, which is what makes each role see only what it is responsible
+   * for. See `filterInsEntriesForScope`.
+   */
   const insResourceEntries = useMemo(() => {
-    if (args.campusWide) {
-      return modeEntries.filter((e) => sectionById.has(e.sectionId));
-    }
-    if (!args.collegeId) return modeEntries;
+    const scoped = filterInsEntriesForScope(
+      modeEntries,
+      {
+        campusWide: args.campusWide,
+        gecOnly: args.gecOnly,
+        collegeId: args.collegeId,
+      },
+      { sectionById, programById, subjectById },
+    );
+    if (args.campusWide || args.gecOnly) return scoped;
+    if (!args.collegeId) return scoped;
     return instructorPortalEntries({
-      entries: modeEntries,
+      entries: scoped,
       // Which sections count is decided within the current term only.
-      teachingSource: modeEntries.filter((e) => e.academicPeriodId === academicPeriodId),
+      teachingSource: scoped.filter((e) => e.academicPeriodId === academicPeriodId),
       instructorUserId: args.instructorPortalUserId,
       ownEntriesOnly: args.instructorOwnEntriesOnly,
     });
   }, [
     modeEntries,
     args.campusWide,
+    args.gecOnly,
     args.collegeId,
     args.instructorPortalUserId,
     args.instructorOwnEntriesOnly,
     academicPeriodId,
     sectionById,
+    programById,
+    subjectById,
   ]);
 
   const termResourceEntries = useMemo(

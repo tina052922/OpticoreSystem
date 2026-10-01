@@ -8,6 +8,7 @@
 
 export const SUBJECT_CATEGORIES = [
   { value: "major", label: "Major" },
+  { value: "minor", label: "Minor" },
   { value: "gec", label: "GEC" },
   { value: "nstp", label: "NSTP" },
 ] as const;

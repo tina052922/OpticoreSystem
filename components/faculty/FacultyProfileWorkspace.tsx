@@ -42,10 +42,19 @@ import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialo
 import { PasswordInput } from "@/components/ui/password-input";
 import type { IssuedFacultyAccount } from "@/lib/api/client";
 import { hasFacultySignIn, isPlaceholderFacultyEmail } from "@/lib/faculty/faculty-login-account";
-import { facultyMatchesProgramScope } from "@/lib/faculty/faculty-program-scope";
+import {
+  advisoryProgramFilter,
+  facultyMatchesProgramScope,
+  sectionsInAdvisoryScope,
+} from "@/lib/faculty/faculty-program-scope";
+import {
+  facultyScopeCollegeParam,
+  facultyScopeShouldLoad,
+  resolveFacultyCollegeScope,
+} from "@/lib/faculty/faculty-college-scope";
 import {
   isAwaitingFacultyApproval,
-  isFacultyRosterUser,
+  isFacultyVisibleToRosterViewer,
 } from "@/lib/faculty/faculty-roster-visibility";
 import {
   advisoryHoldersBySection,
@@ -83,6 +92,23 @@ export type FacultyProfileWorkspaceProps = {
   scopeCollegeId?: string | null;
   /** When set, list only faculty with teaching or advisory activity in this program. */
   scopeProgramId?: string | null;
+  /**
+   * Campus pages (DOI, CAS): "All colleges" lists every faculty instead of nothing.
+   *
+   * Left false everywhere a viewer is bound to one college, so a session that has not resolved yet
+   * shows an empty list rather than the whole campus.
+   */
+  allowCampusWide?: boolean;
+  /**
+   * The college a new faculty is created under while the list is campus-wide.
+   *
+   * A roster can span colleges; a new row cannot — it has to land in exactly one. The GEC Chairman
+   * searches campus-wide but still enrolls into the GEC routing college, which is the single college
+   * their page wrote to before it could search at all.
+   */
+  writeCollegeIdFallback?: string | null;
+  /** How to name {@link writeCollegeIdFallback} in the campus-wide notice. */
+  writeCollegeLabel?: string | null;
   /** Chairman Faculty Profile page: edit status & designation on list rows (updates evaluator load rules). */
   enableFacultyListEdit?: boolean;
   /**
@@ -90,6 +116,13 @@ export type FacultyProfileWorkspaceProps = {
    * Excludes faculty who only appear on major (non-GEC) schedules, and the vacant-slot placeholder user.
    */
   gecFacultyFilter?: boolean;
+  /**
+   * College Admin: leave GEC instructors out of the roster.
+   *
+   * They teach general education across every college and the GEC Chairman plots their load, so
+   * they are managed from the GEC Faculty Profile rather than here.
+   */
+  excludeGecFaculty?: boolean;
 };
 
 type ListRow = {
@@ -128,10 +161,31 @@ export function FacultyProfileWorkspace({
   viewerCollegeId = null,
   scopeCollegeId = null,
   scopeProgramId = null,
+  allowCampusWide = false,
+  writeCollegeIdFallback = null,
+  writeCollegeLabel = null,
   enableFacultyListEdit = false,
   gecFacultyFilter = false,
+  excludeGecFaculty = false,
 }: FacultyProfileWorkspaceProps) {
-  const collegeId = chairmanCollegeId ?? viewerCollegeId ?? scopeCollegeId ?? null;
+  const scope = useMemo(
+    () =>
+      resolveFacultyCollegeScope({ chairmanCollegeId, viewerCollegeId, scopeCollegeId, allowCampusWide }),
+    [chairmanCollegeId, viewerCollegeId, scopeCollegeId, allowCampusWide],
+  );
+  /**
+   * The one college in scope, or null.
+   *
+   * Everything that writes keeps reading this, because a new faculty has to land in exactly one
+   * college. Reading is driven by `scope`, which can also be campus-wide.
+   */
+  const collegeId =
+    scope.kind === "college"
+      ? scope.collegeId
+      : scope.kind === "campusWide"
+        ? (writeCollegeIdFallback ?? "").trim() || null
+        : null;
+  const campusWide = scope.kind === "campusWide";
   const programLabel = chairmanProgramCode ?? "—";
   const systemConfig = useSystemConfigurationOptional();
   const hourlyRateOverrides = useMemo(() => {
@@ -293,14 +347,72 @@ export function FacultyProfileWorkspace({
   );
 
   const loadFaculty = useCallback(async () => {
-    if (!collegeId) {
+    // Campus-wide has no college to send; `none` has nothing to ask for at all.
+    if (!facultyScopeShouldLoad(scope)) {
       setRows([]);
       setSections([]);
       setPrograms([]);
       return;
     }
+    const scopeParam = facultyScopeCollegeParam(scope);
+    const collegeQuery = scopeParam ? `?collegeId=${encodeURIComponent(scopeParam)}` : "";
+    /*
+     * Ask the server for instructors only.
+     *
+     * `isFacultyRosterUser` already discards everything else below, so this returns the same rows —
+     * but campus-wide has no college narrowing it, and without this the page would pull every
+     * student on campus just to throw them away.
+     */
+    const userQuery = new URLSearchParams({ role: "instructor" });
+    if (scopeParam) userQuery.set("collegeId", scopeParam);
     setLoadingList(true);
     setError(null);
+
+    /*
+     * The scope's programs and sections, fetched independently of the roster.
+     *
+     * Advisory offers these sections, and they belong to the college and department in Search &
+     * scope — not to whoever happens to be on the list. Loading them inside the faculty path meant
+     * an empty roster (a new college, or a failed users request) left the checkboxes showing the
+     * previous scope's sections, and a college with no faculty yet could not have advisory assigned
+     * to its first one. Started here so it runs in parallel with the roster request.
+     */
+    const catalogPromise = (async (): Promise<{ programs: Program[]; sections: Section[] }> => {
+      try {
+        const { apiFetch } = await import("@/lib/api/client");
+        const progsData = await apiFetch<{ programs: Program[] }>(
+          `/api/catalog/programs${collegeQuery}`,
+          { method: "GET" },
+        );
+        const progs = progsData.programs ?? [];
+        const progIds = progs.map((p) => p.id);
+        if (progIds.length === 0) return { programs: progs, sections: [] };
+        try {
+          const secData = await apiFetch<{ sections: Section[] }>(
+            `/api/catalog/sections?programId=${progIds.join(",")}`,
+            { method: "GET" },
+          );
+          return { programs: progs, sections: secData.sections ?? [] };
+        } catch {
+          return { programs: progs, sections: [] };
+        }
+      } catch {
+        return { programs: [], sections: [] };
+      }
+    })();
+
+    /** Applies the scope catalog, whatever happens to the roster below. */
+    const applyCatalog = async () => {
+      const catalog = await catalogPromise;
+      setPrograms(catalog.programs);
+      setSections(
+        sectionsInAdvisoryScope(
+          catalog.sections,
+          advisoryProgramFilter(scopeProgramId, chairmanProgramId),
+        ),
+      );
+      return catalog;
+    };
 
     let users: ListRow["user"][] = [];
     try {
@@ -314,21 +426,19 @@ export function FacultyProfileWorkspace({
           }
         >;
       }>(
-        `/api/catalog/users?collegeId=${collegeId}`,
+        `/api/catalog/users?${userQuery.toString()}`,
         { method: "GET", forceRefresh: true },
       );
       users = data.users
-        .filter((u) => {
-          // Roster, not schedule: a self-registration awaiting approval still has a profile to
-          // review. `isPlottableFacultyUser` stays the rule wherever a faculty is put on a plot.
-          if (!isFacultyRosterUser(u)) return false;
-          const locked = String(chairmanProgramId ?? "").trim();
-          // Department chairs manage program faculty only — GEC instructors are college-scoped.
-          if (locked && isGecInstructorUser(u)) return false;
-          const home = String(u.chairmanProgramId ?? "").trim();
-          if (locked && home && home !== locked) return false;
-          return true;
-        })
+        // Roster, not schedule: a self-registration awaiting approval still has a profile to
+        // review. `isPlottableFacultyUser` stays the rule wherever a faculty is put on a plot.
+        .filter((u) =>
+          isFacultyVisibleToRosterViewer(u, {
+            gecOnly: gecFacultyFilter,
+            excludeGec: excludeGecFaculty,
+            lockedProgramId: chairmanProgramId,
+          }),
+        )
         .map((u) => ({
           id: u.id,
           name: u.name,
@@ -341,60 +451,33 @@ export function FacultyProfileWorkspace({
           emailVerifiedAt: (u as { emailVerifiedAt?: string | null }).emailVerifiedAt ?? null,
         }));
     } catch {
+      await applyCatalog();
       setLoadingList(false);
       return;
     }
     let list = (users ?? []) as ListRow["user"][];
     if (list.length === 0) {
       setRows([]);
+      await applyCatalog();
       setLoadingList(false);
       return;
     }
 
-    // GEC filter removed — requires Supabase catalog queries
-
     const ids = list.map((u) => u.id);
 
     let profs: FacultyProfile[] = [];
-    let programs: Program[] = [];
-    let sections: Section[] = [];
 
     try {
       const { apiFetch } = await import("@/lib/api/client");
-      const idsParam = ids.join(",");
-      const [profsData, progsData] = await Promise.all([
-        apiFetch<{ profiles: FacultyProfile[] }>(
-          `/api/catalog/faculty-profiles?ids=${idsParam}`,
-          { method: "GET" },
-        ),
-        apiFetch<{ programs: Program[] }>(
-          `/api/catalog/programs?collegeId=${collegeId}`,
-          { method: "GET" },
-        ),
-      ]);
+      const profsData = await apiFetch<{ profiles: FacultyProfile[] }>(
+        `/api/catalog/faculty-profiles?ids=${ids.join(",")}`,
+        { method: "GET" },
+      );
       profs = profsData.profiles;
-      programs = progsData.programs;
-
-      const progIds = programs.map((p) => p.id);
-      if (progIds.length > 0) {
-        try {
-          const secData = await apiFetch<{ sections: Section[] }>(
-            `/api/catalog/sections?programId=${progIds.join(",")}`,
-            { method: "GET" },
-          );
-          sections = secData.sections;
-        } catch {
-          /* sections optional */
-        }
-      }
     } catch { /* ignore */ }
-    setLoadingList(false);
-    setPrograms(programs);
 
-    const sectionsScoped = scopeProgramId
-      ? sections.filter((s) => s.programId === scopeProgramId)
-      : sections;
-    setSections(sectionsScoped);
+    const { sections } = await applyCatalog();
+    setLoadingList(false);
 
     const byUser = new Map(profs.map((p) => [p.userId, p]));
 
@@ -440,7 +523,7 @@ export function FacultyProfileWorkspace({
         profile: byUser.get(u.id) ?? null,
       })),
     );
-  }, [collegeId, scopeProgramId, chairmanProgramId]);
+  }, [scope, scopeProgramId, chairmanProgramId, gecFacultyFilter, excludeGecFaculty]);
 
   useEffect(() => {
     void loadFaculty();
@@ -510,13 +593,15 @@ export function FacultyProfileWorkspace({
   }, [viewRows, facultyListSearch, statusFilter, sexFilter, rankFilter]);
 
   const loadJustifications = useCallback(() => {
-    if (!collegeId) {
+    if (!facultyScopeShouldLoad(scope)) {
       setJustificationByUserId({});
       return () => {};
     }
     let cancelled = false;
     const qs = new URLSearchParams();
-    qs.set("collegeId", collegeId);
+    // Omitted campus-wide, which is how the route returns every college's rows.
+    const scopeParam = facultyScopeCollegeParam(scope);
+    if (scopeParam) qs.set("collegeId", scopeParam);
     if (selectedPeriodId) qs.set("academicPeriodId", selectedPeriodId);
     void apiFetch<{ justifications: ScheduleLoadJustification[] }>(
       `/api/catalog/schedule-load-justifications?${qs.toString()}`,
@@ -539,7 +624,7 @@ export function FacultyProfileWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [collegeId, selectedPeriodId]);
+  }, [scope, selectedPeriodId]);
 
   useEffect(() => loadJustifications(), [loadJustifications]);
 
@@ -818,7 +903,10 @@ export function FacultyProfileWorkspace({
     setExperience(row.profile?.experience ?? "");
     setEligibility(row.profile?.eligibility ?? "");
     setDepartmentProgramId(row.user.chairmanProgramId ?? chairmanProgramId ?? "");
-    setFacultyCategory(parseFacultyCategory(row.user.facultyCategory));
+    // On the GEC page every row is a GEC instructor and editing one must not change that.
+    setFacultyCategory(
+      gecFacultyFilter ? FACULTY_CATEGORY_GEC : parseFacultyCategory(row.user.facultyCategory),
+    );
     setStatus(normalizeFacultyProfileStatus(row.profile?.status));
     setDesignation(row.profile?.designation ?? "");
     setAdvisorySectionIds(advisorySectionIdsOf(row.profile));
@@ -971,9 +1059,10 @@ export function FacultyProfileWorkspace({
 
       {gecFacultyFilter ? (
         <div className="rounded-xl border border-[var(--color-opticore-orange)]/35 bg-orange-50/90 px-4 py-3 text-sm text-black/80">
-          <strong className="text-[var(--color-opticore-orange)]">GEC scope.</strong> Listed faculty either have no
-          plots yet (eligible for GEC assignment) or teach at least one GEC/GEE course. Major-only instructors are
-          hidden. Plotting non-GEC courses stays with the Program Chairman.
+          <strong className="text-[var(--color-opticore-orange)]">GEC scope.</strong> This list is the GEC
+          instructors — those whose instructor category is <em>GEC instructor</em>. Department instructors are
+          hidden, and anyone enrolled here is recorded as a GEC instructor. Plotting non-GEC courses stays with
+          the Program Chairman.
         </div>
       ) : null}
 
@@ -1077,7 +1166,18 @@ export function FacultyProfileWorkspace({
 
       {tab === "profile" ? (
         <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-6">
-          {!collegeId ? (
+          {campusWide && collegeId ? (
+            <p className="text-[13px] text-black/70 bg-black/[0.03] border border-black/10 rounded-lg px-3 py-2 mb-4">
+              Searching <strong>all colleges</strong>. A faculty added here is created under{" "}
+              <strong>{writeCollegeLabel?.trim() || "the default college"}</strong> — pick a college above to
+              enroll into a different one.
+            </p>
+          ) : campusWide ? (
+            <p className="text-[13px] text-black/70 bg-black/[0.03] border border-black/10 rounded-lg px-3 py-2 mb-4">
+              Listing faculty across <strong>all colleges</strong>. Pick one college above to add or edit a profile — a
+              new faculty has to be created under a single college.
+            </p>
+          ) : !collegeId ? (
             <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
               Set college scope using the bar above (campus pages) or open this page as Chairman / College Admin with a
               linked college.
@@ -1303,15 +1403,17 @@ export function FacultyProfileWorkspace({
                 className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
                 value={facultyCategory}
                 onChange={(e) => setFacultyCategory(parseFacultyCategory(e.target.value))}
-                disabled={!collegeId}
+                disabled={!collegeId || gecFacultyFilter}
               >
                 <option value={FACULTY_CATEGORY_PROGRAM}>Program / department instructor</option>
                 <option value={FACULTY_CATEGORY_GEC}>GEC instructor</option>
               </select>
               <p className="text-[11px] text-black/50 leading-relaxed">
-                {facultyCategory === FACULTY_CATEGORY_GEC
-                  ? "Teaches GEC subjects across departments; the GEC Chairman plots their load."
-                  : "Belongs to one department, plotted by that Program Chairman."}
+                {gecFacultyFilter
+                  ? "Fixed here — everyone enrolled from this page is a GEC instructor. Change it from the College Admin or Chairman Faculty Profile."
+                  : facultyCategory === FACULTY_CATEGORY_GEC
+                    ? "Teaches GEC subjects across departments; the GEC Chairman plots their load."
+                    : "Belongs to one department, plotted by that Program Chairman."}
               </p>
             </div>
             <div className="space-y-1">
@@ -1513,7 +1615,7 @@ export function FacultyProfileWorkspace({
                   </tr>
                 </thead>
                 <tbody className="text-[12px]">
-                  {!collegeId ? (
+                  {scope.kind === "none" ? (
                     <tr>
                       <td
                         colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 1 : FACULTY_LIST_COLUMNS}
@@ -1528,7 +1630,9 @@ export function FacultyProfileWorkspace({
                         colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 1 : FACULTY_LIST_COLUMNS}
                         className="px-3 py-8 text-center text-black/45"
                       >
-                        No instructors in the database for this college yet.
+                        {campusWide
+                          ? "No instructors in the database yet."
+                          : "No instructors in the database for this college yet."}
                       </td>
                     </tr>
                   ) : filteredRows.length === 0 ? (

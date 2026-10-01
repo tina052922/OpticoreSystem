@@ -40,6 +40,17 @@ export type AdminProfileCardProps = {
    * profile, showing nothing is more honest than showing something that never responds.
    */
   showEditProfile?: boolean;
+  /**
+   * What the identity number is called here. Students carry a Student ID, staff an Employee ID.
+   */
+  idLabel?: string;
+  /**
+   * Whether the holder may change that number.
+   *
+   * A student's is issued by the registrar and is how their enrolment is matched, so they read it
+   * rather than edit it. Staff set their own.
+   */
+  allowIdEdit?: boolean;
 };
 
 /**
@@ -58,6 +69,8 @@ export function AdminProfileCard({
   storedEmployeeId,
   showChangePassword = true,
   showEditProfile = true,
+  idLabel = "Employee ID",
+  allowIdEdit = true,
 }: AdminProfileCardProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -161,7 +174,7 @@ export function AdminProfileCard({
   const idLine = employeeId?.trim() || "—";
 
   const baseRows: Array<[string, string]> = [
-    ["Employee ID", idLine],
+    [idLabel, idLine],
     ["Role", roleLabel],
     ["College / Department", collegeLine],
     ["Email", email],
@@ -194,7 +207,10 @@ export function AdminProfileCard({
     setSaving(true);
     setError(null);
     try {
-      await profileApi.updateDetails({ name, employeeId: employeeIdDraft.trim() || null });
+      await profileApi.updateDetails(
+        // A read-only number is never sent, so a stale draft cannot overwrite it.
+        allowIdEdit ? { name, employeeId: employeeIdDraft.trim() || null } : { name },
+      );
       setEditing(false);
       setMessage("Profile saved.");
       // The page is server-rendered from /api/auth/me, so re-fetch it rather than
@@ -233,19 +249,29 @@ export function AdminProfileCard({
                 autoComplete="name"
               />
             </div>
-            <div className="space-y-1">
-              <label className="block text-[12px] font-semibold text-black/75" htmlFor="profile-employee-id">
-                Employee ID
-              </label>
-              <Input
-                id="profile-employee-id"
-                value={employeeIdDraft}
-                onChange={(e) => setEmployeeIdDraft(e.target.value)}
-                placeholder="Leave blank if you have none"
-                disabled={saving}
-                autoComplete="off"
-              />
-            </div>
+            {allowIdEdit ? (
+              <div className="space-y-1">
+                <label className="block text-[12px] font-semibold text-black/75" htmlFor="profile-employee-id">
+                  {idLabel}
+                </label>
+                <Input
+                  id="profile-employee-id"
+                  value={employeeIdDraft}
+                  onChange={(e) => setEmployeeIdDraft(e.target.value)}
+                  placeholder="Leave blank if you have none"
+                  disabled={saving}
+                  autoComplete="off"
+                />
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="text-[12px] font-semibold text-black/75">{idLabel}</div>
+                <div className="h-10 flex items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700 tabular-nums">
+                  {idLine}
+                </div>
+                <p className="text-[11px] text-gray-500">Issued by the registrar — ask them to correct it.</p>
+              </div>
+            )}
           </div>
 
           {/* Email moves on its own, only once a code sent to the new address comes back. */}
@@ -410,8 +436,8 @@ export function AdminProfileCard({
       )}
 
       <p className="text-[12px] text-gray-500 mt-6">
-        Profile data is loaded from your account. Employee ID may mirror your internal user record when no separate
-        employee number is stored.
+        Profile data is loaded from your account. {idLabel} may mirror your internal user record when no separate
+        number is stored.
       </p>
     </div>
   );

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { facultyMatchesProgramScope, type ProgramScopedFaculty } from "./faculty-program-scope";
+import {
+  advisoryProgramFilter,
+  facultyMatchesProgramScope,
+  sectionsInAdvisoryScope,
+  type ProgramScopedFaculty,
+} from "./faculty-program-scope";
 
 /** Sections as the catalog holds them, so a section id resolves to its program. */
 const sections = new Map<string, string>([
@@ -66,5 +71,54 @@ describe("facultyMatchesProgramScope", () => {
 
   it("tolerates whitespace around the stored ids", () => {
     expect(facultyMatchesProgramScope(faculty({ homeProgramId: " prog-bsit " }), "prog-bsit", sections)).toBe(true);
+  });
+});
+
+describe("advisoryProgramFilter", () => {
+  it("follows the scope bar's department", () => {
+    expect(advisoryProgramFilter("prog-bsit", null)).toBe("prog-bsit");
+  });
+
+  it("falls back to a locked chairman program when the bar has none", () => {
+    // The Chairman page's scope bar is display-only, so the lock is the only signal there.
+    expect(advisoryProgramFilter(null, "prog-bsit")).toBe("prog-bsit");
+  });
+
+  it("lets the scope bar override the locked program", () => {
+    expect(advisoryProgramFilter("prog-bit-auto", "prog-bsit")).toBe("prog-bit-auto");
+  });
+
+  it("is null when neither is set, which means every department in scope", () => {
+    expect(advisoryProgramFilter(null, null)).toBeNull();
+    expect(advisoryProgramFilter("", "")).toBeNull();
+    expect(advisoryProgramFilter("   ", null)).toBeNull();
+  });
+});
+
+describe("sectionsInAdvisoryScope", () => {
+  const all = [
+    { id: "sec-bsit-1a", programId: "prog-bsit" },
+    { id: "sec-bsit-2b", programId: "prog-bsit" },
+    { id: "sec-auto-1a", programId: "prog-bit-auto" },
+  ];
+
+  it("offers only the chosen department's sections", () => {
+    expect(sectionsInAdvisoryScope(all, "prog-bsit").map((s) => s.id)).toEqual([
+      "sec-bsit-1a",
+      "sec-bsit-2b",
+    ]);
+  });
+
+  /** The misalignment this exists for: picking a department left every section on the list. */
+  it("drops another department's sections", () => {
+    expect(sectionsInAdvisoryScope(all, "prog-bsit").map((s) => s.id)).not.toContain("sec-auto-1a");
+  });
+
+  it("offers everything in scope when no department is chosen", () => {
+    expect(sectionsInAdvisoryScope(all, null)).toHaveLength(3);
+  });
+
+  it("returns a copy rather than the original array", () => {
+    expect(sectionsInAdvisoryScope(all, null)).not.toBe(all);
   });
 });

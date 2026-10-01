@@ -25,7 +25,7 @@ import {
   subjectSemesterFilterLabel,
 } from "@/lib/subjects/subject-semester-filter";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
-import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
+import { subjectWeeklyContactHours } from "@/lib/subjects/contact-hours";
 import { subjectCodesApi } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import type { Subject } from "@/types/db";
@@ -156,14 +156,20 @@ export function SubjectCodesWorkspace({
 
   const [code, setCode] = useState("");
   const [title, setTitle] = useState("");
-  const [lecUnits, setLecUnits] = useState("");
-  const [labUnits, setLabUnits] = useState("");
+  /**
+   * Total units, entered once — the figure the prospectus prints.
+   *
+   * It used to be two inputs, Lec Units and Lab Units, which auto-filled the hour fields through the
+   * CHED conversion (1 lecture unit = 1 hour, 1 laboratory unit = 3 hours). Entering a subject's
+   * 3 units in both boxes produced 3 + 3×3 = 12 contact hours for a subject that meets 5 — so the
+   * Evaluator asked for 12. Units are recorded here; the hour fields below are what the Evaluator
+   * reads, and nothing multiplies one into the other any more.
+   */
+  const [units, setUnits] = useState("");
   // Hours are stored per subject and stay editable; the unit conversion only
   // prefills them until someone types a value of their own.
   const [lecHours, setLecHours] = useState("");
   const [labHours, setLabHours] = useState("");
-  const [lecHoursTouched, setLecHoursTouched] = useState(false);
-  const [labHoursTouched, setLabHoursTouched] = useState(false);
   const [yearLevel, setYearLevel] = useState("1");
   const [semester, setSemester] = useState("");
   const [category, setCategory] = useState("");
@@ -244,12 +250,9 @@ export function SubjectCodesWorkspace({
     setEditingId(null);
     setCode("");
     setTitle("");
-    setLecUnits("");
-    setLabUnits("");
+    setUnits("");
     setLecHours("");
     setLabHours("");
-    setLecHoursTouched(false);
-    setLabHoursTouched(false);
     setYearLevel("1");
     setSubjectSearch("");
     setSuccess(null);
@@ -316,12 +319,9 @@ export function SubjectCodesWorkspace({
     setEditingId(null);
     setCode("");
     setTitle("");
-    setLecUnits("");
-    setLabUnits("");
+    setUnits("");
     setLecHours("");
     setLabHours("");
-    setLecHoursTouched(false);
-    setLabHoursTouched(false);
     setYearLevel("1");
     setSemester("");
     setCategory("");
@@ -338,12 +338,10 @@ export function SubjectCodesWorkspace({
     setEditingId(s.id);
     setCode(s.code);
     setTitle(s.title);
-    setLecUnits(String(s.lecUnits ?? ""));
-    setLabUnits(String(s.labUnits ?? ""));
+    // Legacy rows split their units across two columns; the total is what the one field shows.
+    setUnits(String((s.lecUnits ?? 0) + (s.labUnits ?? 0) || ""));
     setLecHours(String(s.lecHours ?? ""));
     setLabHours(String(s.labHours ?? ""));
-    setLecHoursTouched(true);
-    setLabHoursTouched(true);
     setYearLevel(String(s.yearLevel ?? 1));
     setSemester(String(normalizeSubjectSemester(s.semester) ?? ""));
     setCategory(normalizeSubjectCategory(s.category));
@@ -385,10 +383,15 @@ export function SubjectCodesWorkspace({
     }
 
     setSaving(true);
-    const lec = parseFloat(lecUnits) || 0;
-    const lab = parseFloat(labUnits) || 0;
-    const lecHrs = lecHours.trim() === "" ? lectureHoursFromUnits(lec) : parseFloat(lecHours) || 0;
-    const labHrs = labHours.trim() === "" ? labHoursFromUnits(lab) : parseFloat(labHours) || 0;
+    /*
+     * Units are recorded as typed and never converted into hours; the hour fields stand on their
+     * own. The whole total goes in `lecUnits` with `labUnits` zeroed, so no later reader can
+     * resurrect the 1:3 laboratory multiplication from a split that no longer exists.
+     */
+    const lec = parseFloat(units) || 0;
+    const lab = 0;
+    const lecHrs = parseFloat(lecHours) || 0;
+    const labHrs = parseFloat(labHours) || 0;
     const payload = {
       code: trimmedCode,
       title: trimmedTitle,
@@ -500,23 +503,17 @@ export function SubjectCodesWorkspace({
             <Input placeholder="Course title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!programId} />
           </div>
           <div className="space-y-1">
-            <div className="text-sm font-medium">Lec Units</div>
+            <div className="text-sm font-medium">Units</div>
             <Input
               type="number"
               min={0}
               step={0.5}
               placeholder="0"
-              value={lecUnits}
-              onChange={(e) => {
-                const v = e.target.value;
-                setLecUnits(v);
-                if (!lecHoursTouched) {
-                  setLecHours(v === "" ? "" : String(lectureHoursFromUnits(parseFloat(v) || 0)));
-                }
-              }}
+              value={units}
+              onChange={(e) => setUnits(e.target.value)}
               disabled={!programId}
             />
-            <p className="text-[11px] text-black/50">1 unit = 1 hour</p>
+            <p className="text-[11px] text-black/50">Total credit units, as printed in the prospectus.</p>
           </div>
           <div className="space-y-1">
             <div className="text-sm font-medium">Lec Hours</div>
@@ -526,13 +523,10 @@ export function SubjectCodesWorkspace({
               step={0.5}
               placeholder="0"
               value={lecHours}
-              onChange={(e) => {
-                setLecHoursTouched(true);
-                setLecHours(e.target.value);
-              }}
+              onChange={(e) => setLecHours(e.target.value)}
               disabled={!programId}
             />
-            <p className="text-[11px] text-black/50">Editable — prefilled from units, override as needed.</p>
+            <p className="text-[11px] text-black/50">Lecture contact hours per week.</p>
           </div>
           <div className="space-y-1">
             <div className="text-sm font-medium">Semester</div>
@@ -587,25 +581,6 @@ export function SubjectCodesWorkspace({
             </select>
           </div>
           <div className="space-y-1">
-            <div className="text-sm font-medium">Lab Units</div>
-            <Input
-              type="number"
-              min={0}
-              step={0.5}
-              placeholder="0"
-              value={labUnits}
-              onChange={(e) => {
-                const v = e.target.value;
-                setLabUnits(v);
-                if (!labHoursTouched) {
-                  setLabHours(v === "" ? "" : String(labHoursFromUnits(parseFloat(v) || 0)));
-                }
-              }}
-              disabled={!programId}
-            />
-            <p className="text-[11px] text-black/50">1 unit = 3 hours</p>
-          </div>
-          <div className="space-y-1">
             <div className="text-sm font-medium">Lab Hours</div>
             <Input
               type="number"
@@ -613,13 +588,12 @@ export function SubjectCodesWorkspace({
               step={0.5}
               placeholder="0"
               value={labHours}
-              onChange={(e) => {
-                setLabHoursTouched(true);
-                setLabHours(e.target.value);
-              }}
+              onChange={(e) => setLabHours(e.target.value)}
               disabled={!programId}
             />
-            <p className="text-[11px] text-black/50">Editable — prefilled from units, override as needed.</p>
+            <p className="text-[11px] text-black/50">
+              Laboratory contact hours per week. Lecture + laboratory is what the Evaluator requires.
+            </p>
           </div>
         </div>
       </div>
@@ -668,10 +642,10 @@ export function SubjectCodesWorkspace({
                 <th className="border border-black/10 px-2 py-2 text-left">Category</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Subject Code</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Descriptive Title</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Lec Units</th>
+                <th className="border border-black/10 px-2 py-2 text-left">Units</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Lab Units</th>
                 <th className="border border-black/10 px-2 py-2 text-left">Lab Hours</th>
+                <th className="border border-black/10 px-2 py-2 text-left">Hrs/wk</th>
                 {campusWide ? (
                   <th className="border border-black/10 px-2 py-2 text-left">Program</th>
                 ) : null}
@@ -714,13 +688,14 @@ export function SubjectCodesWorkspace({
                       <td className="border border-black/10 px-2 py-2">{subjectCategoryLabel(s.category)}</td>
                       <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
                       <td className="border border-black/10 px-2 py-2">{s.title}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.lecUnits}</td>
                       <td className="border border-black/10 px-2 py-2">
-                        {s.lecHours ?? lectureHoursFromUnits(s.lecUnits)}
+                        {(s.lecUnits ?? 0) + (s.labUnits ?? 0)}
                       </td>
-                      <td className="border border-black/10 px-2 py-2">{s.labUnits}</td>
-                      <td className="border border-black/10 px-2 py-2">
-                        {s.labHours ?? labHoursFromUnits(s.labUnits)}
+                      <td className="border border-black/10 px-2 py-2">{s.lecHours ?? 0}</td>
+                      <td className="border border-black/10 px-2 py-2">{s.labHours ?? 0}</td>
+                      {/* What the Evaluator requires for this subject. */}
+                      <td className="border border-black/10 px-2 py-2 font-semibold tabular-nums">
+                        {subjectWeeklyContactHours(s)}
                       </td>
                       {campusWide ? (
                         <td className="border border-black/10 px-2 py-2">

@@ -20,10 +20,13 @@ import { authApi } from "@/lib/api/client";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { ProgramModeProvider } from "@/contexts/ProgramModeContext";
+import type { ProgramMode } from "@/lib/scheduling/program-mode";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { isNavItemActive } from "@/lib/nav-active";
+import { NAV_ICONS } from "@/components/nav/nav-icons";
+import type { NavIconKey } from "@/lib/admin-nav";
 
-export type PortalNavItem = { label: string; href: string };
+export type PortalNavItem = { label: string; href: string; icon?: NavIconKey };
 
 export type PortalShellProps = {
   children: React.ReactNode;
@@ -38,6 +41,8 @@ export type PortalShellProps = {
   periodLabel?: string;
   profileHref?: string;
   inboxHref?: string;
+  /** Fixes Day / Evening to the viewer's own programme and hides the toggle. */
+  lockedProgramMode?: ProgramMode | null;
 };
 
 export function PortalShell({
@@ -50,6 +55,7 @@ export function PortalShell({
   periodLabel: _periodLabel,
   profileHref,
   inboxHref,
+  lockedProgramMode = null,
 }: PortalShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -90,7 +96,7 @@ export function PortalShell({
   }, []);
 
   return (
-    <ProgramModeProvider>
+    <ProgramModeProvider lockedMode={lockedProgramMode}>
     <SemesterFilterProvider>
     <div className="flex h-[100dvh] flex-col bg-[#F8F8F8] overflow-hidden">
       <header
@@ -223,6 +229,7 @@ export function PortalShell({
           <nav className="flex-1 px-2 pb-2 space-y-1 no-print overflow-y-auto">
             {navItems.map((item) => {
               const active = isNavItemActive(pathname, item.href, navHrefs);
+              const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
               return (
                 <Link
                   key={item.href}
@@ -234,7 +241,9 @@ export function PortalShell({
                       : "text-gray-700 hover:bg-gray-200"
                   }`}
                 >
-                  {item.label}
+                  {/* Decorative: the label beside it already names the destination. */}
+                  {Icon ? <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden /> : null}
+                  <span className="min-w-0 truncate">{item.label}</span>
                 </Link>
               );
             })}

@@ -1,5 +1,5 @@
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
-import { weeklyContactHoursFromUnits } from "@/lib/subjects/contact-hours";
+import { subjectWeeklyContactHours } from "@/lib/subjects/contact-hours";
 
 /**
  * Weekly contact hours required for a subject in the term.
@@ -22,19 +22,14 @@ export function requiredWeeklyContactHours(args: {
   lecHours?: number | null;
   labHours?: number | null;
 }): number {
-  const fromHours = Math.max(0, (args.lecHours ?? 0) + (args.labHours ?? 0));
-  if (fromHours > 0) return fromHours;
-
-  const fromUnits = weeklyContactHoursFromUnits(args.lecUnits, args.labUnits);
-  if (fromUnits > 0) return fromUnits;
+  const fromSubject = subjectWeeklyContactHours(args);
+  if (fromSubject > 0) return fromSubject;
 
   const code = args.subjectCode?.trim();
   if (code) {
     const p = prospectusRowForProgram(args.programCode, code);
     if (p) {
-      const prospectusHours = (p.lecHours ?? 0) + (p.labHours ?? 0);
-      if (prospectusHours > 0) return prospectusHours;
-      return weeklyContactHoursFromUnits(p.lecUnits, p.labUnits);
+      return subjectWeeklyContactHours(p);
     }
   }
   return 0;

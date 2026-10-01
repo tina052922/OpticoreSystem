@@ -43,6 +43,8 @@ export type INSFormRoomProps = {
   chairmanProgramName?: string | null;
   viewerCollegeId?: string | null;
   campusWide?: boolean;
+  /** GEC Chairman: every picker on this form lists general education only. */
+  gecOnly?: boolean;
   instructorPortalUserId?: string | null;
   /** Faculty portal: show only this instructor's own classes, not the whole section or room. */
   instructorOwnEntriesOnly?: boolean;
@@ -70,6 +72,7 @@ export function INSFormRoom({
   chairmanProgramName = null,
   viewerCollegeId = null,
   campusWide = false,
+  gecOnly = false,
   instructorPortalUserId = null,
   instructorOwnEntriesOnly = false,
   hideInnerInsTabs = false,
@@ -85,6 +88,7 @@ export function INSFormRoom({
     collegeId: effectiveCollegeId,
     programId: chairmanProgramId,
     campusWide,
+    gecOnly,
     instructorPortalUserId,
     instructorOwnEntriesOnly,
   });
@@ -437,14 +441,14 @@ export function INSFormRoom({
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
           {useLiveData ? (
             <InsScheduleEntitySearch
-              label={readOnlyPortal ? "Room" : "Room (search)"}
+              label="Room"
               placeholder="Type room code (e.g. IT LAB 1)"
               options={catalog.roomOptions}
               selectedId={selectedRoomId}
               onSelectedIdChange={setSelectedRoomId}
               disabled={catalog.loading || catalog.roomOptions.length === 0}
               listId="ins-room-list"
-              mode={readOnlyPortal ? "select" : "search"}
+              mode="select"
               emptyLabel="Select a room…"
             />
           ) : (

@@ -36,3 +36,27 @@ export function facultyMatchesProgramScope(
   if (advised.length === 0) return false;
   return advised.some((sectionId) => sectionProgramById.get(sectionId) === target);
 }
+
+/**
+ * The department the Advisory (Assigned Sections) picker narrows to.
+ *
+ * Advisory has to answer to the same Search & scope as the faculty list, or the two disagree: the
+ * list shows one department while the checkboxes offer every section in the college. The scope bar's
+ * choice wins; a locked chairman program is the floor when the bar has none, which is the case on
+ * the Chairman page where the bar is display-only.
+ */
+export function advisoryProgramFilter(
+  scopeProgramId?: string | null,
+  chairmanProgramId?: string | null,
+): string | null {
+  return (scopeProgramId ?? "").trim() || (chairmanProgramId ?? "").trim() || null;
+}
+
+/** Sections the Advisory picker may offer, given {@link advisoryProgramFilter}. */
+export function sectionsInAdvisoryScope<T extends { programId: string }>(
+  sections: readonly T[],
+  programId: string | null,
+): T[] {
+  if (!programId) return [...sections];
+  return sections.filter((s) => (s.programId ?? "").trim() === programId);
+}

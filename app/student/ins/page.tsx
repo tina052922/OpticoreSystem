@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 import { LOAD_GENERATOR_NAV_LABEL, STUDENT_PORTAL_NAV } from "@/lib/admin-nav";
 import { requireRoles } from "@/lib/auth/require-role";
+import { getStudentProgramMode } from "@/lib/server/student-program-mode";
 
 type TabKey = "section" | "room";
 
@@ -51,6 +52,12 @@ export default async function StudentInsIndexPage({
   const activeTab: TabKey = requestedTab === "room" ? "room" : "section";
   const ownSectionId = profile.studentProfile?.sectionId?.trim() || null;
   const campusWide = !profile.collegeId;
+  /*
+   * A student is in one programme, so there is nothing for them to switch between. Fixing the mode
+   * here hides the Day / Evening toggle everywhere below and shows the timetable at their own hours.
+   * Null when their section has no schedule yet — then the toggle stays, rather than guessing.
+   */
+  const lockedProgramMode = await getStudentProgramMode(ownSectionId);
 
   return (
     <PortalShell
@@ -60,6 +67,7 @@ export default async function StudentInsIndexPage({
       sidebarBadge="Student"
       navItems={STUDENT_PORTAL_NAV}
       periodLabel="Current semester"
+      lockedProgramMode={lockedProgramMode}
     >
       <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto space-y-4">
         <div>

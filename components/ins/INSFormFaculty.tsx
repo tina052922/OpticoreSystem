@@ -64,6 +64,8 @@ export type INSFormFacultyProps = {
   chairmanProgramName?: string | null;
   /** When set (e.g. College Admin), live schedule uses this college even without chairman session props. */
   viewerCollegeId?: string | null;
+  /** GEC Chairman: every picker on this form lists general education only. */
+  gecOnly?: boolean;
   /** Logged-in faculty: lock the grid to this instructor. */
   lockedInstructorId?: string | null;
   /** Hide faculty search. Faculty portal always hides it when `lockedInstructorId` is set. */
@@ -83,6 +85,7 @@ export function INSFormFaculty({
   chairmanProgramCode = null,
   chairmanProgramName = null,
   viewerCollegeId = null,
+  gecOnly = false,
   lockedInstructorId = null,
   hideInstructorSearch = false,
   campusWide = false,
@@ -107,6 +110,7 @@ export function INSFormFaculty({
     programId: chairmanProgramId,
     lockedInstructorId,
     campusWide,
+    gecOnly,
     /** Faculty portal Form 5A is always this instructor — never another faculty’s personal schedule. */
     instructorPortalUserId: instructorReadOnlyPortal || hideInstructorSearch ? lockedInstructorId : null,
   });
@@ -335,13 +339,15 @@ export function INSFormFaculty({
                   {showInstructorSearch ? (
                     <>
                       <InsScheduleEntitySearch
-                        label="Faculty / instructor (search)"
+                        label="Faculty / instructor"
                         placeholder="Type name — schedule updates when one match"
                         options={live.instructorOptions}
                         selectedId={live.selectedInstructorId}
                         onSelectedIdChange={live.setSelectedInstructorId}
                         disabled={live.loading || live.instructorOptions.length === 0}
                         listId="ins-faculty-list"
+                        mode="select"
+                        emptyLabel="Select a faculty…"
                       />
                       {!live.loading && live.instructorOptions.length === 0 ? (
                         <p className="text-xs text-amber-800">

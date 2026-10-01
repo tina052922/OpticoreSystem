@@ -11,8 +11,11 @@ import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navig
 import {
   CAMPUS_WIDE_COLLEGE_SLUG,
   hubCollegesFromDb,
+  hubHref,
   isHubCollegeListView,
   resolveHubCollege,
+  resolveHubScope,
+  rowsForHubScope,
 } from "@/lib/evaluator-central-hub";
 import { EVALUATOR_TAB_LABELS } from "@/lib/evaluator/evaluator-tabs";
 import { buildScheduleEvaluatorTableRows, formatTimeRange } from "@/lib/evaluator/schedule-evaluator-table";
@@ -66,6 +69,7 @@ import {
   hasApprovedCrossCollegeEvaluatorAccess,
   pendingCrossCollegeEvaluatorRequest,
 } from "@/lib/evaluator-hub-access";
+import { BsitChairmanEvaluatorWorksheet } from "@/components/evaluator/BsitChairmanEvaluatorWorksheet";
 import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
@@ -329,13 +333,33 @@ export function CentralHubEvaluatorView({
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focusEntryId]);
 
-  /** null = all colleges (campus-wide); string = one college in DB */
+  /**
+   * What the hub is scoped to, as a state rather than a nullable id.
+   *
+   * `scopeCollegeId` stays for the many places that only need "which college, if one", but the
+   * program list is driven by the scope so an unresolved college yields nothing instead of the whole
+   * campus. See `resolveHubScope`.
+   */
+  const hubScope = useMemo(() => resolveHubScope(collegeSlug, colleges), [collegeSlug, colleges]);
+  /** null = all colleges (campus-wide) or not resolved; string = one college in DB */
   const scopeCollegeId = isCampusWide ? null : hub?.collegeId ?? null;
 
   const programsInCollege = useMemo(
-    () => programs.filter((p) => !scopeCollegeId || p.collegeId === scopeCollegeId),
-    [programs, scopeCollegeId],
+    () => rowsForHubScope(programs, hubScope),
+    [programs, hubScope],
   );
+
+  /**
+   * A program chosen under one college must not survive a move to another.
+   *
+   * Without this the dropdown keeps its old value after switching college, and every list keyed off
+   * `programId` goes on showing the previous college's data.
+   */
+  useEffect(() => {
+    if (!programId) return;
+    if (programsInCollege.some((p) => p.id === programId)) return;
+    setProgramId("");
+  }, [programId, programsInCollege]);
 
   const teachingLoadGroups = useMemo(() => {
     const cid = myCollegeId || scopeCollegeId;
@@ -956,7 +980,7 @@ export function CentralHubEvaluatorView({
                 .map((c) => (
                   <Link
                     key={c.slug}
-                    href={`${basePath}?college=${encodeURIComponent(c.slug)}`}
+                    href={hubHref(basePath, { college: c.slug })}
                     className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
                   >
                     {c.name}
@@ -971,7 +995,7 @@ export function CentralHubEvaluatorView({
                     .map((c) => (
                       <Link
                         key={c.slug}
-                        href={`${basePath}?college=${encodeURIComponent(c.slug)}`}
+                        href={hubHref(basePath, { college: c.slug })}
                         className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-white border-2 border-[#ff990a] text-[#780301] font-bold text-[14px] text-center px-6 py-5 shadow-sm hover:bg-[#ff990a]/5 transition-colors"
                       >
                         {c.abbr} — peer access
@@ -990,7 +1014,7 @@ export function CentralHubEvaluatorView({
           <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="timetabling" />
           <div className="mb-4 flex justify-center">
             <Link
-              href={`${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}`}
+              href={hubHref(basePath, { college: CAMPUS_WIDE_COLLEGE_SLUG })}
               className="inline-flex items-center justify-center min-h-[56px] rounded-[20px] bg-[#780301] text-white font-bold text-[14px] px-8 py-3 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-110 transition-[filter]"
             >
               All colleges (campus-wide timetable)
@@ -1000,7 +1024,7 @@ export function CentralHubEvaluatorView({
             {hubTiles.map((c) => (
               <Link
                 key={c.slug}
-                href={`${basePath}?college=${encodeURIComponent(c.slug)}`}
+                href={hubHref(basePath, { college: c.slug })}
                 className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
               >
                 {c.name}
@@ -1152,6 +1176,25 @@ export function CentralHubEvaluatorView({
   /** Peer-college view-only OR DOI published — search/view OK; plot/edit blocked. */
   const hubReadOnly = hubPeerReadOnly || termPublishLocked;
 
+  /**
+   * With one college open, the hub plots in the week grid rather than listing rows.
+   *
+   * A flat table of plotted entries answers "what is already scheduled"; it cannot answer "where does
+   * this class go", which is what opening a college is for. This is the same workspace the Chairman
+   * and College Admin use — section picker, prospectus summary, weekly grid, Save, Generate INS Form —
+   * scoped to the college that was clicked.
+   *
+   * Campus-wide (`?college=all`) keeps the listing: it spans every college, so there is no single
+   * section grid to show, and the College column is the point of that view. College Admin keeps it
+   * too — they already plot on their own Evaluator page, and their hub is the overview and the
+   * peer-college window onto colleges they may read but not edit.
+   */
+  const showWeekGridWorkspace =
+    hubAccessMode !== "collegeAdmin" && !isCampusWide && Boolean(scopeCollegeId);
+
+  /** "Generate INS Form" has to land on the INS pages of whichever role opened the hub. */
+  const insFormBasePathForHub = `${basePath.split("?")[0].replace(/\/evaluator$/, "")}/ins`;
+
   return (
     <div>
       <ChairmanPageHeader title={hubTitle} />
@@ -1267,6 +1310,46 @@ export function CentralHubEvaluatorView({
               />
             ) : null}
 
+            {showWeekGridWorkspace ? (
+              <>
+                <label className="block max-w-[420px] mb-4">
+                  <span className="text-[13px] font-semibold text-black/70">College</span>
+                  <select
+                    className="mt-1 w-full h-11 rounded-lg border border-black/25 bg-white px-3 text-sm shadow-sm"
+                    value={hub?.slug ?? collegeSlug ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const keepHrs = searchParams.get("panel") === "hrs";
+                      router.replace(hubHref(basePath, { college: v, panel: keepHrs ? "hrs" : null }));
+                    }}
+                  >
+                    <option value={CAMPUS_WIDE_COLLEGE_SLUG}>All colleges (campus-wide listing)</option>
+                    {hubTiles.map((c) => (
+                      <option key={c.slug} value={c.slug}>
+                        {c.abbr} — {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-[11px] text-black/50">
+                    The workspace below plots inside this college. Departments are chosen in it.
+                  </span>
+                </label>
+                {/*
+                  The worksheet loads and saves its own schedule rows, so the hub's department /
+                  section pickers and its listing are not rendered beside it — two sets of controls
+                  over one grid is two things to keep in agreement.
+                */}
+                <BsitChairmanEvaluatorWorksheet
+                  key={scopeCollegeId ?? "none"}
+                  chairmanCollegeId={scopeCollegeId}
+                  chairmanProgramId={null}
+                  collegeWidePrograms
+                  viewOnly={hubReadOnly}
+                  insFormBasePath={insFormBasePathForHub}
+                />
+              </>
+            ) : (
+              <>
             {hubAccessMode === "collegeAdmin" && !isCampusWide && scopeCollegeId ? (
               <div className="space-y-6 max-w-[1400px] mx-auto mb-6">
                 <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
@@ -1330,8 +1413,7 @@ export function CentralHubEvaluatorView({
                     onChange={(e) => {
                       const v = e.target.value;
                       const keepHrs = searchParams.get("panel") === "hrs";
-                      const q = keepHrs ? "&panel=hrs" : "";
-                      router.replace(`${basePath}?college=${encodeURIComponent(v)}${q}`);
+                      router.replace(hubHref(basePath, { college: v, panel: keepHrs ? "hrs" : null }));
                     }}
                   >
                     {hubAccessMode !== "collegeAdmin" ? (
@@ -1441,6 +1523,8 @@ export function CentralHubEvaluatorView({
                   rowDomIdPrefix="central-eval-row"
                   onRowClick={hubReadOnly ? undefined : (id) => setEditEntryId(id)}
                 />
+              </>
+            )}
               </>
             )}
 

@@ -1,7 +1,11 @@
 "use client";
 
 import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/api/client";
-import { filterInstructorsForDepartment } from "@/lib/evaluator/instructor-scope";
+import {
+  filterInstructorsExcludingGec,
+  filterInstructorsForDepartment,
+} from "@/lib/evaluator/instructor-scope";
+import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { coveredFacultyIds, justificationLoadSnapshot } from "@/lib/scheduling/justification-coverage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -64,6 +68,7 @@ import {
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import { filterRoomsForProgramPlot } from "@/lib/scheduling/program-plot-rooms";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
+import { filterSubjectsBySemester, semesterFilterForPeriod } from "@/lib/subjects/subject-semester-filter";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { sortProgramsForTeachingLoad } from "@/lib/scheduling/teaching-load-summary";
@@ -691,11 +696,20 @@ export function BsitChairmanEvaluatorWorksheet({
        */
       const lockedDepartmentId =
         collegeWidePrograms || campusWidePrograms ? null : chairmanProgramId;
-      const campusFac = filterInstructorsForDepartment(
+      let campusFac = filterInstructorsForDepartment(
         collegeFac,
         lockedDepartmentId,
         new Set(instrIds),
       );
+      /*
+       * College Admin plots their departments, not general education.
+       *
+       * A GEC instructor here would let two people schedule the same person — the GEC Chairman plots
+       * them campus-wide. DOI keeps the full list, since they work across every post.
+       */
+      if (collegeWidePrograms && !campusWidePrograms) {
+        campusFac = filterInstructorsExcludingGec(campusFac, new Set(instrIds));
+      }
       const rowFac = allUsers.filter(
         (u) => instrIds.includes(u.id) && isFacultyStaffRole(u.role),
       );
@@ -987,9 +1001,38 @@ export function BsitChairmanEvaluatorWorksheet({
     [selectedSectionId, sectionNameById],
   );
 
+  /**
+   * The catalog the plotter offers, narrowed to the term chosen in the sidebar.
+   *
+   * Narrowed here, on `Subject` itself, rather than further down: the prospectus row a subject is
+   * converted into cannot say "no semester recorded" and files those subjects under the 1st, which
+   * would hide them for the whole 2nd semester. This is also the only place that holds for every
+   * route into the dropdown — including the fallback that offers the whole catalog when nothing
+   * matches a section's year, which otherwise handed back both semesters at once.
+   *
+   * A subject with no semester recorded stays available in either term; see
+   * `subjectMatchesSemesterFilter`. Setting its semester in Subject Codes is what narrows it.
+   */
   const catalogSubjectRows = useMemo(
-    () => catalogSubjectsToProspectusRows(subjects.filter((s) => !programId || s.programId === programId)),
-    [subjects, programId],
+    () =>
+      catalogSubjectsToProspectusRows(
+        filterSubjectsBySemester(
+          subjects.filter((s) => {
+            if (programId && s.programId !== programId) return false;
+            /*
+             * College Admin does not plot general education — the GEC Chairman does, from their own
+             * evaluator. Offering GEC codes here is how the same subject ends up plotted twice.
+             * DOI keeps them, since they review the whole campus timetable.
+             */
+            if (collegeWidePrograms && !campusWidePrograms && isGecCurriculumSubjectCode(s.code)) {
+              return false;
+            }
+            return true;
+          }),
+          semesterFilterForPeriod(selectedPeriod),
+        ),
+      ),
+    [subjects, programId, selectedPeriod, collegeWidePrograms, campusWidePrograms],
   );
 
   const subjectById = useMemo(() => {

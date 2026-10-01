@@ -23,6 +23,8 @@ export function useInsLiveSchedule(args: {
   lockedInstructorId?: string | null;
   /** Load all colleges’ entries (DOI campus-wide INS). */
   campusWide?: boolean;
+  /** GEC Chairman: general education rows only, across every college. */
+  gecOnly?: boolean;
   /** Faculty portal: narrow INS catalog to this instructor’s sections/programs. */
   instructorPortalUserId?: string | null;
 }) {

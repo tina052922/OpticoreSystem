@@ -22,7 +22,11 @@ import {
   BSENVS_PROSPECTUS_SUBJECTS,
 } from "@/lib/chairman/bs-envsci-prospectus";
 import type { Subject } from "@/types/db";
-import { labHoursFromUnits, lectureHoursFromUnits, weeklyContactHoursFromUnits } from "@/lib/subjects/contact-hours";
+import {
+  labHoursFromUnits,
+  lectureHoursFromUnits,
+  subjectWeeklyContactHours,
+} from "@/lib/subjects/contact-hours";
 
 /**
  * Map: uppercase program code → official prospectus rows.
@@ -127,7 +131,7 @@ export function scheduleSlotDurationForSubject(
   if (!subject?.code) return 1;
   const row = prospectusRowForProgram(programCode, subject.code);
   if (row) return scheduleDurationSlots(row);
-  const fromUnits = weeklyContactHoursFromUnits(subject.lecUnits, subject.labUnits);
-  if (fromUnits > 0) return Math.max(1, Math.min(10, Math.round(fromUnits)));
-  return Math.max(1, Math.min(10, Math.round((subject.lecHours ?? 1) / 1)));
+  const hours = subjectWeeklyContactHours(subject);
+  if (hours > 0) return Math.max(1, Math.min(10, Math.round(hours)));
+  return 1;
 }

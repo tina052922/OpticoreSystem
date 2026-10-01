@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
@@ -28,7 +29,11 @@ export type EvaluatorPageProps = {
 function centralHubBasePath(variant: "college" | "cas" | "doi"): string {
   if (variant === "college") return "/admin/college/evaluator";
   if (variant === "cas") return "/admin/cas/evaluator";
-  return "/doi/evaluator";
+  /**
+   * DOI's hub lives behind `?hub=1` on the same route as their campus-wide plotter, so the flag is
+   * part of the base path — every link the hub builds has to carry it or the click leaves the hub.
+   */
+  return "/doi/evaluator?hub=1";
 }
 
 export function EvaluatorPage({
@@ -42,13 +47,22 @@ export function EvaluatorPage({
   const [policySnapshot, setPolicySnapshot] = useState<ChairmanPolicySnapshot | null>(null);
   const searchParams = useSearchParams();
   const { selectedPeriodId, selectedPeriod } = useSemesterFilter();
-  const showCollegeHub = variant === "college" && searchParams.get("hub") === "1";
+  /**
+   * The Central Hub, reached from the Colleges tab.
+   *
+   * DOI works across the whole campus, so they get it too — the hub already lists every college and
+   * a campus-wide tile; it was simply unreachable for them, because only College Admin and CAS were
+   * ever routed here.
+   */
+  const showHub =
+    (variant === "college" || variant === "doi") && searchParams.get("hub") === "1";
 
-  if (variant === "cas" || showCollegeHub) {
+  if (variant === "cas" || showHub) {
     return (
       <div>
         <CentralHubEvaluatorView
-          basePath={centralHubBasePath(variant === "college" ? "college" : variant)}
+          basePath={centralHubBasePath(variant === "cas" ? "cas" : variant === "college" ? "college" : "doi")}
+          // The formal approval panel lives on the DOI Schedule Hub; this is the plotting view.
           showDoiGovernance={false}
           hubAccessMode={variant === "college" ? "collegeAdmin" : "default"}
         />
@@ -65,6 +79,12 @@ export function EvaluatorPage({
    * second copy behind a tab was two places to look and two places to disagree.
    */
   const showLoadTab = !collegeWide;
+  /**
+   * DOI picks a college before plotting, so the hub is a real destination for them.
+   *
+   * College Admin has no second college to switch to, so they do not get this tab.
+   */
+  const showCollegesTab = doiCampusWide;
   // A tab that is not rendered must not stay selected from an earlier render.
   const activeTab = showLoadTab ? tab : "timetabling";
   /**
@@ -73,7 +93,7 @@ export function EvaluatorPage({
    * For College Admin nothing can: the Colleges tab is gone (they plot their own college and have no
    * other to switch to) and so is the load tab, which leaves Timetabling alone.
    */
-  const showTabStrip = showLoadTab;
+  const showTabStrip = showLoadTab || showCollegesTab;
 
   return (
     <div>
@@ -84,6 +104,11 @@ export function EvaluatorPage({
           {/* Same order/labels as the hub shells: Timetabling → Hrs */}
           {showTabStrip ? (
             <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+              {showCollegesTab ? (
+                <Link href="/doi/evaluator?hub=1" className={evaluatorTabClass(false)}>
+                  {EVALUATOR_TAB_LABELS.colleges}
+                </Link>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setTab("timetabling")}

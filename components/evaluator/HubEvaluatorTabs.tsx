@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CAMPUS_WIDE_COLLEGE_SLUG } from "@/lib/evaluator-central-hub";
+import { CAMPUS_WIDE_COLLEGE_SLUG, hubHref } from "@/lib/evaluator-central-hub";
 import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
 import { EVALUATOR_TAB_LABELS, evaluatorTabClass } from "@/lib/evaluator/evaluator-tabs";
 
@@ -21,13 +21,13 @@ export function HubEvaluatorTabs({ basePath, collegeSlug, panel, collegeAdminLan
 
   const timetablingHref = isLanding
     ? undefined
-    : `${basePath}?college=${encodeURIComponent(collegeSlug!)}&panel=timetabling`;
+    : hubHref(basePath, { college: collegeSlug!, panel: "timetabling" });
 
   const hrsHref = isLanding
     ? collegeAdminLanding
-      ? `${basePath}?view=colleges&panel=hrs`
-      : `${basePath}?college=${CAMPUS_WIDE_COLLEGE_SLUG}&panel=hrs`
-    : `${basePath}?college=${encodeURIComponent(collegeSlug!)}&panel=hrs`;
+      ? hubHref(basePath, { view: "colleges", panel: "hrs" })
+      : hubHref(basePath, { college: CAMPUS_WIDE_COLLEGE_SLUG, panel: "hrs" })
+    : hubHref(basePath, { college: collegeSlug!, panel: "hrs" });
 
   return (
     <div className="flex gap-2 border-b border-gray-200 mb-6 flex-wrap">

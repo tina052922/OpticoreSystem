@@ -38,7 +38,7 @@ import type {
 } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { isGecInstructorUser } from "@/lib/faculty/faculty-category";
-import { filterInstructorsForGec } from "@/lib/evaluator/instructor-scope";
+import { filterInstructorsForGec, instructorIdsOnRowsInScope } from "@/lib/evaluator/instructor-scope";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
@@ -79,6 +79,9 @@ import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-registry";
 import { parseGecYearLevelFromSectionName } from "@/lib/gec/gec-section-year-level";
+import { sectionHasGecSubjectsInScope } from "@/lib/gec/gec-section-scope";
+import { filterSubjectsBySemester, semesterFilterForPeriod } from "@/lib/subjects/subject-semester-filter";
+import { gecSubjectsForSectionPlot } from "@/lib/gec/gec-plottable-subjects";
 import {
   mergeLegacyRowInstructorsIntoPlotOptions,
   usersToInstructorPlotOptions,
@@ -86,7 +89,11 @@ import {
 } from "@/lib/evaluator/instructor-employee-id";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
-import { evaluateFacultyLoadsForCollege, rowNeedsTeachingLoadJustification } from "@/lib/scheduling/facultyPolicies";
+import {
+  evaluateFacultyLoadsForCollege,
+  loadJustificationRequiredForSave,
+  rowNeedsTeachingLoadJustification,
+} from "@/lib/scheduling/facultyPolicies";
 import {
   JUSTIFICATION_GEC_PROMPT,
   JUSTIFICATION_MIN_LENGTH,
@@ -591,6 +598,12 @@ export function GecCentralHubEvaluatorClient() {
     return programs.filter((p) => p.collegeId === collegeParam);
   }, [programs, collegeParam, isCampusWide]);
 
+  /** The term's prospectus semester, used to scope both the picker and the summary below. */
+  const prospectusSemesterForScope = useMemo(
+    () => prospectusSemesterFromAcademicPeriod(selectedPeriod),
+    [selectedPeriod],
+  );
+
   const sectionsForCollegeFiltered = useMemo(() => {
     if (!collegeParam) return [];
     return sections
@@ -599,10 +612,21 @@ export function GecCentralHubEvaluatorClient() {
         if (!pr) return false;
         if (!isCampusWide && pr.collegeId !== collegeParam) return false;
         if (programId && s.programId !== programId) return false;
-        return true;
+        /*
+         * Sections with no general education in this term are left out.
+         *
+         * Picking one only ever opened a workspace whose summary read "No GEC subjects found for the
+         * selected scope" — BSIT-4B, for instance, where fourth year is all major subjects. The rule
+         * is the summary's own, so the picker and the panel cannot disagree.
+         */
+        return sectionHasGecSubjectsInScope({
+          programCode: pr.code,
+          yearLevel: parseGecYearLevelFromSectionName(s.name),
+          semester: prospectusSemesterForScope,
+        });
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [sections, programById, collegeParam, programId, isCampusWide]);
+  }, [sections, programById, collegeParam, programId, isCampusWide, prospectusSemesterForScope]);
 
   useEffect(() => {
     if (!sectionIdFilter) return;
@@ -611,8 +635,13 @@ export function GecCentralHubEvaluatorClient() {
       setSectionIdFilter("");
       return;
     }
-    if (programId && s.programId !== programId) setSectionIdFilter("");
-  }, [programId, sectionIdFilter, sectionById]);
+    if (programId && s.programId !== programId) {
+      setSectionIdFilter("");
+      return;
+    }
+    // Changing term can take the open section out of GEC scope; it must not stay selected.
+    if (!sectionsForCollegeFiltered.some((row) => row.id === sectionIdFilter)) setSectionIdFilter("");
+  }, [programId, sectionIdFilter, sectionById, sectionsForCollegeFiltered]);
 
   const pickedSubjectId = useMemo(() => {
     if (!pickedSummaryCode || !sectionIdFilter) return null;
@@ -658,9 +687,21 @@ export function GecCentralHubEvaluatorClient() {
     collegeNameById,
   ]);
 
+  /**
+   * Instructors already on the rows of the section being plotted.
+   *
+   * This is the exemption that keeps an existing row readable, and it has to come from that
+   * section's rows alone. It used to be every instructor on every plotted row in the term, which
+   * readmitted most of the campus to the picker and undid the GEC filter below.
+   */
   const entryInstructorIdsForPlotMerge = useMemo(
-    () => mergedEntries.map((e) => e.instructorId).filter(Boolean) as string[],
-    [mergedEntries],
+    () => [
+      ...instructorIdsOnRowsInScope(mergedEntries, {
+        sectionId: sectionIdFilter,
+        academicPeriodId,
+      }),
+    ],
+    [mergedEntries, sectionIdFilter, academicPeriodId],
   );
 
   const instructorPlotOptionsBase = useMemo(() => {
@@ -963,7 +1004,20 @@ export function GecCentralHubEvaluatorClient() {
         policyConstants,
         programMode,
       );
-      const needsJust = policy.hasTeachingLoadJustificationViolation;
+      /*
+       * Only the instructors this save puts hours on can require a justification.
+       *
+       * `policy` covers every instructor in the campus-wide timetable, which is what makes the
+       * weekly totals right — but asking whether *anything* came back over the line asked about the
+       * whole campus, so saving a single one-prep GEC row prompted for a justification that belonged
+       * to another department's overload.
+       */
+      const touchedInstructorIds = new Set(
+        toSave
+          .map((e) => (e.instructorId ?? "").trim())
+          .filter((id) => id && id !== GEC_VACANT_INSTRUCTOR_USER_ID),
+      );
+      const needsJust = loadJustificationRequiredForSave(policy.rows, touchedInstructorIds);
       if (needsJust && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) {
         const { user } = await authApi.me();
         if (!user) {
@@ -1116,15 +1170,14 @@ export function GecCentralHubEvaluatorClient() {
     if (!sec) return;
     const prog = programById.get(sec.programId);
     const programCode = prog?.code ?? "";
-    const gecList = subjects
-      .filter((s) => s.programId === sec.programId && isGecCurriculumSubjectCode(s.code))
-      .filter((s) => !allowedSubjectIds || allowedSubjectIds.size === 0 || allowedSubjectIds.has(s.id))
-      .sort((a, b) => a.code.localeCompare(b.code));
+    const gecList = gecSubjectsForSectionPlot(subjects, {
+      sectionProgramId: sec.programId,
+      allowedProspectusCodes,
+    });
     const firstSub = gecList[0];
     if (!firstSub) {
-      setSaveMsg(
-        "No GEC subjects for this section’s year level and term (check section code e.g. 3A) or add subjects in the database.",
-      );
+      // Only reachable when the catalog holds no GEC subject at all, for any program.
+      setSaveMsg("No GEC or GEE subjects in the database yet — add them in Subject Codes first.");
       return;
     }
     const dur = plotEntryDurationSlots(programCode, firstSub, 1);
@@ -1212,31 +1265,37 @@ export function GecCentralHubEvaluatorClient() {
     const set = new Set<string>();
     for (const r of rows) {
       if (r.yearLevel !== yl) continue;
+      // The term decides the semester, the same way it decides the Section picker above.
+      if (prospectusSemesterForScope != null && r.semester !== prospectusSemesterForScope) continue;
       if (!isGecCurriculumSubjectCode(r.code)) continue;
       set.add(normalizeProspectusCode(r.code));
     }
     return set;
-  }, [sectionProgram?.code, selectedYearLevel]);
+  }, [sectionProgram?.code, selectedYearLevel, prospectusSemesterForScope]);
 
-  /** Empty set = section selected but no matching curriculum codes; null = no section. */
-  const allowedSubjectIds = useMemo(() => {
+  /**
+   * The GEC subjects this section may be plotted with. Null = no section selected.
+   *
+   * General education reaches every program, so this is not limited to the section's own program's
+   * catalog rows: a program seeded without GEC subjects, or missing from the prospectus registry,
+   * used to yield an empty set and the chairman could plot nothing into its sections at all.
+   * `gecSubjectsForSectionPlot` keeps the narrowing where there is something to narrow by.
+   */
+  const gecSubjectsForSection = useMemo(() => {
     if (!selectedSection) return null;
-    if (allowedProspectusCodes.size === 0) return new Set<string>();
-    const ids = new Set<string>();
-    for (const s of subjects) {
-      if (s.programId !== selectedSection.programId) continue;
-      if (!isGecCurriculumSubjectCode(s.code)) continue;
-      if (!allowedProspectusCodes.has(normalizeProspectusCode(s.code))) continue;
-      ids.add(s.id);
-    }
-    return ids;
-  }, [subjects, selectedSection, allowedProspectusCodes]);
+    return gecSubjectsForSectionPlot(
+      // The sidebar term narrows the catalog before anything else looks at it.
+      filterSubjectsBySemester(subjects, semesterFilterForPeriod(selectedPeriod)),
+      {
+        sectionProgramId: selectedSection.programId,
+        allowedProspectusCodes,
+      },
+    );
+  }, [subjects, selectedSection, allowedProspectusCodes, selectedPeriod]);
 
-  /** Current term → prospectus 1st/2nd sem; narrows the GEC summary when the period name is parseable. */
-  const termProspectusSemesterForSummary = useMemo(
-    () => prospectusSemesterFromAcademicPeriod(selectedPeriod),
-    [selectedPeriod],
-  );
+
+  /** Current term → prospectus 1st/2nd sem; the same value the Section picker is scoped by. */
+  const termProspectusSemesterForSummary = prospectusSemesterForScope;
 
   /** GEC codes already on the master schedule for this section + term (drives “Plotted” in the summary table). */
   const gecPlottedSubjectCodesForSection = useMemo(() => {
@@ -1303,17 +1362,7 @@ export function GecCentralHubEvaluatorClient() {
     return set;
   }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
 
-  const gecSubjectsForPlot = useMemo(() => {
-    if (!selectedSection || !allowedSubjectIds || allowedSubjectIds.size === 0) return [];
-    return subjects
-      .filter(
-        (s) =>
-          s.programId === selectedSection.programId &&
-          isGecCurriculumSubjectCode(s.code) &&
-          allowedSubjectIds.has(s.id),
-      )
-      .sort((a, b) => a.code.localeCompare(b.code));
-  }, [subjects, selectedSection, allowedSubjectIds]);
+  const gecSubjectsForPlot = useMemo(() => gecSubjectsForSection ?? [], [gecSubjectsForSection]);
 
   const sparseCampusWideUniverse = useMemo(() => {
     if (!academicPeriodId) return [];

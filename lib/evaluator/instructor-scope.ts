@@ -69,3 +69,53 @@ export function filterInstructorsForGec<T extends InstructorScopeUser>(
 ): T[] {
   return users.filter((u) => isGecInstructorUser(u) || alreadyPlottedIds.has(u.id));
 }
+
+/**
+ * Instructors already assigned on the rows currently being edited.
+ *
+ * This is the escape hatch both filters above take as `alreadyPlottedIds`, and it has to be drawn
+ * from the rows in front of the user — not from every plotted row in the term. Passing the whole
+ * campus readmits anyone who holds a plot anywhere, which hands the picker back almost everyone and
+ * quietly undoes the scoping: the GEC evaluator offered every plotted instructor on campus despite
+ * filtering to GEC first.
+ *
+ * With no section chosen there is no row to keep readable, so nothing is exempt.
+ */
+export function instructorIdsOnRowsInScope(
+  entries: readonly {
+    sectionId?: string | null;
+    academicPeriodId?: string | null;
+    instructorId?: string | null;
+  }[],
+  scope: { sectionId?: string | null; academicPeriodId?: string | null },
+): Set<string> {
+  const sectionId = (scope.sectionId ?? "").trim();
+  const periodId = (scope.academicPeriodId ?? "").trim();
+  const ids = new Set<string>();
+  if (!sectionId) return ids;
+
+  for (const e of entries) {
+    if ((e.sectionId ?? "").trim() !== sectionId) continue;
+    if (periodId && (e.academicPeriodId ?? "").trim() !== periodId) continue;
+    const instructorId = (e.instructorId ?? "").trim();
+    if (instructorId) ids.add(instructorId);
+  }
+  return ids;
+}
+
+/**
+ * The faculty a College Admin may plot.
+ *
+ * Their college's department instructors, without the GEC ones. General education is plotted by the
+ * GEC Chairman across every college, so a GEC instructor appearing here lets two people schedule the
+ * same person — the same reason they are excluded from a Chairman's list and from a College Admin's
+ * Faculty Profile roster.
+ *
+ * DOI is not narrowed by this: they work across every college and post by design.
+ */
+export function filterInstructorsExcludingGec<T extends InstructorScopeUser>(
+  users: readonly T[],
+  alreadyPlottedIds: ReadonlySet<string> = new Set(),
+): T[] {
+  return users.filter((u) => !isGecInstructorUser(u) || alreadyPlottedIds.has(u.id));
+}

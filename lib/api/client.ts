@@ -16,6 +16,7 @@
  *     backend.
  */
 
+import type { CampusAccountSaveRole } from "@/lib/admin/campus-account-posts";
 import {
   API_CACHE_TTL,
   buildCacheKey,
@@ -1486,7 +1487,7 @@ export const campusAccountsApi = {
     return apiFetch<{ accounts: CampusAccount[] }>("/api/admin/campus-accounts", { method: "GET", forceRefresh: true });
   },
   create(input: {
-    role: "college_admin" | "chairman_admin";
+    role: CampusAccountSaveRole;
     collegeId: string | null;
     programId: string | null;
     name: string;
@@ -1510,7 +1511,7 @@ export type CampusAccount = {
   id: string;
   email: string;
   name: string;
-  role: "college_admin" | "chairman_admin";
+  role: CampusAccountSaveRole;
   collegeId: string | null;
   chairmanProgramId: string | null;
   createdAt?: string;

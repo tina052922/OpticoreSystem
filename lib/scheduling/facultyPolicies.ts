@@ -3,7 +3,7 @@ import { FACULTY_POLICY_CONSTANTS } from "./constants";
 import type { ResolvedFacultyPolicyConstants } from "@/lib/system-configuration/scheduling-policy";
 import { designationTeachingCapHours } from "@/lib/faculty/designation-system";
 import { isNonResidentFacultyStatus } from "@/lib/faculty/employment-status";
-import { labHoursFromUnits, lectureHoursFromUnits } from "@/lib/subjects/contact-hours";
+import { subjectLecLabHours } from "@/lib/subjects/contact-hours";
 import { subjectPrepKey } from "./prep-key";
 import { slotDurationHours } from "@/lib/scheduling/time";
 import { filterByProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
@@ -13,9 +13,8 @@ export { slotDurationHours } from "@/lib/scheduling/time";
 /** Split slot hours into lecture vs lab portions using subject contact-hour mix. */
 export function lectureLabSplitHours(subject: Subject | undefined, durationHours: number): { lec: number; lab: number } {
   if (!subject) return { lec: durationHours, lab: 0 };
-  const fromUnits = lectureHoursFromUnits(subject.lecUnits) + labHoursFromUnits(subject.labUnits);
-  const lh = fromUnits > 0 ? lectureHoursFromUnits(subject.lecUnits) : Math.max(0, subject.lecHours);
-  const sh = fromUnits > 0 ? labHoursFromUnits(subject.labUnits) : Math.max(0, subject.labHours);
+  // Recorded hours decide the mix; units only stand in when a subject records none.
+  const { lecHours: lh, labHours: sh } = subjectLecLabHours(subject);
   const sum = lh + sh;
   if (sum <= 0) return { lec: durationHours, lab: 0 };
   const lecRatio = lh / sum;
@@ -308,4 +307,26 @@ export function evaluateFacultyLoadsForCollege(
 
   rows.sort((a, b) => a.instructorName.localeCompare(b.instructorName));
   return { rows, hasAnyViolation, hasTeachingLoadJustificationViolation };
+}
+
+/**
+ * Whether a save has to be justified, given who it actually touches.
+ *
+ * `evaluateFacultyLoadsForCollege` reports on every instructor in the entries it is handed, and the
+ * evaluators hand it the whole campus timetable — they have to, because an instructor's weekly total
+ * includes the rows other chairmen plotted. Asking "did anything come back over the line?" therefore
+ * asks about the whole campus, and the GEC Chairman was prompted to justify a single one-prep row
+ * because someone in another department was over their cap.
+ *
+ * A save is justified by the person making it, so only the instructors that save puts hours on can
+ * require one. Their totals still come from the campus-wide evaluation, so nothing is under-counted.
+ */
+export function loadJustificationRequiredForSave(
+  rows: readonly FacultyLoadRow[],
+  touchedInstructorIds: ReadonlySet<string>,
+): boolean {
+  if (touchedInstructorIds.size === 0) return false;
+  return rows.some(
+    (row) => touchedInstructorIds.has(row.instructorId) && rowNeedsTeachingLoadJustification(row),
+  );
 }

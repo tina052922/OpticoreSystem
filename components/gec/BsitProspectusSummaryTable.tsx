@@ -6,7 +6,7 @@ import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/
 import { groupProspectusByYearLevelOnly } from "@/lib/gec/prospectus-summary";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
-import { weeklyContactHoursFromUnits } from "@/lib/subjects/contact-hours";
+import { subjectWeeklyContactHours } from "@/lib/subjects/contact-hours";
 import { SubjectWeeklyHoursChip } from "@/components/evaluator/SubjectWeeklyHoursBanner";
 
 type Props = {
@@ -108,9 +108,8 @@ export function BsitProspectusSummaryTable({
                   {g.subjects.slice(0, 14).map((s) => {
                     const n = normalizeProspectusCode(s.code);
                     const plotted = Boolean(plottedSubjectCodes?.has(n));
-                    const requiredHours =
-                      weeklyContactHoursFromUnits(s.lecUnits, s.labUnits) ||
-                      (s.lecHours ?? 0) + (s.labHours ?? 0);
+                    // Subject Codes is the source of truth: recorded hours, never re-derived from units.
+                    const requiredHours = subjectWeeklyContactHours(s);
                     const plottedHours = plottedHoursBySubjectCode?.get(n) ?? 0;
                     const overLimit = plotted && requiredHours > 0 && plottedHours > requiredHours + 1e-6;
                     return (

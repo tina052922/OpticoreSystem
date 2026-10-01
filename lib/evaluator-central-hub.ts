@@ -145,10 +145,37 @@ export function hubSlugForCollegeId(collegeId: string): string | undefined {
   return CENTRAL_HUB_COLLEGES.find((c) => c.collegeId === collegeId)?.slug;
 }
 
+/** Query params the hub itself owns, so a stale one on the base path never fights the new one. */
+const HUB_OWNED_PARAMS = ["college", "view", "panel"] as const;
+
+/**
+ * A hub URL that keeps whatever query the base path already carries.
+ *
+ * DOI reaches the hub through `?hub=1` on its own evaluator route, so that flag is part of their base
+ * path. Interpolating `${basePath}?college=…` dropped it, which sent every tile click out of the hub
+ * and into the campus-wide plotter — and there `?college=` means nothing, so clicking one college
+ * showed the programs of all of them.
+ *
+ * Pass raw values; they are encoded here.
+ */
+export function hubHref(
+  basePath: string,
+  params: Record<string, string | null | undefined>,
+): string {
+  const [path, existing = ""] = basePath.split("?");
+  const query = new URLSearchParams(existing);
+  for (const key of HUB_OWNED_PARAMS) query.delete(key);
+  for (const [key, value] of Object.entries(params)) {
+    if (value === null || value === undefined || value === "") continue;
+    query.set(key, value);
+  }
+  const search = query.toString();
+  return search ? `${path || basePath}?${search}` : path || basePath;
+}
+
 /** Explicit college-list URL so Next.js does not keep `?college=` when clicking Colleges. */
 export function hubCollegesListHref(basePath: string): string {
-  const path = basePath.split("?")[0] || basePath;
-  return `${path}?view=colleges`;
+  return hubHref(basePath, { view: "colleges" });
 }
 
 export function isHubCollegeListView(view: string | null, college: string | null): boolean {
@@ -179,4 +206,50 @@ export function gecHubCollegeTiles(
     id: h.collegeId ?? h.slug,
     name: h.name,
   }));
+}
+
+/**
+ * What the hub is scoped to right now.
+ *
+ * The view used to carry this as a single `collegeId | null`, where null meant BOTH "campus-wide,
+ * show everything" and "that college did not resolve". Those are opposite intentions, and the
+ * program list read null as campus-wide — so opening a college before its catalog had loaded, or
+ * with a slug that matched nothing, silently listed every program on campus. Clicking CAS and
+ * seeing COTE's programs is that bug.
+ *
+ * Four states, so a failure can never be mistaken for permission to show everything.
+ */
+export type HubScope =
+  | { kind: "none" }
+  | { kind: "campusWide" }
+  | { kind: "college"; collegeId: string }
+  | { kind: "unresolved"; slug: string };
+
+export function resolveHubScope(
+  collegeSlug: string | null | undefined,
+  dbColleges: HubCollegeCatalogRow[],
+): HubScope {
+  const slug = (collegeSlug ?? "").trim();
+  if (!slug) return { kind: "none" };
+  if (slug.toLowerCase() === CAMPUS_WIDE_COLLEGE_SLUG) return { kind: "campusWide" };
+
+  const hit = resolveHubCollege(slug, dbColleges);
+  if (hit?.collegeId) return { kind: "college", collegeId: hit.collegeId };
+  // Catalog still loading, or a slug that matches nothing. Either way: not everything.
+  return { kind: "unresolved", slug };
+}
+
+/**
+ * Rows for the current scope.
+ *
+ * `unresolved` yields nothing on purpose — showing another college's data is worse than showing an
+ * empty list while the catalog arrives.
+ */
+export function rowsForHubScope<T extends { collegeId?: string | null }>(
+  rows: readonly T[],
+  scope: HubScope,
+): T[] {
+  if (scope.kind === "campusWide") return [...rows];
+  if (scope.kind === "college") return rows.filter((r) => r.collegeId === scope.collegeId);
+  return [];
 }

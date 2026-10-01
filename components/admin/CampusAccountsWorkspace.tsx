@@ -13,6 +13,16 @@ import {
   type CampusAccountRole,
 } from "@/lib/admin/campus-account-sheet";
 import {
+  assignmentForSaveRole,
+  CAMPUS_ACCOUNT_ROLE_LABEL,
+  GEC_CHAIRMAN_POST_CODE,
+  GEC_CHAIRMAN_POST_ID,
+  GEC_CHAIRMAN_POST_NAME,
+  postIdForAccount,
+  saveRoleForPost,
+  tabForSaveRole,
+} from "@/lib/admin/campus-account-posts";
+import {
   downloadCampusAccountWorkbook,
   readCampusAccountWorkbook,
   type CampusAccountExportRow,
@@ -34,6 +44,21 @@ const ROLE_LABEL: Record<CampusAccountRole, string> = {
   college_admin: "College Admin",
   chairman_admin: "Chairman",
 };
+
+/**
+ * The GEC Chairman, as a post in the Chairmen list.
+ *
+ * It is not a department, so it has no row in `Program` to come from — general education is taught
+ * across every college and there is one chairman for all of it. Listing it here means the page
+ * shows at a glance whether the post is filled, and `openPosts` stops offering it the moment it is:
+ * that, plus the same rule on the server, is what keeps it to one.
+ */
+const GEC_CHAIRMAN_POST = {
+  id: GEC_CHAIRMAN_POST_ID,
+  code: GEC_CHAIRMAN_POST_CODE,
+  name: GEC_CHAIRMAN_POST_NAME,
+  parentLabel: "All colleges",
+} as const;
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -95,12 +120,9 @@ export function CampusAccountsWorkspace() {
    * college has no admin and which department has no chairman.
    */
   const posts = useMemo<Post[]>(() => {
+    // Matched within the open tab, so a program id could never be read as a college id.
     const holderFor = (postId: string) =>
-      accounts.find((a) =>
-        role === "college_admin"
-          ? a.role === "college_admin" && a.collegeId === postId
-          : a.role === "chairman_admin" && a.chairmanProgramId === postId,
-      ) ?? null;
+      accounts.find((a) => tabForSaveRole(a.role) === role && postIdForAccount(a) === postId) ?? null;
 
     if (role === "college_admin") {
       return [...colleges]
@@ -108,7 +130,7 @@ export function CampusAccountsWorkspace() {
         .map((c) => ({ id: c.id, code: c.code, name: c.name, parentLabel: "", holder: holderFor(c.id) }));
     }
     const collegeCode = new Map(colleges.map((c) => [c.id, c.code]));
-    return [...programs]
+    const departments = [...programs]
       .sort((a, b) => a.code.localeCompare(b.code))
       .map((p) => ({
         id: p.id,
@@ -117,6 +139,8 @@ export function CampusAccountsWorkspace() {
         parentLabel: p.collegeId ? (collegeCode.get(p.collegeId) ?? "") : "",
         holder: holderFor(p.id),
       }));
+    // First, because it is the one post here that is not a department.
+    return [{ ...GEC_CHAIRMAN_POST, holder: holderFor(GEC_CHAIRMAN_POST_ID) }, ...departments];
   }, [role, colleges, programs, accounts]);
 
   const openPosts = useMemo(
@@ -129,7 +153,7 @@ export function CampusAccountsWorkspace() {
     if (!editingId) return null;
     const account = accounts.find((a) => a.id === editingId);
     if (!account) return null;
-    return account.role === "college_admin" ? account.collegeId : account.chairmanProgramId;
+    return postIdForAccount(account);
   }
 
   const heldCount = posts.filter((p) => p.holder).length;
@@ -176,15 +200,20 @@ export function CampusAccountsWorkspace() {
       return;
     }
 
-    const program = role === "chairman_admin" ? programs.find((p) => p.id === assignmentId) : null;
+    /*
+     * The post decides the role, not the tab: picking GEC in the Chairmen tab saves a GEC Chairman,
+     * campus-wide and with no department. The server applies the same rule.
+     */
+    const saveRole = saveRoleForPost(role, assignmentId);
+    const program = programs.find((p) => p.id === assignmentId);
     const payload = {
-      role,
-      collegeId: role === "college_admin" ? assignmentId : (program?.collegeId ?? null),
-      programId: role === "chairman_admin" ? assignmentId : null,
+      ...assignmentForSaveRole(saveRole, assignmentId, program?.collegeId ?? null),
+      role: saveRole,
       name: fullName.trim(),
       email: email.trim().toLowerCase(),
       password: password.trim(),
     };
+    const saveLabel = CAMPUS_ACCOUNT_ROLE_LABEL[saveRole];
 
     setSaving(true);
     try {
@@ -194,11 +223,11 @@ export function CampusAccountsWorkspace() {
           // An empty password on edit means "leave the current one alone".
           password: password.trim() || undefined,
         });
-        setSuccess(warning ?? `${ROLE_LABEL[role]} updated.`);
+        setSuccess(warning ?? `${saveLabel} updated.`);
       } else {
         await campusAccountsApi.create(payload);
         setSuccess(
-          `${ROLE_LABEL[role]} registered. They must change this password at first sign-in.`,
+          `${saveLabel} registered. They must change this password at first sign-in.`,
         );
       }
       resetForm();
@@ -235,7 +264,14 @@ export function CampusAccountsWorkspace() {
   async function onExport() {
     setError(null);
     try {
-      const rows: CampusAccountExportRow[] = posts.map((p) => ({
+      /*
+       * The GEC Chairman is left out of the round trip on purpose. The sheet matches a row to a post
+       * by college or department code, and GEC is neither — an exported row could not be imported
+       * back. The post is registered from the form instead.
+       */
+      const rows: CampusAccountExportRow[] = posts
+        .filter((p) => p.id !== GEC_CHAIRMAN_POST_ID)
+        .map((p) => ({
         assignmentCode: p.code,
         assignmentName: p.name,
         fullName: p.holder?.name ?? "",
@@ -311,8 +347,9 @@ export function CampusAccountsWorkspace() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-8 space-y-6 max-w-[1100px]">
       <p className="text-[13px] text-black/65 leading-relaxed">
-        One College Admin for each college, and one Chairman for each department. Registering an account
-        creates its sign-in; the holder is asked to change the password the first time they sign in.
+        One College Admin for each college, one Chairman for each department, and one GEC Chairman for
+        the whole campus. Registering an account creates its sign-in; the holder is asked to change the
+        password the first time they sign in.
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -372,6 +409,9 @@ export function CampusAccountsWorkspace() {
             </select>
             <span className="block text-[11px] text-black/50">
               Only {assignmentLabel.toLowerCase()}s without a holder are listed.
+              {role === "chairman_admin"
+                ? " GEC covers general education across every college, and there is one GEC Chairman."
+                : ""}
             </span>
           </label>
 

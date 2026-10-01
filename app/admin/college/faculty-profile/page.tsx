@@ -12,7 +12,7 @@ export default async function CollegeFacultyProfilePage() {
         subtitle="Faculty in your college — filter by department"
       />
       {/* College Admin sees only their own college. */}
-      <FacultyProfileWithScope lockedCollegeId={profile.collegeId} />
+      <FacultyProfileWithScope lockedCollegeId={profile.collegeId} excludeGecFaculty />
     </div>
   );
 }

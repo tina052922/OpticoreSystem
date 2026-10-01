@@ -92,20 +92,29 @@ export const INSTRUCTOR_NAV: AdminNavItem[] = [
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
-/** Student portal (PortalShell — no icon keys). */
-export const STUDENT_PORTAL_NAV: { label: string; href: string }[] = [
-  { label: "Dashboard", href: "/student" },
-  { label: "My schedule", href: "/student/schedule" },
-  { label: LOAD_GENERATOR_NAV_LABEL, href: "/student/ins?tab=section" },
-  { label: "Profile", href: "/student/profile" },
-  { label: "Campus navigation", href: "/campus-navigation" },
+/** Student portal. Icons match the admin shells, so the same page reads the same everywhere. */
+export const STUDENT_PORTAL_NAV: AdminNavItem[] = [
+  { label: "Dashboard", href: "/student", icon: "LayoutDashboard" },
+  { label: "My schedule", href: "/student/schedule", icon: "CalendarPlus" },
+  { label: LOAD_GENERATOR_NAV_LABEL, href: "/student/ins?tab=section", icon: "BookOpen" },
+  { label: "Profile", href: "/student/profile", icon: "UserCircle" },
+  { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
 /** DOI / VPAA */
 export const DOI_ADMIN_NAV: AdminNavItem[] = [
   { label: "Campus Intelligence", href: "/doi/dashboard", icon: "LayoutDashboard" },
   { label: LOAD_GENERATOR_NAV_LABEL, href: "/doi/ins?tab=faculty", icon: "BookOpen" },
-  { label: "Central Hub Evaluator", href: "/doi/evaluator", icon: "ClipboardList" },
+  /**
+   * The hub, not the campus-wide plotter.
+   *
+   * DOI works across every college, so the first thing this page owes them is the choice of which
+   * one. Without `?hub=1` the link opened the campus-wide timetable, where `?college=` means
+   * nothing — so the colleges were a tab they had to find, and a college opened from elsewhere
+   * showed every college's programs. `isNavItemActive` compares pathnames, so the query does not
+   * affect highlighting.
+   */
+  { label: "Central Hub Evaluator", href: "/doi/evaluator?hub=1", icon: "ClipboardList" },
   { label: "Load justifications", href: "/doi/reviews", icon: "Scale" },
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },

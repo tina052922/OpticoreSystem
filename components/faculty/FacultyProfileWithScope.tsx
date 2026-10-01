@@ -8,11 +8,22 @@ export function FacultyProfileWithScope({
   initialCollegeId,
   enableFacultyListEdit = true,
   lockedCollegeId = null,
+  gecFacultyFilter = false,
+  excludeGecFaculty = false,
+  writeCollegeIdFallback = null,
+  writeCollegeLabel = null,
 }: {
   initialCollegeId?: string | null;
   enableFacultyListEdit?: boolean;
   /** College Admin: pin every list on the page to their own college. */
   lockedCollegeId?: string | null;
+  /** GEC Chairman: the roster is the GEC instructors, across every college. */
+  gecFacultyFilter?: boolean;
+  /** College Admin: leave GEC instructors to the GEC Chairman. */
+  excludeGecFaculty?: boolean;
+  /** Where a new faculty is created while the scope is campus-wide. */
+  writeCollegeIdFallback?: string | null;
+  writeCollegeLabel?: string | null;
 }) {
   const [scopeCollegeId, setScopeCollegeId] = useState<string | null>(
     lockedCollegeId ?? initialCollegeId ?? null,
@@ -39,6 +50,18 @@ export function FacultyProfileWithScope({
       <FacultyProfileWorkspace
         scopeCollegeId={scopeCollegeId}
         scopeProgramId={scopeProgramId}
+        /*
+         * "All colleges" lists every faculty — but only where no college is locked.
+         *
+         * DOI and CAS open on that filter and own the whole campus, so an unset college means all of
+         * them. College Admin passes a locked college, and for them an unset one would be a widening
+         * of scope, so they stay on the narrow reading.
+         */
+        allowCampusWide={!lockedCollegeId}
+        writeCollegeIdFallback={writeCollegeIdFallback}
+        writeCollegeLabel={writeCollegeLabel}
+        gecFacultyFilter={gecFacultyFilter}
+        excludeGecFaculty={excludeGecFaculty}
         enableFacultyListEdit={enableFacultyListEdit}
       />
     </>

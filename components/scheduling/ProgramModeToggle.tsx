@@ -13,7 +13,10 @@ type Props = {
 };
 
 export function ProgramModeToggle({ className, size = "md" }: Props) {
-  const { programMode, setProgramMode } = useProgramMode();
+  const { programMode, setProgramMode, locked } = useProgramMode();
+
+  // Nothing to choose: the viewer's own programme fixed it.
+  if (locked) return null;
 
   const btn = (mode: ProgramMode, label: string, icon: ReactNode) => {
     const active = programMode === mode;

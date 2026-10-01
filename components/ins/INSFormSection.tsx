@@ -43,6 +43,8 @@ export type INSFormSectionProps = {
   viewerCollegeId?: string | null;
   /** DOI / VPAA: load all colleges’ schedule rows (same as INS Form faculty campus-wide). */
   campusWide?: boolean;
+  /** GEC Chairman: every picker on this form lists general education only. */
+  gecOnly?: boolean;
   /** Faculty portal: narrow catalog to sections this instructor teaches. */
   instructorPortalUserId?: string | null;
   /** Faculty portal: show only this instructor's own classes, not the whole section or room. */
@@ -80,6 +82,7 @@ export function INSFormSection({
   chairmanProgramName = null,
   viewerCollegeId = null,
   campusWide = false,
+  gecOnly = false,
   instructorPortalUserId = null,
   instructorOwnEntriesOnly = false,
   hideInnerInsTabs = false,
@@ -98,6 +101,7 @@ export function INSFormSection({
     collegeId: effectiveCollegeId,
     programId: chairmanProgramId,
     campusWide,
+    gecOnly,
     instructorPortalUserId,
     instructorOwnEntriesOnly,
   });
@@ -458,14 +462,14 @@ export function INSFormSection({
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 no-print">
           {useLiveData ? (
             <InsScheduleEntitySearch
-              label={readOnlyPortal ? "Section" : "Section (search)"}
+              label="Section"
               placeholder="Type section name (e.g. BSIT-1A)"
               options={catalog.sectionOptions}
               selectedId={selectedSectionId}
               onSelectedIdChange={setSelectedSectionId}
               disabled={catalog.loading || catalog.sectionOptions.length === 0}
               listId="ins-section-list"
-              mode={readOnlyPortal ? "select" : "search"}
+              mode="select"
               emptyLabel="Select a section…"
             />
           ) : (
