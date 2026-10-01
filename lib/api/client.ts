@@ -73,6 +73,10 @@ export type SafeUser = {
   signatureImageUrl?: string | null;
   studentProfile?: { programId?: string; sectionId?: string; yearLevel?: number } | null;
   mustChangePassword: boolean;
+  /** Proof the holder can read the address on the account; null until they do. */
+  emailVerifiedAt?: string | null;
+  /** What this sign-in still has to do. Decided by the server so the order cannot drift. */
+  firstLoginStep?: "verifyEmail" | "setPassword" | "done";
 };
 
 export type ApiSuccess<T> = {
@@ -1644,9 +1648,15 @@ export const academicStructureApi = {
   },
 };
 
+/** Returned once, on create, when the admin gave the faculty a real email address. */
+export type IssuedFacultyAccount = { email: string; password: string; generated: boolean };
+
 export const userAdminApi = {
   create(input: Record<string, unknown>) {
-    return apiFetch<{ user: Record<string, unknown> }>("/api/catalog/users", { method: "POST", body: input });
+    return apiFetch<{ user: Record<string, unknown>; account: IssuedFacultyAccount | null }>(
+      "/api/catalog/users",
+      { method: "POST", body: input },
+    );
   },
   update(id: string, input: Record<string, unknown>) {
     return apiFetch<{ user: Record<string, unknown> }>(`/api/catalog/users/${id}`, { method: "PUT", body: input });
@@ -1654,11 +1664,35 @@ export const userAdminApi = {
   delete(id: string) {
     return apiFetch<{ ok: true }>(`/api/catalog/users/${id}`, { method: "DELETE" });
   },
+  /**
+   * Creates a sign-in for a faculty who has none, or issues a fresh temporary password.
+   *
+   * The existing password is never returned — Supabase keeps only a hash. This replaces it.
+   */
+  issueAccount(id: string, input: { email?: string; temporaryPassword?: string | null }) {
+    return apiFetch<{ ok: true; account: IssuedFacultyAccount }>(
+      `/api/catalog/users/${id}/account`,
+      { method: "POST", body: input },
+    );
+  },
 };
 
 export const authMutationsApi = {
   changePassword(input: { currentPassword: string; newPassword: string }) {
     return apiFetch<{ ok: true }>("/api/auth/change-password", { method: "POST", body: input });
+  },
+  /** First sign-in on an admin-created account: prove the address before choosing a password. */
+  sendFirstLoginCode() {
+    return apiFetch<{ ok: true; email?: string; resent?: boolean; alreadyVerified?: boolean }>(
+      "/api/auth/first-login/send-code",
+      { method: "POST", body: {} },
+    );
+  },
+  verifyFirstLoginCode(code: string) {
+    return apiFetch<{ ok: true; email?: string; alreadyVerified?: boolean }>(
+      "/api/auth/first-login/verify",
+      { method: "POST", body: { code }, invalidates: ["/api/auth/me"] },
+    );
   },
 };
 

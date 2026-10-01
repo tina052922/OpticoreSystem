@@ -51,3 +51,21 @@ export function filterInstructorsForDepartment<T extends InstructorScopeUser>(
     (u) => isInstructorInDepartment(u, department) || alreadyPlottedIds.has(u.id),
   );
 }
+
+/**
+ * The faculty a GEC Chairman may plot.
+ *
+ * Mirror of the department rule, for the role that has no department. The GEC evaluator used to
+ * offer every plottable faculty in the college and merely sort the GEC ones to the top, so a GEC
+ * chairman could assign a BSIT instructor to a general education slot — and a BSIT chairman would
+ * then find that instructor's time taken by a plot they had no part in.
+ *
+ * `alreadyPlottedIds` keeps existing rows readable for the same reason as the department filter: an
+ * instructor assigned before this rule existed stays selectable on the row they already hold.
+ */
+export function filterInstructorsForGec<T extends InstructorScopeUser>(
+  users: readonly T[],
+  alreadyPlottedIds: ReadonlySet<string> = new Set(),
+): T[] {
+  return users.filter((u) => isGecInstructorUser(u) || alreadyPlottedIds.has(u.id));
+}

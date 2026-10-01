@@ -39,6 +39,10 @@ import {
   type FacultyRowDraft,
 } from "@/lib/faculty/faculty-row-edits";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
+import { PasswordInput } from "@/components/ui/password-input";
+import type { IssuedFacultyAccount } from "@/lib/api/client";
+import { hasFacultySignIn, isPlaceholderFacultyEmail } from "@/lib/faculty/faculty-login-account";
+import { facultyMatchesProgramScope } from "@/lib/faculty/faculty-program-scope";
 import {
   isAwaitingFacultyApproval,
   isFacultyRosterUser,
@@ -91,6 +95,10 @@ export type FacultyProfileWorkspaceProps = {
 type ListRow = {
   user: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory"> & {
     instructorValidation?: string | null;
+    /** Account state, so editing can say whether this faculty can sign in. */
+    email?: string | null;
+    mustChangePassword?: boolean | null;
+    emailVerifiedAt?: string | null;
   };
   profile: FacultyProfile | null;
 };
@@ -178,6 +186,83 @@ export function FacultyProfileWorkspace({
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   /** The faculty whose delete dialog is open, with the name to confirm against. */
   const [pendingFacultyDelete, setPendingFacultyDelete] = useState<{ id: string; name: string } | null>(null);
+  /**
+   * The sign-in the admin is giving this faculty.
+   *
+   * Optional: a faculty can still be recorded with no account, which is what every existing row is.
+   * Leaving the password blank has the server generate one.
+   */
+  const [loginEmail, setLoginEmail] = useState("");
+  const [tempPassword, setTempPassword] = useState("");
+  /** Shown once, after create. The password cannot be read back afterwards. */
+  const [issuedAccount, setIssuedAccount] = useState<(IssuedFacultyAccount & { name: string }) | null>(null);
+  const [issuingAccount, setIssuingAccount] = useState(false);
+
+
+
+  /** The row open in the form, for reading its account state. */
+  const editingRow = useMemo(
+    () => (editingUserId ? rows.find((r) => r.user.id === editingUserId) ?? null : null),
+    [editingUserId, rows],
+  );
+
+  /** Whether the faculty open in the form can sign in at all. */
+  const hasSignIn = hasFacultySignIn(editingRow?.user.email);
+
+  /**
+   * The account's state in three words or fewer.
+   *
+   * Says what an admin needs before deciding to reset anything: can they sign in, have they proved
+   * the address, and are they still holding a password someone else chose.
+   */
+  const accountStateChips = useMemo(() => {
+    const chips: { label: string; tone: string }[] = [];
+    if (!hasSignIn) {
+      chips.push({ label: "No sign-in", tone: "bg-black/[0.06] text-black/55" });
+      return chips;
+    }
+    chips.push({ label: "Can sign in", tone: "bg-emerald-100 text-emerald-900" });
+    chips.push(
+      editingRow?.user.emailVerifiedAt
+        ? { label: "Email confirmed", tone: "bg-emerald-100 text-emerald-900" }
+        : { label: "Email not confirmed", tone: "bg-amber-100 text-amber-900" },
+    );
+    if (editingRow?.user.mustChangePassword) {
+      chips.push({ label: "Temporary password", tone: "bg-amber-100 text-amber-900" });
+    }
+    return chips;
+  }, [hasSignIn, editingRow?.user.emailVerifiedAt, editingRow?.user.mustChangePassword]);
+
+  /**
+   * Creates the sign-in, or replaces the temporary password.
+   *
+   * There is no "show the current password" — Supabase stores only a hash and this app keeps no
+   * readable copy, so a lost password is reset rather than looked up.
+   */
+  async function issueAccountForEditing() {
+    if (!editingUserId) return;
+    const email = loginEmail.trim();
+    if (!email) {
+      setError("Enter the email address this faculty will sign in with.");
+      return;
+    }
+    setIssuingAccount(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await userAdminApi.issueAccount(editingUserId, {
+        email,
+        temporaryPassword: tempPassword.trim() || null,
+      });
+      setIssuedAccount({ ...res.account, name: composedFullName || email });
+      setTempPassword("");
+      void loadFaculty();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not issue the sign-in.");
+    } finally {
+      setIssuingAccount(false);
+    }
+  }
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -222,7 +307,11 @@ export function FacultyProfileWorkspace({
       const { apiFetch } = await import("@/lib/api/client");
       const data = await apiFetch<{
         users: Array<
-          Pick<User, "id" | "name" | "employeeId" | "role" | "chairmanProgramId" | "instructorValidation" | "facultyCategory">
+          Pick<User, "id" | "name" | "employeeId" | "role" | "chairmanProgramId" | "instructorValidation" | "facultyCategory"> & {
+            email?: string | null;
+            mustChangePassword?: boolean | null;
+            emailVerifiedAt?: string | null;
+          }
         >;
       }>(
         `/api/catalog/users?collegeId=${collegeId}`,
@@ -247,6 +336,9 @@ export function FacultyProfileWorkspace({
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
           instructorValidation: u.instructorValidation ?? null,
+          email: u.email ?? null,
+          mustChangePassword: (u as { mustChangePassword?: boolean | null }).mustChangePassword ?? null,
+          emailVerifiedAt: (u as { emailVerifiedAt?: string | null }).emailVerifiedAt ?? null,
         }));
     } catch {
       setLoadingList(false);
@@ -307,18 +399,29 @@ export function FacultyProfileWorkspace({
     const byUser = new Map(profs.map((p) => [p.userId, p]));
 
     if (scopeProgramId) {
-      const secIds = new Set(sectionsScoped.map((s) => s.id));
-      if (secIds.size === 0) {
-        setRows([]);
-        return;
-      }
-      // Keep instructors with advisory in the program,
-      // or instructors with no advisory section (may teach in the program)
-      list = list.filter((u) => {
-        const advised = advisorySectionIdsOf(byUser.get(u.id) ?? null);
-        if (advised.length === 0) return true;
-        return advised.some((id) => secIds.has(id));
-      });
+      /**
+       * Which department a faculty belongs to.
+       *
+       * This used to match on advisory sections alone and keep anyone who advised nothing — and
+       * most faculty advise nothing, so picking a department changed almost nothing and the list
+       * looked stuck on the whole college. `User.chairmanProgramId` is the real signal; advisory is
+       * the fallback for someone with no department recorded.
+       *
+       * The old code also emptied the list when a department had no sections at all, which hid
+       * faculty who plainly belong to it. Sections are now only consulted to resolve an advisory id.
+       */
+      const sectionProgramById = new Map(sections.map((sec) => [sec.id, sec.programId]));
+      list = list.filter((u) =>
+        facultyMatchesProgramScope(
+          {
+            homeProgramId: u.chairmanProgramId ?? null,
+            isGecInstructor: isGecInstructorUser(u),
+            advisorySectionIds: advisorySectionIdsOf(byUser.get(u.id) ?? null),
+          },
+          scopeProgramId,
+          sectionProgramById,
+        ),
+      );
     }
 
     setRows(
@@ -330,6 +433,9 @@ export function FacultyProfileWorkspace({
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
           instructorValidation: u.instructorValidation ?? null,
+          email: u.email ?? null,
+          mustChangePassword: u.mustChangePassword ?? null,
+          emailVerifiedAt: u.emailVerifiedAt ?? null,
         },
         profile: byUser.get(u.id) ?? null,
       })),
@@ -611,9 +717,14 @@ export function FacultyProfileWorkspace({
     const id = crypto.randomUUID();
 
     try {
-      await userAdminApi.create({
+      const created = await userAdminApi.create({
         id,
-        email: placeholderEmailForPendingUser(id),
+        /**
+         * A real address makes a sign-in; the placeholder keeps the old behaviour of a record with
+         * no account. The server decides which, and owns the Auth user either way.
+         */
+        email: loginEmail.trim() || placeholderEmailForPendingUser(id),
+        temporaryPassword: loginEmail.trim() ? tempPassword.trim() || null : null,
         name: nameTrim,
         role: "instructor",
         collegeId,
@@ -622,6 +733,9 @@ export function FacultyProfileWorkspace({
         facultyCategory,
         instructorValidation: "active",
       });
+      if (created.account) {
+        setIssuedAccount({ ...created.account, name: nameTrim });
+      }
     } catch (err: any) {
       setSaving(false);
       const msg = err?.message ?? "";
@@ -664,6 +778,8 @@ export function FacultyProfileWorkspace({
   }
 
   function resetFacultyForm() {
+    setLoginEmail("");
+    setTempPassword("");
     setEditingUserId(null);
     setEmployeeId("");
     setLastName("");
@@ -688,6 +804,9 @@ export function FacultyProfileWorkspace({
     setTab("profile");
     setEditingUserId(row.user.id);
     setEmployeeId(row.user.employeeId ?? "");
+    // The placeholder is not a real inbox, so it shows as blank rather than as an address.
+    setLoginEmail(isPlaceholderFacultyEmail(row.user.email) ? "" : (row.user.email ?? ""));
+    setTempPassword("");
     const parts = facultyNamePartsFrom(row.profile ?? {}, row.user.name);
     setLastName(parts.lastName);
     setFirstName(parts.firstName);
@@ -989,6 +1108,109 @@ export function FacultyProfileWorkspace({
                 disabled={!collegeId}
               />
             </div>
+            {editingUserId ? (
+              <div className="space-y-1 lg:col-span-2">
+                <div className="text-sm font-medium">Sign-in</div>
+                <div className="rounded-lg border border-black/15 bg-black/[0.02] p-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-[12px] font-semibold text-black/75" htmlFor="faculty-login-email">
+                        Email
+                      </label>
+                      <Input
+                        id="faculty-login-email"
+                        type="email"
+                        placeholder="Not set — no sign-in yet"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[12px] font-semibold text-black/75" htmlFor="faculty-temp-password">
+                        New temporary password
+                      </label>
+                      <PasswordInput
+                        id="faculty-temp-password"
+                        placeholder="Leave blank to generate one"
+                        value={tempPassword}
+                        onChange={(e) => setTempPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    {accountStateChips.map((chip) => (
+                      <span
+                        key={chip.label}
+                        className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide ${chip.tone}`}
+                      >
+                        {chip.label}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/*
+                    Not "show password" — there is nothing to show. The stored value is a hash, so
+                    the only honest offer is a new one.
+                  */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 text-[12px] font-semibold"
+                      disabled={issuingAccount || !loginEmail.trim()}
+                      onClick={() => void issueAccountForEditing()}
+                    >
+                      {issuingAccount
+                        ? "Working…"
+                        : hasSignIn
+                          ? "Issue new temporary password"
+                          : "Create sign-in"}
+                    </Button>
+                    <span className="text-[11px] leading-snug text-black/50">
+                      The current password cannot be shown — it is stored only as a hash. Issuing a
+                      new one replaces it and asks them to set their own at next sign-in.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {!editingUserId ? (
+              <>
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">
+                    Email for sign-in <span className="font-normal text-black/45">(optional)</span>
+                  </div>
+                  <Input
+                    type="email"
+                    placeholder="prof@ctu.edu.ph"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    disabled={!collegeId}
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-black/50 leading-snug">
+                    Leave blank to record the faculty without a login. With an address, they must
+                    confirm it by emailed code the first time they sign in.
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Temporary password</div>
+                  <PasswordInput
+                    placeholder="Leave blank to generate one"
+                    value={tempPassword}
+                    onChange={(e) => setTempPassword(e.target.value)}
+                    disabled={!collegeId || !loginEmail.trim()}
+                    autoComplete="new-password"
+                  />
+                  <p className="text-[11px] text-black/50 leading-snug">
+                    Shown once after saving. They are asked to replace it at first sign-in.
+                  </p>
+                </div>
+              </>
+            ) : null}
             <div className="space-y-1">
               <div className="text-sm font-medium">Last Name</div>
               <Input placeholder="Dela Cruz" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={!collegeId} />
@@ -1552,6 +1774,64 @@ export function FacultyProfileWorkspace({
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {issuedAccount ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
+            <div className="border-b border-black/10 px-5 py-4">
+              <h2 className="text-[15px] font-semibold text-black/85">
+                Sign-in created for {issuedAccount.name}
+              </h2>
+              {/*
+                The password is not stored in readable form and cannot be looked up later. If it is
+                lost before it reaches the faculty, the account is reset rather than recovered.
+              */}
+              <p className="mt-0.5 text-[12px] text-black/55">
+                Give these to the faculty now — the password is not shown again.
+              </p>
+            </div>
+            <div className="space-y-3 px-5 py-4">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-black/50">Email</div>
+                <div className="mt-0.5 break-all font-mono text-sm text-black/85">{issuedAccount.email}</div>
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-black/50">
+                  Temporary password
+                </div>
+                <div className="mt-0.5 break-all font-mono text-base font-semibold text-black/85">
+                  {issuedAccount.password}
+                </div>
+              </div>
+              <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900">
+                At their first sign-in they must confirm this email address with a code sent to it,
+                then choose their own password.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-black/10 px-5 py-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard
+                    ?.writeText(`${issuedAccount.email}
+${issuedAccount.password}`)
+                    .catch(() => {});
+                }}
+              >
+                Copy both
+              </Button>
+              <Button
+                type="button"
+                className="bg-[#780301] text-white hover:bg-[#5a0201]"
+                onClick={() => setIssuedAccount(null)}
+              >
+                Done
+              </Button>
             </div>
           </div>
         </div>

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { ApiClientError, authApi, authExtraApi } from "@/lib/api/client";
+import { ApiClientError, authApi, authExtraApi, authMutationsApi } from "@/lib/api/client";
 import type { UserRole } from "@/types/db";
 
 function homeForRole(role: UserRole | null): string {
@@ -46,6 +47,18 @@ export function UniversalChangePasswordClient() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [firstTime, setFirstTime] = useState(false);
+  /**
+   * Whether the address still has to be proved.
+   *
+   * An admin-created account carries an address somebody else typed. Choosing a password before
+   * proving it would let whoever answered a mistyped address claim the account with a secret of
+   * their own, so this step comes first and the password form is not rendered until it passes.
+   */
+  const [needsEmailCheck, setNeedsEmailCheck] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeNote, setCodeNote] = useState<string | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -61,6 +74,7 @@ export function UniversalChangePasswordClient() {
         setUserName(user.name ?? "");
         setRole((user.role as UserRole) ?? null);
         setFirstTime(Boolean(user.mustChangePassword));
+        setNeedsEmailCheck(user.firstLoginStep === "verifyEmail");
       } catch {
         // If me() fails (e.g. session expired), middleware will redirect.
       } finally {
@@ -68,6 +82,39 @@ export function UniversalChangePasswordClient() {
       }
     })();
   }, []);
+
+  async function sendCode() {
+    setCodeBusy(true);
+    setError(null);
+    setCodeNote(null);
+    try {
+      const res = await authMutationsApi.sendFirstLoginCode();
+      if (res.alreadyVerified) {
+        setNeedsEmailCheck(false);
+        return;
+      }
+      setCodeSent(true);
+      setCodeNote(`Code sent to ${res.email ?? "your email"}.`);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : "Could not send the code.");
+    } finally {
+      setCodeBusy(false);
+    }
+  }
+
+  async function confirmCode() {
+    setCodeBusy(true);
+    setError(null);
+    try {
+      await authMutationsApi.verifyFirstLoginCode(code.trim());
+      setNeedsEmailCheck(false);
+      setCodeNote(null);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : "Could not confirm that code.");
+    } finally {
+      setCodeBusy(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -121,12 +168,68 @@ export function UniversalChangePasswordClient() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Change password</h1>
         <p className="text-sm text-black/65 mt-1">
-          {firstTime
-            ? "First-time setup: choose your new password. You will not need to enter your temporary password again."
-            : "Choose a strong password you have not used elsewhere. You stay signed in on this device after saving."}
+          {needsEmailCheck
+            ? "First, confirm your email address. Your account was set up by an administrator, so we check the address reaches you before you choose a password."
+            : firstTime
+              ? "First-time setup: choose your new password. You will not need to enter your temporary password again."
+              : "Choose a strong password you have not used elsewhere. You stay signed in on this device after saving."}
         </p>
       </div>
 
+      {needsEmailCheck ? (
+        <div className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm">
+          <div className="rounded-lg bg-black/[0.03] border border-black/10 px-3 py-2 text-sm">
+            <div className="font-semibold text-black">{userName || "Account"}</div>
+            {userEmail ? <div className="text-black/60 truncate">{userEmail}</div> : null}
+          </div>
+          <p className="text-sm text-black/70">
+            Confirm this is your address before setting a password. We will email you a 6-digit code.
+          </p>
+          {codeSent ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-800" htmlFor="first-login-code">
+                Enter the code
+              </label>
+              <Input
+                id="first-login-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                className="h-12 tracking-[0.4em]"
+                placeholder="000000"
+                value={code}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value.replace(/\D/g, ""))}
+                disabled={codeBusy}
+              />
+            </div>
+          ) : null}
+          {codeNote ? <p className="text-sm text-black/60">{codeNote}</p> : null}
+          {error ? (
+            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {codeSent ? (
+              <Button
+                type="button"
+                className="h-12 bg-[#FF990A] hover:bg-[#e88909] text-white font-semibold"
+                disabled={codeBusy || code.trim().length !== 6}
+                onClick={() => void confirmCode()}
+              >
+                {codeBusy ? "Checking…" : "Confirm email"}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12"
+              disabled={codeBusy}
+              onClick={() => void sendCode()}
+            >
+              {codeSent ? "Send another code" : codeBusy ? "Sending…" : "Email me a code"}
+            </Button>
+          </div>
+        </div>
+      ) : (
       <form
         onSubmit={(e) => void onSubmit(e)}
         className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm"
@@ -184,6 +287,7 @@ export function UniversalChangePasswordClient() {
           </Link>
         </p>
       </form>
+      )}
     </div>
   );
 }

@@ -35,10 +35,6 @@ export const POLICY_VIOLATION_FAQ = [
     q: "Who receives overload justifications and what counts as valid?",
     a: "DOI is the submit target (College Admin is also notified). A valid justification explains why the overload is necessary (e.g., lack of available instructors) — at least 12 characters. It is a record only; DOI does not accept or reject it.",
   },
-  {
-    q: "How is rate per hour determined?",
-    a: "Rate per hour comes from the instructor's highest degree (Doctorate, Master's, Baccalaureate) using the Faculty Merit System rates. It is shown on the Faculty Profile alongside the designation teaching load.",
-  },
 ] as const;
 
 

@@ -38,6 +38,7 @@ import type {
 } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { isGecInstructorUser } from "@/lib/faculty/faculty-category";
+import { filterInstructorsForGec } from "@/lib/evaluator/instructor-scope";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
 import { GecInteractiveWeekGrid } from "@/components/gec/GecInteractiveWeekGrid";
@@ -664,15 +665,26 @@ export function GecCentralHubEvaluatorClient() {
 
   const instructorPlotOptionsBase = useMemo(() => {
     if (!plotCollegeId) return [];
-    const pool = users
-      .filter((u) => u.collegeId === plotCollegeId && isPlottableFacultyUser(u))
-      // Prefer registered GEC instructors at the top of faculty pickers.
-      .sort((a, b) => {
-        const ag = isGecInstructorUser(a) ? 0 : 1;
-        const bg = isGecInstructorUser(b) ? 0 : 1;
-        if (ag !== bg) return ag - bg;
-        return (a.name ?? "").localeCompare(b.name ?? "");
-      });
+    /**
+     * GEC instructors only.
+     *
+     * This list used to hold every plottable faculty in the college and merely sort the GEC ones
+     * first, so a GEC chairman could assign a departmental instructor to a general education slot —
+     * and that instructor's own chairman would then find their time taken by a plot they had no
+     * part in. Anyone already on a plotted row is kept so existing rows stay readable.
+     */
+    const pool = filterInstructorsForGec(
+      // Not narrowed by college on purpose: general education is taught campus-wide, so a GEC
+      // instructor is available to any college's sections. Scoping them to the section's college
+      // meant a GEC instructor recorded under one college could not be plotted into another.
+      users.filter((u) => isPlottableFacultyUser(u)),
+      new Set(entryInstructorIdsForPlotMerge),
+    ).sort((a, b) => {
+      const ag = isGecInstructorUser(a) ? 0 : 1;
+      const bg = isGecInstructorUser(b) ? 0 : 1;
+      if (ag !== bg) return ag - bg;
+      return (a.name ?? "").localeCompare(b.name ?? "");
+    });
     const base = usersToInstructorPlotOptions(pool, facultyProfileByUserId).map((opt) => {
       const u = pool.find((row) => row.id === opt.id);
       if (!u || !isGecInstructorUser(u)) return opt;
@@ -1669,7 +1681,7 @@ export function GecCentralHubEvaluatorClient() {
                       <>
                         {instructorPlotOptionsBase.length === 0 ? (
                           <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                            No instructors with an Employee ID in this college. Add faculty in{" "}
+                            No GEC instructors on campus yet. Mark faculty as GEC in{" "}
                             <strong>Faculty Profile</strong> first.
                           </p>
                         ) : null}
