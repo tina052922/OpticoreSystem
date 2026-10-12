@@ -12,7 +12,6 @@ import type {
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
 import type { InsSignatureSlot } from "@/lib/ins/ins-signature-slots";
 import { resolveInsPrintedSigners } from "@/lib/ins/ins-pdf-adapters";
-import { insTotalStudents } from "@/components/pdf/types/insTypes";
 import type { InsDay } from "./opticore-ins-constants";
 import { InsSignatureStrip, OpticoreInsScheduleTableWithSignatures } from "./OpticoreInsScheduleTable";
 import { programModeLabel } from "@/lib/scheduling/program-mode";
@@ -74,7 +73,7 @@ function InsPdfMatchingHeader({
       <div className="relative min-h-[3.5rem] pb-2 print:min-h-[2.75rem] print:pb-0.5">
         {insHeaderBannerUrl ? (
           <div className="flex justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element -- campus branding public URL */}
+            {/* eslint-disable-next-line no-restricted-syntax -- campus branding public URL */}
             <img
               src={insHeaderBannerUrl}
               alt=""
@@ -243,8 +242,10 @@ function FacultyScheduleRequestCells({
 
 /**
  * Summary of Courses — mirrors the PDF `INSSummaryTable` exactly:
- * a title row carrying the student total, then two columns
- * (Course code | Descriptive Title) at the same 0.8 / 1.6 width ratio.
+ * a centred title, then four columns (Course Code | Descriptive Title | Degree / Yr & Sec |
+ * No. of Students) at the same 0.8 / 2 / 1 / 0.6 width ratio, and a Total row beneath.
+ *
+ * The student count is per course, from the enrolment of the section taking it.
  *
  * Kept in one place so Forms 5A and 5B cannot drift apart on screen.
  */
@@ -252,39 +253,83 @@ function InsSummaryOfCourses({
   courses,
   emptyMessage = "No courses scheduled",
   footer,
+  studentsFirst = false,
+  showSection = true,
 }: {
-  courses: Array<{ students: number; code: string; title: string }>;
+  courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }>;
   emptyMessage?: string;
   /** Form 5A metrics block, printed inside the same bordered box. */
   footer?: ReactNode;
+  /** 5A leads with the class size; see the PDF `INSSummaryTable`. */
+  studentsFirst?: boolean;
+  /** 5B is one section's own form, so the section column would repeat on every row. */
+  showSection?: boolean;
 }) {
-  const gridCols = "grid grid-cols-[0.8fr_1.6fr] gap-2 print:gap-0.5";
+  /*
+   * Written out in full rather than built from parts: Tailwind only emits an arbitrary value it can
+   * see as a literal in the source.
+   */
+  const gridCols = studentsFirst
+    ? "grid grid-cols-[0.6fr_0.8fr_2fr_1fr] gap-2 print:gap-0.5"
+    : showSection
+      ? "grid grid-cols-[0.8fr_2fr_1fr_0.6fr] gap-2 print:gap-0.5"
+      : "grid grid-cols-[0.8fr_2fr_0.6fr] gap-2 print:gap-0.5";
+
+  const headers = studentsFirst
+    ? ["No. of Students", "Course Code", "Descriptive Title", ...(showSection ? ["Degree / Yr & Sec"] : [])]
+    : ["Course Code", "Descriptive Title", ...(showSection ? ["Degree / Yr & Sec"] : []), "No. of Students"];
+
+  const cellBase =
+    "flex min-h-[1.4rem] items-center bg-white px-1 py-1 print:min-h-0 print:py-0";
+
+  function cells(c: { students: number; code: string; title: string; degreeYrSec: string }) {
+    const students = (
+      <span key="students" className={`${cellBase} justify-end tabular-nums`}>
+        {c.students}
+      </span>
+    );
+    const rest = [
+      <span key="code" className={cellBase}>
+        {c.code}
+      </span>,
+      <span key="title" className={`${cellBase} leading-snug print:leading-none`}>
+        {c.title}
+      </span>,
+      ...(showSection
+        ? [
+            <span key="section" className={`${cellBase} leading-snug print:leading-none`}>
+              {c.degreeYrSec}
+            </span>,
+          ]
+        : []),
+    ];
+    return studentsFirst ? [students, ...rest] : [...rest, students];
+  }
 
   return (
     <div className="min-h-0 max-h-[11rem] sm:max-h-[12rem] overflow-y-auto overscroll-contain print:max-h-none print:overflow-visible border border-neutral-900 p-2 md:p-3 print:p-1 ins-print-avoid-break">
-      <div className="mb-2 print:mb-0.5 flex items-baseline justify-between gap-4 text-xs font-bold uppercase tracking-wide print:text-[6.5pt]">
-        <span>No. of Students : {insTotalStudents(courses)}</span>
-        <span>Summary of Courses</span>
+      <div className="mb-2 print:mb-0.5 text-center text-xs font-bold uppercase tracking-wide print:text-[6.5pt]">
+        Summary of Courses
       </div>
 
       <div className="mb-1.5 print:mb-0 border-b border-neutral-900 pb-1.5 print:pb-0 text-[11px] font-semibold print:text-[6pt]">
         <div className={gridCols}>
-          <span>Course code</span>
-          <span>Descriptive Title</span>
+          {headers.map((h) => (
+            <span key={h} className={h === "No. of Students" ? "text-right" : undefined}>
+              {h}
+            </span>
+          ))}
         </div>
       </div>
 
       <div className="space-y-1 print:space-y-0 print:leading-none">
         {courses.length === 0 ? (
-          <div
-            className={`${gridCols} text-xs text-neutral-800 print:text-[6.5pt]`}
-          >
-            <span className="min-h-[1.4rem] px-1 py-1 print:min-h-0 print:py-0">
-              —
-            </span>
-            <span className="min-h-[1.4rem] px-1 py-1 leading-snug print:min-h-0 print:py-0">
-              {emptyMessage}
-            </span>
+          <div className={`${gridCols} text-xs text-neutral-800 print:text-[6.5pt]`}>
+            {headers.map((h) => (
+              <span key={h} className="min-h-[1.4rem] px-1 py-1 leading-snug print:min-h-0 print:py-0">
+                {h === "Descriptive Title" ? emptyMessage : ""}
+              </span>
+            ))}
           </div>
         ) : (
           courses.map((c, idx) => (
@@ -292,15 +337,11 @@ function InsSummaryOfCourses({
               key={`${c.code}-${idx}`}
               className={`${gridCols} text-xs border-b border-black/10 last:border-b-0 print:text-[6pt] print:leading-none`}
             >
-              <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1 print:min-h-0 print:py-0">
-                {c.code}
-              </span>
-              <span className="flex min-h-[1.4rem] items-center bg-white px-1 py-1 leading-snug print:min-h-0 print:py-0 print:leading-none">
-                {c.title}
-              </span>
+              {cells(c)}
             </div>
           ))
         )}
+
       </div>
 
       {footer ? (
@@ -564,6 +605,7 @@ export function OpticoreInsForm5A({
 
       <InsSummaryOfCourses
         courses={courses}
+        studentsFirst
         emptyMessage="No courses plotted for this faculty in the selected term. Use Evaluator to add schedule rows."
       />
 
@@ -712,7 +754,7 @@ function RoomForm5CFooterBlock({
       <div className="text-sm font-semibold leading-snug">{title}</div>
       <div className="flex min-h-[4rem] items-end justify-center border-b-2 border-neutral-900 pb-2">
         {scheduleApproved && slot?.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
+          // eslint-disable-next-line no-restricted-syntax -- user-uploaded public URLs
           <img
             src={slot.imageUrl}
             alt=""
@@ -910,7 +952,7 @@ export function OpticoreInsForm5B({
       />
       )}
 
-      <InsSummaryOfCourses courses={courses} />
+      <InsSummaryOfCourses courses={courses} showSection={false} />
 
       <InsPrintFooter />
     </div>

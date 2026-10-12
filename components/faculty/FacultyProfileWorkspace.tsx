@@ -75,6 +75,7 @@ import {
 } from "@/lib/faculty/hr-form-23b";
 import { FacultyLoadJustificationRecord } from "@/components/faculty/FacultyLoadJustificationRecord";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 /**
  * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
@@ -297,12 +298,10 @@ export function FacultyProfileWorkspace({
     if (!editingUserId) return;
     const email = loginEmail.trim();
     if (!email) {
-      setError("Enter the email address this faculty will sign in with.");
+      toast.refuse("Enter an email address", "This is what the faculty will sign in with.");
       return;
     }
     setIssuingAccount(true);
-    setError(null);
-    setSuccess(null);
     try {
       const res = await userAdminApi.issueAccount(editingUserId, {
         email,
@@ -312,13 +311,12 @@ export function FacultyProfileWorkspace({
       setTempPassword("");
       void loadFaculty();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not issue the sign-in.");
+      toast.fail(err, "Could not create the sign-in", "faculty: issue account");
     } finally {
       setIssuingAccount(false);
     }
   }
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const toast = useActionToast();
   const [sections, setSections] = useState<Section[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [justificationByUserId, setJustificationByUserId] = useState<Record<string, string>>({});
@@ -366,7 +364,6 @@ export function FacultyProfileWorkspace({
     const userQuery = new URLSearchParams({ role: "instructor" });
     if (scopeParam) userQuery.set("collegeId", scopeParam);
     setLoadingList(true);
-    setError(null);
 
     /*
      * The scope's programs and sections, fetched independently of the roster.
@@ -629,8 +626,6 @@ export function FacultyProfileWorkspace({
   useEffect(() => loadJustifications(), [loadJustifications]);
 
   async function saveFacultyEdits(userId: string) {
-    setError(null);
-    setSuccess(null);
     if (!collegeId) return;
     const row = rows.find((r) => r.user.id === userId);
     if (!row) return;
@@ -669,12 +664,12 @@ export function FacultyProfileWorkspace({
       }
     } catch (err) {
       setSavingRowId(null);
-      setError(err instanceof Error ? err.message : "Failed to save");
+      toast.fail(err, "Could not save the changes", "faculty: row edit");
       return;
     }
     setSavingRowId(null);
 
-    setSuccess("Faculty details updated.");
+    toast.ok("Faculty details updated");
     dispatchInsCatalogReload();
     void loadFaculty();
   }
@@ -724,22 +719,20 @@ export function FacultyProfileWorkspace({
   }
 
   async function onAddFaculty() {
-    setError(null);
-    setSuccess(null);
     if (!collegeId) {
-      setError("Select your college scope (or sign in as Chairman) before adding faculty.");
+      toast.refuse("Choose a college first", "Use the scope bar above, or sign in as Chairman.");
       return;
     }
 
     const dupMsg = await assertNoDuplicateFaculty();
     if (dupMsg) {
-      setError(dupMsg);
+      toast.refuse("That faculty is already on file", dupMsg);
       return;
     }
 
     const nameTrim = composedFullName;
     if (!lastName.trim() || !firstName.trim()) {
-      setError("Last Name and First Name are required.");
+      toast.refuse("Enter the name first", "Last Name and First Name are both needed.");
       return;
     }
 
@@ -788,11 +781,11 @@ export function FacultyProfileWorkspace({
         }
       } catch (err) {
         setSaving(false);
-        setError(err instanceof Error ? err.message : "Failed to update faculty.");
+        toast.fail(err, "Could not update the faculty", "faculty: update");
         return;
       }
       setSaving(false);
-      setSuccess("Faculty updated.");
+      toast.ok(`${nameTrim} updated`);
       resetFacultyForm();
       dispatchInsCatalogReload();
       void loadFaculty();
@@ -821,13 +814,13 @@ export function FacultyProfileWorkspace({
       if (created.account) {
         setIssuedAccount({ ...created.account, name: nameTrim });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSaving(false);
-      const msg = err?.message ?? "";
+      const msg = err instanceof Error ? err.message : "";
       if (msg.includes("duplicate") || msg.includes("already exists") || msg.includes("23505")) {
-        setError("Faculty already exists.");
+        toast.refuse("That faculty is already on file", `${nameTrim} already has a record.`);
       } else {
-        setError(msg);
+        toast.fail(err, "Could not add the faculty", "faculty: create user");
       }
       return;
     }
@@ -848,15 +841,15 @@ export function FacultyProfileWorkspace({
       setSaving(false);
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("duplicate") || msg.includes("already exists") || msg.includes("23505")) {
-        setError("Faculty already exists.");
+        toast.refuse("That faculty is already on file", `${nameTrim} already has a record.`);
       } else {
-        setError(msg || "Failed to save faculty profile.");
+        toast.fail(err, "Could not save the faculty profile", "faculty: create profile");
       }
       return;
     }
 
     setSaving(false);
-    setSuccess("Faculty saved.");
+    toast.ok(`${nameTrim} added`, "They are now in the faculty list.");
     resetFacultyForm();
     dispatchInsCatalogReload();
     void loadFaculty();
@@ -884,8 +877,6 @@ export function FacultyProfileWorkspace({
   }
 
   function startEditFaculty(row: ListRow) {
-    setError(null);
-    setSuccess(null);
     setTab("profile");
     setEditingUserId(row.user.id);
     setEmployeeId(row.user.employeeId ?? "");
@@ -930,7 +921,7 @@ export function FacultyProfileWorkspace({
 
   function afterFacultyDeleted(userId: string) {
     if (editingUserId === userId) resetFacultyForm();
-    setSuccess("Faculty deleted.");
+    toast.ok("Faculty deleted");
     dispatchInsCatalogReload();
     void loadFaculty();
   }
@@ -943,10 +934,8 @@ export function FacultyProfileWorkspace({
   }, [programLabel, programs, scopeProgramId]);
 
   async function exportFacultyList() {
-    setError(null);
-    setSuccess(null);
     if (filteredRows.length === 0) {
-      setError("Nothing to export \u2014 no faculty match the current filters.");
+      toast.refuse("Nothing to export", "No faculty match the current filters.");
       return;
     }
     setExporting(true);
@@ -959,9 +948,12 @@ export function FacultyProfileWorkspace({
         filteredRows.map(({ user, profile }) => ({ user, profile })),
         { academicYear, scopeLabel: exportScopeLabel },
       );
-      setSuccess(`Exported ${filteredRows.length} faculty to Excel (HR Form 23B).`);
+      toast.ok(
+        `Exported ${filteredRows.length} faculty`,
+        "Saved as an Excel file in HR Form 23B layout.",
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to export the faculty list.");
+      toast.fail(err, "Could not export the faculty list", "faculty: export");
     } finally {
       setExporting(false);
     }
@@ -1181,14 +1173,6 @@ export function FacultyProfileWorkspace({
             <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
               Set college scope using the bar above (campus pages) or open this page as Chairman / College Admin with a
               linked college.
-            </p>
-          ) : null}
-          {error ? (
-            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">{error}</p>
-          ) : null}
-          {success ? (
-            <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2 mb-4">
-              {success}
             </p>
           ) : null}
 

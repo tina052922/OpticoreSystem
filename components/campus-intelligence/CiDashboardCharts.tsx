@@ -16,6 +16,7 @@ import {
   Cell,
   LabelList,
 } from "recharts";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 /** Split out so the main dashboard shell can load without the heavy recharts chunk. */
 /** Empty charts almost always mean "nothing plotted in this term yet" — say so by name. */
@@ -48,7 +49,8 @@ export function CiDashboardCharts({
     Array<{ name: string; value: number; color: string }>
   >([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const toast = useActionToast();
   const semester = useSemesterFilterOptional();
   const termLabel = semester?.selectedPeriod?.name ?? "";
 
@@ -60,13 +62,11 @@ export function CiDashboardCharts({
       setRoomUtilizationData(chartsData.roomUtilizationBySlot);
       setFacultyLoadData(chartsData.facultyLoadDistribution);
       setLoading(false);
-      setError(null);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
-    setError(null);
 
     if (!analyticsScope) {
       if (!cancelled) setLoading(false);
@@ -95,8 +95,14 @@ export function CiDashboardCharts({
           error?: string;
         } | null;
         if (!res.ok) {
-          if (!cancelled)
-            setError(j?.error ?? "Could not load dashboard analytics.");
+          if (!cancelled) {
+            setFailed(true);
+            toast.fail(
+              { status: res.status, message: j?.error },
+              "Could not load the dashboard charts",
+              "campus intelligence charts",
+            );
+          }
           return;
         }
         if (!cancelled) {
@@ -104,12 +110,10 @@ export function CiDashboardCharts({
           setFacultyLoadData(j?.facultyLoadDistribution ?? []);
         }
       } catch (e: unknown) {
-        if (!cancelled)
-          setError(
-            e instanceof Error
-              ? e.message
-              : "Could not load dashboard analytics.",
-          );
+        if (!cancelled) {
+          setFailed(true);
+          toast.fail(e, "Could not load the dashboard charts", "campus intelligence charts");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -117,7 +121,7 @@ export function CiDashboardCharts({
     return () => {
       cancelled = true;
     };
-  }, [analyticsScope, chartsData, hasServerData]);
+  }, [analyticsScope, chartsData, hasServerData, toast]);
 
   if (!analyticsScope) {
     return (
@@ -137,10 +141,10 @@ export function CiDashboardCharts({
     );
   }
 
-  if (error) {
+  if (failed) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        {error}
+      <div className="rounded-lg border border-black/10 bg-black/[0.02] p-6 text-center text-sm text-black/55">
+        These charts could not be loaded. Refresh the page to try again.
       </div>
     );
   }

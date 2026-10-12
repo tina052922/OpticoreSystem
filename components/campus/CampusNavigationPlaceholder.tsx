@@ -11,7 +11,7 @@ export function CampusNavigationPlaceholder({ backHref, backLabel = "Back to hom
     <div className="min-h-screen bg-[var(--color-opticore-bg)] flex flex-col">
       <header className="min-h-[72px] sm:min-h-[88px] bg-gradient-to-r from-[var(--color-opticore-red-1)] to-[var(--color-opticore-red-2)] shadow-md flex items-center justify-between px-4 sm:px-8">
         <div className="flex items-center gap-3 min-w-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {/* eslint-disable-next-line no-restricted-syntax */}
           <img src="/ctulogo.svg" alt="" className="h-10 w-10 sm:h-12 sm:w-12 object-contain shrink-0" />
           <div className="min-w-0">
             <p className="text-white font-bold text-sm sm:text-base truncate">Campus navigation</p>

@@ -9,7 +9,7 @@ import { LoginContainer } from "@/components/login/LoginContainer";
 import { OtpVerificationPanel } from "@/components/register/OtpVerificationPanel";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
-import { apiFetch, instructorEmailPolicyApi, registerApi, ApiClientError } from "@/lib/api/client";
+import { apiFetch, instructorEmailPolicyApi, registerApi } from "@/lib/api/client";
 import {
   DEFAULT_INSTRUCTOR_EMAIL_POLICY,
   enabledInstructorDomains,
@@ -33,6 +33,7 @@ import {
   FACULTY_CATEGORY_PROGRAM,
   type FacultyCategory,
 } from "@/lib/faculty/faculty-category";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = { id: string; code: string; name: string; collegeId: string };
@@ -47,7 +48,6 @@ export function InstructorRegisterClient() {
   const branding = useCampusBranding();
   const [phase, setPhase] = useState<"register" | "otp" | "submitted">("register");
   /** Composed from the three name cells; the account and the profile store the same string. */
-  const [aka, setAka] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -75,7 +75,7 @@ export function InstructorRegisterClient() {
   const [programs, setPrograms] = useState<ProgramRow[]>([]);
   const [loadingColleges, setLoadingColleges] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useActionToast();
   const [success, setSuccess] = useState<string | null>(null);
   /** Epoch ms of the last code send, for the resend countdown. */
   const [lastSentAt, setLastSentAt] = useState(0);
@@ -139,7 +139,6 @@ export function InstructorRegisterClient() {
 
   function profilePayload() {
     return {
-      aka: aka.trim() || null,
       lastName: lastName.trim() || null,
       firstName: firstName.trim() || null,
       middleName: middleName.trim() || null,
@@ -156,32 +155,37 @@ export function InstructorRegisterClient() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setSuccess(null);
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!isAllowedInstructorEmail(normalizedEmail, emailPolicy)) {
-      setError(`Use ${instructorEmailDomainHint(emailPolicy)} — that is what sign-up accepts.`);
+      toast.refuse(
+        "Use your institutional email",
+        `Sign-up accepts ${instructorEmailDomainHint(emailPolicy)}.`,
+      );
       return;
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      toast.refuse("Password is too short", `Use at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      toast.refuse("Passwords do not match", "Type the same password in both boxes.");
       return;
     }
     if (!lastName.trim() || !firstName.trim()) {
-      setError("Last name and first name are required.");
+      toast.refuse("Enter your name", "Last name and first name are both needed.");
       return;
     }
     if (!collegeId) {
-      setError("Please select your home college.");
+      toast.refuse("Choose your college", "Pick the college you teach in.");
       return;
     }
     if (facultyCategory === FACULTY_CATEGORY_PROGRAM && !programId) {
-      setError("Please select your home department so the Program Chairman can review your registration.");
+      toast.refuse(
+        "Choose your department",
+        "Your Program Chairman reviews the registration, so they need to know which one.",
+      );
       return;
     }
 
@@ -206,13 +210,7 @@ export function InstructorRegisterClient() {
       setLastSentAt(Date.now());
       setPhase("otp");
     } catch (err) {
-      setError(
-        err instanceof ApiClientError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Registration failed",
-      );
+      toast.fail(err, "Could not complete your registration", "instructor registration");
     } finally {
       setSubmitting(false);
     }
@@ -238,7 +236,6 @@ export function InstructorRegisterClient() {
           onStartOver={() => {
             setPhase("register");
             setSuccess(null);
-            setError(null);
           }}
         />
       </LoginContainer>
@@ -293,7 +290,7 @@ export function InstructorRegisterClient() {
       <div className="space-y-6 max-w-lg mx-auto">
         <div className="flex justify-center">
           <div className="w-28 h-28 shrink-0 rounded-full overflow-hidden ring-2 ring-black/[0.06] shadow-sm bg-white">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {/* eslint-disable-next-line no-restricted-syntax */}
             <img
               src={branding.logoUrl || CTU_LOGO_PNG}
               alt={branding.universityName}
@@ -364,18 +361,6 @@ export function InstructorRegisterClient() {
                     className={fieldClass}
                   />
                 </div>
-              </div>
-              <div>
-                <label htmlFor="ins-aka" className={labelClass}>
-                  A.K.A. (optional)
-                </label>
-                <Input
-                  id="ins-aka"
-                  value={aka}
-                  onChange={(e) => setAka(e.target.value)}
-                  className={fieldClass}
-                  placeholder="Printed name on INS forms"
-                />
               </div>
               <div>
                 <label htmlFor="ins-email" className={labelClass}>
@@ -688,9 +673,6 @@ export function InstructorRegisterClient() {
               </div>
             </fieldset>
 
-            {error ? (
-              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>
-            ) : null}
 
             <Button
               type="submit"

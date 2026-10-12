@@ -49,7 +49,7 @@ function SignatureSlot({
       {slot.imageUrl ? (
         <Image src={slot.imageUrl} style={ins.signatureImage} />
       ) : null}
-      {slot.signerName && slot.signerName !== "—" ? (
+      {slot.signerName && slot.signerName !== "" ? (
         <Text style={ins.signatureName}>{slot.signerName}</Text>
       ) : null}
       <View style={ins.signatureLine} />
@@ -102,7 +102,7 @@ function VerticalRightSignatures({ slots }: { slots: PDFSignatureSlot[] }) {
             <Image src={slot.imageUrl} style={{ height: 16, objectFit: "contain" as const, marginBottom: 1 }} />
           ) : null}
           <View style={ins.rightSigLine} />
-          {slot.signerName && slot.signerName !== "—" ? (
+          {slot.signerName && slot.signerName !== "" ? (
             <Text style={ins.rightSigName}>{slot.signerName}</Text>
           ) : null}
           <Text style={ins.rightSigRole}>{slot.lineSubtitle}</Text>

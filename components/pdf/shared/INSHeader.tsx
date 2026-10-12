@@ -36,11 +36,7 @@ export function INSHeader({
   formTitle,
   semesterLabel,
   universityName = "",
-  formDate = new Date(Date.now()).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }),
+  formDate = "February 15, 2021",
   revision = "2",
   headerBanner,
   programMode = "day",

@@ -183,7 +183,7 @@ export function DoiScheduleHubClient() {
             </Button>
             <Button asChild variant="outline">
               {/* `?hub=1` so this lands on the college choice, like the sidebar entry. */}
-              <Link href="/doi/evaluator?hub=1">Central Hub Evaluator</Link>
+              <Link href="/doi/evaluator?hub=1">Subject Scheduler</Link>
             </Button>
           </div>
         </section>

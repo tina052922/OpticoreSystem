@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { ApiClientError, apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
+import { apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
-import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
+import { useActionToast } from "@/components/alerts/useActionToast";
 import {
   campusAccountFileName,
   resolveImportRows,
@@ -69,8 +69,7 @@ export function CampusAccountsWorkspace() {
   const [accounts, setAccounts] = useState<CampusAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const toast = useActionToast();
   const alertsRef = useRef<HTMLDivElement | null>(null);
 
   // ── form ────────────────────────────────────────────────────────────────
@@ -100,20 +99,15 @@ export function CampusAccountsWorkspace() {
       setPrograms(programsRes.programs ?? []);
       setAccounts(accountsRes.accounts ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load accounts.");
+      toast.fail(e, "Could not load the accounts", "campus accounts");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    if (!error && !success) return;
-    scrollIntoAppView(alertsRef.current);
-  }, [error, success]);
 
   /**
    * Every post, held or not. Listing the empty ones is the point: DOI needs to see at a glance which
@@ -173,30 +167,30 @@ export function CampusAccountsWorkspace() {
     setFullName(post.holder.name ?? "");
     setEmail(post.holder.email ?? "");
     setPassword("");
-    setError(null);
-    setSuccess(null);
   }
 
   function startCreate(post: Post) {
     resetForm();
     setAssignmentId(post.id);
-    setError(null);
-    setSuccess(null);
   }
 
   async function onSave() {
-    setError(null);
-    setSuccess(null);
     if (!assignmentId) {
-      setError(role === "college_admin" ? "Choose a college." : "Choose a department.");
+      toast.refuse(
+        role === "college_admin" ? "Choose a college first" : "Choose a department first",
+        "An account has to be attached to the post it manages.",
+      );
       return;
     }
     if (!fullName.trim()) {
-      setError("Enter the full name.");
+      toast.refuse("Enter the full name", "This is the name that appears on INS forms.");
       return;
     }
     if (!editingId && password.trim().length < MIN_PASSWORD_LENGTH) {
-      setError(`Set a password of at least ${MIN_PASSWORD_LENGTH} characters.`);
+      toast.refuse(
+        "Set a longer password",
+        `It needs at least ${MIN_PASSWORD_LENGTH} characters. They will be asked to change it at first sign-in.`,
+      );
       return;
     }
 
@@ -223,17 +217,19 @@ export function CampusAccountsWorkspace() {
           // An empty password on edit means "leave the current one alone".
           password: password.trim() || undefined,
         });
-        setSuccess(warning ?? `${saveLabel} updated.`);
+        toast.ok(`${saveLabel} updated`);
+        toast.caution(warning, "Saved with a limitation");
       } else {
         await campusAccountsApi.create(payload);
-        setSuccess(
-          `${saveLabel} registered. They must change this password at first sign-in.`,
+        toast.ok(
+          `${saveLabel} registered`,
+          "They will be asked to change this password at first sign-in.",
         );
       }
       resetForm();
       await load();
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Could not save.");
+      toast.fail(e, "Could not save the account", "campus accounts: save");
     } finally {
       setSaving(false);
     }
@@ -255,14 +251,13 @@ export function CampusAccountsWorkspace() {
 
   async function afterDeleted(pending: { id: string; name: string; postCode: string }) {
     if (editingId === pending.id) resetForm();
-    setSuccess(`${pending.name} removed from ${pending.postCode}.`);
+    toast.ok(`${pending.name} removed`, `${pending.postCode} has no holder now.`);
     await load();
   }
 
   // ── Excel ───────────────────────────────────────────────────────────────
 
   async function onExport() {
-    setError(null);
     try {
       /*
        * The GEC Chairman is left out of the round trip on purpose. The sheet matches a row to a post
@@ -278,19 +273,23 @@ export function CampusAccountsWorkspace() {
         email: p.holder?.email ?? "",
       }));
       await downloadCampusAccountWorkbook(role, rows);
-      setSuccess(`Exported ${rows.length} row${rows.length === 1 ? "" : "s"} to ${campusAccountFileName(role)}.`);
+      toast.ok(
+        `Exported ${rows.length} row${rows.length === 1 ? "" : "s"}`,
+        `Saved as ${campusAccountFileName(role)}.`,
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not export.");
+      toast.fail(e, "Could not export the list", "campus accounts: export");
     }
   }
 
   async function onImportFile(file: File) {
-    setError(null);
-    setSuccess(null);
     setImportReport(null);
 
     if (importPassword.trim().length < MIN_PASSWORD_LENGTH) {
-      setError(`Set a temporary password of at least ${MIN_PASSWORD_LENGTH} characters before importing.`);
+      toast.refuse(
+        "Set a temporary password first",
+        `Imported accounts all start with it, so it needs at least ${MIN_PASSWORD_LENGTH} characters.`,
+      );
       return;
     }
 
@@ -326,16 +325,18 @@ export function CampusAccountsWorkspace() {
 
       setImportReport(report);
       if (created > 0) {
-        setSuccess(
-          `Registered ${created} ${ROLE_LABEL[role]}${created === 1 ? "" : "s"}. ` +
-            "Each must change the temporary password at first sign-in.",
+        toast.ok(
+          `Registered ${created} ${ROLE_LABEL[role]}${created === 1 ? "" : "s"}`,
+          "Each will be asked to change the temporary password at first sign-in.",
         );
       }
-      if (created === 0 && report.length > 0) setError("Nothing was imported. See the rows below.");
+      if (created === 0 && report.length > 0) {
+        toast.refuse("Nothing was imported", "Check the rows listed below and try again.");
+      }
       setImportPassword("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not read that file.");
+      toast.fail(e, "Could not read that file", "campus accounts: import");
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -372,16 +373,6 @@ export function CampusAccountsWorkspace() {
       </div>
 
       <div ref={alertsRef} className="space-y-3 scroll-mt-4 empty:hidden">
-        {error ? (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {success ? (
-          <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2" role="status">
-            {success}
-          </p>
-        ) : null}
       </div>
 
       {/* ── Register / edit ─────────────────────────────────────────────── */}

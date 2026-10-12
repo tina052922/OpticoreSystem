@@ -61,7 +61,6 @@ export function useInsLiveSchedule(args: {
       setFacultyProfile({
         userId: selectedInstructorId,
         fullName: fromCatalog.fullName,
-        aka: fromCatalog.aka,
       } as FacultyProfile);
     }
   }, [selectedInstructorId, catalog.facultyProfileByUserId]);

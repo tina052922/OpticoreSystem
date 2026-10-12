@@ -32,7 +32,7 @@ export function buildInsSectionView(args: {
   subjectById: Map<string, Subject>;
   roomById: Map<string, Room>;
   userById: Map<string, User>;
-  facultyProfileByUserId: Map<string, Pick<FacultyProfile, "fullName" | "aka">>;
+  facultyProfileByUserId: Map<string, Pick<FacultyProfile, "fullName">>;
 }): {
   schedule: InsSectionSchedule;
   courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }>;

@@ -4,7 +4,6 @@ import { splitFullName } from "@/lib/faculty/hr-form-23b";
 
 /** Profile fields accepted at instructor self-registration (matches Faculty Profile workspace). */
 export type InstructorRegistrationProfileInput = {
-  aka?: string | null;
   // HR Form 23B cells, matching the Faculty Profile page.
   lastName?: string | null;
   firstName?: string | null;
@@ -64,7 +63,6 @@ export function facultyProfileRowFromRegistration(
     educationalQualification: trimOrNull(input.educationalQualification),
     experience: trimOrNull(input.experience),
     eligibility: trimOrNull(input.eligibility),
-    aka: trimOrNull(input.aka),
     bsDegree,
     msDegree,
     doctoralDegree,

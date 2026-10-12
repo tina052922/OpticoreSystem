@@ -107,7 +107,6 @@ export interface FacultyProfile {
   userId: string;
   /** Canonical display name (INS documents print it); recomposed from the name parts on save. */
   fullName: string;
-  aka: string | null;
   // ── CTU HR Form 23B (Faculty Profile as to their Educational Qualification) ──
   // Added by migration 013; null on rows saved before it ran.
   lastName?: string | null;

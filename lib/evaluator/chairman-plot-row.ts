@@ -77,3 +77,28 @@ export function normalizePlotRow(
       : (modes[0] ?? "lec");
   return row.lecLabMode === lecLabMode ? row : { ...row, lecLabMode };
 }
+
+/**
+ * The other meetings that belong with this one: same section, same subject, same instructor.
+ *
+ * A subject rarely sits in a single cell. Five weekly hours might be plotted as Monday 2h,
+ * Wednesday 2h and Friday 1h, and removing "the subject" means removing all three. Clicking the ✕
+ * on one cell can only ever mean one of two things — drop this meeting, or drop the lot — so the
+ * grouping has to be explicit rather than guessed.
+ *
+ * Lecture and laboratory components are kept together when they share a code, and each row shows
+ * which it is, so one can still be removed on its own.
+ */
+export function relatedPlotRows(rows: readonly PlotRow[], target: PlotRow): PlotRow[] {
+  const code = (target.subjectCode ?? "").trim().toUpperCase();
+  const sectionId = (target.sectionId ?? "").trim();
+  const instructorId = (target.instructorId ?? "").trim();
+
+  return rows.filter((r) => {
+    if (r.id === target.id) return true;
+    if ((r.subjectCode ?? "").trim().toUpperCase() !== code) return false;
+    if ((r.sectionId ?? "").trim() !== sectionId) return false;
+    if ((r.instructorId ?? "").trim() !== instructorId) return false;
+    return true;
+  });
+}

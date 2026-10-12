@@ -38,7 +38,6 @@ import type {
   Program,
   Room,
   ScheduleEntry,
-  ScheduleLoadJustification,
   Section,
   Subject,
   User,
@@ -50,10 +49,7 @@ import {
 } from "@/lib/workflow-schedule-bundle";
 import { HubEvaluatorTabs } from "@/components/evaluator/HubEvaluatorTabs";
 import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
-import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
-import { TeachingLoadSummaryTable } from "@/components/college/TeachingLoadSummaryTable";
-import { buildTeachingLoadSummaryByCategory } from "@/lib/scheduling/teaching-load-summary";
-import { hydrateScheduleEntries, filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
+import { filterByProgramMode, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { DoiScheduleEntryQuickEditDialog } from "@/components/doi/DoiScheduleEntryQuickEditDialog";
 import { EnrichedConflictIssuesPanel } from "@/components/campus-intelligence/EnrichedConflictIssuesPanel";
@@ -63,7 +59,7 @@ import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-i
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useAccessRequests } from "@/hooks/use-access-requests";
 import {
   hasApprovedCrossCollegeEvaluatorAccess,
@@ -79,6 +75,7 @@ import { plottedHoursBySubjectCode } from "@/lib/scheduling/subject-semester-hou
 import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
+import { SUBJECT_SCHEDULER_NAV_LABEL } from "@/lib/admin-nav";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -112,7 +109,8 @@ export function CentralHubEvaluatorView({
   showDoiGovernance = false,
   hubAccessMode = "default",
 }: CentralHubEvaluatorViewProps) {
-  const hubTitle = hubAccessMode === "collegeAdmin" ? "Evaluator" : "Central Hub Evaluator";
+  // One name campus-wide: the sidebar, the page heading and the tab strip all say the same thing.
+  const hubTitle = SUBJECT_SCHEDULER_NAV_LABEL;
   const toast = useOpticoreToast();
   const { programMode } = useProgramMode();
   const { selectedPeriodId: academicPeriodId, setSelectedPeriodId: setAcademicPeriodId } = useSemesterFilter();
@@ -122,8 +120,7 @@ export function CentralHubEvaluatorView({
     ? null
     : searchParams.get("college");
   const isCampusWide = collegeSlug?.toLowerCase() === CAMPUS_WIDE_COLLEGE_SLUG;
-  const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
-  const landingPanelForTabs = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
+
 
   const { requests: accessRequests, reload: reloadAccessRequests } = useAccessRequests(hubAccessMode === "collegeAdmin");
   const [myCollegeId, setMyCollegeId] = useState<string | null>(null);
@@ -162,7 +159,6 @@ export function CentralHubEvaluatorView({
   const [facultyProfiles, setFacultyProfiles] = useState<FacultyProfile[]>([]);
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [doiScheduleLocked, setDoiScheduleLocked] = useState(false);
-  const [justifications, setJustifications] = useState<ScheduleLoadJustification[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
 
   const hubTiles = useMemo(() => hubCollegesFromDb(colleges), [colleges]);
@@ -212,7 +208,6 @@ export function CentralHubEvaluatorView({
         setPrograms(bundle.programs ?? []);
         setColleges(bundle.colleges ?? []);
         setFacultyProfiles(bundle.facultyProfiles ?? []);
-        setJustifications(bundle.justifications ?? []);
         setLoading(false);
       }
     } catch {
@@ -361,32 +356,6 @@ export function CentralHubEvaluatorView({
     setProgramId("");
   }, [programId, programsInCollege]);
 
-  const teachingLoadGroups = useMemo(() => {
-    const cid = myCollegeId || scopeCollegeId;
-    if (!cid || !academicPeriodId) return [];
-    return buildTeachingLoadSummaryByCategory({
-      collegeId: cid,
-      academicPeriodId,
-      entries: hydrateScheduleEntries(entries),
-      users,
-      profiles: facultyProfiles,
-      programs,
-      sections,
-      subjects,
-      justifications,
-    });
-  }, [
-    myCollegeId,
-    scopeCollegeId,
-    academicPeriodId,
-    entries,
-    users,
-    facultyProfiles,
-    programs,
-    sections,
-    subjects,
-    justifications,
-  ]);
 
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
@@ -922,53 +891,11 @@ export function CentralHubEvaluatorView({
   /* —— Hub: college tiles —— */
   if (!collegeSlug) {
     if (hubAccessMode === "collegeAdmin") {
-      /** Dedicated Hrs tab only — no college tiles here (same pattern as post-select hub). */
-      if (landingPanelForTabs === "hrs") {
-        return (
-          <div>
-            <ChairmanPageHeader title={hubTitle} />
-            <div className="px-4 md:px-8 pb-12 max-w-[1400px] mx-auto">
-              <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="hrs" collegeAdminLanding />
-              <p className="text-[13px] text-black/65 mb-4">
-                Full form:{" "}
-                <Link href="/admin/college/teaching-load-summary" className="font-semibold text-[#780301] hover:underline">
-                  Summary of Teaching Load
-                </Link>
-              </p>
-              {teachingLoadGroups.length === 0 ? (
-                <TeachingLoadSummaryTable rows={[]} />
-              ) : (
-                <div className="space-y-6">
-                  {teachingLoadGroups.map((g) => (
-                    <TeachingLoadSummaryTable
-                      key={g.programId}
-                      categoryLabel={g.categoryLabel}
-                      rows={g.rows}
-                      emptyHint={`No instructors with plotted load in ${g.categoryLabel} for the selected term.`}
-                    />
-                  ))}
-                </div>
-              )}
-              <p className="text-[13px] text-black/55 mt-8 text-center">
-                <HubCollegesNavLink basePath={basePath} className="font-semibold text-[#780301] hover:underline">
-                  ← Back to college selection
-                </HubCollegesNavLink>
-              </p>
-            </div>
-          </div>
-        );
-      }
-
       return (
         <div>
           <ChairmanPageHeader title={hubTitle} />
           <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
-            <HubEvaluatorTabs
-              basePath={basePath}
-              collegeSlug={null}
-              panel={landingPanelForTabs}
-              collegeAdminLanding
-            />
+            <HubEvaluatorTabs basePath={basePath} collegeSlug={null} />
             {hubAccessMode === "collegeAdmin" ? (
               <div className="mb-4">
                 <NotifyGecReadyButton academicPeriodId={academicPeriodId} periodLabel={currentPeriod?.name ?? null} />
@@ -1010,27 +937,62 @@ export function CentralHubEvaluatorView({
     return (
       <div>
         <ChairmanPageHeader title={hubTitle} />
-        <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
+        <div className="px-4 md:px-8 pb-12 max-w-5xl mx-auto">
           <HubEvaluatorTabs basePath={basePath} collegeSlug={null} panel="timetabling" />
-          <div className="mb-4 flex justify-center">
-            <Link
-              href={hubHref(basePath, { college: CAMPUS_WIDE_COLLEGE_SLUG })}
-              className="inline-flex items-center justify-center min-h-[56px] rounded-[20px] bg-[#780301] text-white font-bold text-[14px] px-8 py-3 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-110 transition-[filter]"
-            >
-              All colleges (campus-wide timetable)
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {hubTiles.map((c) => (
-              <Link
-                key={c.slug}
-                href={hubHref(basePath, { college: c.slug })}
-                className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
-              >
-                {c.name}
+
+          <div className="mb-5">
+            <h2 className="text-[15px] font-semibold text-black/80">Choose a college</h2>
+            <p className="text-[13px] text-black/55 mt-0.5">
+              Open a college to plot and review its timetable. Teaching-load totals live on{" "}
+              <Link href="/admin/college/teaching-load-summary" className="font-semibold text-[#780301] hover:underline">
+                Summary of Teaching Load
               </Link>
-            ))}
+              .
+            </p>
           </div>
+
+          {hubTiles.length === 0 ? (
+            <p className="rounded-xl border border-black/10 bg-white px-5 py-8 text-center text-[13px] text-black/50">
+              {loading ? "Loading colleges…" : "No colleges on file yet."}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {hubTiles.map((c) => {
+                /* Programme count makes the cards worth reading rather than a wall of names. */
+                const programCount = c.collegeId
+                  ? programs.filter((p) => p.collegeId === c.collegeId).length
+                  : 0;
+                return (
+                  <Link
+                    key={c.slug}
+                    href={hubHref(basePath, { college: c.slug })}
+                    className="group flex items-start gap-3 rounded-xl border border-black/10 bg-white p-4 shadow-sm transition-colors hover:border-[#ff990a] hover:bg-[#ff990a]/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50"
+                  >
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#ff990a] text-[12px] font-bold text-white"
+                      aria-hidden
+                    >
+                      {c.abbr}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[14px] font-semibold leading-snug text-black/85">
+                        {c.name}
+                      </span>
+                      <span className="mt-0.5 block text-[12px] text-black/50">
+                        {programCount === 0
+                          ? "No programs yet"
+                          : `${programCount} program${programCount === 1 ? "" : "s"}`}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="mt-1 h-4 w-4 shrink-0 text-black/25 transition-colors group-hover:text-[#ff990a]"
+                      aria-hidden
+                    />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1118,7 +1080,7 @@ export function CentralHubEvaluatorView({
       <div>
         <ChairmanPageHeader title={hubTitle} subtitle={hub?.name ?? "Peer college"} />
         <div className="px-4 md:px-8 pb-8 max-w-xl">
-          <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
+          <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} />
           <HubCollegesNavLink basePath={basePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
@@ -1200,7 +1162,7 @@ export function CentralHubEvaluatorView({
       <ChairmanPageHeader title={hubTitle} />
 
       <div className="px-4 md:px-8 pb-8">
-        <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} panel={panel} />
+        <HubEvaluatorTabs basePath={basePath} collegeSlug={collegeSlug} />
         {termPublishLocked ? (
           <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50/90 px-4 py-3 text-[13px] text-sky-950">
             <span className="font-semibold">Published schedule (read-only).</span> DOI has locked this term. You can
@@ -1237,7 +1199,7 @@ export function CentralHubEvaluatorView({
           </div>
         </div>
 
-        {panel === "timetabling" ? (
+        {(
           <>
             {hubAccessMode === "collegeAdmin" && !hubReadOnly && myCollegeId && hub?.collegeId === myCollegeId ? (
               <div className="mb-6 rounded-lg border border-black/10 bg-white px-4 py-3 text-[13px] text-black/70">
@@ -1610,35 +1572,7 @@ export function CentralHubEvaluatorView({
               </div>
             ) : null}
           </>
-        ) : panel === "hrs" ? (
-          hubAccessMode === "collegeAdmin" ? (
-            <div className="space-y-3">
-              <p className="text-[13px] text-black/65">
-                Day and Evening loads are listed separately. Open the{" "}
-                <Link href="/admin/college/teaching-load-summary" className="font-semibold text-[#780301] hover:underline">
-                  Summary of Teaching Load
-                </Link>{" "}
-                page for the full college roster.
-              </p>
-              {teachingLoadGroups.length === 0 ? (
-                <TeachingLoadSummaryTable rows={[]} />
-              ) : (
-                <div className="space-y-6">
-                  {teachingLoadGroups.map((g) => (
-                    <TeachingLoadSummaryTable
-                      key={g.programId}
-                      categoryLabel={g.categoryLabel}
-                      rows={g.rows}
-                      emptyHint={`No instructors with plotted load in ${g.categoryLabel} for the selected term.`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <HrsUnitsPrepsRemarksTable />
-          )
-        ) : null}
+        )}
       </div>
     </div>
   );

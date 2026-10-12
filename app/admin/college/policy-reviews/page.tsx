@@ -4,6 +4,7 @@ import { CollegePolicyReviewsClient, type CollegePolicyReviewRowVM } from "@/com
 import { requireRoles } from "@/lib/auth/require-role";
 import { apiFetch } from "@/lib/api/client";
 import type { AcademicPeriod, College, ScheduleLoadJustification } from "@/types/db";
+import { LOADING_POLICY_NAV_LABEL } from "@/lib/admin-nav";
 
 export default async function CollegePolicyReviewsPage() {
   const profile = await requireRoles(["college_admin"]);
@@ -21,7 +22,7 @@ export default async function CollegePolicyReviewsPage() {
       apiFetch<{ reviews: ScheduleLoadJustification[] }>("/api/policies/reviews", opts),
       apiFetch<{ colleges: College[] }>("/api/catalog/colleges?extended=true", opts),
       apiFetch<{ semesters: AcademicPeriod[] }>("/api/semesters", opts),
-      apiFetch<{ profiles: { userId: string; fullName: string; aka: string | null }[] }>(
+      apiFetch<{ profiles: { userId: string; fullName: string }[] }>(
         "/api/catalog/faculty-profiles/ins-names", opts,
       ),
     ]);
@@ -31,7 +32,7 @@ export default async function CollegePolicyReviewsPage() {
     periods = semestersRes.semesters ?? [];
 
     for (const fp of facultyRes.profiles ?? []) {
-      const label = fp.aka?.trim() || fp.fullName?.trim() || fp.userId;
+      const label = fp.fullName?.trim() || fp.userId;
       facultyLabelByUserId.set(fp.userId, label);
     }
   } catch {
@@ -50,7 +51,10 @@ export default async function CollegePolicyReviewsPage() {
 
   return (
     <div>
-      <ChairmanPageHeader title="Load justifications" subtitle="Recorded teaching-load justifications for this college" />
+      <ChairmanPageHeader
+        title={LOADING_POLICY_NAV_LABEL}
+        subtitle="Recorded teaching-load justifications for this college"
+      />
       <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-5xl mx-auto">
         <CollegePolicyReviewsClient rows={vms} realtimeCollegeId={profile.collegeId} />
       </div>

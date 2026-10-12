@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { authApi, catalogApi, collegeApi, ApiClientError } from "@/lib/api/client";
+import { authApi, catalogApi, collegeApi } from "@/lib/api/client";
 import { categoryLabelForProgram, sortProgramsForTeachingLoad } from "@/lib/scheduling/teaching-load-summary";
 import type { Program } from "@/types/db";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 const COLLEGE_WIDE = "";
 
@@ -21,7 +22,7 @@ export function NotifyGecReadyButton({
   className?: string;
 }) {
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const toast = useActionToast();
   const [err, setErr] = useState<string | null>(null);
   const [fetched, setFetched] = useState<Program[]>([]);
   const [programId, setProgramId] = useState(COLLEGE_WIDE);
@@ -51,7 +52,6 @@ export function NotifyGecReadyButton({
 
   async function notify() {
     setBusy(true);
-    setMsg(null);
     setErr(null);
     try {
       const selected = programs.find((p) => p.id === programId);
@@ -61,9 +61,12 @@ export function NotifyGecReadyButton({
         note: periodLabel ? `Term: ${periodLabel}` : undefined,
       });
       const scope = selected ? categoryLabelForProgram(selected) : "the college";
-      setMsg(res.message ?? `GEC Chairman has been notified that ${scope} is ready for GEC plotting.`);
+      toast.ok(
+        "GEC Chairman notified",
+        res.message ?? `${scope} is ready for GEC plotting.`,
+      );
     } catch (e) {
-      setErr(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to notify GEC.");
+      toast.fail(e, "Could not notify the GEC Chairman", "notify: gec ready");
     } finally {
       setBusy(false);
     }
@@ -89,7 +92,6 @@ export function NotifyGecReadyButton({
           {busy ? "Notifying GEC…" : "Notify GEC: ready for plotting"}
         </Button>
       </div>
-      {msg ? <p className="mt-2 text-[12px] text-emerald-800">{msg}</p> : null}
       {err ? <p className="mt-2 text-[12px] text-red-700">{err}</p> : null}
     </div>
   );

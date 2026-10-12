@@ -119,6 +119,7 @@ import { clampPlotStartSlotIndex, inferDurationSlotsFromTimes, plotRowDurationSl
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
+import { RemovePlottedScheduleModal } from "@/components/evaluator/RemovePlottedScheduleModal";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import {
   hoursExceedSubjectRequirement,
@@ -444,6 +445,8 @@ export function BsitChairmanEvaluatorWorksheet({
    * Rows the user removed in the grid. Hydrate / Realtime must not put them back, and campus
    * conflict scans must not treat them as still occupying a room until DELETE is confirmed.
    */
+  /** The cell whose remove button was clicked; drives the scoped remove modal. */
+  const [removeTargetRow, setRemoveTargetRow] = useState<PlotRow | null>(null);
   const pendingDeletedIdsRef = useRef<Set<string>>(new Set());
   const [pendingDeletedIds, setPendingDeletedIds] = useState<Set<string>>(() => new Set());
   /** Plot row whose overload still needs a DOI justification record (assignment is already applied). */
@@ -1949,6 +1952,16 @@ export function BsitChairmanEvaluatorWorksheet({
     [rows, schedulePublished, viewOnly, commitRowPatch, updateRow, subjects, programCodeForSummary, toast],
   );
 
+  /**
+   * Removes several rows at once, for "Remove selected" and "Remove all".
+   *
+   * Each goes through `removeRow`, so one failure rolls its own row back and leaves the rest
+   * removed — the same behaviour as clicking the ✕ on each cell, without the hunting.
+   */
+  function removeRows(ids: readonly string[]) {
+    for (const id of ids) removeRow(id);
+  }
+
   function removeRow(id: string) {
     const existing = rows.find((r) => r.id === id);
     if (existing?.lockedByDoiAt) return;
@@ -2614,6 +2627,7 @@ export function BsitChairmanEvaluatorWorksheet({
         sparseCampusUniverse={sparseCampusUniverse}
         onApplyPlot={applyPlotFromModal}
         onRemoveRow={removeRow}
+        onRequestRemoveRow={(row) => setRemoveTargetRow(row)}
         majorOptions={majorOptions}
         insFormBasePath={insFormBasePath}
         plottingActions={{
@@ -2688,6 +2702,17 @@ export function BsitChairmanEvaluatorWorksheet({
             ) : null}
           </>
         }
+      />
+      <RemovePlottedScheduleModal
+        target={removeTargetRow}
+        onClose={() => setRemoveTargetRow(null)}
+        rows={rows}
+        slots={slotsForMode}
+        sectionNameById={sectionNameById}
+        instructorDisplayById={instructorDisplayById}
+        roomCodeById={roomCodeById}
+        onRemove={removeRow}
+        onRemoveMany={removeRows}
       />
 
       

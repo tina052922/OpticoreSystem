@@ -1,18 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { CHAIRMAN_NAV, GEC_CHAIRMAN_NAV } from "@/lib/admin-nav";
+import { CHAIRMAN_NAV, GEC_CHAIRMAN_NAV, navEntryHrefs, isNavGroup } from "@/lib/admin-nav";
+import type { AdminNavEntry } from "@/lib/admin-nav";
+
+/** Every label a nav shows, headings and the pages under them alike. */
+const navLabels = (entries: readonly AdminNavEntry[]): string[] =>
+  entries.flatMap((e) => (isNavGroup(e) ? [e.label, ...e.items.map((i) => i.label)] : [e.label]));
 import { formatInstructorDepartmentLabel } from "@/lib/auth/instructor-department-label";
 
 describe("GEC Chairman nav", () => {
   it("does not include a Request Access item", () => {
-    expect(GEC_CHAIRMAN_NAV.some((item) => /request access/i.test(item.label))).toBe(false);
-    expect(GEC_CHAIRMAN_NAV.some((item) => item.href.includes("request-access"))).toBe(false);
+    expect(navLabels(GEC_CHAIRMAN_NAV).some((label) => /request access/i.test(label))).toBe(false);
+    expect(navEntryHrefs(GEC_CHAIRMAN_NAV).some((href) => href.includes("request-access"))).toBe(false);
   });
 });
 
 describe("Chairman nav", () => {
   it("does not include Schedule change requests", () => {
-    expect(CHAIRMAN_NAV.some((item) => /schedule change/i.test(item.label))).toBe(false);
-    expect(CHAIRMAN_NAV.some((item) => item.href.includes("schedule-change"))).toBe(false);
+    expect(navLabels(CHAIRMAN_NAV).some((label) => /schedule change/i.test(label))).toBe(false);
+    expect(navEntryHrefs(CHAIRMAN_NAV).some((href) => href.includes("schedule-change"))).toBe(false);
   });
 });
 

@@ -6,12 +6,13 @@ import { TeachingLoadSummaryTable } from "@/components/college/TeachingLoadSumma
 import { TeachingLoadSummaryDocument } from "@/components/pdf/forms/TeachingLoadSummaryDocument";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { Button } from "@/components/ui/button";
-import { apiFetch, authApi, catalogApi, ApiClientError } from "@/lib/api/client";
+import { apiFetch, authApi, catalogApi } from "@/lib/api/client";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { hydrateScheduleEntries } from "@/lib/scheduling/program-mode";
 import { buildTeachingLoadSummaryByCategory } from "@/lib/scheduling/teaching-load-summary";
 import type { FacultyProfile, Program, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 const ALL_CATEGORIES = "";
 
@@ -33,7 +34,7 @@ export function CollegeTeachingLoadSummaryClient() {
   const [collegeId, setCollegeId] = useState<string | null>(null);
   const [collegeName, setCollegeName] = useState("College");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useActionToast();
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [profiles, setProfiles] = useState<FacultyProfile[]>([]);
@@ -64,14 +65,12 @@ export function CollegeTeachingLoadSummaryClient() {
     if (cached) {
       applyPayload(cached);
       setLoading(false);
-      setError(null);
       loadedKeyRef.current = key;
       return;
     }
 
     const hadRows = loadedKeyRef.current !== null;
     if (!hadRows) setLoading(true);
-    setError(null);
     try {
       const { user } = await authApi.me();
       const cid = user?.collegeId?.trim() || null;
@@ -124,11 +123,11 @@ export function CollegeTeachingLoadSummaryClient() {
       applyPayload(payload);
       loadedKeyRef.current = key;
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to load teaching load.");
+      toast.fail(e, "Could not load the teaching load", "teaching load summary");
     } finally {
       setLoading(false);
     }
-  }, [applyPayload]);
+  }, [applyPayload, toast]);
 
   useEffect(() => {
     void load(selectedPeriodId);
@@ -158,7 +157,7 @@ export function CollegeTeachingLoadSummaryClient() {
     ? `${selectedPeriod.name}${selectedPeriod.academicYear ? ` · ${selectedPeriod.academicYear}` : ""}`
     : "Selected term";
   const pdfFilename = `Summary-of-Teaching-Load-${collegeName.replace(/\s+/g, "-")}.pdf`;
-  const showInitialLoading = loading && loadedKeyRef.current === null && !error;
+  const showInitialLoading = loading && loadedKeyRef.current === null;
 
   return (
     <div>
@@ -202,9 +201,6 @@ export function CollegeTeachingLoadSummaryClient() {
               </button>
             ))}
           </div>
-        ) : null}
-        {error ? (
-          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>
         ) : null}
         {showInitialLoading ? (
           <p className="text-sm text-black/55">Loading summary…</p>

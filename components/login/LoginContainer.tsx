@@ -13,7 +13,7 @@ export function LoginContainer({ children }: LoginContainerProps) {
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-neutral-950 lg:flex-row">
       <div className="relative h-44 w-full shrink-0 overflow-hidden lg:h-auto lg:min-h-screen lg:w-[52%] lg:rounded-r-[2rem]">
         <div className="pointer-events-none absolute inset-0" aria-hidden>
-          {/* eslint-disable-next-line @next/next/no-img-element -- static asset from public/ */}
+          {/* eslint-disable-next-line no-restricted-syntax -- static asset from public/ */}
           <img
             src="/landing-bg.jpg"
             alt=""

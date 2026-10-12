@@ -158,7 +158,7 @@ function FacultyRow({ row, index, alt }: { row: TeachingLoadSummaryRow; index: n
         {String(index + 1)}
       </Cell>
       <Cell width={COLS.name}>{row.facultyName}</Cell>
-      <Cell width={COLS.desig}>{row.administrativeDesignation ?? "—"}</Cell>
+      <Cell width={COLS.desig}>{row.administrativeDesignation ?? ""}</Cell>
       <Cell width={COLS.n} center>
         {String(row.day.preps)}
       </Cell>

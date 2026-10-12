@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ApiClientError, profileApi } from "@/lib/api/client";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 /** Mirrors the backend cooldown between code sends. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -75,8 +76,7 @@ export function AdminProfileCard({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const toast = useActionToast();
   const [nameDraft, setNameDraft] = useState(fullName);
   const [employeeIdDraft, setEmployeeIdDraft] = useState(storedEmployeeId ?? "");
 
@@ -150,7 +150,7 @@ export function AdminProfileCard({
     try {
       const res = await profileApi.verifyEmailChange(code);
       resetEmailFlow();
-      setMessage(`Email changed to ${res.email}.`);
+      toast.ok("Email changed", `You now sign in with ${res.email}.`);
       router.refresh();
     } catch (e) {
       setEmailError(e instanceof ApiClientError ? e.message : "Could not confirm the code.");
@@ -187,37 +187,33 @@ export function AdminProfileCard({
   function startEdit() {
     setNameDraft(fullName);
     setEmployeeIdDraft(storedEmployeeId ?? "");
-    setError(null);
-    setMessage(null);
     setEditing(true);
   }
 
   function cancelEdit() {
     setEditing(false);
-    setError(null);
     resetEmailFlow();
   }
 
   async function save() {
     const name = nameDraft.trim();
     if (!name) {
-      setError("Enter your full name.");
+      toast.refuse("Enter your full name");
       return;
     }
     setSaving(true);
-    setError(null);
     try {
       await profileApi.updateDetails(
         // A read-only number is never sent, so a stale draft cannot overwrite it.
         allowIdEdit ? { name, employeeId: employeeIdDraft.trim() || null } : { name },
       );
       setEditing(false);
-      setMessage("Profile saved.");
+      toast.ok("Profile saved");
       // The page is server-rendered from /api/auth/me, so re-fetch it rather than
       // patching local state — the sidebar reads the same name.
       router.refresh();
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : "Could not save your profile.");
+      toast.fail(e, "Could not save your profile", "admin profile");
     } finally {
       setSaving(false);
     }
@@ -398,7 +394,6 @@ export function AdminProfileCard({
             <Button variant="outline" className="bg-white" type="button" disabled={saving} onClick={cancelEdit}>
               Cancel
             </Button>
-            {error ? <p className="text-[12px] text-[#780301] self-center">{error}</p> : null}
           </div>
         </div>
       ) : (
@@ -412,7 +407,7 @@ export function AdminProfileCard({
             ))}
           </div>
 
-          {showEditProfile || showChangePassword || message ? (
+          {showEditProfile || showChangePassword ? (
             <div className="flex flex-col sm:flex-row gap-3 mt-8">
               {showEditProfile ? (
                 <Button
@@ -429,7 +424,6 @@ export function AdminProfileCard({
                   Change Password
                 </Button>
               ) : null}
-              {message ? <p className="text-[12px] text-emerald-800 self-center">{message}</p> : null}
             </div>
           ) : null}
         </>

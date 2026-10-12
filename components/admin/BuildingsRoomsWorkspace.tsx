@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { buildingsRoomsApi, ApiClientError, type CascadeEntity } from "@/lib/api/client";
+import { buildingsRoomsApi, type CascadeEntity } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import { ScopeSearchPicker } from "@/components/campus/ScopeSearchPicker";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import type { Building, Room } from "@/types/db";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 type PendingDelete = { entity: CascadeEntity; id: string; name: string; noun: string };
 
@@ -36,9 +37,7 @@ export function BuildingsRoomsWorkspace({
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
+  const toast = useActionToast();
   const [search, setSearch] = useState("");
 
   const [buildingName, setBuildingName] = useState("");
@@ -96,7 +95,6 @@ export function BuildingsRoomsWorkspace({
   const load = useCallback(async () => {
     // No college in scope means "all colleges": list every building rather than nothing.
     setLoading(true);
-    setError(null);
     try {
       const [bRes, rRes] = await Promise.all([
         buildingsRoomsApi.listBuildings({
@@ -128,17 +126,17 @@ export function BuildingsRoomsWorkspace({
         }
         return [...byId.values()];
       });
-      setWarning(bRes.warning ?? null);
+      toast.caution(bRes.warning, "Loaded with a limitation");
       setSelectedBuildingId((prev) => {
         if (prev && nextBuildings.some((b) => b.id === prev)) return prev;
         return null;
       });
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to load buildings.");
+      toast.fail(e, "Could not load buildings and rooms", "buildings & rooms");
     } finally {
       setLoading(false);
     }
-  }, [scopeCollegeId, scopeProgramId]);
+  }, [scopeCollegeId, scopeProgramId, toast]);
 
   useEffect(() => {
     void load();
@@ -149,18 +147,12 @@ export function BuildingsRoomsWorkspace({
    * off-screen, so the click looked like it did nothing — bring the panel into view.
    */
   const roomsPanelRef = useRef<HTMLDivElement | null>(null);
-  const alertsRef = useRef<HTMLDivElement | null>(null);
   const scrollToRoomsRef = useRef(false);
 
   function openRoomsFor(buildingId: string) {
     scrollToRoomsRef.current = true;
     setSelectedBuildingId(buildingId);
   }
-
-  useEffect(() => {
-    if (!error && !success && !warning) return;
-    scrollIntoAppView(alertsRef.current);
-  }, [error, success, warning]);
 
   useEffect(() => {
     setPanelAddOpen(false);
@@ -274,17 +266,15 @@ export function BuildingsRoomsWorkspace({
       .filter((r) => r.code);
 
     if (!formScope.programId) {
-      setError("Choose a department. A building or room has to belong to one.");
+      toast.refuse("Choose a department first", "A building or room has to belong to one.");
       return;
     }
     if (!name && roomRows.length === 0) {
-      setError("Enter a building name, one or more room codes, or both.");
+      toast.refuse("Nothing to save yet", "Enter a building name, one or more room codes, or both.");
       return;
     }
 
     setSavingBuilding(true);
-    setError(null);
-    setSuccess(null);
     try {
       let building: Building | null = null;
       if (name) {
@@ -330,7 +320,7 @@ export function BuildingsRoomsWorkspace({
             floor: room.floor ?? floor,
             gecUsable: room.gecUsable ?? building?.gecUsable ?? gecUsable,
           });
-          if (w) setWarning(w);
+          toast.caution(w, "Saved with a limitation");
         } catch (e) {
           const msg = e instanceof Error ? e.message : "could not be saved";
           failed.push(`${row.code} (${msg})`);
@@ -354,19 +344,18 @@ export function BuildingsRoomsWorkspace({
           }`,
         );
       }
-      if (parts.length > 0) setSuccess(`${parts.join(" · ")}.`);
-      if (failed.length > 0) setError(`Could not save: ${failed.join("; ")}`);
+      if (parts.length > 0) toast.ok(`${parts.join(" · ")}.`);
+      if (failed.length > 0) toast.refuse(`Could not save ${failed.length} of them`, failed.join("; "));
       if (failed.length === 0) resetCreateForm();
       void load();
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to save.");
+      toast.fail(e, "Could not save", "buildings & rooms: create");
     } finally {
       setSavingBuilding(false);
     }
   }
 
   async function onToggleGec(building: Building) {
-    setError(null);
     try {
       const { building: updated } = await buildingsRoomsApi.updateBuilding(building.id, {
         gecUsable: !building.gecUsable,
@@ -377,13 +366,13 @@ export function BuildingsRoomsWorkspace({
           roomBelongsToBuilding(r, building) ? { ...r, gecUsable: updated.gecUsable } : r,
         ),
       );
-      setSuccess(
+      toast.ok(
         updated.gecUsable
-          ? `“${updated.name}” marked usable for GEC subjects.`
-          : `“${updated.name}” removed from GEC-usable set.`,
+          ? `“${updated.name}” can now be used for GEC subjects`
+          : `“${updated.name}” is no longer used for GEC subjects`,
       );
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to update building.");
+      toast.fail(e, "Could not change the GEC setting", "buildings & rooms: gec usable");
     }
   }
 
@@ -411,7 +400,7 @@ export function BuildingsRoomsWorkspace({
       setRooms((prev) => prev.filter((r) => r.id !== pending.id));
       if (editingRoomId === pending.id) setEditingRoomId(null);
     }
-    setSuccess(`${pending.noun} “${pending.name}” deleted.`);
+    toast.ok(`${pending.noun} “${pending.name}” deleted`);
   }
 
   /**
@@ -424,12 +413,10 @@ export function BuildingsRoomsWorkspace({
     if (!selectedBuilding) return;
     const code = panelRoomCode.trim();
     if (!code) {
-      setError("Room code is required.");
+      toast.refuse("Enter a room code", "A room needs a code before it can be saved.");
       return;
     }
     setSavingPanelRoom(true);
-    setError(null);
-    setSuccess(null);
     try {
       const floor = Math.min(
         selectedBuilding.floorCount,
@@ -463,13 +450,11 @@ export function BuildingsRoomsWorkspace({
       });
       setPanelRoomCode("");
       setPanelRoomCapacity("");
-      setSuccess(`Room \u201c${linked.code}\u201d added to ${selectedBuilding.name}.`);
-      if (w) setWarning(w);
+      toast.ok(`Room “${linked.code}” added`, `It is now under ${selectedBuilding.name}.`);
+      toast.caution(w, "Saved with a limitation");
       void load();
     } catch (e) {
-      setError(
-        e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to save room.",
-      );
+      toast.fail(e, "Could not save the room", "buildings & rooms: add room");
     } finally {
       setSavingPanelRoom(false);
     }
@@ -480,19 +465,16 @@ export function BuildingsRoomsWorkspace({
     setEditBuildingName(b.name);
     setEditBuildingCode(b.code ?? "");
     setEditFloorCount(String(b.floorCount ?? 1));
-    setError(null);
-    setSuccess(null);
   }
 
   async function onSaveBuildingEdit() {
     if (!editingBuildingId) return;
     const name = editBuildingName.trim();
     if (!name) {
-      setError("Building name is required.");
+      toast.refuse("Enter a building name", "A building needs a name before it can be saved.");
       return;
     }
     setSavingEdit(true);
-    setError(null);
     try {
       const { building: updated } = await buildingsRoomsApi.updateBuilding(editingBuildingId, {
         name,
@@ -506,9 +488,9 @@ export function BuildingsRoomsWorkspace({
         ),
       );
       setEditingBuildingId(null);
-      setSuccess(`Building “${updated.name}” updated.`);
+      toast.ok(`Building “${updated.name}” updated`);
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to update building.");
+      toast.fail(e, "Could not update the building", "buildings & rooms: edit building");
     } finally {
       setSavingEdit(false);
     }
@@ -519,15 +501,13 @@ export function BuildingsRoomsWorkspace({
     setEditRoomCode(r.code);
     setEditRoomFloor(String(r.floor ?? 1));
     setEditRoomCapacity(r.capacity != null ? String(r.capacity) : "");
-    setError(null);
-    setSuccess(null);
   }
 
   async function onSaveRoomEdit() {
     if (!editingRoomId) return;
     const code = editRoomCode.trim();
     if (!code) {
-      setError("Room code is required.");
+      toast.refuse("Enter a room code", "A room needs a code before it can be saved.");
       return;
     }
     /**
@@ -541,7 +521,6 @@ export function BuildingsRoomsWorkspace({
         : null;
 
     setSavingEdit(true);
-    setError(null);
     try {
       const floorCap = building?.floorCount ?? 50;
       const floor = Math.min(floorCap, Math.max(1, parseInt(editRoomFloor, 10) || 1));
@@ -559,9 +538,9 @@ export function BuildingsRoomsWorkspace({
       });
       setRooms((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
       setEditingRoomId(null);
-      setSuccess(`Room “${updated.code}” updated.`);
+      toast.ok(`Room “${updated.code}” updated`);
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to update room.");
+      toast.fail(e, "Could not update the room", "buildings & rooms: edit room");
     } finally {
       setSavingEdit(false);
     }
@@ -582,25 +561,6 @@ export function BuildingsRoomsWorkspace({
             : "Showing every building on campus. Pick a college and department above to add or edit."}
         </p>
       ) : null}
-
-      {/* Row actions happen far down the page; `alertsRef` brings their outcome into view. */}
-      <div ref={alertsRef} className="space-y-3 scroll-mt-4 empty:hidden">
-        {warning ? (
-          <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            {warning}
-          </p>
-        ) : null}
-        {error ? (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {success ? (
-          <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2" role="status">
-            {success}
-          </p>
-        ) : null}
-      </div>
 
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-5">
         <div>

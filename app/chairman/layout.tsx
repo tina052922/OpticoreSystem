@@ -13,9 +13,15 @@ export default async function ChairmanLayout({ children }: { children: React.Rea
       profileImageUrl={session.profileImageUrl}
       userEmail={session.email}
       navItems={CHAIRMAN_NAV}
-      // Follows the account: college code when known, else the department.
+      /*
+       * The department, not the college.
+       *
+       * A chairman chairs one program; the college is shared with every other chairman in it, so
+       * "Chairman admin · COTE" did not say which chairman was signed in. The college code is kept
+       * as the fallback for an account whose program is not recorded yet.
+       */
       roleLabel={`Chairman admin${
-        session.collegeCode ? ` · ${session.collegeCode}` : session.programCode ? ` · ${session.programCode}` : ""
+        session.programCode ? ` · ${session.programCode}` : session.collegeCode ? ` · ${session.collegeCode}` : ""
       }`}
       profileHref="/chairman/profile"
       instructorRequestsBadge

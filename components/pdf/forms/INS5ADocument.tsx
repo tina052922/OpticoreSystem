@@ -87,13 +87,13 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
             <View style={ins.fieldRowDegree}>
               <Text style={ins.fieldLabel}>Bachelor&apos;s Degree:</Text>
               <Text style={ins.fieldValue}>
-                {credentials?.bachelors || "—"}
+                {credentials?.bachelors || ""}
               </Text>
             </View>
             <View style={ins.fieldRowMajor}>
               <Text style={ins.fieldLabel}>Major:</Text>
               <WordSafeText style={ins.fieldValueMajor}>
-                {credentials?.major?.trim() || "—"}
+                {credentials?.major?.trim() || ""}
               </WordSafeText>
             </View>
           </View>
@@ -101,13 +101,13 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
             <View style={ins.fieldRowDegree}>
               <Text style={ins.fieldLabel}>Master&apos;s Degree:</Text>
               <Text style={ins.fieldValue}>
-                {credentials?.masters || "—"}
+                {credentials?.masters || ""}
               </Text>
             </View>
             <View style={ins.fieldRowMajor}>
               <Text style={ins.fieldLabel}>Minor:</Text>
               <WordSafeText style={ins.fieldValueMajor}>
-                {credentials?.minor?.trim() || "—"}
+                {credentials?.minor?.trim() || ""}
               </WordSafeText>
             </View>
           </View>
@@ -115,13 +115,13 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
             <View style={ins.fieldRowDegree}>
               <Text style={ins.fieldLabel}>Doctorate Degree:</Text>
               <Text style={ins.fieldValue}>
-                {credentials?.doctorate || "—"}
+                {credentials?.doctorate || ""}
               </Text>
             </View>
             <View style={ins.fieldRowMajor}>
               <Text style={ins.fieldLabel}>Special Training:</Text>
               <WordSafeText style={ins.fieldValueMajor}>
-                {credentials?.specialTraining?.trim() || "—"}
+                {credentials?.specialTraining?.trim() || ""}
               </WordSafeText>
             </View>
           </View>
@@ -147,7 +147,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
           />
         )}
 
-        <INSSummaryTable courses={courses} />
+        <INSSummaryTable courses={courses} studentsFirst />
 
         <View style={ins.metricsContainer}>
           <View style={ins.metricsGrid}>
@@ -157,7 +157,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
                 value={
                   summary?.preparations != null
                     ? String(summary.preparations)
-                    : null
+                    : ""
                 }
               />
               <FieldRow
@@ -165,7 +165,7 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
                 value={
                   summary?.totalUnits != null
                     ? String(summary.totalUnits)
-                    : null
+                    : ""
                 }
               />
               <FieldRow
@@ -173,18 +173,18 @@ export function INS5ADocument({ data }: { data: INS5AProps }) {
                 value={
                   summary?.hoursPerWeek != null
                     ? String(summary.hoursPerWeek)
-                    : null
+                    : ""
                 }
               />
             </View>
             <View style={ins.metricsColumn}>
               <FieldRow
                 label="Administrative Designation"
-                value={summary?.administrativeDesignation}
+                value={summary?.administrativeDesignation != null ? summary.administrativeDesignation : ""}
               />
-              <FieldRow label="Production" value={summary?.production} />
-              <FieldRow label="Extension" value={summary?.extension} />
-              <FieldRow label="Research" value={summary?.research} />
+              <FieldRow label="Production" value={summary?.production != null ? summary.production : ""} />
+              <FieldRow label="Extension" value={summary?.extension != null ? summary.extension : ""} />
+              <FieldRow label="Research" value={summary?.research != null ? summary.research : ""} />
             </View>
           </View>
         </View>

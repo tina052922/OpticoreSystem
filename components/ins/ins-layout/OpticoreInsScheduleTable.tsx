@@ -312,7 +312,7 @@ export function InsSignatureStrip({
             className="flex flex-col items-center justify-end px-2 pb-1 text-center"
           >
             {scheduleApproved && s.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded public URLs
+              // eslint-disable-next-line no-restricted-syntax -- user-uploaded public URLs
               <img
                 src={s.imageUrl}
                 alt=""

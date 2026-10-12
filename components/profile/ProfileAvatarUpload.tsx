@@ -88,7 +88,7 @@ export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUpl
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="relative h-24 w-24 shrink-0 rounded-full border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden">
           {url ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Supabase public URL
+            // eslint-disable-next-line no-restricted-syntax -- Supabase public URL
             <img src={url} alt="" className="h-full w-full object-cover" />
           ) : (
             <span className="text-xs text-gray-400 px-2 text-center">No photo</span>

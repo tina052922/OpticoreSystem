@@ -3,6 +3,7 @@ import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { apiFetch } from "@/lib/api/client";
 import type { ScheduleLoadJustification, College, AcademicPeriod } from "@/types/db";
 import { DoiPolicyReviewsClient, type DoiPolicyReviewRowVM } from "@/components/doi/DoiPolicyReviewsClient";
+import { LOADING_POLICY_NAV_LABEL } from "@/lib/admin-nav";
 
 export default async function DoiReviewsPage() {
   let rows: ScheduleLoadJustification[] = [];
@@ -19,7 +20,7 @@ export default async function DoiReviewsPage() {
       apiFetch<{ reviews: ScheduleLoadJustification[] }>("/api/policies/reviews", opts),
       apiFetch<{ colleges: College[] }>("/api/catalog/colleges?extended=true", opts),
       apiFetch<{ semesters: AcademicPeriod[] }>("/api/semesters", opts),
-      apiFetch<{ profiles: { userId: string; fullName: string; aka: string | null }[] }>(
+      apiFetch<{ profiles: { userId: string; fullName: string }[] }>(
         "/api/catalog/faculty-profiles/ins-names", opts,
       ),
     ]);
@@ -29,7 +30,7 @@ export default async function DoiReviewsPage() {
     periods = semestersRes.semesters ?? [];
 
     for (const fp of facultyRes.profiles ?? []) {
-      const label = fp.aka?.trim() || fp.fullName?.trim() || fp.userId;
+      const label = fp.fullName?.trim() || fp.userId;
       facultyLabelByUserId.set(fp.userId, label);
     }
   } catch {
@@ -55,7 +56,7 @@ export default async function DoiReviewsPage() {
   return (
     <div>
       <ChairmanPageHeader
-        title="Load justifications"
+        title={LOADING_POLICY_NAV_LABEL}
         subtitle="Recorded teaching-load justifications — notification only, no approval"
       />
       <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-5xl mx-auto">

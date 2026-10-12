@@ -17,7 +17,6 @@ function profile(over: Partial<FacultyProfile> = {}): FacultyProfile {
     id: "p1",
     userId: "u1",
     fullName: "Juan Miguel Santos",
-    aka: null,
     lastName: "Santos",
     firstName: "Juan",
     middleName: "Miguel",

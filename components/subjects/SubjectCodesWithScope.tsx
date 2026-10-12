@@ -7,10 +7,13 @@ import { SubjectCodesWorkspace } from "@/components/subjects/SubjectCodesWorkspa
 export function SubjectCodesWithScope({
   initialCollegeId,
   lockedCollegeId = null,
+  canEditCampusCategories = false,
 }: {
   initialCollegeId?: string | null;
   /** College Admin: only their own college's departments may be scoped to. */
   lockedCollegeId?: string | null;
+  /** DOI: may rename and remove the campus-wide subject categories. */
+  canEditCampusCategories?: boolean;
 }) {
   const [scopeProgramId, setScopeProgramId] = useState<string | null>(null);
   const [scopeProgramCode, setScopeProgramCode] = useState<string | null>(null);
@@ -30,7 +33,11 @@ export function SubjectCodesWithScope({
           onScopeChange={handleScopeChange}
         />
       </div>
-      <SubjectCodesWorkspace scopeProgramId={scopeProgramId} scopeProgramCode={scopeProgramCode} />
+      <SubjectCodesWorkspace
+        scopeProgramId={scopeProgramId}
+        scopeProgramCode={scopeProgramCode}
+        canEditCampusCategories={canEditCampusCategories}
+      />
     </>
   );
 }

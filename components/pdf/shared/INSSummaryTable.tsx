@@ -1,50 +1,118 @@
 import { View, Text } from "@react-pdf/renderer";
 import { ins } from "../styles/insStyles";
-import { insTotalStudents, type PDFCourseRow } from "../types/insTypes";
+import { type PDFCourseRow } from "../types/insTypes";
 
 type INSSummaryTableProps = {
   courses: PDFCourseRow[];
+  /**
+   * Form 5A leads with the class size, because the form is read per faculty and the first question
+   * is how many students each course carries.
+   */
+  studentsFirst?: boolean;
+  /**
+   * Form 5B is one section's own form, so every row would repeat the same section — the column
+   * says nothing there.
+   */
+  showSection?: boolean;
 };
 
-/** Column widths shared by header and body rows so they stay aligned. */
+/**
+ * Column widths shared by header and body rows so they stay aligned.
+ *
+ * Also exported for the on-screen mirror in `OpticoreInsDocuments`, which prints the same table and
+ * has to use the same ratios.
+ */
 export const INS_SUMMARY_COL_CODE = 0.8;
-export const INS_SUMMARY_COL_TITLE = 1.6;
+export const INS_SUMMARY_COL_TITLE = 2;
+export const INS_SUMMARY_COL_SECTION = 1;
+export const INS_SUMMARY_COL_STUDENTS = 0.6;
 
-export function INSSummaryTable({ courses }: INSSummaryTableProps) {
+type ColumnKey = "students" | "code" | "title" | "section";
+
+type Column = {
+  key: ColumnKey;
+  label: string;
+  flex: number;
+  /** Counts read right-aligned so the digits line up down the column. */
+  right?: boolean;
+};
+
+const COLUMNS: Record<ColumnKey, Column> = {
+  students: { key: "students", label: "No. of Students", flex: INS_SUMMARY_COL_STUDENTS, right: true },
+  code: { key: "code", label: "Course Code", flex: INS_SUMMARY_COL_CODE },
+  title: { key: "title", label: "Descriptive Title", flex: INS_SUMMARY_COL_TITLE },
+  section: { key: "section", label: "Degree / Yr & Sec", flex: INS_SUMMARY_COL_SECTION },
+};
+
+/** The columns this form shows, in the order it shows them. */
+export function insSummaryColumns(studentsFirst: boolean, showSection: boolean): Column[] {
+  const rest: Column[] = [COLUMNS.code, COLUMNS.title, ...(showSection ? [COLUMNS.section] : [])];
+  return studentsFirst ? [COLUMNS.students, ...rest] : [...rest, COLUMNS.students];
+}
+
+function cellValue(column: Column, course: PDFCourseRow): string {
+  if (column.key === "students") return String(course.students);
+  if (column.key === "code") return course.code;
+  if (column.key === "title") return course.title;
+  return course.degreeYrSec;
+}
+
+/**
+ * Summary of Courses — the subjects on this form, one row each.
+ *
+ * The student count is per course, taken from the enrolment of the section taking it. It used to
+ * appear only as a single total beside the title, which answered "how many students altogether"
+ * rather than "how many sit in this class" — the question the form is read for.
+ */
+export function INSSummaryTable({
+  courses,
+  studentsFirst = false,
+  showSection = true,
+}: INSSummaryTableProps) {
+  const columns = insSummaryColumns(studentsFirst, showSection);
+
   return (
     <View style={ins.summaryContainer}>
-      <View style={ins.summaryTitleRow}>
-        <Text style={ins.summaryTitle}>
-          No. of Students : {insTotalStudents(courses)}
-        </Text>
-        <Text style={ins.summaryTitle}>Summary of Courses</Text>
-      </View>
+      <Text style={ins.summaryTitle}>Summary of Courses</Text>
 
       <View style={ins.summaryHeaderRow}>
-        <Text style={[ins.summaryHeaderCell, { flex: INS_SUMMARY_COL_CODE }]}>
-          Course code
-        </Text>
-        <Text style={[ins.summaryHeaderCell, { flex: INS_SUMMARY_COL_TITLE }]}>
-          Descriptive Title
-        </Text>
+        {columns.map((col) => (
+          <Text
+            key={col.key}
+            style={[
+              ins.summaryHeaderCell,
+              { flex: col.flex },
+              ...(col.right ? [{ textAlign: "right" as const }] : []),
+            ]}
+          >
+            {col.label}
+          </Text>
+        ))}
       </View>
 
       {courses.length === 0 ? (
         <View style={ins.summaryRow}>
-          <Text style={[ins.summaryCell, { flex: INS_SUMMARY_COL_CODE }]}>—</Text>
-          <Text style={[ins.summaryCell, { flex: INS_SUMMARY_COL_TITLE }]}>
-            No courses scheduled
-          </Text>
+          {columns.map((col) => (
+            <Text key={col.key} style={[ins.summaryCell, { flex: col.flex }]}>
+              {col.key === "title" ? "No courses scheduled" : ""}
+            </Text>
+          ))}
         </View>
       ) : (
         courses.map((c, idx) => (
           <View key={`${c.code}-${idx}`} style={ins.summaryRow}>
-            <Text style={[ins.summaryCell, { flex: INS_SUMMARY_COL_CODE }]}>
-              {c.code}
-            </Text>
-            <Text style={[ins.summaryCell, { flex: INS_SUMMARY_COL_TITLE }]}>
-              {c.title}
-            </Text>
+            {columns.map((col) => (
+              <Text
+                key={col.key}
+                style={[
+                  ins.summaryCell,
+                  { flex: col.flex },
+                  ...(col.right ? [{ textAlign: "right" as const }] : []),
+                ]}
+              >
+                {cellValue(col, c)}
+              </Text>
+            ))}
           </View>
         ))
       )}

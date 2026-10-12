@@ -42,19 +42,19 @@ export function INS5BDocument({ data }: { data: INS5BProps }) {
           <View style={ins.fieldRowMajor}>
             <Text style={ins.fieldLabel}>Major:</Text>
             <WordSafeText style={ins.fieldValueMajor}>
-              {major?.trim() || "—"}
+              {major?.trim() || ""}
             </WordSafeText>
           </View>
         </View>
 
         <View style={ins.fieldRow}>
           <Text style={ins.fieldLabel}>Adviser:</Text>
-          <Text style={ins.fieldValue}>{adviser || "—"}</Text>
+          <Text style={ins.fieldValue}>{adviser || ""}</Text>
         </View>
 
         <View style={ins.fieldRow}>
           <Text style={ins.fieldLabel}>Assignment:</Text>
-          <Text style={ins.fieldValue}>{assignment || "—"}</Text>
+          <Text style={ins.fieldValue}>{assignment || ""}</Text>
         </View>
 
         {data.programMode === "night" ? (
@@ -76,7 +76,7 @@ export function INS5BDocument({ data }: { data: INS5BProps }) {
             ]}
           />
         )}
-        <INSSummaryTable courses={courses} />
+        <INSSummaryTable courses={courses} showSection={false} />
         <INSBrandedFooter text={insFooterText} />
       </Page>
     </Document>

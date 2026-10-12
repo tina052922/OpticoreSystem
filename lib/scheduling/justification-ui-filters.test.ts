@@ -87,7 +87,6 @@ describe("justification UI filters (worksheet behavior)", () => {
     id: "fp1",
     userId: instructorId,
     fullName: "Test Faculty",
-    aka: null,
     bsDegree: null,
     msDegree: null,
     doctoralDegree: null,

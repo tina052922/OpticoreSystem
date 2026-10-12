@@ -8,7 +8,7 @@ export default function DoiSubjectCodesPage() {
         title="Subject Codes"
         subtitle="Filter by college and department"
       />
-      <SubjectCodesWithScope />
+      <SubjectCodesWithScope canEditCampusCategories />
     </div>
   );
 }

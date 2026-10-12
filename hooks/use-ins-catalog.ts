@@ -124,8 +124,8 @@ export function useInsCatalog(args: {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  /** `userId` + name fields for INS labels (AKA vs full name; never Employee ID). */
-  const [facultyInsNames, setFacultyInsNames] = useState<Pick<FacultyProfile, "userId" | "fullName" | "aka">[]>([]);
+  /** `userId` + name for INS labels (full name; never Employee ID). */
+  const [facultyInsNames, setFacultyInsNames] = useState<Pick<FacultyProfile, "userId" | "fullName">[]>([]);
   const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
   /** Periods with DOI-approved finalization (from ins-bundle). */
   const [doiLockedPeriodIds, setDoiLockedPeriodIds] = useState<string[]>([]);
@@ -212,7 +212,7 @@ export function useInsCatalog(args: {
       colleges: College[];
       users: User[];
       settings: CampusInsSettings | null;
-      facultyProfiles: Pick<FacultyProfile, "userId" | "fullName" | "aka">[];
+      facultyProfiles: Pick<FacultyProfile, "userId" | "fullName">[];
       doiLockedPeriodIds?: string[];
     } | null = null;
 
@@ -447,9 +447,9 @@ export function useInsCatalog(args: {
   }, [users]);
 
   const facultyProfileByUserId = useMemo(() => {
-    const m = new Map<string, Pick<FacultyProfile, "fullName" | "aka">>();
+    const m = new Map<string, Pick<FacultyProfile, "fullName">>();
     for (const p of facultyInsNames) {
-      m.set(p.userId, { fullName: p.fullName, aka: p.aka });
+      m.set(p.userId, { fullName: p.fullName });
     }
     return m;
   }, [facultyInsNames]);

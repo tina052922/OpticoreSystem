@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { systemConfigApi, ApiClientError } from "@/lib/api/client";
+import { systemConfigApi } from "@/lib/api/client";
 import {
   notifySystemConfigurationSaved,
   useSystemConfigurationOptional,
@@ -13,6 +13,7 @@ import {
   mergeSchedulingPolicyDraft,
   type SchedulingPolicyConfig,
 } from "@/lib/system-configuration/scheduling-policy";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 function Field({
   label,
@@ -52,7 +53,7 @@ export function SystemConfigSchedulingPolicyCard() {
   const ctx = useSystemConfigurationOptional();
   const [draft, setDraft] = useState<SchedulingPolicyConfig>(DEFAULT_SCHEDULING_POLICY);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const toast = useActionToast();
 
   useEffect(() => {
     if (!ctx) return;
@@ -67,14 +68,16 @@ export function SystemConfigSchedulingPolicyCard() {
 
   async function save() {
     setSaving(true);
-    setMsg(null);
     try {
       await systemConfigApi.update({ schedulingPolicy: draft });
       notifySystemConfigurationSaved("schedulingPolicy");
       await ctx?.reload();
-      setMsg("Load limits saved. Connected Evaluator, GEC, faculty portal, and Campus Intelligence pages will refresh.");
+      toast.ok(
+        "Load limits saved",
+        "Evaluator, GEC, the faculty portal and Campus Intelligence will pick them up.",
+      );
     } catch (e) {
-      setMsg(e instanceof ApiClientError ? e.message : "Could not save scheduling policy");
+      toast.fail(e, "Could not save the load limits", "system config: scheduling policy");
     } finally {
       setSaving(false);
     }
@@ -126,7 +129,6 @@ export function SystemConfigSchedulingPolicyCard() {
         >
           {saving ? "Saving…" : "Save load limits"}
         </Button>
-        {msg ? <p className="text-[12px] text-black/70">{msg}</p> : null}
       </div>
     </div>
   );

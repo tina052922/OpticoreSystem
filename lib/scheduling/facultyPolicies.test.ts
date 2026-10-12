@@ -43,7 +43,6 @@ function profile(status: string | null, designation: string | null): FacultyProf
     id: "fp1",
     userId: instructorId,
     fullName: "Test Faculty",
-    aka: null,
     bsDegree: null,
     msDegree: null,
     doctoralDegree: null,

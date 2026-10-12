@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { collegeApi, ApiClientError } from "@/lib/api/client";
+import { collegeApi } from "@/lib/api/client";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 export function NotifyProgramPlottedButton({
   academicPeriodId,
@@ -18,12 +19,11 @@ export function NotifyProgramPlottedButton({
   className?: string;
 }) {
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const toast = useActionToast();
   const [err, setErr] = useState<string | null>(null);
 
   async function notify() {
     setBusy(true);
-    setMsg(null);
     setErr(null);
     try {
       const res = await collegeApi.notifyProgramPlotted({
@@ -31,12 +31,13 @@ export function NotifyProgramPlottedButton({
         programId: programId?.trim() || undefined,
         note: periodLabel ? `Term: ${periodLabel}` : undefined,
       });
-      setMsg(
+      toast.ok(
+        "College Admin notified",
         res.message ??
-          `College Admin has been notified which section(s) in ${programLabel || "this program"} are ready for double-check.`,
+          `They have been told which sections in ${programLabel || "this program"} are ready for double-check.`,
       );
     } catch (e) {
-      setErr(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Failed to notify College Admin.");
+      toast.fail(e, "Could not notify College Admin", "notify: program plotted");
     } finally {
       setBusy(false);
     }
@@ -47,7 +48,6 @@ export function NotifyProgramPlottedButton({
       <Button type="button" variant="outline" disabled={busy} onClick={() => void notify()}>
         {busy ? "Notifying College Admin…" : "Notify College Admin: sections ready for check"}
       </Button>
-      {msg ? <p className="mt-2 text-[12px] text-emerald-800">{msg}</p> : null}
       {err ? <p className="mt-2 text-[12px] text-red-700">{err}</p> : null}
     </div>
   );

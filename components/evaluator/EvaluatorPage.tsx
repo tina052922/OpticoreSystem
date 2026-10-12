@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
@@ -8,12 +7,9 @@ import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton"
 import { NotifyProgramPlottedButton } from "@/components/chairman/NotifyProgramPlottedButton";
 import { BsitChairmanEvaluatorWorksheet } from "@/components/evaluator/BsitChairmanEvaluatorWorksheet";
 import { CentralHubEvaluatorView } from "@/components/evaluator/CentralHubEvaluatorView";
-import {
-  ChairmanEvaluatorLoadPanel,
-  type ChairmanPolicySnapshot,
-} from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { EVALUATOR_TAB_LABELS, evaluatorTabClass } from "@/lib/evaluator/evaluator-tabs";
+import { SUBJECT_SCHEDULER_NAV_LABEL } from "@/lib/admin-nav";
 
 export type EvaluatorPageProps = {
   /** Chairman / College Admin: week-grid plotter. DOI: campus-wide plotter. CAS: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
@@ -43,8 +39,6 @@ export function EvaluatorPage({
   chairmanProgramCode = null,
   chairmanProgramName = null,
 }: EvaluatorPageProps) {
-  const [tab, setTab] = useState<"timetabling" | "load">("timetabling");
-  const [policySnapshot, setPolicySnapshot] = useState<ChairmanPolicySnapshot | null>(null);
   const searchParams = useSearchParams();
   const { selectedPeriodId, selectedPeriod } = useSemesterFilter();
   /**
@@ -78,7 +72,8 @@ export function EvaluatorPage({
    * The same numbers are on /admin/college/teaching-load-summary, which is the printable form, so a
    * second copy behind a tab was two places to look and two places to disagree.
    */
-  const showLoadTab = !collegeWide;
+  // Teaching-load totals have their own page in the sidebar; a second copy behind a tab here was
+  // two places to read the same numbers.
   /**
    * DOI picks a college before plotting, so the hub is a real destination for them.
    *
@@ -86,22 +81,22 @@ export function EvaluatorPage({
    */
   const showCollegesTab = doiCampusWide;
   // A tab that is not rendered must not stay selected from an earlier render.
-  const activeTab = showLoadTab ? tab : "timetabling";
+
   /**
    * One tab is not a choice, so the strip only earns its space when something can be switched.
    *
    * For College Admin nothing can: the Colleges tab is gone (they plot their own college and have no
    * other to switch to) and so is the load tab, which leaves Timetabling alone.
    */
-  const showTabStrip = showLoadTab || showCollegesTab;
+  const showTabStrip = showCollegesTab;
 
   return (
     <div>
-      <ChairmanPageHeader title="Evaluator" />
+      <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
 
       <div className="px-4 md:px-8 pb-8">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          {/* Same order/labels as the hub shells: Timetabling → Hrs */}
+          {/* Same order/labels as the hub shells: Colleges → Timetabling */}
           {showTabStrip ? (
             <div className="flex gap-2 border-b border-gray-200 flex-wrap">
               {showCollegesTab ? (
@@ -109,22 +104,7 @@ export function EvaluatorPage({
                   {EVALUATOR_TAB_LABELS.colleges}
                 </Link>
               ) : null}
-              <button
-                type="button"
-                onClick={() => setTab("timetabling")}
-                className={evaluatorTabClass(activeTab === "timetabling")}
-              >
-                {EVALUATOR_TAB_LABELS.timetabling}
-              </button>
-              {showLoadTab ? (
-                <button
-                  type="button"
-                  onClick={() => setTab("load")}
-                  className={evaluatorTabClass(activeTab === "load")}
-                >
-                  {EVALUATOR_TAB_LABELS.hrs}
-                </button>
-              ) : null}
+              <span className={evaluatorTabClass(true)}>{EVALUATOR_TAB_LABELS.timetabling}</span>
             </div>
           ) : null}
           {collegeWide ? (
@@ -158,7 +138,7 @@ export function EvaluatorPage({
           </p>
         ) : null}
 
-        <div className={activeTab !== "timetabling" ? "hidden" : ""}>
+        <div>
           <BsitChairmanEvaluatorWorksheet
             chairmanCollegeId={chairmanCollegeId}
             chairmanProgramId={chairmanProgramId}
@@ -168,15 +148,9 @@ export function EvaluatorPage({
             campusWidePrograms={doiCampusWide}
             viewOnly={false}
             insFormBasePath={doiCampusWide ? "/doi/ins" : collegeWide ? "/admin/college/ins" : "/chairman/ins"}
-            onPolicySnapshot={setPolicySnapshot}
           />
         </div>
 
-        {showLoadTab ? (
-          <div className={activeTab !== "load" ? "hidden" : ""}>
-            <ChairmanEvaluatorLoadPanel snapshot={policySnapshot} />
-          </div>
-        ) : null}
       </div>
     </div>
   );

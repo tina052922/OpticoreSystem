@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { academicStructureApi, apiFetch, ApiClientError, type CascadeEntity } from "@/lib/api/client";
+import { academicStructureApi, apiFetch, type CascadeEntity } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import type { College, Program, Section } from "@/types/db";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 /** The record whose delete dialog is open. `noun` only shapes the heading and the success line. */
 type PendingDelete = { entity: CascadeEntity; id: string; name: string; noun: string };
@@ -31,9 +32,7 @@ export function AcademicStructureWorkspace({
   const [programs, setPrograms] = useState<Program[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
+  const toast = useActionToast();
 
   const [selectedCollegeId, setSelectedCollegeId] = useState<string | null>(lockedCollegeId);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
@@ -66,7 +65,6 @@ export function AcademicStructureWorkspace({
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const [cRes, pRes] = await Promise.all([
         apiFetch<{ colleges: College[] }>("/api/catalog/colleges", { method: "GET" }),
@@ -96,11 +94,11 @@ export function AcademicStructureWorkspace({
       );
       setSections(sRes.sections ?? []);
     } catch (e) {
-      setError(e instanceof ApiClientError || e instanceof Error ? e.message : "Failed to load");
+      toast.fail(e, "Could not load programs and sections", "academic structure");
     } finally {
       setLoading(false);
     }
-  }, [lockedCollegeId]);
+  }, [lockedCollegeId, toast]);
 
   useEffect(() => {
     void load();
@@ -151,17 +149,14 @@ export function AcademicStructureWorkspace({
     setSelectedYearLevel(yearLevels[0] ?? null);
   }, [selectedProgramId, yearLevels, selectedYearLevel]);
 
+  /** A toast already fades on its own, so the old 3.5s timer is gone with the banner. */
   function flashOk(msg: string) {
-    setSuccess(msg);
-    setError(null);
-    window.setTimeout(() => setSuccess(null), 3500);
+    toast.ok(msg);
   }
 
   async function handleCreateCollege() {
     if (!canManageColleges) return;
     setSavingCollege(true);
-    setError(null);
-    setWarning(null);
     try {
       const { college } = await academicStructureApi.createCollege({
         code: collegeCode.trim(),
@@ -174,21 +169,20 @@ export function AcademicStructureWorkspace({
       setSelectedProgramId(null);
       flashOk(`College ${college.code} added`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add college");
+      toast.fail(e, "Could not add the college", "academic structure: add college");
     } finally {
       setSavingCollege(false);
     }
   }
 
   async function handleSaveCollegeEdit(college: College, code: string, name: string) {
-    setError(null);
     try {
       await academicStructureApi.updateCollege(college.id, { code, name });
       setEditingCollegeId(null);
       await load();
       flashOk("College updated");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update college");
+      toast.fail(e, "Could not update the college", "academic structure: update college");
     }
   }
 
@@ -226,8 +220,6 @@ export function AcademicStructureWorkspace({
   async function handleCreateProgram() {
     if (!selectedCollegeId) return;
     setSavingProgram(true);
-    setError(null);
-    setWarning(null);
     try {
       const res = await academicStructureApi.createProgram({
         collegeId: selectedCollegeId,
@@ -235,7 +227,7 @@ export function AcademicStructureWorkspace({
         name: programName.trim(),
         yearCount: Math.min(6, Math.max(1, parseInt(programYears, 10) || 4)),
       });
-      if (res.warning) setWarning(res.warning);
+      toast.caution(res.warning, "Saved with a limitation");
       setProgramCode("");
       setProgramName("");
       setProgramYears("4");
@@ -243,37 +235,34 @@ export function AcademicStructureWorkspace({
       setSelectedProgramId(res.program.id);
       flashOk(`Program ${res.program.code} added`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add program");
+      toast.fail(e, "Could not add the program", "academic structure: add program");
     } finally {
       setSavingProgram(false);
     }
   }
 
   async function handleSaveProgramEdit(program: Program, code: string, name: string) {
-    setError(null);
     try {
       await academicStructureApi.updateProgram(program.id, { code, name });
       setEditingProgramId(null);
       await load();
       flashOk("Program updated");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update program");
+      toast.fail(e, "Could not update the program", "academic structure: update program");
     }
   }
 
   async function handleSaveYears() {
     if (!selectedProgram) return;
     setSavingYears(true);
-    setError(null);
-    setWarning(null);
     try {
       const yearCount = Math.min(6, Math.max(1, parseInt(yearDraft, 10) || 4));
       const res = await academicStructureApi.updateProgram(selectedProgram.id, { yearCount });
-      if (res.warning) setWarning(res.warning);
+      toast.caution(res.warning, "Saved with a limitation");
       await load();
       flashOk(`Years set to ${yearCount}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to set years");
+      toast.fail(e, "Could not change the number of years", "academic structure: set years");
     } finally {
       setSavingYears(false);
     }
@@ -282,7 +271,6 @@ export function AcademicStructureWorkspace({
   async function handleCreateSection() {
     if (!selectedProgramId || selectedYearLevel == null) return;
     setSavingSection(true);
-    setError(null);
     try {
       await academicStructureApi.createSection({
         programId: selectedProgramId,
@@ -295,7 +283,7 @@ export function AcademicStructureWorkspace({
       await load();
       flashOk("Section added");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add section");
+      toast.fail(e, "Could not add the section", "academic structure: add section");
     } finally {
       setSavingSection(false);
     }
@@ -307,14 +295,13 @@ export function AcademicStructureWorkspace({
     studentCount: number,
     yearLevel: number,
   ) {
-    setError(null);
     try {
       await academicStructureApi.updateSection(section.id, { name, studentCount, yearLevel });
       setEditingSectionId(null);
       await load();
       flashOk("Section updated");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update section");
+      toast.fail(e, "Could not update the section", "academic structure: update section");
     }
   }
 
@@ -326,19 +313,6 @@ export function AcademicStructureWorkspace({
       </p>
 
       {loading ? <p className="text-sm text-black/50">Loading…</p> : null}
-      {error ? (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-      ) : null}
-      {warning ? (
-        <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          {warning}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-          {success}
-        </p>
-      ) : null}
 
       {/* 1. Colleges */}
       <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm space-y-4">

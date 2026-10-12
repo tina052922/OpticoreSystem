@@ -10,6 +10,7 @@ import {
   withProfileSignerAutofill,
 } from "@/lib/ins/signer-profile-autofill";
 import type { CollegeInsSignerDisplay } from "@/types/db";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 /**
  * Row definitions for the "INS form signatories" editor.
@@ -56,7 +57,7 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
   const [display, setDisplay] = useState<CollegeInsSignerDisplay>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const toast = useActionToast();
 
   /**
    * Each role edits only the line it is answerable for.
@@ -85,7 +86,6 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
   const load = useCallback(async () => {
     if (userLoading) return;
     setLoading(true);
-    setMsg(null);
     try {
       let loaded: CollegeInsSignerDisplay = {};
       if (mode === "doi") {
@@ -107,11 +107,11 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
           : loaded,
       );
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Load failed");
+      toast.fail(e, "Could not load the signatories", "ins signatories");
     } finally {
       setLoading(false);
     }
-  }, [mode, collegeId, userLoading, user?.role, user?.name, profileSlot]);
+  }, [mode, collegeId, userLoading, user?.role, user?.name, profileSlot, toast]);
 
   useEffect(() => {
     void load();
@@ -126,7 +126,6 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
 
   async function save() {
     setSaving(true);
-    setMsg(null);
     try {
       if (mode === "doi") {
         await campusInsSettingsApi.upsert({ insSignerDisplay: display });
@@ -134,11 +133,11 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
         if (!collegeId) throw new Error("College scope required.");
         await collegeApi.patchSignerSettings({ collegeId, insSignerDisplay: display });
       }
-      setMsg("Saved.");
+      toast.ok("Signatories saved");
       notifySystemConfigurationSaved(mode === "doi" ? "insSigners" : "collegeSigners");
       onUpdated?.();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Save failed");
+      toast.fail(e, "Could not save the signatories", "ins signatories");
     } finally {
       setSaving(false);
     }
@@ -204,7 +203,6 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
             >
               {saving ? "Saving…" : "Save signatories"}
             </Button>
-            {msg ? <span className="text-sm text-emerald-800">{msg}</span> : null}
           </div>
         </div>
       )}

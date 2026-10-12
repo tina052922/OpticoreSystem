@@ -152,6 +152,12 @@ export type BsitChairmanInteractiveWeekGridProps = {
   sparseCampusUniverse: SparseScheduleBlock[];
   onApplyPlot: (draft: PlotRow, buildingValue: string, extras?: PlotRow[]) => void;
   onRemoveRow: (id: string) => void;
+  /**
+   * Asked before removing, so the subject's other meetings can be offered too.
+   *
+   * Falls back to {@link onRemoveRow} when not supplied, which is the old straight-to-delete path.
+   */
+  onRequestRemoveRow?: (row: PlotRow) => void;
   insFormBasePath?: string;
   /** Run conflict check + Save schedule beside Generate INS Form. */
   plottingActions?: ChairmanGridPlottingActions;
@@ -258,6 +264,7 @@ export function BsitChairmanInteractiveWeekGrid({
   sparseCampusUniverse,
   onApplyPlot,
   onRemoveRow,
+  onRequestRemoveRow,
   insFormBasePath = "/chairman/ins",
   plottingActions,
   gridFooter,
@@ -685,7 +692,8 @@ export function BsitChairmanInteractiveWeekGrid({
                                     aria-label="Remove schedule"
                                     onClick={(ev) => {
                                       ev.stopPropagation();
-                                      onRemoveRow(r.id);
+                                      if (onRequestRemoveRow) onRequestRemoveRow(r);
+                                      else onRemoveRow(r.id);
                                     }}
                                   >
                                     <X className="w-3 h-3" aria-hidden />

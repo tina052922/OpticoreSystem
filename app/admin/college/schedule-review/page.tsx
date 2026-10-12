@@ -17,7 +17,7 @@ export default function CollegeScheduleReviewPage() {
             <ClipboardList className="w-6 h-6 text-[var(--color-opticore-orange)] shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-black/80 leading-relaxed">
-                Open the <strong>Evaluator</strong> in a new tab to view the same timetable, faculty load panel, and
+                Open the <strong>Subject Scheduler</strong> in a new tab to view the same timetable, faculty load panel, and
                 conflict status as the Chairman (read-only for your role in a full deployment). Here we link to the
                 shared module for development.
               </p>

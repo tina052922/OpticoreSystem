@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { KeyRound, LogOut, MapPin, Menu, UserRound, X } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, MapPin, Menu, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,7 +16,8 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi } from "@/lib/api/client";
-import type { AdminNavItem } from "@/lib/admin-nav";
+import type { AdminNavEntry, AdminNavGroup, AdminNavItem } from "@/lib/admin-nav";
+import { isNavGroup, navEntryHrefs } from "@/lib/admin-nav";
 import { isNavItemActive } from "@/lib/nav-active";
 import { NAV_ICONS } from "@/components/nav/nav-icons";
 import { cn } from "@/components/ui/utils";
@@ -47,7 +48,7 @@ export type CampusIntelligenceShellProps = {
   profileImageUrl?: string | null;
   userEmail?: string;
   /** Sidebar navigation (Chairman, College, CAS, GEC, DOI). */
-  navItems: AdminNavItem[];
+  navItems: AdminNavEntry[];
   /** Shown above the semester chip (e.g. “College admin · COTE”). */
   roleLabel?: string;
   profileHref: string;
@@ -65,7 +66,7 @@ export type CampusIntelligenceShellProps = {
    */
   auditLogUnreadScope?: string | null;
   /**
-   * Chairman layout: badge on "Pending Instructors" for self-registrations
+   * Chairman layout: badge on "Instructor Management" for self-registrations
    * awaiting approval. Scope comes from the session server-side, so this is a
    * plain on/off switch rather than a college id.
    */
@@ -91,7 +92,74 @@ export function CampusIntelligenceShell({
   const pathname = usePathname();
   const router = useRouter();
   const branding = useCampusBranding();
-  const navHrefs = navItems.map((i) => i.href);
+  const navHrefs = navEntryHrefs(navItems);
+
+  /**
+   * The count a page carries in the sidebar, or null when it carries none.
+   *
+   * Pulled out of the link markup so a group header can show the same counts while collapsed — a
+   * pending justification must not be hidden just because its heading is shut.
+   */
+  function badgeFor(href: string): number | null {
+    if (href === DOI_POLICY_REVIEWS_HREF && showDoiPolicyBadge) return pendingDoiPolicyReviews;
+    if (href === COLLEGE_POLICY_JUSTIFICATIONS_HREF && showCollegePolicyBadge) {
+      return pendingCollegePolicyReviews;
+    }
+    if ((href === COLLEGE_AUDIT_LOG_HREF || href === DOI_AUDIT_LOG_HREF) && showAuditBadge) {
+      return auditUnreadCount;
+    }
+    if (href === CHAIRMAN_PENDING_INSTRUCTORS_HREF && pendingInstructorCount > 0) {
+      return pendingInstructorCount;
+    }
+    return null;
+  }
+
+  function badgeLabel(href: string, badge: number): string {
+    if (href === DOI_POLICY_REVIEWS_HREF || href === COLLEGE_POLICY_JUSTIFICATIONS_HREF) {
+      return `${badge} recorded teaching-load justification${badge === 1 ? "" : "s"}`;
+    }
+    if (href === CHAIRMAN_PENDING_INSTRUCTORS_HREF) {
+      return `${badge} instructor registration${badge === 1 ? "" : "s"} awaiting approval`;
+    }
+    return `${badge} new audit entr${badge === 1 ? "y" : "ies"} since last visit`;
+  }
+
+  /** One sidebar link. `nested` indents it under a group heading. */
+  function renderNavLink(item: AdminNavItem, nested = false) {
+    const active = isNavItemActive(pathname, item.href, navHrefs);
+    const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
+    const badge = badgeFor(item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setMobileNavOpen(false)}
+        className={`flex items-center gap-3 rounded-lg transition-colors w-full text-left min-h-[44px] py-3 ${
+          nested ? "pl-6 pr-4" : "px-4"
+        } ${
+          active
+            ? "bg-[#FF990A] text-white shadow-[0px_4px_4px_0px_rgba(0,0,0,0.2)]"
+            : "text-gray-700 hover:bg-gray-200"
+        }`}
+      >
+        {Icon ? <Icon className="w-5 h-5 shrink-0" /> : null}
+        <span className="font-medium text-sm truncate flex-1 min-w-0">{item.label}</span>
+        {badge !== null ? (
+          <span
+            className={`shrink-0 min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center border ${
+              active
+                ? "bg-white text-[#780301] border-white/80"
+                : "bg-[#DE0602] text-white border-red-900/30"
+            }`}
+            title={badgeLabel(item.href, badge)}
+            aria-label={badgeLabel(item.href, badge)}
+          >
+            {badge > 99 ? "99+" : badge}
+          </span>
+        ) : null}
+      </Link>
+    );
+  }
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pendingDoiPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
   const showDoiPolicyBadge = policyReviewsBadge && pendingDoiPolicyReviews > 0;
@@ -161,7 +229,7 @@ export function CampusIntelligenceShell({
             {mobileNavOpen ? <X className="h-6 w-6" aria-hidden /> : <Menu className="h-6 w-6" aria-hidden />}
           </button>
           <div className="w-[52px] h-[52px] sm:w-[64px] sm:h-[64px] md:w-[70px] md:h-[70px] rounded-full overflow-hidden bg-white/10 flex items-center justify-center shrink-0 p-1">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {/* eslint-disable-next-line no-restricted-syntax */}
             <img
               src={branding.logoUrl || CTU_LOGO_PNG}
               alt={branding.universityName}
@@ -270,70 +338,20 @@ export function CampusIntelligenceShell({
           </div>
 
           <nav className="flex-1 px-2 pb-2 space-y-1 no-print overflow-y-auto">
-            {navItems.map((item) => {
-              const active = isNavItemActive(pathname, item.href, navHrefs);
-              const Icon = item.icon ? NAV_ICONS[item.icon] : undefined;
-              const doiPolicyBadge =
-                item.href === DOI_POLICY_REVIEWS_HREF && showDoiPolicyBadge ? pendingDoiPolicyReviews : null;
-              const collegePolicyBadge =
-                item.href === COLLEGE_POLICY_JUSTIFICATIONS_HREF && showCollegePolicyBadge
-                  ? pendingCollegePolicyReviews
-                  : null;
-              const auditBadge =
-                (item.href === COLLEGE_AUDIT_LOG_HREF || item.href === DOI_AUDIT_LOG_HREF) && showAuditBadge
-                  ? auditUnreadCount
-                  : null;
-              const instructorBadge =
-                item.href === CHAIRMAN_PENDING_INSTRUCTORS_HREF && pendingInstructorCount > 0
-                  ? pendingInstructorCount
-                  : null;
-              const badge =
-                doiPolicyBadge ??
-                collegePolicyBadge ??
-                auditBadge ??
-                instructorBadge ??
-                null;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileNavOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full text-left min-h-[44px] ${
-                    active
-                      ? "bg-[#FF990A] text-white shadow-[0px_4px_4px_0px_rgba(0,0,0,0.2)]"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {Icon ? <Icon className="w-5 h-5 shrink-0" /> : null}
-                  <span className="font-medium text-sm truncate flex-1 min-w-0">{item.label}</span>
-                  {badge !== null ? (
-                    <span
-                      className={`shrink-0 min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center border ${
-                        active
-                          ? "bg-white text-[#780301] border-white/80"
-                          : "bg-[#DE0602] text-white border-red-900/30"
-                      }`}
-                      title={
-                        doiPolicyBadge !== null || collegePolicyBadge !== null
-                          ? `${badge} recorded teaching-load justification${badge === 1 ? "" : "s"}`
-                          : instructorBadge !== null
-                            ? `${badge} instructor registration${badge === 1 ? "" : "s"} awaiting approval`
-                            : `${badge} new audit entr${badge === 1 ? "y" : "ies"} since last visit`
-                      }
-                      aria-label={
-                        doiPolicyBadge !== null || collegePolicyBadge !== null
-                          ? `${badge} recorded teaching-load justification${badge === 1 ? "" : "s"}`
-                          : instructorBadge !== null
-                            ? `${badge} instructor registrations awaiting approval`
-                            : `${badge} unread audit log items`
-                      }
-                    >
-                      {badge > 99 ? "99+" : badge}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
+            {navItems.map((entry) =>
+              isNavGroup(entry) ? (
+                <NavGroupSection
+                  key={`group:${entry.label}`}
+                  group={entry}
+                  pathname={pathname}
+                  navHrefs={navHrefs}
+                  badgeFor={badgeFor}
+                  renderItem={renderNavLink}
+                />
+              ) : (
+                renderNavLink(entry)
+              ),
+            )}
           </nav>
 
           <div className="p-3 no-print border-t border-black/5">
@@ -356,5 +374,77 @@ export function CampusIntelligenceShell({
     </SemesterFilterProvider>
     </ProgramModeProvider>
     </SystemConfigurationProvider>
+  );
+}
+
+/**
+ * A collapsible heading with its pages under it.
+ *
+ * It opens by default when the page you are on is one of its children, so navigating never hides
+ * where you are. Closing it is remembered for as long as the shell stays mounted — which is the
+ * whole session, since the sidebar lives in the layout — and a child page becoming active opens it
+ * again rather than leaving the highlight out of sight.
+ */
+function NavGroupSection({
+  group,
+  pathname,
+  navHrefs,
+  badgeFor,
+  renderItem,
+}: {
+  group: AdminNavGroup;
+  pathname: string;
+  navHrefs: string[];
+  badgeFor: (href: string) => number | null;
+  renderItem: (item: AdminNavItem, nested?: boolean) => React.ReactNode;
+}) {
+  const holdsActivePage = group.items.some((item) => isNavItemActive(pathname, item.href, navHrefs));
+  const [open, setOpen] = useState(holdsActivePage);
+
+  useEffect(() => {
+    if (holdsActivePage) setOpen(true);
+  }, [holdsActivePage]);
+
+  const Icon = group.icon ? NAV_ICONS[group.icon] : undefined;
+  /** Counts from inside, surfaced on the heading while it is shut. */
+  const hiddenBadge = open
+    ? null
+    : group.items.reduce<number | null>((sum, item) => {
+        const badge = badgeFor(item.href);
+        if (badge === null) return sum;
+        return (sum ?? 0) + badge;
+      }, null);
+
+  const panelId = `nav-group-${group.label.replace(/\s+/g, "-").toLowerCase()}`;
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full text-left min-h-[44px] ${
+          holdsActivePage && !open ? "bg-gray-200 text-gray-900" : "text-gray-700 hover:bg-gray-200"
+        }`}
+      >
+        {Icon ? <Icon className="w-5 h-5 shrink-0" /> : null}
+        <span className="font-semibold text-sm truncate flex-1 min-w-0">{group.label}</span>
+        {hiddenBadge !== null && hiddenBadge > 0 ? (
+          <span className="shrink-0 min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center border bg-[#DE0602] text-white border-red-900/30">
+            {hiddenBadge > 99 ? "99+" : hiddenBadge}
+          </span>
+        ) : null}
+        <ChevronDown
+          className={`w-4 h-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden
+        />
+      </button>
+      {open ? (
+        <div id={panelId} className="mt-1 space-y-1">
+          {group.items.map((item) => renderItem(item, true))}
+        </div>
+      ) : null}
+    </div>
   );
 }

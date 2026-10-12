@@ -24,7 +24,7 @@ export function PublicLandingPage() {
             className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0 w-fit rounded-lg outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-opticore-orange"
           >
             <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full overflow-hidden bg-white ring-1 ring-black/10 shrink-0 grid place-items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {/* eslint-disable-next-line no-restricted-syntax */}
               <img
                 src={branding.logoUrl || CTU_LOGO_PNG}
                 alt={`${branding.universityName} logo`}
@@ -74,7 +74,7 @@ export function PublicLandingPage() {
         className="relative isolate w-full min-h-[100dvh] min-w-0 overflow-hidden scroll-mt-[4rem] sm:scroll-mt-[4.75rem]"
       >
         {/* Full-viewport cover photo — no overlay so the provided image is visible */}
-        {/* eslint-disable-next-line @next/next/no-img-element -- static asset from public/ */}
+        {/* eslint-disable-next-line no-restricted-syntax -- static asset from public/ */}
         <img
           src="/landing-bg.jpg"
           alt="Cebu Technological University Argao campus buildings"
@@ -124,7 +124,7 @@ export function PublicLandingPage() {
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 xl:gap-14 items-center">
           <div className="order-2 lg:order-1 w-full min-w-0 flex justify-center lg:justify-start">
             <div className="w-full max-w-xl xl:max-w-none rounded-2xl overflow-hidden bg-[#faf8f6]/80 ring-1 ring-black/[0.06] shadow-sm">
-              {/* eslint-disable-next-line @next/next/no-img-element -- static asset from public/ */}
+              {/* eslint-disable-next-line no-restricted-syntax -- static asset from public/ */}
               <img
                 src="/laptopinlandingpage.png"
                 alt="OptiCore scheduling and dashboard interfaces on a laptop"

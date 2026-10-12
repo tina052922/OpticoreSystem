@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { systemConfigApi, ApiClientError } from "@/lib/api/client";
+import { systemConfigApi } from "@/lib/api/client";
 import { notifySystemConfigurationSaved } from "@/contexts/SystemConfigurationContext";
 import {
   BUILT_IN_INSTRUCTOR_DOMAINS,
@@ -18,6 +18,7 @@ import {
   type InstructorEmailDomainRule,
   type InstructorEmailPolicy,
 } from "@/lib/system-configuration/instructor-email-policy";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 /** One-line explanation per built-in domain, so the choice is not made blind. */
 const DOMAIN_NOTES: Record<string, string> = {
@@ -72,8 +73,7 @@ export function SystemConfigInstructorEmailCard() {
   const [newDomain, setNewDomain] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useActionToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,11 +83,11 @@ export function SystemConfigInstructorEmailCard() {
       setDraft(policy);
       setSaved(policy);
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : "Could not load the sign-up email rule.");
+      toast.fail(e, "Could not load the sign-up email rule", "system config: instructor email");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void load();
@@ -99,48 +99,43 @@ export function SystemConfigInstructorEmailCard() {
   const noneEnabled = enabled.length === 0;
 
   function setEnabled(domain: string, next: boolean) {
-    setMsg(null);
-    setError(null);
     setDraft((d) => ({
       domains: d.domains.map((row) => (row.domain === domain ? { ...row, enabled: next } : row)),
     }));
   }
 
   function addDomain() {
-    setMsg(null);
     const domain = normalizeEmailDomain(newDomain);
     if (!domain) {
-      setError("Enter a domain like ctu.edu.ph — no @, no spaces.");
+      toast.refuse("That is not a domain", "Enter it like ctu.edu.ph — no @ and no spaces.");
       return;
     }
     if (draft.domains.some((d) => d.domain === domain)) {
-      setError(`${domain} is already on the list.`);
+      toast.refuse("Already on the list", `${domain} is allowed already.`);
       return;
     }
-    setError(null);
     setDraft((d) => ({ domains: [...d.domains, { domain, enabled: true }] }));
     setNewDomain("");
   }
 
   function removeDomain(domain: string) {
-    setMsg(null);
-    setError(null);
     setDraft((d) => ({ domains: d.domains.filter((row) => row.domain !== domain) }));
   }
 
   async function save() {
     setSaving(true);
-    setMsg(null);
-    setError(null);
     try {
       const { config } = await systemConfigApi.update({ instructorEmailPolicy: draft });
       const policy = parseInstructorEmailPolicy(config.instructorEmailPolicy);
       setDraft(policy);
       setSaved(policy);
       notifySystemConfigurationSaved("instructorEmailPolicy");
-      setMsg(`Saved. Instructor sign-up now accepts ${instructorEmailDomainHint(policy)}.`);
+      toast.ok(
+        "Sign-up rule saved",
+        `Instructor sign-up now accepts ${instructorEmailDomainHint(policy)}.`,
+      );
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : "Could not save the sign-up email rule.");
+      toast.fail(e, "Could not save the sign-up email rule", "system config: instructor email");
     } finally {
       setSaving(false);
     }
@@ -255,15 +250,11 @@ export function SystemConfigInstructorEmailCard() {
                 onClick={() => {
                   setDraft(saved);
                   setNewDomain("");
-                  setError(null);
-                  setMsg(null);
                 }}
               >
                 Discard
               </Button>
             ) : null}
-            {msg ? <p className="text-[12px] text-black/70">{msg}</p> : null}
-            {error ? <p className="text-[12px] text-[#780301]">{error}</p> : null}
           </div>
         </>
       )}

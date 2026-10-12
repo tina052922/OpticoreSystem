@@ -82,7 +82,7 @@ export function ProfileSignatureUpload({ initialUrl, onUploaded }: ProfileSignat
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="relative h-20 w-48 border border-dashed border-gray-300 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
           {url ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Supabase public URL
+            // eslint-disable-next-line no-restricted-syntax -- Supabase public URL
             <img src={url} alt="Your signature" className="max-h-20 max-w-full object-contain" />
           ) : (
             <span className="text-xs text-gray-400">No signature yet</span>

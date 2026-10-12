@@ -8,13 +8,14 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
-import { registerApi, apiFetch, ApiClientError } from "@/lib/api/client";
+import { registerApi, apiFetch } from "@/lib/api/client";
 import { OtpVerificationPanel } from "@/components/register/OtpVerificationPanel";
 import {
   clearPendingRegistration,
   loadPendingRegistration,
   savePendingRegistration,
 } from "@/lib/auth/pending-registration-state";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = {
@@ -51,7 +52,7 @@ export function RegisterClient() {
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useActionToast();
 
   /**
    * Set once the code is away. Registration deliberately creates no account, so
@@ -87,7 +88,7 @@ export function RegisterClient() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof ApiClientError ? e.message : "Could not load catalog");
+          toast.fail(e, "Could not load colleges and programs", "student registration");
         }
       } finally {
         if (!cancelled) setLoadingCatalog(false);
@@ -96,7 +97,7 @@ export function RegisterClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [toast]);
 
   const programsForCollege = useMemo(() => {
     if (!collegeId) return [];
@@ -130,24 +131,23 @@ export function RegisterClient() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
 
     // Must match the backend's MIN_PASSWORD_LENGTH, otherwise the form accepts
     // a password the API will reject.
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      toast.refuse("Password is too short", "Use at least 8 characters.");
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      toast.refuse("Passwords do not match", "Type the same password in both boxes.");
       return;
     }
     if (!collegeId) {
-      setError("Select your college / department.");
+      toast.refuse("Choose your college", "Pick the college you are enrolled in.");
       return;
     }
     if (!programId || !sectionId) {
-      setError("Select program, year level, and section.");
+      toast.refuse("Finish your enrolment details", "Program, year level and section are all needed.");
       return;
     }
 
@@ -183,7 +183,7 @@ export function RegisterClient() {
       setPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Registration failed");
+      toast.fail(err, "Could not complete your registration", "student registration");
     } finally {
       setSubmitting(false);
     }
@@ -194,7 +194,6 @@ export function RegisterClient() {
     clearPendingRegistration();
     setPending(null);
     setVerifiedMessage(null);
-    setError(null);
   }
 
   if (verifiedMessage) {
@@ -256,7 +255,7 @@ export function RegisterClient() {
       <div className="space-y-8">
         <div className="flex justify-center">
           <div className="w-32 h-32 sm:w-36 sm:h-36 shrink-0 rounded-full overflow-hidden ring-2 ring-black/[0.06] shadow-sm bg-white">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {/* eslint-disable-next-line no-restricted-syntax */}
             <img
               src={branding.logoUrl || CTU_LOGO_PNG}
               alt={branding.universityName}
@@ -449,9 +448,6 @@ export function RegisterClient() {
             />
           </div>
 
-          {error ? (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>
-          ) : null}
 
           <Button
             type="submit"

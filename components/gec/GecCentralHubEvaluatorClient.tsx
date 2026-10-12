@@ -74,7 +74,6 @@ import {
 } from "@/lib/evaluator-central-hub";
 import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
 import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
-import { HrsUnitsPrepsRemarksTable } from "@/components/evaluator/HrsUnitsPrepsRemarksTable";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-registry";
@@ -103,6 +102,7 @@ import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationCo
 import { PolicyJustificationModal } from "@/components/evaluator/PolicyJustificationModal";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { AlertTriangle } from "lucide-react";
+import { SUBJECT_SCHEDULER_NAV_LABEL } from "@/lib/admin-nav";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
   return {
@@ -140,7 +140,6 @@ export function GecCentralHubEvaluatorClient() {
   const collegeParam = isHubCollegeListView(searchParams.get("view"), searchParams.get("college"))
     ? ""
     : searchParams.get("college")?.trim() ?? "";
-  const panel = searchParams.get("panel") === "hrs" ? "hrs" : "timetabling";
   const isCampusWide = collegeParam === CAMPUS_WIDE_COLLEGE_SLUG;
 
   const [colleges, setColleges] = useState<College[]>([]);
@@ -165,7 +164,6 @@ export function GecCentralHubEvaluatorClient() {
   const [saveBusy, setSaveBusy] = useState(false);
   const [justModalOpen, setJustModalOpen] = useState(false);
   const [justificationText, setJustificationText] = useState("");
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [conflictIds, setConflictIds] = useState<Set<string>>(new Set());
   const [conflictSummary, setConflictSummary] = useState<string[]>([]);
   const [focusPlotEntryId, setFocusPlotEntryId] = useState<string | null>(null);
@@ -333,7 +331,6 @@ export function GecCentralHubEvaluatorClient() {
     setConflictSummary([]);
     setGecEnrichedConflicts([]);
     setGecGaByIssueKey({});
-    setSaveMsg(null);
     setPickedSummaryCode(null);
     setExtraEntries([]);
   }, [collegeParam, academicPeriodId, programId, sectionIdFilter]);
@@ -860,13 +857,11 @@ export function GecCentralHubEvaluatorClient() {
       setGecGaByIssueKey(gaMap);
 
       if (conflictSet.size === 0 && mergedEnriched.length === 0) {
-        setSaveMsg("No conflicts detected — faculty, room, and section times are clear for this term.");
         setGecEnrichedConflicts([]);
         setGecGaByIssueKey({});
         toast.success("No conflicts detected");
       } else {
-        setSaveMsg(null);
-        const summaryCount =
+            const summaryCount =
           mergedEnriched.length > 0 ? buildConflictSummaryLines(mergedEnriched, 14).length : summaryLines.length;
         toast.info("Conflicts found – see details below", `${summaryCount} issue(s) detected.`);
       }
@@ -896,7 +891,6 @@ export function GecCentralHubEvaluatorClient() {
   async function saveVacantEdits(opts?: { skipJustificationPrompt?: boolean }) {
     if (!canEditVacant || !collegeParam || !academicPeriodId) return;
     setSaveBusy(true);
-    setSaveMsg(null);
     try {
       const toSave: ScheduleEntry[] = [];
       for (const e of allEntries) {
@@ -907,7 +901,6 @@ export function GecCentralHubEvaluatorClient() {
         const hasPatch = patch && Object.keys(patch).length > 0;
         if (isNew || hasPatch) {
           if (!merged.subjectId || !merged.roomId || !merged.day || !merged.startTime || !merged.endTime) {
-            setSaveMsg("Complete highlighted plot fields (subject, room, time) before saving.");
             toast.error("Cannot save incomplete GEC plots", "Finish required fields or remove the incomplete slot.");
             return;
           }
@@ -915,7 +908,6 @@ export function GecCentralHubEvaluatorClient() {
         }
       }
       if (toSave.length === 0) {
-        setSaveMsg("No GEC edits to save.");
         toast.info("No changes to save");
         return;
       }
@@ -956,7 +948,6 @@ export function GecCentralHubEvaluatorClient() {
             alreadyPlottedHours: already,
             additionalHours: additional,
           });
-          setSaveMsg(msg);
           toast.error("Cannot save: subject hours exceeded", msg);
           return;
         }
@@ -977,7 +968,6 @@ export function GecCentralHubEvaluatorClient() {
             ? ` (+${conflictScan.issueSummaries.length - 3} more)`
             : "";
         const msg = `${preview}${more}`;
-        setSaveMsg(`Resolve timetable conflicts before saving: ${msg}`);
         toast.error("Cannot save until conflicts are resolved", msg);
         runConflictCheck();
         return;
@@ -1021,7 +1011,6 @@ export function GecCentralHubEvaluatorClient() {
       if (needsJust && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) {
         const { user } = await authApi.me();
         if (!user) {
-          setSaveMsg("Not signed in.");
           toast.error("Failed to save. Please try again.", "Not signed in.");
           return;
         }
@@ -1092,15 +1081,12 @@ export function GecCentralHubEvaluatorClient() {
       /** Second pulse after local state matches DB so any listener that batched with the first event still picks up the same commit. */
       dispatchInsCatalogReload();
       router.refresh();
-      setSaveMsg(
-        needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH
-          ? `Saved ${toSave.length} vacant GEC row(s). Enter a justification for DOI to record the overload.`
-          : `Saved ${toSave.length} vacant GEC row(s).`,
+      const needsReason = needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH;
+      if (needsReason) setJustModalOpen(true);
+      toast.success(
+        `Saved ${toSave.length} vacant GEC slot${toSave.length === 1 ? "" : "s"}`,
+        needsReason ? "One instructor is over their load — add a reason for DOI." : null,
       );
-      if (needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH) {
-        setJustModalOpen(true);
-      }
-      toast.success("Vacant slots updated successfully");
       runConflictCheck();
 
       const sec = secForAudit;
@@ -1119,10 +1105,8 @@ export function GecCentralHubEvaluatorClient() {
       const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Save failed";
       if (e instanceof ApiClientError && e.status === 423) {
         setDoiScheduleLocked(true);
-        setSaveMsg(msg || DOI_SCHEDULE_LOCKED_MESSAGE);
         toast.error("Schedule locked", msg || DOI_SCHEDULE_LOCKED_MESSAGE);
       } else {
-        setSaveMsg(msg);
         toast.error("Could not save vacant slots", msg);
       }
     } finally {
@@ -1155,7 +1139,6 @@ export function GecCentralHubEvaluatorClient() {
     } catch (e: unknown) {
       pendingDeletedIdsRef.current.delete(entryId);
       const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Could not remove schedule";
-      setSaveMsg(msg);
       toast.error("Failed to remove schedule", msg);
       void reloadScheduleEntriesSoft();
     }
@@ -1163,7 +1146,7 @@ export function GecCentralHubEvaluatorClient() {
 
   function addGecScheduleRowAt(day: BsitEvaluatorWeekday, startIdx: number) {
     if (!canEditVacant || !sectionIdFilter || !academicPeriodId || !plotCollegeId) {
-      setSaveMsg("Select a college and section before plotting vacant GEC slots.");
+      toast.error("Choose a section first", "Pick a college and section before plotting vacant GEC slots.");
       return;
     }
     const sec = sectionById.get(sectionIdFilter);
@@ -1177,7 +1160,7 @@ export function GecCentralHubEvaluatorClient() {
     const firstSub = gecList[0];
     if (!firstSub) {
       // Only reachable when the catalog holds no GEC subject at all, for any program.
-      setSaveMsg("No GEC or GEE subjects in the database yet — add them in Subject Codes first.");
+      toast.error("No GEC subjects yet", "Add GEC or GEE subjects in Subject Codes first.");
       return;
     }
     const dur = plotEntryDurationSlots(programCode, firstSub, 1);
@@ -1186,7 +1169,7 @@ export function GecCentralHubEvaluatorClient() {
     if (!times) return;
     const roomPick = roomsForPlotting[0]?.id ?? "";
     if (!roomPick) {
-      setSaveMsg("No room available for this college — add rooms in the database first.");
+      toast.error("No rooms in this college", "Add rooms in Buildings & Rooms first.");
       return;
     }
     const id =
@@ -1206,7 +1189,6 @@ export function GecCentralHubEvaluatorClient() {
     };
     setExtraEntries((prev) => [...prev, row]);
     setFocusPlotEntryId(id);
-    setSaveMsg(null);
   }
 
   function addGecMeetingsFromPlot(
@@ -1240,7 +1222,6 @@ export function GecCentralHubEvaluatorClient() {
       };
     });
     setExtraEntries((prev) => [...prev, ...rows]);
-    setSaveMsg(null);
   }
 
   /**
@@ -1418,9 +1399,9 @@ export function GecCentralHubEvaluatorClient() {
   if (!collegeParam) {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" />
+        <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
         <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
-          <GecHubEvaluatorTabs collegeParam="" panel="timetabling" />
+          <GecHubEvaluatorTabs collegeParam="" />
           {loadError ? (
             <p className="mb-4 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               Catalog could not fully load. College list below is still available.
@@ -1453,7 +1434,7 @@ export function GecCentralHubEvaluatorClient() {
   if (loadError) {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" />
+        <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← Back to {EVALUATOR_TAB_LABELS.colleges}
@@ -1467,7 +1448,7 @@ export function GecCentralHubEvaluatorClient() {
   if (invalidCollege) {
     return (
       <div>
-        <ChairmanPageHeader title="Central Hub Evaluator" subtitle="Invalid college selection." />
+        <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} subtitle="Invalid college selection." />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← Back to {EVALUATOR_TAB_LABELS.colleges}
@@ -1477,32 +1458,11 @@ export function GecCentralHubEvaluatorClient() {
     );
   }
 
-  /** Hours / load tab — mirrors College Admin hub sample panel. */
-  if (panel === "hrs") {
-    return (
-      <div>
-        <ChairmanPageHeader
-          title="Central Hub Evaluator"
-          subtitle="Teaching load by college"
-        />
-        <div className="px-4 md:px-8 pb-8 max-w-[1400px] mx-auto">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
-              ← {EVALUATOR_TAB_LABELS.colleges}
-            </HubCollegesNavLink>
-          </div>
-          <GecHubEvaluatorTabs collegeParam={collegeParam} panel="hrs" />
-          <HrsUnitsPrepsRemarksTable />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
     <div>
       <ChairmanPageHeader
-        title="Central Hub Evaluator"
+        title={SUBJECT_SCHEDULER_NAV_LABEL}
         subtitle="Plot vacant GEC slots in the selected college and department. Major subjects stay read-only."
       />
 
@@ -1513,7 +1473,7 @@ export function GecCentralHubEvaluatorClient() {
           </HubCollegesNavLink>
         </div>
 
-        <GecHubEvaluatorTabs collegeParam={collegeParam} panel="timetabling" />
+        <GecHubEvaluatorTabs collegeParam={collegeParam} />
 
         {termPublishLocked ? (
           <div
@@ -1733,17 +1693,6 @@ export function GecCentralHubEvaluatorClient() {
                             No GEC instructors on campus yet. Mark faculty as GEC in{" "}
                             <strong>Faculty Profile</strong> first.
                           </p>
-                        ) : null}
-                        {saveMsg ? (
-                          <div
-                            className={`rounded-lg border px-4 py-2 text-sm ${
-                              saveMsg.startsWith("Saved") || saveMsg.startsWith("No ")
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                                : "border-amber-200 bg-amber-50 text-amber-950"
-                            }`}
-                          >
-                            {saveMsg}
-                          </div>
                         ) : null}
                         {gecEnrichedConflicts.length > 0 ? (
                           <EnrichedConflictIssuesPanel

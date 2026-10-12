@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { adminApi, ApiClientError } from "@/lib/api/client";
+import { adminApi } from "@/lib/api/client";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 const CONFIRM_PHRASE = "CLEAR SUBJECTS";
 
@@ -15,23 +16,23 @@ const CONFIRM_PHRASE = "CLEAR SUBJECTS";
 export function SystemConfigClearSubjectsCard() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const toast = useActionToast();
   const [err, setErr] = useState<string | null>(null);
 
   async function onClear() {
     setBusy(true);
-    setMsg(null);
     setErr(null);
     try {
       const data = await adminApi.clearSubjectsAndSchedule(CONFIRM_PHRASE);
       const d = data.deleted;
-      setMsg(
-        `Cleared ${d.subjects} subjects, ${d.scheduleEntries} schedule rows, ${d.scheduleLoadJustifications} justifications, ${d.doiFinalizations} DOI locks. Rooms kept.`,
+      toast.ok(
+        "Subjects and schedules cleared",
+        `${d.subjects} subjects, ${d.scheduleEntries} schedule rows, ${d.scheduleLoadJustifications} justifications and ${d.doiFinalizations} DOI locks removed. Rooms were kept.`,
       );
       setConfirm("");
       dispatchInsCatalogReload();
     } catch (e) {
-      setErr(e instanceof ApiClientError || e instanceof Error ? e.message : "Clear failed");
+      toast.fail(e, "Could not clear subjects and schedules", "system config: clear subjects");
     } finally {
       setBusy(false);
     }
@@ -74,7 +75,6 @@ export function SystemConfigClearSubjectsCard() {
         {busy ? "Clearing…" : "Clear subjects & schedule"}
       </Button>
       {err ? <p className="text-sm text-red-700">{err}</p> : null}
-      {msg ? <p className="text-sm text-emerald-800">{msg}</p> : null}
     </div>
   );
 }

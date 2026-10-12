@@ -11,14 +11,18 @@ import {
 } from "@/lib/subjects/gec-subject-scope";
 import { normalizeSubjectCodeForCompare } from "@/lib/subjects/normalize-subject-code";
 import {
-  SUBJECT_CATEGORIES,
+  CAMPUS_SUBJECT_CATEGORIES,
   SUBJECT_SEMESTERS,
   normalizeSubjectCategory,
   normalizeSubjectSemester,
+  subjectCategoriesForProgram,
   subjectCategoryLabel,
   subjectSemesterLabel,
   suggestSubjectCategory,
+  type SubjectCategoryRow,
 } from "@/lib/subjects/subject-category";
+import { ManageSubjectCategoriesModal } from "@/components/subjects/ManageSubjectCategoriesModal";
+import { useActionToast } from "@/components/alerts/useActionToast";
 import {
   filterSubjectsBySemester,
   semesterFilterForPeriod,
@@ -93,6 +97,13 @@ export type SubjectCodesWorkspaceProps = {
    * every department — while a major subject stays its own chairman's to edit.
    */
   editableScope?: "all" | "gec";
+  /**
+   * DOI: the campus-wide categories (GEC, GEE, PE, NSTP) may be renamed and removed.
+   *
+   * They appear in every program, so a change reaches the whole campus — which is why it is the
+   * campus-wide role that gets it and nobody else.
+   */
+  canEditCampusCategories?: boolean;
 };
 
 export function SubjectCodesWorkspace({
@@ -103,6 +114,7 @@ export function SubjectCodesWorkspace({
   gecCurriculumOnly = false,
   allProgramsCatalog = false,
   editableScope = "all",
+  canEditCampusCategories = false,
 }: SubjectCodesWorkspaceProps) {
   const scopedProgramId = lockedProgramId ?? scopeProgramId ?? null;
   /** Every program's subjects are listed; new rows pick their department in the form. */
@@ -189,11 +201,43 @@ export function SubjectCodesWorkspace({
   const semesterNav = useSemesterFilterOptional();
   const selectedPeriod = semesterNav?.selectedPeriod ?? null;
   const semesterFilter = semesterFilterForPeriod(selectedPeriod);
+
+  /**
+   * The kinds of subject this program runs (migration 024).
+   *
+   * Falls back to the campus-wide three until the request lands, so the Category field is never
+   * empty and a page opened before the migration still works.
+   */
+  const [categoryCatalog, setCategoryCatalog] = useState<SubjectCategoryRow[]>([
+    ...CAMPUS_SUBJECT_CATEGORIES,
+  ]);
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const { subjectCategoryApi } = await import("@/lib/api/client");
+      const res = await subjectCategoryApi.list(programId || null);
+      const rows = res.categories ?? [];
+      // An empty list means the table is not there yet; the campus three still apply.
+      setCategoryCatalog(rows.length > 0 ? rows : [...CAMPUS_SUBJECT_CATEGORIES]);
+    } catch {
+      setCategoryCatalog([...CAMPUS_SUBJECT_CATEGORIES]);
+    }
+  }, [programId]);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
+
+  /** What the Category dropdown offers, and what labels the table prints. */
+  const categoryOptions = useMemo(
+    () => subjectCategoriesForProgram(categoryCatalog, programId || null),
+    [categoryCatalog, programId],
+  );
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Subject | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const toast = useActionToast();
 
   const loadSubjects = useCallback(async () => {
     // GEC codes are shared across departments, so that list is campus-wide; every other scope is
@@ -204,7 +248,6 @@ export function SubjectCodesWorkspace({
       return;
     }
     setLoadingList(true);
-    setError(null);
     setDbSubjects([]);
     try {
       const { apiFetch } = await import("@/lib/api/client");
@@ -216,11 +259,11 @@ export function SubjectCodesWorkspace({
       });
       setDbSubjects(data.subjects);
     } catch (e: any) {
-      setError(e?.message ?? "Failed to load subjects");
+      toast.fail(e, "Could not load the subject list", "subject codes");
       setDbSubjects([]);
     }
     setLoadingList(false);
-  }, [scopedProgramId, campusWide]);
+  }, [scopedProgramId, campusWide, toast]);
 
   /** Program code per id, so a campus-wide list can say which department a subject belongs to. */
   const loadProgramCodes = useCallback(async () => {
@@ -255,7 +298,6 @@ export function SubjectCodesWorkspace({
     setLabHours("");
     setYearLevel("1");
     setSubjectSearch("");
-    setSuccess(null);
     void loadSubjects();
     void loadProgramCodes();
   }, [loadSubjects, loadProgramCodes]);
@@ -283,9 +325,10 @@ export function SubjectCodesWorkspace({
         s.code.toLowerCase().includes(q) ||
         (s.title && s.title.toLowerCase().includes(q)) ||
         (programCodeById[s.programId] ?? "").toLowerCase().includes(q) ||
-        subjectCategoryLabel(s.category, "").toLowerCase().includes(q),
+        subjectCategoryLabel(s.category, categoryOptions, "").toLowerCase().includes(q),
     );
   }, [
+    categoryOptions,
     dbSubjects,
     subjectSearch,
     semesterFilter,
@@ -332,7 +375,7 @@ export function SubjectCodesWorkspace({
   function startEdit(s: Subject) {
     // The row hides its buttons, but a stale render must not open a form that cannot be saved.
     if (!canEditSubject(s)) {
-      setError(GEC_SUBJECT_SCOPE_MESSAGE);
+      toast.refuse("You cannot edit this subject", GEC_SUBJECT_SCOPE_MESSAGE);
       return;
     }
     setEditingId(s.id);
@@ -344,41 +387,41 @@ export function SubjectCodesWorkspace({
     setLabHours(String(s.labHours ?? ""));
     setYearLevel(String(s.yearLevel ?? 1));
     setSemester(String(normalizeSubjectSemester(s.semester) ?? ""));
-    setCategory(normalizeSubjectCategory(s.category));
+    setCategory(normalizeSubjectCategory(s.category, categoryOptions));
     setCategoryTouched(true);
     if (campusWide) setFormProgramId(s.programId ?? "");
-    setError(null);
-    setSuccess(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function onSaveSubject() {
-    setError(null);
-    setSuccess(null);
     if (!programId) {
-      setError(
+      toast.refuse(
+        "Choose a department first",
         campusWide
-          ? "Choose the department this subject belongs to."
-          : "Select a program (use the scope bar) before saving a subject.",
+          ? "A subject belongs to one department — pick it above."
+          : "Use the scope bar at the top to pick a department.",
       );
       return;
     }
     const trimmedCode = code.trim();
     const trimmedTitle = title.trim();
     if (!trimmedCode || !trimmedTitle) {
-      setError("Subject Code and Descriptive Title are required.");
+      toast.refuse("Fill in the subject first", "Subject Code and Descriptive Title are both needed.");
       return;
     }
     if (gecCurriculumOnly && !allProgramsCatalog && !isGecCurriculumSubjectCode(trimmedCode)) {
-      setError("GEC Chairman may only add subjects whose codes start with GEC- or GEE- (general education).");
+      toast.refuse(
+        "That is not a general education subject",
+        "As GEC Chairman you can add codes starting with GEC- or GEE-.",
+      );
       return;
     }
     if (gecOnlyEditing && !canGecChairmanCreateSubjectCode(trimmedCode)) {
-      setError(GEC_SUBJECT_SCOPE_MESSAGE);
+      toast.refuse("You cannot add this subject", GEC_SUBJECT_SCOPE_MESSAGE);
       return;
     }
     if (duplicateLocal) {
-      setError("Subject Code already exists.");
+      toast.refuse("That subject code is taken", `“${trimmedCode}” already exists here.`);
       return;
     }
 
@@ -402,24 +445,25 @@ export function SubjectCodesWorkspace({
       programId,
       yearLevel: Math.min(6, Math.max(1, parseInt(yearLevel, 10) || 1)),
       semester: normalizeSubjectSemester(semester),
-      category: normalizeSubjectCategory(category) || null,
+      category: normalizeSubjectCategory(category, categoryOptions) || null,
     };
     try {
       if (editingId) {
         await subjectCodesApi.update(editingId, payload);
-        setSuccess("Subject updated.");
+        toast.ok(`“${trimmedCode}” updated`);
       } else {
         await subjectCodesApi.create(payload);
-        setSuccess("Subject saved.");
+        toast.ok(`“${trimmedCode}” added`, "It is now in the subject list below.");
       }
       resetForm();
       void loadSubjects();
-    } catch (err: any) {
-      const msg = err?.message ?? "Failed to save subject.";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      // A unique-key clash is the one database error with a cause worth naming to the person.
       if (msg.includes("duplicate") || msg.includes("already exists") || msg.includes("23505")) {
-        setError("Subject Code already exists.");
+        toast.refuse("That subject code is taken", `“${trimmedCode}” already exists here.`);
       } else {
-        setError(msg);
+        toast.fail(err, "Could not save the subject", "saving subject");
       }
     } finally {
       setSaving(false);
@@ -457,13 +501,6 @@ export function SubjectCodesWorkspace({
           </p>
         ) : null}
 
-        {error ? (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">{error}</p>
-        ) : null}
-        {success ? (
-          <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2 mb-3">{success}</p>
-        ) : null}
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {campusWide ? (
             <div className="space-y-1">
@@ -493,7 +530,7 @@ export function SubjectCodesWorkspace({
                 setCode(next);
                 // GEC-, GEE-, NSTP- and PATHFIT- codes say their own category; major vs minor never
                 // does, so this only ever fills a blank the user has not touched.
-                if (!categoryTouched) setCategory(suggestSubjectCategory(next));
+                if (!categoryTouched) setCategory(suggestSubjectCategory(next, categoryOptions));
               }}
               disabled={!programId}
             />
@@ -546,19 +583,30 @@ export function SubjectCodesWorkspace({
             <p className="text-[11px] text-black/50">When this subject is offered.</p>
           </div>
           <div className="space-y-1">
-            <div className="text-sm font-medium">Category</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-medium">Category</div>
+              <button
+                type="button"
+                className="text-[11px] font-semibold text-[#780301] hover:underline disabled:opacity-40 disabled:no-underline"
+                disabled={!programId}
+                onClick={() => setManageCategoriesOpen(true)}
+                title="Add or rename the categories this program uses"
+              >
+                Manage categories
+              </button>
+            </div>
             <select
               className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
               value={category}
               onChange={(e) => {
                 setCategoryTouched(true);
-                setCategory(normalizeSubjectCategory(e.target.value));
+                setCategory(normalizeSubjectCategory(e.target.value, categoryOptions));
               }}
               disabled={!programId}
             >
               <option value="">— Not set —</option>
-              {SUBJECT_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
+              {categoryOptions.map((c) => (
+                <option key={c.id} value={c.code}>
                   {c.label}
                 </option>
               ))}
@@ -685,7 +733,7 @@ export function SubjectCodesWorkspace({
                     <tr key={s.id} className={editingId === s.id ? "bg-amber-50/80" : undefined}>
                       <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
                       <td className="border border-black/10 px-2 py-2">{subjectSemesterLabel(s.semester)}</td>
-                      <td className="border border-black/10 px-2 py-2">{subjectCategoryLabel(s.category)}</td>
+                      <td className="border border-black/10 px-2 py-2">{subjectCategoryLabel(s.category, categoryOptions)}</td>
                       <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
                       <td className="border border-black/10 px-2 py-2">{s.title}</td>
                       <td className="border border-black/10 px-2 py-2">
@@ -744,11 +792,21 @@ export function SubjectCodesWorkspace({
           onClose={() => setPendingDelete(null)}
           onDeleted={() => {
             if (editingId === pendingDelete.id) resetForm();
-            setSuccess(`Subject “${pendingDelete.code}” deleted.`);
+            toast.ok(`“${pendingDelete.code}” deleted`);
             void loadSubjects();
           }}
         />
       ) : null}
+
+      <ManageSubjectCategoriesModal
+        open={manageCategoriesOpen}
+        onClose={() => setManageCategoriesOpen(false)}
+        programId={programId ?? ""}
+        programLabel={(programId && programCodeById[programId]) || "this program"}
+        canEditCampusCategories={canEditCampusCategories}
+        categories={categoryCatalog}
+        onChanged={loadCategories}
+      />
     </div>
   );
 }

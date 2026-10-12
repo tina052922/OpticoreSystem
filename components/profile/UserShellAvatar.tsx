@@ -15,7 +15,7 @@ export function UserShellAvatar({ name, imageUrl }: UserShellAvatarProps) {
   const src = imageUrl?.trim();
   if (src) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- Supabase public URL
+      // eslint-disable-next-line no-restricted-syntax -- Supabase public URL
       <img src={src} alt={`${name} profile photo`} className="h-full w-full object-cover" />
     );
   }

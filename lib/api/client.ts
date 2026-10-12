@@ -17,6 +17,7 @@
  */
 
 import type { CampusAccountSaveRole } from "@/lib/admin/campus-account-posts";
+import type { SubjectCategoryRow } from "@/lib/subjects/subject-category";
 import {
   API_CACHE_TTL,
   buildCacheKey,
@@ -477,10 +478,25 @@ async function apiFetchUncached<T>(
       throw new ApiClientError(res.status, (payload as ApiFailure).error);
     }
 
-    const errObj =
-      payload && typeof payload === "object"
-        ? (payload as Record<string, unknown>).error || payload
-        : { code: "HTTP_ERROR", message: `Request failed (${res.status})` };
+    /*
+     * Two failure shapes reach here.
+     *
+     * The envelope `{ error: { code, message, details } }`, and the flat
+     * `{ error: "message", code, details }` that most of this app's Express handlers return. The
+     * flat one used to lose everything but the message, because `payload.error` is a string and was
+     * passed on alone — so a caller could not tell IN_USE from any other 409 and had to fall back
+     * to showing the raw text.
+     */
+    const errObj = (() => {
+      if (!payload || typeof payload !== "object") {
+        return { code: "HTTP_ERROR", message: `Request failed (${res.status})` };
+      }
+      const body = payload as Record<string, unknown>;
+      if (typeof body.error === "string") {
+        return { code: String(body.code ?? "UNKNOWN_ERROR"), message: body.error, details: body.details };
+      }
+      return (body.error as Record<string, unknown> | undefined) || body;
+    })();
 
     throw new ApiClientError(res.status, errObj as ApiFailure["error"]);
   }
@@ -1800,6 +1816,44 @@ export const authExtraApi = {
     return apiFetch<{ ok: true }>("/api/auth/change-password", {
       method: "POST",
       body,
+    });
+  },
+};
+
+/**
+ * Subject categories — the kinds of subject a program runs (migration 024).
+ *
+ * Reading is open to any signed-in user, because every page that renders a subject needs the
+ * labels. Writing is checked per program on the server: a chairman owns one.
+ */
+export const subjectCategoryApi = {
+  list(programId?: string | null) {
+    const qs = programId?.trim() ? `?programId=${encodeURIComponent(programId.trim())}` : "";
+    return apiFetch<{ categories: SubjectCategoryRow[]; warning?: string }>(
+      `/api/catalog/subject-categories${qs}`,
+      { method: "GET", forceRefresh: true },
+    );
+  },
+  create(input: { programId: string; label: string; code?: string }) {
+    return apiFetch<{ category: SubjectCategoryRow }>("/api/catalog/subject-categories", {
+      method: "POST",
+      body: input,
+    });
+  },
+  rename(id: string, label: string) {
+    return apiFetch<{ category: SubjectCategoryRow }>(`/api/catalog/subject-categories/${id}`, {
+      method: "PUT",
+      body: { label },
+    });
+  },
+  /**
+   * Removes a category. Without `force` the server reports how many subjects use it and changes
+   * nothing; with it, those subjects are left uncategorised and the category goes.
+   */
+  remove(id: string, opts?: { force?: boolean }) {
+    return apiFetch<{ ok: true; cleared: number }>(`/api/catalog/subject-categories/${id}`, {
+      method: "DELETE",
+      body: { force: opts?.force === true },
     });
   },
 };

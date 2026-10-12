@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatAuditActionEnglish, formatAuditDetailsEnglish } from "@/lib/audit/format-audit-entry";
-import { auditLogApi, ApiClientError } from "@/lib/api/client";
+import { auditLogApi } from "@/lib/api/client";
 import { markAuditLogPageSeen } from "@/hooks/use-audit-log-unread-count";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 export type AuditEntry = {
   id: string;
@@ -24,16 +25,15 @@ export type AuditLogViewerProps = {
 
 export function AuditLogViewer({ auditUnreadScope = "college" }: AuditLogViewerProps) {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useActionToast();
 
   const load = useCallback(async () => {
-    setError(null);
     try {
       const data = await auditLogApi.list({ limit: 100 });
       setEntries(data.entries as AuditEntry[]);
       markAuditLogPageSeen(auditUnreadScope);
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : "Failed to load audit log");
+      toast.fail(e, "Could not load the audit log", "audit log");
     }
   }, [auditUnreadScope]);
 
@@ -43,9 +43,6 @@ export function AuditLogViewer({ auditUnreadScope = "college" }: AuditLogViewerP
 
   return (
     <div className="space-y-4">
-      {error ? (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>
-      ) : null}
       <div className="overflow-x-auto rounded-lg border border-black/10">
         <table className="w-full text-left text-[12px]">
           <thead>

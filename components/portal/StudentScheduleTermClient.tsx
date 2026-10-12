@@ -112,7 +112,7 @@ export function StudentScheduleTermClient() {
         <h1 className="text-2xl font-bold text-gray-800">My schedule</h1>
         <p className="text-gray-600 text-sm mt-1">
           INS Form 5B — Program by Section (your section only). Matches the official grid format used in Campus
-          Intelligence. To look up other sections or rooms, open Load Generator.
+          Intelligence. To look up other sections or rooms, open INS Forms Generator.
           {loading ? <span className="ml-2 text-black/40">Updating…</span> : null}
         </p>
       </div>

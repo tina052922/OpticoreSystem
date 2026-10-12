@@ -67,7 +67,7 @@ function ImageField({
           }`}
         >
           {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
+            // eslint-disable-next-line no-restricted-syntax
             <img src={previewUrl} alt={title} className="max-h-full max-w-full object-contain" />
           ) : (
             <span className="px-2 text-center text-[11px] text-gray-400">{empty}</span>

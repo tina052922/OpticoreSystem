@@ -79,7 +79,7 @@ export function DoiCampusDirectorSignatureCard() {
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <div className="relative flex h-20 w-56 items-center justify-center overflow-hidden rounded-lg border border-dashed border-gray-300 bg-gray-50">
           {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
+            // eslint-disable-next-line no-restricted-syntax
             <img src={previewUrl} alt="Campus Director signature" className="max-h-20 max-w-full object-contain" />
           ) : (
             <span className="text-xs text-gray-400">No campus-wide signature on file</span>

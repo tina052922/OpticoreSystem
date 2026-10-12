@@ -123,3 +123,34 @@ export function subjectHoursOverLimitMessage(args: {
   const total = args.alreadyPlottedHours + args.additionalHours;
   return `${args.subjectCode} is over the prospectus limit: ${total} hour(s) plotted this term, but the subject only needs ${args.requiredHours} hour(s) per week (lecture 1 unit = 1 hour, lab 1 unit = 3 hours). Reduce duration or remove extra meetings before saving.`;
 }
+
+/**
+ * How far a subject's plotted hours have got against what it requires.
+ *
+ *   • `none`     — nothing plotted for it yet.
+ *   • `partial`  — some hours plotted, but short of the requirement. 1 of 5 is not an achievement.
+ *   • `complete` — the requirement is met exactly.
+ *   • `over`     — more plotted than required.
+ *
+ * The Summary of Subjects used to show a green tick beside every plotted subject, so "1/5h" and
+ * "5/5h" looked alike and a half-finished subject read as done. Only `complete` earns the tick.
+ *
+ * A requirement of zero means the hours are unknown — no prospectus row and no recorded hours — so
+ * nothing can be called complete against it.
+ */
+export type SubjectHoursProgress = "none" | "partial" | "complete" | "over";
+
+export function subjectHoursProgress(args: {
+  plottedHours: number;
+  requiredHours: number;
+  /** False when the subject has no rows on this section at all. */
+  plotted: boolean;
+}): SubjectHoursProgress {
+  const plottedHours = Math.max(0, Number(args.plottedHours) || 0);
+  const requiredHours = Math.max(0, Number(args.requiredHours) || 0);
+  if (!args.plotted || plottedHours <= 0) return "none";
+  if (requiredHours <= 0) return "partial";
+  if (plottedHours > requiredHours + 1e-6) return "over";
+  if (plottedHours >= requiredHours - 1e-6) return "complete";
+  return "partial";
+}

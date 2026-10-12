@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  ApiClientError,
   instructorRequestsApi,
   type InstructorRequest,
   type LinkableFaculty,
 } from "@/lib/api/client";
 import { isGecFacultyCategory } from "@/lib/faculty/faculty-category";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 /**
  * Chairman queue for instructor self-registrations.
@@ -41,7 +41,7 @@ export function PendingInstructorsReview() {
   const [candidates, setCandidates] = useState<LinkableFaculty[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useActionToast();
   const [notice, setNotice] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -52,7 +52,6 @@ export function PendingInstructorsReview() {
   const [confirming, setConfirming] = useState<Decision>(null);
 
   const load = useCallback(async () => {
-    setError(null);
     try {
       const [queue, linkable] = await Promise.all([
         instructorRequestsApi.list("all"),
@@ -76,11 +75,11 @@ export function PendingInstructorsReview() {
         return next;
       });
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : "Failed to load requests.");
+      toast.fail(e, "Could not load the registrations", "pending instructors");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void load();
@@ -101,12 +100,14 @@ export function PendingInstructorsReview() {
     const employeeId = d?.employeeId?.trim() || undefined;
 
     if (!linkUserId && !employeeId) {
-      setError("Enter an Employee ID, or link an existing faculty record.");
+      toast.refuse(
+        "An Employee ID is needed",
+        "Enter one, or link this person to an existing faculty record.",
+      );
       return;
     }
 
     setBusyId(row.id);
-    setError(null);
     setNotice(null);
     try {
       const res = await instructorRequestsApi.approve(row.id, {
@@ -117,7 +118,7 @@ export function PendingInstructorsReview() {
       setConfirming(null);
       await load();
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : "Could not approve.");
+      toast.fail(e, "Could not approve the registration", "pending instructors: approve");
     } finally {
       setBusyId(null);
     }
@@ -125,7 +126,6 @@ export function PendingInstructorsReview() {
 
   async function reject(row: InstructorRequest) {
     setBusyId(row.id);
-    setError(null);
     setNotice(null);
     try {
       await instructorRequestsApi.reject(row.id, {
@@ -135,7 +135,7 @@ export function PendingInstructorsReview() {
       setConfirming(null);
       await load();
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : "Could not reject.");
+      toast.fail(e, "Could not reject the registration", "pending instructors: reject");
     } finally {
       setBusyId(null);
     }
@@ -156,14 +156,6 @@ export function PendingInstructorsReview() {
 
   return (
     <div className="space-y-8 px-4 pb-10 sm:px-6 lg:px-8">
-      {error ? (
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
-          {error}
-        </p>
-      ) : null}
       {notice ? (
         <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           {notice}

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { ApiClientError, authApi } from "@/lib/api/client";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 /** Mirrors the backend's per-request resend cooldown. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -22,13 +23,6 @@ const secondsLeft = (lastSentAt: number) =>
     0,
     Math.ceil((lastSentAt + RESEND_COOLDOWN_SECONDS * 1000 - Date.now()) / 1000),
   );
-
-const messageOf = (err: unknown, fallback: string) =>
-  err instanceof ApiClientError
-    ? err.message
-    : err instanceof Error
-      ? err.message
-      : fallback;
 
 /**
  * Password reset: email → 6-digit code → new password.
@@ -62,7 +56,7 @@ export function ForgotPasswordClient() {
 
   const [busy, setBusy] = useState(false);
   const [resending, setResending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useActionToast();
   const [notice, setNotice] = useState<string | null>(null);
   /** Set when the server dropped the request and retrying the code is pointless. */
   const [dead, setDead] = useState(false);
@@ -93,7 +87,6 @@ export function ForgotPasswordClient() {
     setResetTicket(null);
     setPassword("");
     setConfirmPassword("");
-    setError(null);
     setNotice(null);
     setDead(false);
   }
@@ -105,12 +98,11 @@ export function ForgotPasswordClient() {
 
     const trimmed = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError("Enter a valid email address.");
+      toast.refuse("Check the email address", "It does not look like a valid address.");
       return;
     }
 
     setBusy(true);
-    setError(null);
     setNotice(null);
     try {
       await authApi.forgotPassword(trimmed);
@@ -118,7 +110,7 @@ export function ForgotPasswordClient() {
       setLastSentAt(Date.now());
       setStage("code");
     } catch (err) {
-      setError(messageOf(err, "We couldn't send your code. Please try again."));
+      toast.fail(err, "Could not send your code", "forgot password: send");
     } finally {
       setBusy(false);
     }
@@ -128,7 +120,6 @@ export function ForgotPasswordClient() {
   async function submitCode(value: string) {
     if (busy || dead) return;
     setBusy(true);
-    setError(null);
     setNotice(null);
     try {
       const res = await authApi.verifyPasswordResetCode({ email, code: value });
@@ -141,7 +132,7 @@ export function ForgotPasswordClient() {
       if (apiErr?.code === "EXPIRED" || apiErr?.code === "TOO_MANY_ATTEMPTS") {
         setDead(true);
       }
-      setError(messageOf(err, "We couldn't check that code. Please try again."));
+      toast.fail(err, "Could not check that code", "forgot password: verify");
       setCode("");
       codeRef.current?.focus();
     } finally {
@@ -153,7 +144,6 @@ export function ForgotPasswordClient() {
     // Accept a pasted "123 456" or "123-456" without making the user clean it.
     const digits = raw.replace(/\D/g, "").slice(0, CODE_LENGTH);
     setCode(digits);
-    setError(null);
     // The code is fixed-length, so requiring a button press too is pure friction.
     if (digits.length === CODE_LENGTH) void submitCode(digits);
   }
@@ -161,7 +151,6 @@ export function ForgotPasswordClient() {
   async function onResend() {
     if (cooldown > 0 || resending) return;
     setResending(true);
-    setError(null);
     setNotice(null);
     try {
       await authApi.resendPasswordResetCode(email);
@@ -171,7 +160,7 @@ export function ForgotPasswordClient() {
       setNotice("New code sent. The old one no longer works.");
       codeRef.current?.focus();
     } catch (err) {
-      setError(messageOf(err, "We couldn't send another code. Please try again."));
+      toast.fail(err, "Could not send another code", "forgot password: resend");
     } finally {
       setResending(false);
     }
@@ -183,16 +172,15 @@ export function ForgotPasswordClient() {
     if (busy || !resetTicket) return;
 
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      toast.refuse("Password is too short", `Use at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
     if (password !== confirmPassword) {
-      setError("Those passwords don't match.");
+      toast.refuse("Passwords do not match", "Type the same password in both boxes.");
       return;
     }
 
     setBusy(true);
-    setError(null);
     try {
       await authApi.resetPassword({ resetTicket, newPassword: password });
       // Drop the ticket the moment it is spent, so a later render can't reuse it.
@@ -209,7 +197,7 @@ export function ForgotPasswordClient() {
         setStage("email");
         setCode("");
       }
-      setError(messageOf(err, "We couldn't update your password. Please try again."));
+      toast.fail(err, "Could not update your password", "forgot password: reset");
     } finally {
       setBusy(false);
     }
@@ -217,14 +205,6 @@ export function ForgotPasswordClient() {
 
   const alerts = (
     <>
-      {error ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-        >
-          {error}
-        </div>
-      ) : null}
       {notice ? (
         <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
           {notice}
@@ -303,8 +283,7 @@ export function ForgotPasswordClient() {
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
-                  setError(null);
-                }}
+                              }}
                 autoComplete="new-password"
                 placeholder="••••••••"
                 className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 pr-11 text-sm shadow-sm placeholder:text-neutral-500"
@@ -341,8 +320,7 @@ export function ForgotPasswordClient() {
               value={confirmPassword}
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
-                setError(null);
-              }}
+                          }}
               autoComplete="new-password"
               placeholder="••••••••"
               className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 text-sm shadow-sm placeholder:text-neutral-500"
@@ -393,7 +371,6 @@ export function ForgotPasswordClient() {
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="000000"
-              aria-invalid={Boolean(error)}
               className="h-16 w-full rounded-xl border border-black/25 bg-white text-center text-3xl font-semibold tracking-[0.4em] shadow-md outline-none focus-visible:ring-2 focus-visible:ring-[#FF990A]/40 disabled:opacity-60"
             />
             <p className="text-sm text-black/55">
@@ -481,8 +458,7 @@ export function ForgotPasswordClient() {
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
-              setError(null);
-            }}
+                      }}
             autoComplete="email"
             placeholder="Enter your email"
             className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 text-sm shadow-sm placeholder:text-neutral-500"

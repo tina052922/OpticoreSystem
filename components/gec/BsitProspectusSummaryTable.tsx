@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
 import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { groupProspectusByYearLevelOnly } from "@/lib/gec/prospectus-summary";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
@@ -121,22 +120,12 @@ export function BsitProspectusSummaryTable({
                         <td className="py-1 pr-2 text-black/60 whitespace-nowrap">{s.semester === 1 ? "1st" : "2nd"} sem</td>
                         <td className="py-1 text-black/75">{s.title}</td>
                         <td className="py-1 pl-2 text-right whitespace-nowrap">
-                          {plotted && !overLimit ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-900 font-semibold">
-                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                              <SubjectWeeklyHoursChip
-                                plotted
-                                plottedHours={plottedHours}
-                                requiredHours={requiredHours}
-                              />
-                            </span>
-                          ) : (
-                            <SubjectWeeklyHoursChip
-                              plotted={plotted}
-                              plottedHours={plottedHours}
-                              requiredHours={requiredHours}
-                            />
-                          )}
+                          {/* The chip decides tick and colour; see `subjectHoursProgress`. */}
+                          <SubjectWeeklyHoursChip
+                            plotted={plotted}
+                            plottedHours={plottedHours}
+                            requiredHours={requiredHours}
+                          />
                         </td>
                       </tr>
                     );
