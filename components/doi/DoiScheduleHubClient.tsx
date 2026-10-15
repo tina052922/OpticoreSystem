@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { userErrorDetail } from "@/lib/ui/user-message";
 import Link from "next/link";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
@@ -90,7 +91,7 @@ export function DoiScheduleHubClient() {
       if (!hasIssues) toast.success("No conflicts detected");
       else toast.info("Conflicts found – see details below", `${data.conflictingEntryIds?.length ?? 0} entries involved.`);
     } catch (e) {
-      const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Check failed";
+      const msg = userErrorDetail(e, "Failed to run conflict check");
       setConflictError(msg);
       toast.error("Failed to run conflict check. Please try again.", msg);
     } finally {
@@ -127,7 +128,7 @@ export function DoiScheduleHubClient() {
         toast.success("Schedule decision saved");
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Update failed";
+      const msg = userErrorDetail(e, "Failed to update");
       setDecisionError(msg);
       toast.error("Failed to update. Please try again.", msg);
     } finally {

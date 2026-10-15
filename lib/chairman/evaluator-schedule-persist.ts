@@ -3,7 +3,12 @@ import {
   normalizeProspectusCode,
   prospectusByCode,
 } from "@/lib/chairman/bsit-prospectus";
-import { inferDurationSlotsFromTimes, plotRowDurationSlots, clampPlotStartSlotIndex } from "@/lib/evaluator/plot-duration";
+import {
+  clampPlotStartSlotIndex,
+  inferDurationSlotsFromTimes,
+  plotRowDurationSlots,
+  timesFromSlotRange,
+} from "@/lib/evaluator/plot-duration";
 import { encodeDayForStorage, resolveProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
 import type { ScheduleEntry, Subject } from "@/types/db";
 
@@ -54,10 +59,12 @@ export function plotRowsToScheduleEntries(args: {
     const p = prospectusByCode(row.subjectCode);
     if (!p) continue;
     const dur = plotRowDurationSlots(p, row);
-    const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
-    const startSlot = slots[startIdx];
-    const endSlot = slots[startIdx + dur - 1];
-    if (!startSlot || !endSlot) continue;
+    /*
+     * The stored times come from start + duration, not from the last covered row's `endTime`: a 1.5
+     * hour meeting ends at :30, which no hourly row's end can express.
+     */
+    const times = timesFromSlotRange(clampPlotStartSlotIndex(row.startSlotIndex, dur, slots), dur, slots);
+    if (!times) continue;
 
     const norm = normalizeProspectusCode(row.subjectCode);
     const subjectId = codeToSubjectId.get(norm);
@@ -75,8 +82,8 @@ export function plotRowsToScheduleEntries(args: {
       sectionId: row.sectionId,
       roomId: row.roomId,
       day: encodeDayForStorage(row.day, programMode),
-      startTime: startSlot.startTime,
-      endTime: endSlot.endTime,
+      startTime: times.startTime,
+      endTime: times.endTime,
       status: "draft",
       programMode,
     });
@@ -103,7 +110,7 @@ export function scheduleEntriesToPlotRows(args: {
     const startIdx = slots.findIndex((s) => s.startTime === startH);
     if (startIdx < 0) continue;
     const dur = inferDurationSlotsFromTimes(e.startTime, e.endTime);
-    const clampedStart = clampPlotStartSlotIndex(startIdx, dur, slots.length);
+    const clampedStart = clampPlotStartSlotIndex(startIdx, dur, slots);
 
     out.push({
       id: e.id,

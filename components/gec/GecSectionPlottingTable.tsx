@@ -227,7 +227,7 @@ export function GecSectionPlottingTable({
   function applySlotRange(entryId: string, subjectId: string, startIdx: number, durationSlots = 1) {
     const sub = subjectById.get(subjectId);
     const dur = plotEntryDurationSlots(programCode, sub, durationSlots);
-    const idx = clampPlotStartSlotIndex(Math.max(0, startIdx), dur, slotsForMode.length);
+    const idx = clampPlotStartSlotIndex(Math.max(0, startIdx), dur, slotsForMode);
     const times = timesFromSlotRange(idx, dur, slotsForMode);
     if (!times) return;
     patchEdit(entryId, { startTime: times.startTime, endTime: times.endTime });
@@ -336,7 +336,7 @@ export function GecSectionPlottingTable({
                 const dur = inferDurationSlotsFromTimes(merged.startTime, merged.endTime);
                 const startIdx = startSlotIndexFromEntry(merged, programMode);
                 const maxStart = Math.max(0, slotsForMode.length - dur);
-                const effStart = startIdx >= 0 ? clampPlotStartSlotIndex(startIdx, dur, slotsForMode.length) : 0;
+                const effStart = startIdx >= 0 ? clampPlotStartSlotIndex(startIdx, dur, slotsForMode) : 0;
                 const conflictScanHit = highlightConflictEntryIds?.has(e.id) ?? false;
                 const rowClass = editable
                   ? "bg-emerald-50/90 ring-1 ring-inset ring-emerald-400/70"

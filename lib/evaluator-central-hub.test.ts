@@ -75,13 +75,18 @@ describe("central hub college list navigation", () => {
   });
 
   it("GEC landing prefers live catalog names and includes extras", () => {
-    const empty = gecHubCollegeTiles([]);
-    expect(empty.length).toBeGreaterThanOrEqual(5);
+    /*
+     * An empty catalog means "not loaded yet", not "here are five colleges". Painting the
+     * hardcoded list made the landing show five tiles that then became three.
+     */
+    expect(gecHubCollegeTiles([])).toEqual([]);
     const withDb = gecHubCollegeTiles([
       { id: "col-tech-eng", code: "COTE", name: "COTE (live)" },
       { id: "col-extra", code: "X", name: "Extra College" },
     ]);
     expect(withDb.find((c) => c.id === "col-tech-eng")?.name).toBe("COTE (live)");
     expect(withDb.some((c) => c.id === "col-extra")).toBe(true);
+    // The code travels with the tile, so the badge never has to guess one from the name.
+    expect(withDb.find((c) => c.id === "col-tech-eng")?.code).toBe("COTE");
   });
 });

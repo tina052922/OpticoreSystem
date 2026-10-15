@@ -13,6 +13,7 @@ import {
 import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
 import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
+import { insScopeLockedCollegeId } from "@/lib/ins/ins-scope-lock";
 import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
@@ -95,6 +96,24 @@ export function INSFormFaculty({
   const { programMode } = useProgramMode();
   const branding = useCampusBranding();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
+  /*
+   * A College Admin's scope is their own college, so the picker says so instead of offering
+   * "All colleges (campus-wide)".
+   *
+   * The lists on this page were already limited to `viewerCollegeId`; only the picker disagreed,
+   * which both misreported the scope and invited a pick that could not take effect. DOI and VPAA
+   * (`campusWide`), the GEC Chairman (`gecOnly`) and a Program Chairman (own variant) genuinely
+   * reach past one college, so none of them is locked.
+   */
+  const scopeLockedCollegeId = insScopeLockedCollegeId({
+    chairmanCollegeId,
+    viewerCollegeId,
+    campusWide,
+    gecOnly,
+  });
+  /** Department chosen in the scope bar; a chairman's own program always wins. */
+  const [scopeProgramId, setScopeProgramId] = useState<string | null>(null);
+  const effectiveProgramId = chairmanProgramId ?? scopeProgramId;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
   /** Instructor shell (`/faculty/ins`, `/faculty/schedule`). */
   const facultyPortalIns = isFacultyInsPortal(insBasePath);
@@ -107,7 +126,7 @@ export function INSFormFaculty({
 
   const live = useInsLiveSchedule({
     collegeId: effectiveCollegeId,
-    programId: chairmanProgramId,
+    programId: effectiveProgramId,
     lockedInstructorId,
     campusWide,
     gecOnly,
@@ -166,7 +185,7 @@ export function INSFormFaculty({
       const bundle = buildWorkflowScheduleBundle({
         academicPeriodId: live.academicPeriodId,
         collegeId: effectiveCollegeId,
-        programId: chairmanProgramId,
+        programId: effectiveProgramId,
         programCode: chairmanProgramCode,
         insShareView: "faculty",
         termScopedEntries: termScoped,
@@ -230,6 +249,8 @@ export function INSFormFaculty({
               chairmanProgramId={chairmanProgramId}
               chairmanProgramCode={chairmanProgramCode}
               chairmanProgramName={chairmanProgramName}
+              lockedCollegeId={scopeLockedCollegeId}
+              onScopeChange={(s) => setScopeProgramId(s.programId)}
             />
           </div>
         ) : null}

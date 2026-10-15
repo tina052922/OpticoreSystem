@@ -15,13 +15,21 @@ import { Button } from "@/components/ui/button";
 import { loadGeneratorHref, periodIdFromLocation } from "@/lib/ins/load-generator-href";
 import { ChairmanPlotScheduleModal } from "@/components/evaluator/ChairmanPlotScheduleModal";
 import {
-  BSIT_ONE_HOUR_SLOTS,
+  BSIT_PLOT_SLOTS,
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
-import { clampPlotStartSlotIndex, plotRowDurationSlots, plottedDurationHours } from "@/lib/evaluator/plot-duration";
+import {
+  clampPlotStartSlotIndex,
+  plotRowDurationSlots,
+  plotRowsForHours,
+  plotSlotHours,
+  plottedDurationHours,
+  timesFromSlotRange,
+} from "@/lib/evaluator/plot-duration";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
 import {
   hoursExceedSubjectRequirement,
@@ -42,30 +50,57 @@ import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/eval
 
 export type { RowConflictFlags };
 
+/**
+ * One grid row — half an hour — in pixels.
+ *
+ * Fixed rather than sized to the tallest card, so the geometry is knowable. An hour is two of these,
+ * which is the height a one-hour card had before the grid was re-pitched; nothing looks smaller,
+ * there are simply twice as many lines.
+ */
+const PLOT_ROW_HEIGHT_PX = 44;
+
+/**
+ * The time a plotted meeting actually covers, e.g. `10:00 AM – 11:30 AM`.
+ *
+ * Derived from the start plus the duration rather than from the last covered row's label, which can
+ * only ever end on the hour.
+ */
 function formatTimeRangeFromSlots(
   effectiveStart: number,
   dur: number,
-  slots: { label: string }[] = BSIT_ONE_HOUR_SLOTS,
+  slots: { startTime: string; endTime: string }[] = BSIT_PLOT_SLOTS,
 ): string {
-  const first = slots[effectiveStart];
-  const last = slots[effectiveStart + dur - 1];
-  if (!first || !last) return "—";
-  const start = first.label.split(" - ")[0] ?? "";
-  const end = last.label.split(" - ").pop() ?? "";
-  return `${start} – ${end}`;
+  const times = timesFromSlotRange(effectiveStart, dur, slots);
+  if (!times) return "—";
+  return formatTimeRange12h(times.startTime, times.endTime);
+}
+
+/**
+ * True for a row that starts at half past.
+ *
+ * Twice as many rows as there used to be would be twice as much to read, so the hours stay bold and
+ * the half hours recede — the eye finds 2:00 PM at a glance and 2:30 PM when it needs it.
+ */
+function isHalfPastSlot(slot: { startTime: string }): boolean {
+  return slot.startTime.slice(3, 5) === "30";
 }
 
 function rowTimeBounds(
   row: PlotRow,
   programCodeForSummary: string,
-  slots: { label: string; startTime: string; endTime: string }[] = BSIT_ONE_HOUR_SLOTS,
-): { startIdx: number; dur: number } | null {
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_PLOT_SLOTS,
+): { startIdx: number; dur: number; rows: number } | null {
   if (row.startSlotIndex < 0 || !row.subjectCode) return null;
   const p = prospectusRowForProgram(programCodeForSummary, row.subjectCode);
   const dur = plotRowDurationSlots(p, row);
-  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
-  if (startIdx < 0 || startIdx + dur > slots.length) return null;
-  return { startIdx, dur };
+  /*
+   * `dur` is hours; `rows` is how many grid cells the card covers. The grid is pitched in half
+   * hours, so a 1.5 hour class is three rows and lands exactly on a boundary.
+   */
+  const rows = plotRowsForHours(dur, plotSlotHours(slots));
+  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots);
+  if (startIdx < 0 || startIdx + rows > slots.length) return null;
+  return { startIdx, dur, rows };
 }
 
 function cellConflictClasses(
@@ -173,7 +208,7 @@ function PlotCellSummary({
   instructorDisplayById,
   conflictFlags,
   hoursOverLimit,
-  timeSlots = BSIT_ONE_HOUR_SLOTS,
+  timeSlots = BSIT_PLOT_SLOTS,
 }: {
   row: PlotRow;
   programCodeForSummary: string;
@@ -189,7 +224,7 @@ function PlotCellSummary({
     row,
   );
   const slots = timeSlots;
-  const eff = row.subjectCode && slots ? clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length) : 0;
+  const eff = row.subjectCode && slots ? clampPlotStartSlotIndex(row.startSlotIndex, dur, slots) : 0;
   const sec = row.sectionId ? (sectionNameById.get(row.sectionId) ?? "") : "";
   const room = row.roomId ? (roomCodeById.get(row.roomId) ?? "") : "";
   const inst = row.instructorId ? (instructorDisplayById.get(row.instructorId) ?? "") : "";
@@ -199,7 +234,7 @@ function PlotCellSummary({
   return (
     <div
       id={`chairman-eval-row-${row.id}`}
-      className={`w-full text-left rounded-md px-1.5 py-1.5 leading-tight transition-colors ${
+      className={`h-full w-full overflow-hidden text-left rounded-md px-1.5 py-1 leading-tight transition-colors ${
         hasConflict || hoursOverLimit ? "border border-red-300/80 bg-red-50/40" : "border border-transparent"
       }`}
     >
@@ -270,7 +305,7 @@ export function BsitChairmanInteractiveWeekGrid({
   gridFooter,
 }: BsitChairmanInteractiveWeekGridProps) {
   const router = useRouter();
-  const slots = timeSlots ?? BSIT_ONE_HOUR_SLOTS;
+  const slots = timeSlots ?? BSIT_PLOT_SLOTS;
   const days = weekdays;
   const buildingLabelsForGrid = useMemo(
     () => buildingNamesForPlotting(buildingsCatalog, roomsForEvaluatorGrid),
@@ -349,7 +384,7 @@ export function BsitChairmanInteractiveWeekGrid({
     for (const row of filteredRows) {
       const bounds = rowTimeBounds(row, programCodeForSummary, slots);
       if (!bounds || !row.sectionId || !row.subjectCode) continue;
-      for (let k = 1; k < bounds.dur; k++) {
+      for (let k = 1; k < bounds.rows; k++) {
         m.add(`${row.day}-${bounds.startIdx + k}`);
       }
     }
@@ -588,8 +623,12 @@ export function BsitChairmanInteractiveWeekGrid({
           </thead>
           <tbody>
             {slots.map((slot, slotIdx) => (
-              <tr key={slot.label}>
-                <td className="border border-black px-1 py-1.5 text-center whitespace-nowrap text-black bg-white/95">
+              <tr key={slot.label} style={{ height: PLOT_ROW_HEIGHT_PX }}>
+                <td
+                  className={`border border-black px-1 py-1.5 text-center whitespace-nowrap bg-white/95 ${
+                    isHalfPastSlot(slot) ? "text-black/45" : "font-semibold text-black"
+                  }`}
+                >
                   {slot.label}
                 </td>
                 {days.map((day) => {
@@ -617,7 +656,8 @@ export function BsitChairmanInteractiveWeekGrid({
                     return (
                       <td
                         key={day}
-                        className={`border border-black px-0.5 py-0.5 align-top min-h-[44px] ${cellConflictClasses(
+                        style={{ height: PLOT_ROW_HEIGHT_PX }}
+                        className={`border border-black px-0.5 py-0.5 align-top ${cellConflictClasses(
                           { faculty: "No", room: "No", section: "No" },
                           false,
                           false,
@@ -628,7 +668,7 @@ export function BsitChairmanInteractiveWeekGrid({
                         <button
                           type="button"
                           disabled={schedulePublished || !selectedSectionId}
-                          className="w-full min-h-[40px] rounded border border-dashed border-black/20 text-black/30 hover:border-[#ff990a] hover:text-[#ff990a] hover:bg-[#ff990a]/5 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-0.5 transition-colors"
+                          className="w-full h-full min-h-[40px] rounded border border-dashed border-black/20 text-black/30 hover:border-[#ff990a] hover:text-[#ff990a] hover:bg-[#ff990a]/5 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-0.5 transition-colors"
                           aria-label={`Plot schedule on ${day} at ${slot.label}`}
                           onClick={() => openModalForEmptyCell(day, slotIdx)}
                         >
@@ -641,7 +681,7 @@ export function BsitChairmanInteractiveWeekGrid({
                   const rowspan = Math.max(
                     ...atHere.map((r) => {
                       const bounds = rowTimeBounds(r, programCodeForSummary, slots);
-                      return bounds?.dur ?? 1;
+                      return bounds?.rows ?? 1;
                     }),
                   );
                   const cfMerged = atHere.map((r) => conflictForRow(r));
@@ -660,17 +700,24 @@ export function BsitChairmanInteractiveWeekGrid({
                     <td
                       key={day}
                       rowSpan={rowspan}
+                      /* A definite height is what lets a card below take a fraction of this cell. */
+                      style={{ height: rowspan * PLOT_ROW_HEIGHT_PX }}
                       className={`px-0.5 py-0.5 min-w-[100px] ${cellConflictClasses(mergedCf, scanHit, policyHit, hoursHit, selected)}`}
                     >
-                      <ul className="space-y-1">
+                      <ul className="flex h-full flex-col gap-1">
                         {atHere.map((r) => {
                           const bounds = rowTimeBounds(r, programCodeForSummary, slots);
                           const anchor: CellAnchor = {
                             day: (r.day as BsitEvaluatorWeekday) || "Monday",
                             slotIdx: bounds?.startIdx ?? (r.startSlotIndex >= 0 ? r.startSlotIndex : 0),
                           };
+                          /*
+                           * A card alone in its cell fills the rows it spans, so the grid reads as a
+                           * timetable: the rows are half hours, so a 1.5 hour class is exactly three
+                           * of them. Cards sharing one start keep their natural heights, stacked.
+                           */
                           return (
-                            <li key={r.id}>
+                            <li key={r.id} className={atHere.length === 1 ? "min-h-0 flex-1" : "min-h-0"}>
                               <div
                                 onClick={() =>
                                   openModalForRow(r, anchor, false)
@@ -683,7 +730,7 @@ export function BsitChairmanInteractiveWeekGrid({
                                 }}
                                 role="button"
                                 tabIndex={schedulePublished || r.lockedByDoiAt ? -1 : 0}
-                                className={`relative ${schedulePublished || r.lockedByDoiAt ? "pointer-events-none opacity-70" : ""}`}
+                                className={`relative h-full ${schedulePublished || r.lockedByDoiAt ? "pointer-events-none opacity-70" : ""}`}
                               >
                                 {!schedulePublished && !r.lockedByDoiAt ? (
                                   <button

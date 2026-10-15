@@ -7,7 +7,7 @@ import {
   NIGHT_INS_WEEKDAY_SLOT_LABELS,
   NIGHT_INS_WEEKEND_SLOT_LABELS,
 } from "@/lib/scheduling/program-mode";
-import { SignatureRail } from "./INSScheduleGrid";
+import { PartialHourRule, SignatureRail, continuedCellStyle } from "./INSScheduleGrid";
 
 const WEEKEND_DAYS = ["Saturday", "Sunday"] as const;
 const WEEKDAY_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
@@ -51,20 +51,30 @@ const ns = StyleSheet.create({
   weekdayCol: {
     flex: 1,
   },
+  /**
+   * The hour rule lives on each cell, not on the row.
+   *
+   * A class that runs past the hour drops its own bottom rule so its box reads as one class rather
+   * than as two stacked cells; that is only possible while each cell owns its line.
+   */
   row: {
     flexDirection: "row",
     height: ROW_H,
-    borderBottomWidth: 0.5,
   },
   headerRow: {
     flexDirection: "row",
     height: 14,
     borderBottomWidth: 0.5,
   },
+  /** Lets the partial-hour rule sit against the cell rather than in the text flow. */
+  cellBox: {
+    position: "relative",
+  },
   timeCell: {
     width: 40,
     padding: 1,
     fontSize: 5,
+    borderBottomWidth: 0.5,
     fontFamily: "Helvetica-Bold",
     textAlign: "center",
     justifyContent: "center",
@@ -85,6 +95,7 @@ const ns = StyleSheet.create({
     fontSize: 5,
     justifyContent: "center",
     borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
     overflow: "hidden",
   },
   summaryBox: {
@@ -131,11 +142,20 @@ export function INSNightScheduleGrid({ schedule, summary, rightSignatureSlots }:
             <View style={ns.timeCell}>
               <Text>{wLabel}</Text>
             </View>
-            {WEEKEND_DAYS.map((day) => (
-              <View key={day} style={ns.cell}>
-                <CellContent cell={(schedule[day] ?? [])[wIdx] ?? null} />
-              </View>
-            ))}
+            {WEEKEND_DAYS.map((day) => {
+              const cell = (schedule[day] ?? [])[wIdx] ?? null;
+              return (
+                <View key={day} style={[ns.cell, ns.cellBox, ...continuedCellStyle(cell)]}>
+                  {/* Rules first: react-pdf paints in order, and these are opaque white. */}
+                  <PartialHourRule
+                    fraction={cell?.partialFill}
+                    startFraction={cell?.startFill}
+                    rowHeight={ROW_H}
+                  />
+                  <CellContent cell={cell} />
+                </View>
+              );
+            })}
           </View>
         ))}
       </View>
@@ -156,11 +176,20 @@ export function INSNightScheduleGrid({ schedule, summary, rightSignatureSlots }:
             <View style={ns.timeCell}>
               <Text>{label}</Text>
             </View>
-            {WEEKDAY_DAYS.map((day) => (
-              <View key={day} style={ns.cell}>
-                <CellContent cell={(schedule[day] ?? [])[idx] ?? null} />
-              </View>
-            ))}
+            {WEEKDAY_DAYS.map((day) => {
+              const cell = (schedule[day] ?? [])[idx] ?? null;
+              return (
+                <View key={day} style={[ns.cell, ns.cellBox, ...continuedCellStyle(cell)]}>
+                  {/* Rules first: react-pdf paints in order, and these are opaque white. */}
+                  <PartialHourRule
+                    fraction={cell?.partialFill}
+                    startFraction={cell?.startFill}
+                    rowHeight={ROW_H}
+                  />
+                  <CellContent cell={cell} />
+                </View>
+              );
+            })}
           </View>
         ))}
         <View style={ns.summaryBox}>

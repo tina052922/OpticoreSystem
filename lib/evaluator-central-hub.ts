@@ -184,18 +184,17 @@ export function isHubCollegeListView(view: string | null, college: string | null
 }
 
 /**
- * GEC / hub landing tiles from live colleges (renames + new colleges included).
- * Falls back to hardcoded hub labels only when the catalog has not loaded yet.
+ * GEC landing tiles from the live catalog — renames and new colleges included.
+ *
+ * An empty catalog gives an empty list, and the page shows that it is still loading. It used to
+ * fall back to the hardcoded hub labels, which painted five colleges that may not exist, with no
+ * codes and no programme counts, until the real three arrived a moment later and replaced them. A
+ * tile is a link, and one pointing at a college that is not there goes nowhere.
  */
 export function gecHubCollegeTiles(
   dbColleges: Array<{ id: string; name: string; code?: string }>,
-): Array<{ id: string; name: string }> {
-  if (dbColleges.length === 0) {
-    return CENTRAL_HUB_COLLEGES.map((h) => ({
-      id: h.collegeId ?? h.slug,
-      name: h.name,
-    }));
-  }
+): Array<{ id: string; name: string; code: string }> {
+  if (dbColleges.length === 0) return [];
   return hubCollegesFromDb(
     dbColleges.map((c) => ({
       id: c.id,
@@ -205,6 +204,7 @@ export function gecHubCollegeTiles(
   ).map((h) => ({
     id: h.collegeId ?? h.slug,
     name: h.name,
+    code: h.abbr,
   }));
 }
 

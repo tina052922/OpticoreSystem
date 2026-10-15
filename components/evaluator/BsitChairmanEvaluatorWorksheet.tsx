@@ -72,7 +72,7 @@ import { filterSubjectsBySemester, semesterFilterForPeriod } from "@/lib/subject
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { sortProgramsForTeachingLoad } from "@/lib/scheduling/teaching-load-summary";
-import { BSIT_EVALUATOR_TIME_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
+import { BSIT_PLOT_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import { encodeDayForStorage, evaluatorTimeSlots, evaluatorWeekdaysForMode, filterByProgramMode, isEvaluatorSlotPlottable, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
 import { termIsDoiPublished, DOI_SCHEDULE_LOCKED_MESSAGE } from "@/lib/scheduling/term-doi-lock";
@@ -115,7 +115,16 @@ const daySelectClass =
   "w-full min-h-10 min-w-0 rounded-md border border-black/25 bg-white px-2 text-[11px] font-medium text-neutral-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 
 import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
-import { clampPlotStartSlotIndex, inferDurationSlotsFromTimes, plotRowDurationSlots, plottedDurationHours } from "@/lib/evaluator/plot-duration";
+import {
+  clampPlotStartSlotIndex,
+  inferDurationSlotsFromTimes,
+  plotRowDurationSlots,
+  plotRowsForHours,
+  plotSlotHours,
+  plottedDurationHours,
+  timesFromSlotRange,
+} from "@/lib/evaluator/plot-duration";
+import { formatPlotTimeLines } from "@/lib/evaluator/plot-time-range";
 import { formatSparseConflictLines } from "@/lib/evaluator/plot-conflict-messages";
 import { emptyPlotRow, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { BsitChairmanInteractiveWeekGrid } from "@/components/evaluator/BsitChairmanInteractiveWeekGrid";
@@ -167,17 +176,17 @@ function subjectFromProspectus(code: string, programId: string, programCodeForSu
 function rowTimeBounds(
   row: PlotRow,
   programCodeForSummary: string,
-  slots: { label: string; startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
-): { startIdx: number; start: (typeof slots)[0]; endSlot: (typeof slots)[0] } | null {
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_PLOT_SLOTS,
+): { startIdx: number; startTime: string; endTime: string } | null {
   if (row.startSlotIndex < 0 || !row.subjectCode) return null;
   const p = prospectusRowForProgram(programCodeForSummary, row.subjectCode);
   const dur = plotRowDurationSlots(p, row);
-  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
-  const start = slots[startIdx];
-  const endIdx = startIdx + dur - 1;
-  const endSlot = slots[endIdx];
-  if (!start || !endSlot || startIdx < 0 || endIdx >= slots.length) return null;
-  return { startIdx, start, endSlot };
+  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots);
+  // Rows, not hours: on the half-hour grid a 1.5 hour class covers three of them.
+  if (startIdx < 0 || startIdx + plotRowsForHours(dur, plotSlotHours(slots)) > slots.length) return null;
+  const times = timesFromSlotRange(startIdx, dur, slots);
+  if (!times) return null;
+  return { startIdx, startTime: times.startTime, endTime: times.endTime };
 }
 
 /** Subject + day + start → interval; resources optional (for real-time conflict checks). */
@@ -186,7 +195,7 @@ function rowToSparseBlock(
   academicPeriodId: string,
   programCodeForSummary: string,
   programMode: ProgramMode = "day",
-  slots: { label: string; startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_PLOT_SLOTS,
 ): SparseScheduleBlock | null {
   if (!academicPeriodId || !row.day) return null;
   const t = rowTimeBounds(row, programCodeForSummary, slots);
@@ -195,8 +204,8 @@ function rowToSparseBlock(
     id: row.id,
     academicPeriodId,
     day: row.day,
-    startTime: t.start.startTime,
-    endTime: t.endSlot.endTime,
+    startTime: t.startTime,
+    endTime: t.endTime,
     instructorId: row.instructorId || null,
     sectionId: row.sectionId || null,
     roomId: row.roomId || null,
@@ -210,7 +219,7 @@ function rowToBlock(
   subjectIdForRow: string,
   programCodeForSummary: string,
   programMode: ProgramMode = "day",
-  slots: { label: string; startTime: string; endTime: string }[] = BSIT_EVALUATOR_TIME_SLOTS,
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_PLOT_SLOTS,
 ): ScheduleBlock | null {
   if (!row.sectionId || !row.instructorId || !row.roomId || !row.subjectCode) return null;
   const p = prospectusRowForProgram(programCodeForSummary, row.subjectCode);
@@ -225,8 +234,8 @@ function rowToBlock(
     sectionId: row.sectionId,
     roomId: row.roomId,
     day: row.day,
-    startTime: t.start.startTime,
-    endTime: t.endSlot.endTime,
+    startTime: t.startTime,
+    endTime: t.endTime,
     programMode,
   };
 }
@@ -320,14 +329,7 @@ function scheduleEntryToBlock(e: ScheduleEntry): ScheduleBlock | null {
 
 /** INS-style labels: full range line + each 1-hour row (matches Schedule Preview). */
 function formatTimeRangeFromSlots(effectiveStart: number, dur: number): { fullLine: string; slotLines: string[] } {
-  const slots = BSIT_EVALUATOR_TIME_SLOTS;
-  const first = slots[effectiveStart];
-  const last = slots[effectiveStart + dur - 1];
-  if (!first || !last) return { fullLine: "—", slotLines: [] };
-  const start = first.label.split(" - ")[0] ?? "";
-  const end = last.label.split(" - ").pop() ?? "";
-  const slotLines = Array.from({ length: dur }, (_, k) => slots[effectiveStart + k]?.label ?? "").filter(Boolean);
-  return { fullLine: `${start} – ${end}`, slotLines };
+  return formatPlotTimeLines(effectiveStart, dur, BSIT_PLOT_SLOTS);
 }
 
 type BsitChairmanEvaluatorWorksheetProps = {
@@ -1295,7 +1297,7 @@ export function BsitChairmanEvaluatorWorksheet({
         const r = rowById.get(id);
         if (!r) return null;
         const tb = rowTimeBounds(r, programCodeForSummary);
-        const time = tb ? formatTimeRange(tb.start.startTime, tb.endSlot.endTime) : "—";
+        const time = tb ? formatTimeRange(tb.startTime, tb.endTime) : "—";
         return {
           entryId: r.id,
           what: `${r.subjectCode || "—"} · ${sectionNameById.get(r.sectionId) ?? "—"}`,
@@ -1800,7 +1802,7 @@ export function BsitChairmanEvaluatorWorksheet({
     const p = next.subjectCode ? prospectusRowForProgram(programCodeForSummary, next.subjectCode) : undefined;
     if (p) {
       const d = plotRowDurationSlots(p, next);
-      const startSlotIndex = clampPlotStartSlotIndex(next.startSlotIndex, d, slotsForMode.length);
+      const startSlotIndex = clampPlotStartSlotIndex(next.startSlotIndex, d, slotsForMode);
       if (startSlotIndex !== next.startSlotIndex) return { ...next, startSlotIndex };
     }
     return next;
@@ -2240,8 +2242,8 @@ export function BsitChairmanEvaluatorWorksheet({
             sectionId: row.sectionId,
             roomId: row.roomId,
             day: encodeDayForStorage(row.day, programMode),
-            startTime: tb.start.startTime,
-            endTime: tb.endSlot.endTime,
+            startTime: tb.startTime,
+            endTime: tb.endTime,
             status: "draft",
             programMode,
           });

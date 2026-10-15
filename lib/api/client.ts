@@ -839,11 +839,15 @@ export const authApi = {
       });
     } finally {
       clearApiCache();
-      // Drop the SSE stream: it was authorized for the previous session's
-      // topics and must never carry over to the next user on this tab.
       if (typeof window !== "undefined") {
+        // Drop the SSE stream: it was authorized for the previous session's
+        // topics and must never carry over to the next user on this tab.
         void import("@/lib/realtime/realtime-client")
           .then((m) => m.resetRealtime())
+          .catch(() => undefined);
+        // And everything this browser remembered about them, drafts included.
+        void import("@/lib/auth/clear-session-state")
+          .then((m) => m.clearClientSessionState())
           .catch(() => undefined);
       }
     }

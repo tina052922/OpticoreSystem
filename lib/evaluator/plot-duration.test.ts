@@ -16,13 +16,13 @@ describe("clampPlotStartSlotIndex", () => {
     const fourPm = NIGHT_FULL_DAY_SLOTS.findIndex((s) => s.startTime === "16:00");
     expect(sixPm).toBe(11);
     expect(fourPm).toBe(9);
-    expect(clampPlotStartSlotIndex(sixPm, 1, NIGHT_FULL_DAY_SLOTS.length)).toBe(11);
-    expect(clampPlotStartSlotIndex(sixPm, 2, NIGHT_FULL_DAY_SLOTS.length)).toBe(11);
-    expect(clampPlotStartSlotIndex(sixPm, 1, DAY_ONE_HOUR_SLOTS.length)).toBe(11);
+    expect(clampPlotStartSlotIndex(sixPm, 1, NIGHT_FULL_DAY_SLOTS)).toBe(11);
+    expect(clampPlotStartSlotIndex(sixPm, 2, NIGHT_FULL_DAY_SLOTS)).toBe(11);
+    expect(clampPlotStartSlotIndex(sixPm, 1, DAY_ONE_HOUR_SLOTS)).toBe(11);
   });
 
   it("leaves unplaced rows at -1", () => {
-    expect(clampPlotStartSlotIndex(-1, 1, NIGHT_FULL_DAY_SLOTS.length)).toBe(-1);
+    expect(clampPlotStartSlotIndex(-1, 1, NIGHT_FULL_DAY_SLOTS)).toBe(-1);
   });
 });
 

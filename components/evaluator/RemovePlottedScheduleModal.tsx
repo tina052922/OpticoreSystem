@@ -5,6 +5,8 @@ import { Lock, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { relatedPlotRows, type PlotRow } from "@/lib/evaluator/chairman-plot-row";
 import type { HourSlot } from "@/lib/scheduling/program-mode";
+import { plottedDurationHours } from "@/lib/evaluator/plot-duration";
+import { formatPlotTimeRange } from "@/lib/evaluator/plot-time-range";
 
 export type RemovePlottedScheduleModalProps = {
   /** The cell whose remove button was clicked. Null closes the modal. */
@@ -22,13 +24,7 @@ export type RemovePlottedScheduleModalProps = {
 
 /** "7:00 AM – 9:00 AM" for a row's slot span. */
 function timeRange(row: PlotRow, slots: HourSlot[]): string {
-  const dur = Math.max(1, row.durationSlots ?? 1);
-  const first = slots[row.startSlotIndex];
-  const last = slots[row.startSlotIndex + dur - 1];
-  if (!first || !last) return "—";
-  const start = first.label.split(" - ")[0] ?? "";
-  const end = last.label.split(" - ").pop() ?? "";
-  return `${start} – ${end}`;
+  return formatPlotTimeRange(row.startSlotIndex, plottedDurationHours(row.durationSlots), slots);
 }
 
 /**

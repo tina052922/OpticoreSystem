@@ -37,6 +37,10 @@ const gs = StyleSheet.create({
     marginTop: 0,
     marginBottom: 0,
   },
+  /** Lets the partial-hour rule sit against the cell rather than in the text flow. */
+  cellBox: {
+    position: "relative",
+  },
   rail: {
     width: RAIL_W,
     height: DAY_RAIL_H,
@@ -98,6 +102,29 @@ const gs = StyleSheet.create({
     fontSize: 5,
     textAlign: "center",
   },
+  /**
+   * The part of an hour the class does not use: plain white, ruled off from the class by a solid
+   * line, so it reads as free time and the next meeting's own box is what the eye picks out.
+   */
+  partialRemainder: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 0.5,
+    borderTopColor: "#000000",
+  },
+  /** The same, for the part of the hour before a class that begins at half past. */
+  partialLeader: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#000000",
+  },
   sigImage: {
     height: 22,
     maxWidth: "90%",
@@ -115,6 +142,70 @@ function CellContent({ cell }: { cell: PDFScheduleCell | null }) {
       {cell.line3 ? <Text style={ins.cellLine3}>{cell.line3}</Text> : null}
       {cell.line4 ? <Text style={ins.cellLine4}>{cell.line4}</Text> : null}
     </View>
+  );
+}
+
+/**
+ * Joins a cell to the hour below, and sits the text in the part of the hour its class occupies.
+ *
+ * The text already goes in the row its class occupies most of, so the common case needs nothing.
+ * What is left is a class contained within one hour but not filling it — 8:00–8:30, or 8:30–9:00 —
+ * where the row is shared and the text belongs in its own half.
+ *
+ * Expressed as an alignment rather than as padding, because padding competes with the text for the
+ * same space: four lines nearly fill a 28pt row, and react-pdf clips what spills.
+ */
+export function continuedCellStyle(
+  cell: { startFill?: number; partialFill?: number; openBottom?: boolean } | null | undefined,
+): Array<{ borderBottomWidth?: number; justifyContent?: "flex-start" | "flex-end" | "center" }> {
+  if (!cell) return [];
+  const out: Array<{
+    borderBottomWidth?: number;
+    justifyContent?: "flex-start" | "flex-end" | "center";
+  }> = [];
+
+  // A class crossing this row's bottom edge is not ruled off on it.
+  if (cell.openBottom) out.push({ borderBottomWidth: 0 });
+
+  const startsLate = (cell.startFill ?? 0) > 0;
+  const endsEarly = cell.partialFill != null && cell.partialFill < 1;
+  if (startsLate && !endsEarly) out.push({ justifyContent: "flex-end" });
+  else if (endsEarly && !startsLate) out.push({ justifyContent: "flex-start" });
+  return out;
+}
+
+/**
+ * Rules off the part of an hour a class does not use.
+ *
+ * A 3:00–4:30 class runs into the 4:00 row but stops in the middle of it. Without this line the
+ * printed form reads as 3:00–5:00, since the grid has no finer row than the hour.
+ *
+ * The offset is in points against {@link DAY_ROW_H} rather than a percentage: react-pdf resolves a
+ * percentage height against the parent's used height, and the grid rows are a `minHeight`, so a
+ * percentage would drift on any row a long course title has grown.
+ */
+export function PartialHourRule({
+  fraction,
+  startFraction,
+  rowHeight = DAY_ROW_H,
+}: {
+  fraction: number | undefined;
+  startFraction?: number | undefined;
+  rowHeight?: number;
+}) {
+  const hasEnd = fraction != null && fraction > 0 && fraction < 1;
+  const hasStart = startFraction != null && startFraction > 0 && startFraction < 1;
+  if (!hasEnd && !hasStart) return null;
+  /*
+   * Each marker is measured from the edge it hangs off, not from the opposite one: the day rows are
+   * a `minHeight`, so a row holding a long course title is taller than `rowHeight`. Anchored to its
+   * own edge, a marker is then merely a little short rather than floating in the wrong hour.
+   */
+  return (
+    <>
+      {hasStart ? <View style={[gs.partialLeader, { height: startFraction * rowHeight }]} /> : null}
+      {hasEnd ? <View style={[gs.partialRemainder, { height: (1 - fraction) * rowHeight }]} /> : null}
+    </>
   );
 }
 
@@ -150,7 +241,16 @@ function GridTable({
             const cell = cells[slotIdx] ?? null;
             const isAlt = dayIdx % 2 === 1;
             return (
-              <View key={day} style={isAlt ? ins.gridCellAlt : ins.gridCell}>
+              <View
+                key={day}
+                style={[
+                  isAlt ? ins.gridCellAlt : ins.gridCell,
+                  gs.cellBox,
+                  ...continuedCellStyle(cell),
+                ]}
+              >
+                {/* Rules first: react-pdf paints in order, and these are opaque white. */}
+                <PartialHourRule fraction={cell?.partialFill} startFraction={cell?.startFill} />
                 <CellContent cell={cell} />
               </View>
             );

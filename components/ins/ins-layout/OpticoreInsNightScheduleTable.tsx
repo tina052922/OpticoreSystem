@@ -8,7 +8,8 @@ import {
   NIGHT_WEEKDAY_SLOTS,
 } from "@/lib/scheduling/program-mode";
 import type { InsTimedCell } from "@/lib/ins/ins-weekly-grid-span";
-import { insParseCellTimeMinutes } from "@/lib/ins/ins-weekly-grid-span";
+import { insBlockFillFraction, insParseCellTimeMinutes } from "@/lib/ins/ins-weekly-grid-span";
+import { InsPartialHourRule } from "./InsPartialHourRule";
 
 const border = "border border-neutral-900";
 const WEEKEND_DAYS = ["Saturday", "Sunday"] as const;
@@ -38,6 +39,56 @@ function rowSpanFor(cell: InsTimedCell, slotStartHour: number, maxHour: number):
   if (!mins) return 1;
   const endHour = Math.min(maxHour, Math.ceil(mins.endMin / 60));
   return Math.max(1, endHour - slotStartHour);
+}
+
+/** How much of the merged block the longest class in it actually fills; `null` when it fills it all. */
+function fillFractionFor(cells: InsTimedCell[], slotStartHour: number, span: number): number | null {
+  const ends = cells
+    .map((c) => insParseCellTimeMinutes(c)?.endMin)
+    .filter((m): m is number => m != null);
+  if (ends.length === 0) return null;
+  return insBlockFillFraction(Math.max(...ends), slotStartHour * 60, (slotStartHour + span) * 60);
+}
+
+/** Where the earliest class in the block begins inside it; `null` when it starts at the top. */
+function startFractionFor(
+  cells: InsTimedCell[],
+  slotStartHour: number,
+  span: number,
+): number | null {
+  const starts = cells
+    .map((c) => insParseCellTimeMinutes(c)?.startMin)
+    .filter((m): m is number => m != null);
+  if (starts.length === 0) return null;
+  const offset = (Math.min(...starts) - slotStartHour * 60) / (span * 60);
+  return offset > 0 && offset < 1 ? offset : null;
+}
+
+/** True when the class runs past the bottom of the rows it was given, so its box must not be ruled off. */
+function continuesBelowFor(cells: InsTimedCell[], slotStartHour: number, span: number): boolean {
+  const ends = cells
+    .map((c) => insParseCellTimeMinutes(c)?.endMin)
+    .filter((m): m is number => m != null);
+  return ends.length > 0 && Math.max(...ends) > (slotStartHour + span) * 60;
+}
+
+/**
+ * The rows a class occupies, cut short where a later class begins.
+ *
+ * 4:00–5:30 reaches into the 5:00 row and so does 5:30–7:00, but a table column cannot hold two
+ * overlapping cells — the row a later class starts in belongs to it, or that class never appears.
+ */
+function spanUntilNextStart(
+  cell: InsTimedCell,
+  slotStartHour: number,
+  maxHour: number,
+  allCells: InsTimedCell[],
+): number {
+  const span = rowSpanFor(cell, slotStartHour, maxHour);
+  for (let k = 1; k < span; k++) {
+    if (allCells.some((c) => c !== cell && isStartSlot(c, slotStartHour + k))) return k;
+  }
+  return span;
 }
 
 type Props = {
@@ -100,13 +151,25 @@ export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary,
                       </td>
                     );
                   }
-                  const span = Math.max(...starters.map((c) => rowSpanFor(c, wSlot.startHour, 22)));
+                  const span = Math.max(
+                    ...starters.map((c) => spanUntilNextStart(c, wSlot.startHour, 22, items)),
+                  );
                   for (let k = 1; k < span; k++) weekendSkip.add(`${day}-${wIdx + k}`);
                   return (
-                    <td key={day} rowSpan={span} className={`${border} p-0.5 align-middle text-center leading-tight overflow-hidden`}>
+                    <td
+                      key={day}
+                      rowSpan={span}
+                      className={`${border} relative p-0.5 align-middle text-center leading-tight overflow-hidden ${
+                        continuesBelowFor(starters, wSlot.startHour, span) ? "border-b-0" : ""
+                      }`}
+                    >
                       <div className="flex h-full max-h-full min-h-[var(--ins-row-h)] flex-col items-center justify-center overflow-hidden px-0.5">
                         {renderCell(starters, day)}
                       </div>
+                      <InsPartialHourRule
+                        fraction={fillFractionFor(starters, wSlot.startHour, span)}
+                        startFraction={startFractionFor(starters, wSlot.startHour, span)}
+                      />
                     </td>
                   );
                 })}
@@ -129,14 +192,26 @@ export function OpticoreInsNightScheduleTable({ cellsByDay, renderCell, summary,
                         );
                       }
                       const span = Math.max(
-                        ...starters.map((c) => rowSpanFor(c, weekdaySlot.startHour, 22)),
+                        ...starters.map((c) =>
+                          spanUntilNextStart(c, weekdaySlot.startHour, 22, items),
+                        ),
                       );
                       for (let k = 1; k < span; k++) weekdaySkip.add(`${day}-${wIdx + k}`);
                       return (
-                        <td key={day} rowSpan={span} className={`${border} p-0.5 align-middle text-center leading-tight overflow-hidden`}>
+                        <td
+                          key={day}
+                          rowSpan={span}
+                          className={`${border} relative p-0.5 align-middle text-center leading-tight overflow-hidden ${
+                            continuesBelowFor(starters, weekdaySlot.startHour, span) ? "border-b-0" : ""
+                          }`}
+                        >
                           <div className="flex h-full max-h-full min-h-[var(--ins-row-h)] flex-col items-center justify-center overflow-hidden px-0.5">
                             {renderCell(starters, day)}
                           </div>
+                          <InsPartialHourRule
+                            fraction={fillFractionFor(starters, weekdaySlot.startHour, span)}
+                            startFraction={startFractionFor(starters, weekdaySlot.startHour, span)}
+                          />
                         </td>
                       );
                     })}

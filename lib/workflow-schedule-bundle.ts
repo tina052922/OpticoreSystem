@@ -1,11 +1,17 @@
-import { clampPlotStartSlotIndex, plotRowDurationSlots } from "@/lib/evaluator/plot-duration";
+import {
+  clampPlotStartSlotIndex,
+  plotRowDurationSlots,
+  plotRowsForHours,
+  plotSlotHours,
+  timesFromSlotRange,
+} from "@/lib/evaluator/plot-duration";
 import {
   normalizeProspectusCode,
   prospectusByCode,
 } from "@/lib/chairman/bsit-prospectus";
 import {
-  DAY_ONE_HOUR_SLOTS,
-  NIGHT_FULL_DAY_SLOTS,
+  DAY_PLOT_SLOTS,
+  NIGHT_PLOT_SLOTS,
   isProgramMode,
   type ProgramMode,
 } from "@/lib/scheduling/program-mode";
@@ -56,30 +62,33 @@ export function isWorkflowScheduleBundleV1(v: unknown): v is WorkflowScheduleBun
   );
 }
 
+/**
+ * The grid a plot row's `startSlotIndex` is an index into — the evaluator's half-hour tables, the
+ * same ones the row was plotted on. Reading it against the hourly tables would place every class at
+ * half its intended time.
+ */
 function slotsForPlotRow(row: EvaluatorSessionSnapshotV1["rows"][number], snapMode?: ProgramMode) {
   const mode = isProgramMode(row.programMode) ? row.programMode : snapMode;
-  if (mode === "night") return NIGHT_FULL_DAY_SLOTS;
-  if (mode === "day") return DAY_ONE_HOUR_SLOTS;
-  return row.startSlotIndex >= DAY_ONE_HOUR_SLOTS.length ? NIGHT_FULL_DAY_SLOTS : DAY_ONE_HOUR_SLOTS;
+  if (mode === "night") return NIGHT_PLOT_SLOTS;
+  if (mode === "day") return DAY_PLOT_SLOTS;
+  return row.startSlotIndex >= DAY_PLOT_SLOTS.length ? NIGHT_PLOT_SLOTS : DAY_PLOT_SLOTS;
 }
 
 function rowTimeBounds(
   row: EvaluatorSessionSnapshotV1["rows"][number],
   snapMode?: ProgramMode,
 ): {
-  start: { startTime: string; endTime: string };
-  endSlot: { startTime: string; endTime: string };
+  startTime: string;
+  endTime: string;
 } | null {
   const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
   if (!p) return null;
   const slots = slotsForPlotRow(row, snapMode);
   const dur = plotRowDurationSlots(p);
-  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots.length);
-  const start = slots[startIdx];
-  const endIdx = startIdx + dur - 1;
-  const endSlot = slots[endIdx];
-  if (!start || !endSlot || startIdx < 0 || endIdx >= slots.length) return null;
-  return { start, endSlot };
+  const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots);
+  // Rows, not hours: on the half-hour grid a 1.5 hour class covers three of them.
+  if (startIdx < 0 || startIdx + plotRowsForHours(dur, plotSlotHours(slots)) > slots.length) return null;
+  return timesFromSlotRange(startIdx, dur, slots);
 }
 
 /**
@@ -101,7 +110,7 @@ export function plotRowsToScheduleEntries(args: {
     if (!t) continue;
     const mode: ProgramMode = isProgramMode(row.programMode)
       ? row.programMode
-      : args.programMode ?? (row.startSlotIndex >= DAY_ONE_HOUR_SLOTS.length ? "night" : "day");
+      : args.programMode ?? (row.startSlotIndex >= DAY_PLOT_SLOTS.length ? "night" : "day");
     out.push({
       id: row.id,
       academicPeriodId: args.academicPeriodId,
@@ -110,8 +119,8 @@ export function plotRowsToScheduleEntries(args: {
       sectionId: row.sectionId,
       roomId: row.roomId,
       day: row.day,
-      startTime: t.start.startTime,
-      endTime: t.endSlot.endTime,
+      startTime: t.startTime,
+      endTime: t.endTime,
       status: "draft",
       programMode: mode,
     });

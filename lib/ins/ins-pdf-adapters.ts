@@ -52,6 +52,17 @@ function entryStartMinutes(entry: { startTime?: string; time?: string }): number
   return hour * 60 + (m ?? 0);
 }
 
+/** Minutes-from-midnight of an entry's end, from `endTime` or the `"7:00-10:00"` display label. */
+function entryEndMinutes(entry: { endTime?: string; time?: string }): number | null {
+  if (entry.endTime) return parseTimeMinutes(entry.endTime);
+  const end = (entry.time ?? "").split("-")[1]?.trim();
+  if (!end) return null;
+  const [h, m] = end.split(":").map(Number);
+  let hour = h ?? 0;
+  if (hour < 7) hour += 12;
+  return hour * 60 + (m ?? 0);
+}
+
 function findCellsForSlotAtHour<T extends { startTime?: string; endTime?: string; time?: string }>(
   entries: T[],
   startHour: number,
@@ -126,11 +137,94 @@ function nightPdfGridFromDays<T extends { startTime?: string; time?: string }>(
       day === "Saturday" || day === "Sunday"
         ? NIGHT_FULL_DAY_SLOTS.map((s) => s.startHour)
         : NIGHT_WEEKDAY_SLOTS.map((s) => s.startHour);
-    grid[day] = hours.map((hour) => {
-      const matched = findCellsForSlotAtHour(entries, hour);
-      const first = matched.find((e) => isStartOfHour(e, hour));
-      return first ? toCell(first) : null;
-    });
+    grid[day] = placeDayEntries(entries, hours.map((h) => h * 60), toCell);
+  }
+  return grid;
+}
+
+/** Build a Day Program PDF grid, one cell per hour row. */
+/**
+ * The hour row a class writes its text into: the one it occupies most of.
+ *
+ * Not the hour it starts in. A 8:30–10:00 class starts in the 8:00 row but owns only the bottom
+ * half of it — half a row cannot hold four lines of text, so the text spilled up across the 8:30
+ * rule and over the class above. The 9:00 row is entirely its own, so that is where it belongs.
+ */
+function textRowForEntry(
+  startMin: number,
+  endMin: number,
+  slotStarts: number[],
+): number {
+  let best = -1;
+  let bestOverlap = 0;
+  for (let i = 0; i < slotStarts.length; i++) {
+    const slotStart = slotStarts[i]!;
+    const overlap = Math.min(endMin, slotStart + 60) - Math.max(startMin, slotStart);
+    // Strictly greater keeps the earliest row on a tie, so a class never drifts later than it must.
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap;
+      best = i;
+    }
+  }
+  return best;
+}
+
+type PlacedEntry<T> = { entry: T; startMin: number; endMin: number; textRow: number };
+
+/**
+ * Lay a day's classes onto the printed hour rows.
+ *
+ * Each class contributes its text to one row and, to the rows its edges fall inside, the marks that
+ * say where it really begins and ends. A row an entire class runs through gets neither, and its
+ * bottom rule is dropped so the box reads as one class rather than as stacked cells.
+ */
+function placeDayEntries<T extends { startTime?: string; endTime?: string; time?: string }>(
+  entries: T[],
+  slotStarts: number[],
+  toCell: (first: T) => PDFScheduleCell,
+): (PDFScheduleCell | null)[] {
+  const placed: PlacedEntry<T>[] = [];
+  for (const entry of entries) {
+    const startMin = entryStartMinutes(entry);
+    const endMin = entryEndMinutes(entry);
+    if (endMin == null || endMin <= startMin) continue;
+    placed.push({ entry, startMin, endMin, textRow: textRowForEntry(startMin, endMin, slotStarts) });
+  }
+  placed.sort((a, b) => a.startMin - b.startMin);
+
+  return slotStarts.map((slotStart, i) => {
+    const slotEnd = slotStart + 60;
+    const touching = placed.filter((p) => p.startMin < slotEnd && p.endMin > slotStart);
+    if (touching.length === 0) return null;
+
+    // Earliest wins when two classes want the same row; the grid has only one cell to give.
+    const owner = touching.find((p) => p.textRow === i);
+    const cell: PDFScheduleCell = owner ? toCell(owner.entry) : { line1: "" };
+
+    // Where a class begins or ends inside this hour, as a fraction of it.
+    const beginsHere = touching.find((p) => p.startMin > slotStart && p.startMin < slotEnd);
+    const endsHere = touching.find((p) => p.endMin > slotStart && p.endMin < slotEnd);
+    if (beginsHere) cell.startFill = (beginsHere.startMin - slotStart) / 60;
+    if (endsHere) cell.partialFill = (endsHere.endMin - slotStart) / 60;
+
+    // A class crossing this row's bottom edge is not ruled off on it.
+    if (touching.some((p) => p.endMin > slotEnd)) cell.openBottom = true;
+
+    return cell;
+  });
+}
+
+function dayPdfGridFromDays<T extends { startTime?: string; endTime?: string; time?: string }>(
+  schedule: Record<InsDay, T[]>,
+  toCell: (first: T) => PDFScheduleCell,
+): PDFScheduleGrid {
+  const grid = {} as PDFScheduleGrid;
+  for (const day of PDF_DAYS) {
+    grid[day] = placeDayEntries(
+      schedule[day] ?? [],
+      INS_TIME_SLOTS.map((label) => slotStartMinutes(label)),
+      toCell,
+    );
   }
   return grid;
 }
@@ -140,36 +234,7 @@ export function facultyScheduleToPdfGrid(
   programMode: ProgramMode = "day",
 ): PDFScheduleGrid {
   if (programMode === "night") return nightPdfGridFromDays(schedule, facultyCellToPdf);
-  const days: PDFInsDay[] = [
-    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-  ];
-  const grid = {} as PDFScheduleGrid;
-  for (const day of days) {
-    const entries = schedule[day] ?? [];
-    const cells: (PDFScheduleCell | null)[] = [];
-    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
-      const matched = findCellsForSlot(entries, i);
-      if (matched.length === 0) {
-        cells.push(null);
-        continue;
-      }
-      const first = matched[0]!;
-      const startMin = entryStartMinutes(first);
-      const slotStart = slotStartMinutes(INS_TIME_SLOTS[i]);
-      const isStart = startMin >= slotStart && startMin < slotStart + 60;
-      if (!isStart) {
-        cells.push(null);
-        continue;
-      }
-      cells.push({
-        line1: first.course,
-        line2: first.yearSec,
-        line3: first.room,
-      });
-    }
-    grid[day] = cells;
-  }
-  return grid;
+  return dayPdfGridFromDays(schedule, facultyCellToPdf);
 }
 
 export function sectionScheduleToPdfGrid(
@@ -177,35 +242,7 @@ export function sectionScheduleToPdfGrid(
   programMode: ProgramMode = "day",
 ): PDFScheduleGrid {
   if (programMode === "night") return nightPdfGridFromDays(schedule, sectionCellToPdf);
-  const days: PDFInsDay[] = [
-    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-  ];
-  const grid = {} as PDFScheduleGrid;
-  for (const day of days) {
-    const entries = schedule[day] ?? [];
-    const cells: (PDFScheduleCell | null)[] = [];
-    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
-      const matched = findCellsForSlot(entries, i);
-      if (matched.length === 0) {
-        cells.push(null);
-        continue;
-      }
-      const first = matched[0]!;
-      const startMin = entryStartMinutes(first);
-      const slotStart = slotStartMinutes(INS_TIME_SLOTS[i]);
-      if (!(startMin >= slotStart && startMin < slotStart + 60)) {
-        cells.push(null);
-        continue;
-      }
-      cells.push({
-        line1: first.course,
-        line2: first.instructor,
-        line3: first.room,
-      });
-    }
-    grid[day] = cells;
-  }
-  return grid;
+  return dayPdfGridFromDays(schedule, sectionCellToPdf);
 }
 
 export function roomScheduleToPdfGrid(
@@ -213,36 +250,7 @@ export function roomScheduleToPdfGrid(
   programMode: ProgramMode = "day",
 ): PDFScheduleGrid {
   if (programMode === "night") return nightPdfGridFromDays(schedule, roomCellToPdf);
-  const days: PDFInsDay[] = [
-    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-  ];
-  const grid = {} as PDFScheduleGrid;
-  for (const day of days) {
-    const entries = schedule[day] ?? [];
-    const cells: (PDFScheduleCell | null)[] = [];
-    for (let i = 0; i < INS_TIME_SLOTS.length; i++) {
-      const matched = findCellsForSlot(entries, i);
-      if (matched.length === 0) {
-        cells.push(null);
-        continue;
-      }
-      const first = matched[0]!;
-      const startMin = entryStartMinutes(first);
-      const slotStart = slotStartMinutes(INS_TIME_SLOTS[i]);
-      if (!(startMin >= slotStart && startMin < slotStart + 60)) {
-        cells.push(null);
-        continue;
-      }
-      cells.push({
-        line1: first.course,
-        line2: first.instructor,
-        line3: first.yearSec,
-        line4: first.room,
-      });
-    }
-    grid[day] = cells;
-  }
-  return grid;
+  return dayPdfGridFromDays(schedule, roomCellToPdf);
 }
 
 /**

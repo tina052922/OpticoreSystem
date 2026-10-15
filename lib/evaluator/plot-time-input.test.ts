@@ -13,8 +13,15 @@ describe("parseTypedPlotTime", () => {
     expect(parseTypedPlotTime("8")).toEqual({ hour: 8, minute: 0, unambiguous: false });
   });
 
-  it("rejects non-hourly times", () => {
-    expect(parseTypedPlotTime("8:30 AM")).toBeNull();
+  /** Half hours are rows now, so a 2:30 start is ordinary. */
+  it("accepts a half-hour start", () => {
+    expect(parseTypedPlotTime("8:30 AM")).toEqual({ hour: 8, minute: 30, unambiguous: true });
+    expect(parseTypedPlotTime("14:30")).toEqual({ hour: 14, minute: 30, unambiguous: true });
+  });
+
+  it("rejects times that land on no row", () => {
+    expect(parseTypedPlotTime("8:15 AM")).toBeNull();
+    expect(parseTypedPlotTime("8:45 AM")).toBeNull();
     expect(parseTypedPlotTime("")).toBeNull();
     expect(parseTypedPlotTime("noon")).toBeNull();
   });

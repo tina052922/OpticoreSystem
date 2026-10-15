@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch, authApi, catalogApi, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
+import { userErrorDetail } from "@/lib/ui/user-message";
 import { justificationLoadSnapshot } from "@/lib/scheduling/justification-coverage";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -101,7 +102,7 @@ import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { PolicyJustificationModal } from "@/components/evaluator/PolicyJustificationModal";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { SUBJECT_SCHEDULER_NAV_LABEL } from "@/lib/admin-nav";
 
 function toBlock(e: ScheduleEntry): ScheduleBlock {
@@ -514,7 +515,7 @@ export function GecCentralHubEvaluatorClient() {
             toast.success("Draft saved automatically");
           }
         } catch (e) {
-          const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Autosave failed";
+          const msg = userErrorDetail(e, "Draft not saved");
           if (e instanceof ApiClientError && e.status === 423) {
             toast.error("Schedule locked", msg || DOI_SCHEDULE_LOCKED_MESSAGE);
             setDoiScheduleLocked(true);
@@ -1102,7 +1103,7 @@ export function GecCentralHubEvaluatorClient() {
           .catch(() => {});
       }
     } catch (e) {
-      const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Save failed";
+      const msg = userErrorDetail(e, "Could not save vacant slots");
       if (e instanceof ApiClientError && e.status === 423) {
         setDoiScheduleLocked(true);
         toast.error("Schedule locked", msg || DOI_SCHEDULE_LOCKED_MESSAGE);
@@ -1138,7 +1139,7 @@ export function GecCentralHubEvaluatorClient() {
       toast.success("Schedule removed");
     } catch (e: unknown) {
       pendingDeletedIdsRef.current.delete(entryId);
-      const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Could not remove schedule";
+      const msg = userErrorDetail(e, "Failed to remove schedule");
       toast.error("Failed to remove schedule", msg);
       void reloadScheduleEntriesSoft();
     }
@@ -1164,7 +1165,7 @@ export function GecCentralHubEvaluatorClient() {
       return;
     }
     const dur = plotEntryDurationSlots(programCode, firstSub, 1);
-    const effIdx = clampPlotStartSlotIndex(Math.max(0, startIdx), dur, slotsForMode.length);
+    const effIdx = clampPlotStartSlotIndex(Math.max(0, startIdx), dur, slotsForMode);
     const times = timesFromSlotRange(effIdx, dur, slotsForMode);
     if (!times) return;
     const roomPick = roomsForPlotting[0]?.id ?? "";
@@ -1400,32 +1401,62 @@ export function GecCentralHubEvaluatorClient() {
     return (
       <div>
         <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
-        <div className="px-4 md:px-8 pb-12 max-w-4xl mx-auto">
+        <div className="px-4 md:px-8 pb-12 max-w-5xl mx-auto">
           <GecHubEvaluatorTabs collegeParam="" />
           {loadError ? (
             <p className="mb-4 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               Catalog could not fully load. College list below is still available.
             </p>
           ) : null}
-          <div className="mb-4 flex justify-center mt-4">
-            <Link
-              href={`/admin/gec/evaluator?college=${CAMPUS_WIDE_COLLEGE_SLUG}`}
-              className="inline-flex items-center justify-center min-h-[56px] rounded-[20px] bg-[#780301] text-white font-bold text-[14px] px-8 py-3 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-110 transition-[filter]"
-            >
-              All colleges (campus-wide timetable)
-            </Link>
+          <div className="mb-5 mt-4">
+            <h2 className="text-[15px] font-semibold text-black/80">Choose a college</h2>
+            <p className="text-[13px] text-black/55 mt-0.5">
+              Open a college to plot its general education slots. Only GEC and GEE subjects can be
+              scheduled here.
+            </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {landingTiles.map((c) => (
-              <Link
-                key={c.id}
-                href={`/admin/gec/evaluator?college=${encodeURIComponent(c.id)}`}
-                className="flex items-center justify-center min-h-[72px] rounded-[20px] bg-[#ff990a] text-white font-bold text-[15px] text-center px-6 py-5 shadow-[0px_4px_4px_rgba(0,0,0,0.15)] hover:brightness-105 transition-[filter]"
-              >
-                {c.name}
-              </Link>
-            ))}
-          </div>
+
+          {landingTiles.length === 0 ? (
+            <p className="rounded-xl border border-black/10 bg-white px-5 py-8 text-center text-[13px] text-black/50">
+              {loading ? "Loading colleges…" : "No colleges on file yet."}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {landingTiles.map((c) => {
+                /* Programme count makes the cards worth reading rather than a wall of names. */
+                const programCount = programs.filter((p) => p.collegeId === c.id).length;
+                const abbr = c.code;
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/admin/gec/evaluator?college=${encodeURIComponent(c.id)}`}
+                    className="group flex items-start gap-3 rounded-xl border border-black/10 bg-white p-4 shadow-sm transition-colors hover:border-[#ff990a] hover:bg-[#ff990a]/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50"
+                  >
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#ff990a] text-[12px] font-bold text-white"
+                      aria-hidden
+                    >
+                      {abbr}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[14px] font-semibold leading-snug text-black/85">
+                        {c.name}
+                      </span>
+                      <span className="mt-0.5 block text-[12px] text-black/50">
+                        {programCount === 0
+                          ? "No programs yet"
+                          : `${programCount} program${programCount === 1 ? "" : "s"}`}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="mt-1 h-4 w-4 shrink-0 text-black/25 transition-colors group-hover:text-[#ff990a]"
+                      aria-hidden
+                    />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );

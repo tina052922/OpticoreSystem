@@ -83,6 +83,55 @@ export const NIGHT_FULL_DAY_SLOTS: HourSlot[] = buildHourSlots(7, 15);
 /** Night Mon–Fri INS/evaluator: 4:00 PM – 10:00 PM (6 hourly slots). */
 export const NIGHT_WEEKDAY_SLOTS: HourSlot[] = buildHourSlots(16, 6);
 
+/**
+ * One row of the evaluator grid, in minutes.
+ *
+ * Classes are plotted in half hours, and a class may start on one: 1:00–2:30 followed by 2:30–4:00
+ * is an ordinary pair. An hourly grid cannot hold that — both classes would have to claim the 2:00
+ * row, and an HTML table has no way to express two cells overlapping in one column. So the rows are
+ * the half hours themselves, and every start and end lands on a row boundary.
+ *
+ * The printed INS forms keep their hourly rows; they read stored times and merge by overlap, so
+ * nothing here reaches them.
+ */
+export const PLOT_SLOT_MINUTES = 30;
+
+function hhmmFromMinutes(total: number): string {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function format12hFromMinutes(total: number): string {
+  const h24 = Math.floor(total / 60) % 24;
+  const m = total % 60;
+  const suffix = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+function buildPlotSlots(startHour: number, hours: number): HourSlot[] {
+  const perHour = 60 / PLOT_SLOT_MINUTES;
+  return Array.from({ length: hours * perHour }, (_, i) => {
+    const startMin = startHour * 60 + i * PLOT_SLOT_MINUTES;
+    const endMin = startMin + PLOT_SLOT_MINUTES;
+    return {
+      slotIndex: i,
+      label: `${format12hFromMinutes(startMin)} - ${format12hFromMinutes(endMin)}`,
+      startTime: hhmmFromMinutes(startMin),
+      endTime: hhmmFromMinutes(endMin),
+      /* Still the clock hour, so the plottable-window checks below read unchanged. */
+      startHour: Math.floor(startMin / 60),
+    };
+  });
+}
+
+/** Day evaluator: 7:00 AM – 5:00 PM in half hours. */
+export const DAY_PLOT_SLOTS: HourSlot[] = buildPlotSlots(7, 10);
+
+/** Night evaluator: 7:00 AM – 10:00 PM in half hours (weekday plotting is gated per slot). */
+export const NIGHT_PLOT_SLOTS: HourSlot[] = buildPlotSlots(7, 15);
+
 /** Official night INS labels for Saturday/Sunday (12-hour, matching paper forms). */
 export const NIGHT_INS_WEEKEND_SLOT_LABELS = [
   "7:00-8:00",

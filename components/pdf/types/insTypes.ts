@@ -63,6 +63,26 @@ export type PDFScheduleCell = {
   line2?: string;
   line3?: string;
   line4?: string;
+  /**
+   * Where inside this hour a class ends, when it ends partway through.
+   *
+   * A 3:00–4:30 class covers the whole 3:00 row and only the first half of the 4:00 row. The grid
+   * rules off the rest so the printed form says 4:30 rather than reading as 5:00.
+   */
+  partialFill?: number;
+  /**
+   * Where inside this hour a class begins, when it begins partway through.
+   *
+   * An 8:30 class in the 8:00 row is otherwise indistinguishable from an 8:00 one.
+   */
+  startFill?: number;
+  /**
+   * True when a class crosses this row's bottom edge.
+   *
+   * The rule under the row is then dropped, so the class reads as one box across the hour rather
+   * than as two stacked cells.
+   */
+  openBottom?: boolean;
 };
 
 export type PDFScheduleGrid = Record<InsDay, (PDFScheduleCell | null)[]>;

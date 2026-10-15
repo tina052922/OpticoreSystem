@@ -1,6 +1,12 @@
 import type { BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import type { HourSlot, ProgramMode } from "@/lib/scheduling/program-mode";
 import { formatSlotStartForInput, slotIndexFromTypedTime } from "@/lib/evaluator/plot-time-input";
+import {
+  PLOT_STEP_HOURS,
+  plotRowsForHours,
+  plotSlotHours,
+  quantizePlotHours,
+} from "@/lib/evaluator/plot-duration";
 
 export const PLOT_MEETING_SLOT_COUNT = 3;
 
@@ -40,6 +46,21 @@ function slotText(slot: PlotMeetingSlotFields | undefined): { day: string; durat
   return { day: text(slot?.day), durationHours: text(slot?.durationHours) };
 }
 
+/** Half-hour duration choices up to a subject's budget, for the Duration dropdown. */
+export function plotDurationChoices(maxDur: number): number[] {
+  const top = Math.max(PLOT_STEP_HOURS, quantizePlotHours(maxDur) || PLOT_STEP_HOURS);
+  const out: number[] = [];
+  for (let h = PLOT_STEP_HOURS; h <= top + 1e-9; h += PLOT_STEP_HOURS) {
+    out.push(Number(h.toFixed(1)));
+  }
+  return out;
+}
+
+/** "1.5" rather than "1.5000000002", and "2" rather than "2.0". */
+export function formatPlotDurationHours(hours: number): string {
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+}
+
 /**
  * When Day is cleared, Hours must clear too (never keep a leftover default like "1").
  * When Day is newly selected and Hours is empty, default to 1 hour for convenience.
@@ -73,7 +94,13 @@ export function seedPlotMeetingsDraft(args: {
   const day = text(args.day);
   first.day = day;
   // No day means nothing is plotted yet, so it must not carry a duration either.
-  first.durationHours = day ? String(Math.max(1, Math.round(args.durationSlots ?? 1))) : "";
+  /*
+   * Reopening a plotted meeting must show the duration it was saved with. Rounding to whole hours
+   * here turned every 1.5 hour class into 2 the moment its modal was opened.
+   */
+  first.durationHours = day
+    ? formatPlotDurationHours(Math.max(PLOT_STEP_HOURS, quantizePlotHours(args.durationSlots ?? 1)))
+    : "";
   const startIndex = Number.isFinite(args.startSlotIndex) ? args.startSlotIndex : -1;
   draft.timeText =
     startIndex >= 0 ? formatSlotStartForInput(args.slots[startIndex]) : "";
@@ -83,9 +110,10 @@ export function seedPlotMeetingsDraft(args: {
 function parseDurationHours(raw: string | null | undefined, maxDur: number): number | null {
   const n = parseFloat(text(raw));
   if (!Number.isFinite(n)) return null;
-  const rounded = Math.round(n);
-  if (rounded < 1 || rounded > maxDur) return null;
-  return rounded;
+  // Snapped to the half hour, not the hour: a 1.5 hour class is ordinary, not a typo.
+  const stepped = quantizePlotHours(n);
+  if (stepped < PLOT_STEP_HOURS || stepped > maxDur + 1e-9) return null;
+  return stepped;
 }
 
 export function filledPlotMeetingCount(draft: PlotMeetingsDraft): number {
@@ -145,7 +173,7 @@ export function resolvePlotMeetings(
     if (startSlotIndex == null) {
       return {
         ok: false,
-        error: `“${timeText}” is not a plottable hourly start on ${day}. Use a time such as 8:00 AM.`,
+        error: `“${timeText}” is not a plottable start on ${day}. Use the hour or half hour, such as 8:00 AM or 2:30 PM.`,
       };
     }
 
@@ -153,14 +181,15 @@ export function resolvePlotMeetings(
     if (durationSlots == null) {
       return {
         ok: false,
-        error: `Enter duration hours for ${day} (1–${args.maxDur}).`,
+        error: `Choose a duration for ${day} (${PLOT_STEP_HOURS}–${args.maxDur} hours, in half-hour steps).`,
       };
     }
 
-    if (startSlotIndex + durationSlots > args.slots.length) {
+    /* Rows, not hours: on the half-hour grid a 1.5 hour class covers three of them. */
+    if (startSlotIndex + plotRowsForHours(durationSlots, plotSlotHours(args.slots)) > args.slots.length) {
       return {
         ok: false,
-        error: `${durationSlots} hour${durationSlots === 1 ? "" : "s"} from “${timeText}” does not fit the ${day} grid.`,
+        error: `${formatPlotDurationHours(durationSlots)} hour${durationSlots === 1 ? "" : "s"} from “${timeText}” does not fit the ${day} grid.`,
       };
     }
 

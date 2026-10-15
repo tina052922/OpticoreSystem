@@ -101,7 +101,7 @@ export function subjectWeeklyHoursCaption(args: {
   if (hoursExceedSubjectRequirement(args)) {
     return {
       overLimit: true,
-      text: `Over limit: ${total} hour(s) plotted vs ${args.requiredHours} hour(s) required this term (lecture 1 unit = 1 hour, lab 1 unit = 3 hours). Reduce duration or remove extra meetings.`,
+      text: `Over limit: ${total} hour(s) plotted vs ${args.requiredHours} hour(s) required this term. Reduce duration or remove extra meetings.`,
     };
   }
   const remaining = Math.max(0, args.requiredHours - total);
@@ -121,7 +121,7 @@ export function subjectHoursOverLimitMessage(args: {
   additionalHours: number;
 }): string {
   const total = args.alreadyPlottedHours + args.additionalHours;
-  return `${args.subjectCode} is over the prospectus limit: ${total} hour(s) plotted this term, but the subject only needs ${args.requiredHours} hour(s) per week (lecture 1 unit = 1 hour, lab 1 unit = 3 hours). Reduce duration or remove extra meetings before saving.`;
+  return `${args.subjectCode} is over the prospectus limit: ${total} hour(s) plotted this term, but the subject only needs ${args.requiredHours} hour(s) per week. Reduce duration or remove extra meetings before saving.`;
 }
 
 /**

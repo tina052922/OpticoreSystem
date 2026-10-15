@@ -121,6 +121,28 @@ function messageForStatus(status: number | undefined): UserMessage | null {
  * `fallbackTitle` is what the action was trying to do, phrased for a person — "Could not save the
  * subject" — and is used whenever the underlying error has nothing presentable of its own.
  */
+/**
+ * A database constraint the person can actually do something about.
+ *
+ * Returns the explanation only; the caller's own title ("Could not save vacant slots") says more
+ * about where they are than any generic heading could. "violates foreign key constraint
+ * ScheduleEntry_instructorId_fkey" tells the person nothing — what to do about it does.
+ */
+function detailForConstraint(message: string): string | null {
+  if (!/\bviolates\b/i.test(message)) return null;
+
+  if (/foreign key/i.test(message)) {
+    return "An instructor, room or section used here no longer exists — it may have been removed or renamed. Refresh the page, set it again, then save. Nothing was saved.";
+  }
+  if (/not[- ]null/i.test(message)) {
+    return "Something required was left empty. Fill in the subject, section, instructor and room, then save again.";
+  }
+  if (/unique|duplicate key/i.test(message)) {
+    return "This already exists. Refresh the page to see the current version.";
+  }
+  return null;
+}
+
 export function toUserMessage(err: unknown, fallbackTitle: string): UserMessage {
   const { status, code, message } = readError(err);
 
@@ -130,6 +152,9 @@ export function toUserMessage(err: unknown, fallbackTitle: string): UserMessage 
       detail: "Check your internet connection, then try again. Nothing was saved.",
     };
   }
+
+  const constraintDetail = detailForConstraint(message ?? "");
+  if (constraintDetail) return { title: fallbackTitle, detail: constraintDetail };
 
   // A conflict is the server telling the person something specific about their own data.
   const serverSaidSomethingUseful = Boolean(message) && !isDeveloperMessage(message);
@@ -154,6 +179,17 @@ export function toUserMessage(err: unknown, fallbackTitle: string): UserMessage 
  * Keeping these together means the technical detail is never simply discarded in the name of a
  * friendlier message.
  */
+/**
+ * The explanation half of {@link toUserMessage}, for call sites that already have a title.
+ *
+ * Exists so a `catch` can keep its own contextual heading — "Could not save vacant slots" — while
+ * the body stops being whatever Postgres or `fetch` happened to say.
+ */
+export function userErrorDetail(err: unknown, fallbackTitle: string): string {
+  // `detail` is optional on the type; a toast body that reads "undefined" helps nobody.
+  return toUserMessage(err, fallbackTitle).detail ?? "Please try again.";
+}
+
 export function reportUserError(err: unknown, fallbackTitle: string, context?: string): UserMessage {
   if (typeof console !== "undefined") {
     console.error(`[opticore] ${context ?? fallbackTitle}`, err);

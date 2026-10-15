@@ -4,6 +4,7 @@ import { PathSaver } from "@/components/PathSaver";
 import { OpticoreToastProvider } from "@/components/alerts/OpticoreToastProvider";
 import { CampusBrandingProvider } from "@/contexts/CampusBrandingContext";
 import { ConnectionToastsMount } from "@/components/alerts/ConnectionToastsMount";
+import { SessionKeepAlive } from "@/components/auth/SessionKeepAlive";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <OpticoreToastProvider>
           <CampusBrandingProvider>
           <ConnectionToastsMount />
+          <SessionKeepAlive />
           <ChunkLoadRecovery />
           <PathSaver />
           {children}

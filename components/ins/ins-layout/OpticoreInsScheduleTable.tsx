@@ -10,9 +10,26 @@ import {
   isNightCellClosed,
   slotsForSession,
 } from "@/lib/scheduling/program-session";
+import { InsPartialHourRule } from "./InsPartialHourRule";
 import { INS_DAYS } from "./opticore-ins-constants";
 
 const insTableBorder = "border border-neutral-900";
+
+/**
+ * Cell borders named side by side, so a class running across an hour can drop just that one line.
+ *
+ * `border` plus `border-b-0` leaves the result to stylesheet order, and the cell below would draw
+ * its own top edge on the same line anyway — both edges of the join have to go.
+ */
+function insCellBorder(opts: { openTop?: boolean; openBottom?: boolean } = {}): string {
+  return [
+    "border-neutral-900 border-l border-r",
+    opts.openTop ? "" : "border-t",
+    opts.openBottom ? "" : "border-b",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 /** Visible width of the signature rail beside the schedule (matches PDF RAIL_W). */
 const RAIL_W_PX = 100;
@@ -144,17 +161,31 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                         </td>
                       );
                     }
-                    const { rowSpan, items } = pick;
+                    const { rowSpan, items, fillFraction, startFraction, continuesBelow, continuesAbove } =
+                      pick;
                     return (
                       <td
                         key={`${time}-${day}`}
                         rowSpan={rowSpan}
-                        className={`${insTableBorder} p-0 align-stretch`}
+                        /* A class running across an hour is not sliced by that hour's line; the
+                           cell it runs into rules it off where it actually ends. */
+                        className={`${insCellBorder({
+                          openTop: continuesAbove,
+                          openBottom: continuesBelow,
+                        })} relative p-0 align-stretch`}
                       >
                         <div
-                          className="flex h-full min-h-0 flex-col items-center justify-center gap-0 px-1 py-1 print:py-0 print:px-0.5 print:text-[6pt] text-center text-[10px] leading-tight text-neutral-900 overflow-hidden"
+                          className="relative z-10 flex h-full min-h-0 flex-col items-center justify-center gap-0 px-1 py-1 print:py-0 print:px-0.5 print:text-[6pt] text-center text-[10px] leading-tight text-neutral-900 overflow-hidden"
                           style={{
                             minHeight: `calc(var(--ins-row-h) * ${rowSpan})`,
+                            /* Centred on the class, not on the merged cell: a 3:00–4:30 class sits
+                               in the middle of its hour and a half, between the ruled-off parts. */
+                            ...(fillFraction == null
+                              ? null
+                              : { paddingBottom: `calc(var(--ins-row-h) * ${rowSpan * (1 - fillFraction)})` }),
+                            ...(startFraction == null
+                              ? null
+                              : { paddingTop: `calc(var(--ins-row-h) * ${rowSpan * startFraction})` }),
                           }}
                         >
                           {props.renderSpanned({
@@ -165,6 +196,7 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                             items,
                           })}
                         </div>
+                        <InsPartialHourRule fraction={fillFraction} startFraction={startFraction} />
                       </td>
                     );
                   }

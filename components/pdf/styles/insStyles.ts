@@ -226,10 +226,15 @@ export const ins = StyleSheet.create({
     textAlign: "center",
     borderWidth: 0.5,
   },
+  /**
+   * The hour rule lives on each cell, not on the row.
+   *
+   * A class that runs past the hour drops its own bottom rule so its box reads as one class rather
+   * than as two stacked cells; that is only possible while each cell owns its line.
+   */
   gridRow: {
     flexDirection: "row",
     minHeight: 28,
-    borderBottomWidth: 0.5,
   },
   gridTimeCell: {
     width: 44,
@@ -238,6 +243,7 @@ export const ins = StyleSheet.create({
     textAlign: "center",
     justifyContent: "center",
     borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
   },
   gridCell: {
     flex: 1,
@@ -245,6 +251,7 @@ export const ins = StyleSheet.create({
     fontSize: 5.5,
     borderRightWidth: 0.5,
     borderRightColor: GRID_BORDER,
+    borderBottomWidth: 0.5,
     justifyContent: "center",
     overflow: "hidden",
   },
@@ -254,11 +261,16 @@ export const ins = StyleSheet.create({
     fontSize: 5.5,
     borderRightWidth: 0.5,
     borderRightColor: GRID_BORDER,
+    borderBottomWidth: 0.5,
     justifyContent: "center",
     overflow: "hidden",
   },
+  /** Cell text sits in the middle of its cell, across and down. */
   cellGroup: {
+    width: "100%",
     textAlign: "center",
+    alignItems: "center",
+    justifyContent: "center",
     overflow: "hidden",
   },
   cellLine1: {

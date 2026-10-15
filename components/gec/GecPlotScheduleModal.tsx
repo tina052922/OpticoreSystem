@@ -11,11 +11,14 @@ import {
 import { type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { normalizeSlotHHMM } from "@/lib/chairman/evaluator-schedule-hydration";
 import {
+  PLOT_STEP_HOURS,
   clampPlotStartSlotIndex,
   maxPlotDurationSlotsForSubject,
   plotEntryDurationSlots,
+  quantizePlotHours,
   timesFromSlotRange,
 } from "@/lib/evaluator/plot-duration";
+import { formatPlotTimeRange } from "@/lib/evaluator/plot-time-range";
 import { PlotMeetingSlotsFields } from "@/components/evaluator/PlotMeetingSlotsFields";
 import {
   resolvePlotMeetings,
@@ -56,19 +59,6 @@ function startSlotIndexFromEntry(e: ScheduleEntry, slots: { startTime: string }[
   const h = hhmm(e.startTime);
   const idx = slots.findIndex((t) => t.startTime === h);
   return idx >= 0 ? idx : 0;
-}
-
-function formatTimeRangeFromSlots(
-  effectiveStart: number,
-  dur: number,
-  slots: { label: string }[],
-): string {
-  const first = slots[effectiveStart];
-  const last = slots[effectiveStart + dur - 1];
-  if (!first || !last) return "—";
-  const start = first.label.split(" - ")[0] ?? "";
-  const end = last.label.split(" - ").pop() ?? "";
-  return `${start} – ${end}`;
 }
 
 export type GecPlotScheduleModalProps = {
@@ -201,7 +191,7 @@ export function GecPlotScheduleModal({
       return sub ? "Type a start time and choose at least one day" : "Select GEC subject, then type a start time";
     }
     return resolved.meetings
-      .map((m) => `${m.day} ${formatTimeRangeFromSlots(m.startSlotIndex, m.durationSlots, slots)}`)
+      .map((m) => `${m.day} ${formatPlotTimeRange(m.startSlotIndex, m.durationSlots, slots)}`)
       .join(" · ");
   }, [meetings, slots, programMode, maxDur, days, sub]);
   const roomsInB = buildingValue
@@ -236,7 +226,7 @@ export function GecPlotScheduleModal({
   const applySlotFromIndex = (idx: number, subjectId: string, slotDur = durationSlots) => {
     const subject = gecSubjects.find((s) => s.id === subjectId);
     const d = plotEntryDurationSlots(programCode, subject, slotDur);
-    const eff = clampPlotStartSlotIndex(Math.max(0, idx), d, slots.length);
+    const eff = clampPlotStartSlotIndex(Math.max(0, idx), d, slots);
     const times = timesFromSlotRange(eff, d, slots);
     if (!times) return;
     onDraftChange({
@@ -255,11 +245,12 @@ export function GecPlotScheduleModal({
     // when the user clears Day 1 (that left Hours stuck at 1 while Day looked blank).
     const day = first?.day ?? "";
     const durRaw = (first?.durationHours ?? "").trim();
-    const parsedDur = durRaw ? parseInt(durRaw, 10) : NaN;
+    /* `parseInt` truncated "1.5" to 1, silently shortening every half-hour meeting as it was typed. */
+    const parsedDur = durRaw ? quantizePlotHours(parseFloat(durRaw)) : NaN;
     const durHours =
       !day
         ? 0
-        : Number.isFinite(parsedDur) && parsedDur >= 1
+        : Number.isFinite(parsedDur) && parsedDur >= PLOT_STEP_HOURS
           ? parsedDur
           : 0;
     onDurationSlotsChange(durHours);
@@ -268,7 +259,7 @@ export function GecPlotScheduleModal({
         ? slotIndexFromTypedTime(next.timeText, slots, day, programMode)
         : null;
     const times =
-      idx != null && durHours >= 1 ? timesFromSlotRange(idx, durHours, slots) : null;
+      idx != null && durHours >= PLOT_STEP_HOURS ? timesFromSlotRange(idx, durHours, slots) : null;
     onDraftChange({
       ...draft,
       day,

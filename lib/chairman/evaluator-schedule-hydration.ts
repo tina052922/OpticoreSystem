@@ -1,5 +1,5 @@
 import {
-  BSIT_EVALUATOR_TIME_SLOTS,
+  BSIT_PLOT_SLOTS,
   NIGHT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
@@ -52,6 +52,6 @@ export function startSlotIndexFromScheduleEntryStartTime(
   const idx = slots.findIndex((t) => t.startTime === key);
   if (idx >= 0) return idx;
   if (mode === "night") return -1;
-  const dayIdx = BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === key);
+  const dayIdx = BSIT_PLOT_SLOTS.findIndex((t) => t.startTime === key);
   return dayIdx >= 0 ? dayIdx : 0;
 }

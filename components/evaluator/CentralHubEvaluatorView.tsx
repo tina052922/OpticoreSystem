@@ -1,6 +1,7 @@
 "use client";
 
 import { accessRequestsApi, apiFetch, authApi, catalogApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
+import { userErrorDetail } from "@/lib/ui/user-message";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -639,7 +640,7 @@ export function CentralHubEvaluatorView({
           const payload = mergePayload(null);
           setCampusConflictScan(payload);
           applyGa(payload);
-          const msg = e instanceof ApiClientError ? e.message : "Please try again.";
+          const msg = userErrorDetail(e, "Conflict scan failed");
           if (payload.conflictingEntryIds.length === 0) {
             toast.error("Conflict scan failed", msg);
           } else {
@@ -855,7 +856,7 @@ export function CentralHubEvaluatorView({
           });
         await runScopedConflictScan({ silentSuccess: true });
       } catch (e) {
-        const msg = e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Apply failed";
+        const msg = userErrorDetail(e, "Could not apply suggestion");
         toast.error("Could not apply suggestion", msg);
       } finally {
         setBusyConflictApplyKey(null);

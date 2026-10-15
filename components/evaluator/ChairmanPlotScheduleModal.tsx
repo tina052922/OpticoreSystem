@@ -4,17 +4,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  BSIT_ONE_HOUR_SLOTS,
+  BSIT_PLOT_SLOTS,
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { evaluatorTimeSlots, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import {
+  PLOT_STEP_HOURS,
   clampPlotStartSlotIndex,
   maxPlotDurationSlots,
+  quantizePlotHours,
   plotRowDurationSlots,
+  plotRowsForHours,
+  plotSlotHours,
+  timesFromSlotRange,
 } from "@/lib/evaluator/plot-duration";
+import { formatPlotTimeRange } from "@/lib/evaluator/plot-time-range";
 import { PlotMeetingSlotsFields } from "@/components/evaluator/PlotMeetingSlotsFields";
 import {
   resolvePlotMeetings,
@@ -66,47 +72,34 @@ const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
 const labelClass = "text-[12px] font-semibold text-black/75";
 
-function formatTimeRangeFromSlots(
-  effectiveStart: number,
-  dur: number,
-  slots: { label: string }[] = BSIT_ONE_HOUR_SLOTS,
-): string {
-  const first = slots[effectiveStart];
-  const last = slots[effectiveStart + dur - 1];
-  if (!first || !last) return "—";
-  const start = first.label.split(" - ")[0] ?? "";
-  const end = last.label.split(" - ").pop() ?? "";
-  return `${start} – ${end}`;
-}
-
 function buildCandidateBlock(
   draft: PlotRow,
   overrides: Partial<PlotRow>,
   academicPeriodId: string,
   programCodeForSummary: string,
-  slots: { label: string; startTime: string; endTime: string }[] = BSIT_ONE_HOUR_SLOTS,
+  slots: { label: string; startTime: string; endTime: string }[] = BSIT_PLOT_SLOTS,
   programMode: ProgramMode = "day",
 ): SparseScheduleBlock | null {
   const merged = { ...draft, ...overrides };
   if (!merged.subjectCode || !merged.day) return null;
   const pr = prospectusRowForProgram(programCodeForSummary, merged.subjectCode);
   const dur = plotRowDurationSlots(pr, merged);
-  const maxS = slots.length - dur;
+  // Rows, not hours: on the half-hour grid a 1.5 hour class covers three of them.
+  const maxS = slots.length - plotRowsForHours(dur, plotSlotHours(slots));
   const startIdx = clampPlotStartSlotIndex(
     merged.startSlotIndex < 0 ? 0 : merged.startSlotIndex,
     dur,
-    slots.length,
+    slots,
   );
   if (startIdx < 0 || startIdx > maxS) return null;
-  const start = slots[startIdx];
-  const endSlot = slots[startIdx + dur - 1];
-  if (!start || !endSlot) return null;
+  const times = timesFromSlotRange(startIdx, dur, slots);
+  if (!times) return null;
   return {
     id: merged.id,
     academicPeriodId,
     day: merged.day,
-    startTime: start.startTime,
-    endTime: endSlot.endTime,
+    startTime: times.startTime,
+    endTime: times.endTime,
     instructorId: merged.instructorId || null,
     sectionId: merged.sectionId || null,
     roomId: merged.roomId || null,
@@ -255,7 +248,7 @@ export function ChairmanPlotScheduleModal({
       return draft.subjectCode ? "Type a start time and choose at least one day" : "Select subject, then type a start time";
     }
     return resolved.meetings
-      .map((m) => `${m.day} ${formatTimeRangeFromSlots(m.startSlotIndex, m.durationSlots, slots)}`)
+      .map((m) => `${m.day} ${formatPlotTimeRange(m.startSlotIndex, m.durationSlots, slots)}`)
       .join(" · ");
   }, [meetings, slots, programMode, maxDur, days, draft.subjectCode]);
   const sectionName = draft.sectionId
@@ -494,7 +487,8 @@ export function ChairmanPlotScheduleModal({
     const first = next.slots[0];
     const day = (first?.day ?? "") as PlotRow["day"];
     const durRaw = (first?.durationHours ?? "").trim();
-    const parsedDur = durRaw ? parseInt(durRaw, 10) : NaN;
+    /* `parseInt` truncated "1.5" to 1, silently shortening every half-hour meeting as it was typed. */
+    const parsedDur = durRaw ? quantizePlotHours(parseFloat(durRaw)) : NaN;
     const idx =
       day && next.timeText.trim()
         ? slotIndexFromTypedTime(next.timeText, slots, day, programMode)
@@ -506,7 +500,7 @@ export function ChairmanPlotScheduleModal({
       // Blank day → blank duration (do not keep a default 1 hour).
       durationSlots: !day
         ? undefined
-        : Number.isFinite(parsedDur) && parsedDur >= 1
+        : Number.isFinite(parsedDur) && parsedDur >= PLOT_STEP_HOURS
           ? parsedDur
           : durRaw
             ? draft.durationSlots
@@ -672,7 +666,7 @@ export function ChairmanPlotScheduleModal({
                   let startSlotIndex = draft.startSlotIndex;
                   if (p) {
                     const d = plotRowDurationSlots(p, draft);
-                    startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots.length);
+                    startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots);
                   }
                   setMeetings((prev) => ({
                     ...prev,
@@ -779,7 +773,7 @@ export function ChairmanPlotScheduleModal({
                 let startSlotIndex = draft.startSlotIndex;
                 if (p) {
                   const d = plotRowDurationSlots(p, { durationSlots: 1 });
-                  startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots.length);
+                  startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots);
                 }
                 setMeetings((prev) => ({
                   ...prev,

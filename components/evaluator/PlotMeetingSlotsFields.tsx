@@ -4,6 +4,8 @@ import type { BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constan
 import {
   PLOT_MEETING_SLOT_COUNT,
   durationHoursAfterDayChange,
+  formatPlotDurationHours,
+  plotDurationChoices,
   type PlotMeetingsDraft,
 } from "@/lib/evaluator/plot-meetings";
 
@@ -34,6 +36,9 @@ export function PlotMeetingSlotsFields({
   incomplete = false,
   error = null,
 }: PlotMeetingSlotsFieldsProps) {
+  /* Half-hour steps, offered as a list so a duration can only ever be a plottable one. */
+  const durationOptions = plotDurationChoices(maxDur);
+
   const timeFieldClass = incomplete
     ? `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`
     : `${fieldClass} mt-1`;
@@ -60,13 +65,14 @@ export function PlotMeetingSlotsFields({
           autoComplete="off"
           spellCheck={false}
           className={`${timeFieldClass} tabular-nums`}
-          placeholder="e.g. 8:00 AM"
+          placeholder="e.g. 8:00 AM or 2:30 PM"
           disabled={readOnly}
           value={draft.timeText}
           onChange={(e) => patchTime(e.target.value)}
         />
         <p className="text-[10px] text-black/50 mt-1">
-          Type an hourly start (8:00 AM or 08:00). The same start applies to each day below.
+          Type a start on the hour or half hour (8:00 AM, 2:30 PM, 14:30). The same start applies
+          to each day below.
         </p>
       </div>
 
@@ -120,26 +126,32 @@ export function PlotMeetingSlotsFields({
                   <label className={labelClass} htmlFor={durId}>
                     Duration {i + 1}
                   </label>
-                  <input
+                  <select
                     id={durId}
-                    type="number"
-                    min={1}
-                    max={maxDur}
-                    step={1}
                     className={`${fieldClass} mt-1 tabular-nums`}
-                    placeholder="hrs"
-                    disabled={readOnly}
+                    disabled={readOnly || !slot.day}
                     value={slot.durationHours}
                     onChange={(e) => patchSlot(i, { durationHours: e.target.value })}
-                  />
+                  >
+                    <option value="">hrs</option>
+                    {durationOptions.map((h) => {
+                      const value = formatPlotDurationHours(h);
+                      return (
+                        <option key={value} value={value}>
+                          {value} {h === 1 ? "hr" : "hrs"}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
               </div>
             );
           })}
         </div>
         <p className="text-[10px] text-black/50 mt-1">
-          Duration is consecutive hours from the start time (max {maxDur} for this subject). Clear Day
-          to also clear Hours. Lecture: 1 unit = 1 hour. Lab: 1 unit = 3 hours.
+          Duration runs from the start time in 30-minute steps (max {maxDur} for this subject) — a
+          1.5 hr meeting starting 1:00 PM ends 2:30 PM, leaving 2:30 PM free for the next one. Clear
+          Day to also clear Hours.
         </p>
       </div>
       {error ? (

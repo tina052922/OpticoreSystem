@@ -97,10 +97,52 @@ export function insParseCellTimeMinutes(cell: InsTimedCell): { startMin: number;
   return { startMin: s, endMin: e };
 }
 
+/**
+ * Where a class stops inside the block of hour rows it is drawn in, as a fraction of that block.
+ *
+ * `null` when it runs to the end of the block, which is the ordinary whole-hour case. A class that
+ * ends at :30 only reaches partway into its last row, and without this the merged cell reads as a
+ * class an hour longer than it is — 3:00–4:30 looked exactly like 3:00–5:00.
+ */
+export function insBlockFillFraction(
+  entryEndMin: number,
+  blockStartMin: number,
+  blockEndMin: number,
+): number | null {
+  const span = blockEndMin - blockStartMin;
+  if (span <= 0) return null;
+  const filled = entryEndMin - blockStartMin;
+  if (filled <= 0 || filled >= span) return null;
+  return filled / span;
+}
+
 export type InsSlotRenderPick<T extends InsTimedCell> =
   | { kind: "skip" }
   | { kind: "empty"; placeholder: boolean }
-  | { kind: "fill"; rowSpan: number; items: T[] };
+  | {
+      kind: "fill";
+      rowSpan: number;
+      items: T[];
+      /** Where the class ends inside the spanned block, or `null` when it runs to the end. */
+      fillFraction: number | null;
+      /** Where the class begins inside the spanned block, or `null` when it starts at the top. */
+      startFraction: number | null;
+      /**
+       * True when the class runs past the bottom of the rows it was given.
+       *
+       * It happens when a later class starts inside this one's span and takes the shared row. The
+       * cell then drops its bottom rule, so a 7:00–8:30 class is not sliced in half by the 8:00
+       * line — its box runs on into the next cell, which rules it off at 8:30.
+       */
+      continuesBelow: boolean;
+      /**
+       * True when a class from an earlier row is still running when this row starts.
+       *
+       * Every cell draws its own border, so dropping the rule under the 7:00 class is not enough to
+       * join the two boxes — the 8:00 cell would still draw its own top edge on the same line.
+       */
+      continuesAbove: boolean;
+    };
 
 /**
  * For one weekday column, decide how to render `slotIdx` (0-based hour-slot index).
@@ -122,6 +164,27 @@ export function insPickSlotRender<T extends InsTimedCell>(
     expanded.push({ item, startIdx: span.startIdx, rowSpan: span.rowSpan });
   }
 
+  /*
+   * A class that begins inside another one's span cuts that span short.
+   *
+   * 7:00–8:30 reaches into the 8:00 row, and so does 8:30–10:00 — but a table column cannot hold
+   * two overlapping cells, so the row the later class starts in has to belong to it. Without this
+   * the 8:00 row was marked covered and the second meeting was never drawn at all.
+   */
+  const startRows = new Set(expanded.map((x) => x.startIdx));
+  /* Kept before truncation: it is what says a class is still running when this row begins. */
+  const continuesAbove = expanded.some(
+    (x) => x.startIdx < slotIdx && slotIdx < x.startIdx + x.rowSpan,
+  );
+  for (const x of expanded) {
+    for (let k = 1; k < x.rowSpan; k++) {
+      if (startRows.has(x.startIdx + k)) {
+        x.rowSpan = k;
+        break;
+      }
+    }
+  }
+
   const covering = expanded.filter((x) => slotIdx > x.startIdx && slotIdx < x.startIdx + x.rowSpan);
   if (covering.length > 0) {
     return { kind: "skip" };
@@ -134,7 +197,44 @@ export function insPickSlotRender<T extends InsTimedCell>(
   }
 
   const rowSpan = Math.max(...starters.map((s) => s.rowSpan));
-  return { kind: "fill", rowSpan, items: starters.map((s) => s.item) };
+
+  /*
+   * Measured against the longest class in the cell: that is the one the merged block is sized for,
+   * so it is the one whose end the rule has to mark. `startFraction` does the same at the top, for
+   * a class that begins at half past — otherwise an 8:30 start is indistinguishable from an 8:00 one.
+   */
+  const bounds = insSlotBoundsFromHourSlots(hourSlots);
+  const blockStart = bounds[slotIdx]?.startMin;
+  const blockEnd = bounds[slotIdx + rowSpan - 1]?.endMin;
+  let fillFraction: number | null = null;
+  let startFraction: number | null = null;
+  let continuesBelow = false;
+  if (blockStart != null && blockEnd != null) {
+    const times = starters
+      .map((s) => insParseCellTimeMinutes(s.item))
+      .filter((m): m is { startMin: number; endMin: number } => m != null);
+    if (times.length > 0) {
+      fillFraction = insBlockFillFraction(
+        Math.max(...times.map((t) => t.endMin)),
+        blockStart,
+        blockEnd,
+      );
+      const earliestStart = Math.min(...times.map((t) => t.startMin));
+      const offset = (earliestStart - blockStart) / (blockEnd - blockStart);
+      startFraction = offset > 0 && offset < 1 ? offset : null;
+      continuesBelow = Math.max(...times.map((t) => t.endMin)) > blockEnd;
+    }
+  }
+
+  return {
+    kind: "fill",
+    rowSpan,
+    items: starters.map((s) => s.item),
+    fillFraction,
+    startFraction,
+    continuesBelow,
+    continuesAbove,
+  };
 }
 
 /** @deprecated label list kept for PDF fallbacks */

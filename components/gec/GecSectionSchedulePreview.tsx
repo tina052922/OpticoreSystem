@@ -2,11 +2,12 @@
 
 import { useMemo } from "react";
 import {
-  BSIT_EVALUATOR_TIME_SLOTS,
+  BSIT_PLOT_SLOTS,
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
 import { inferDurationSlotsFromTimes } from "@/lib/evaluator/plot-duration";
+import { formatPlotTimeRange } from "@/lib/evaluator/plot-time-range";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import type { FacultyProfile, Room, ScheduleEntry, Subject, User } from "@/types/db";
@@ -16,18 +17,12 @@ function hhmm(t: string): string {
 }
 
 function formatTimeRangeFromSlots(effectiveStart: number, dur: number): string {
-  const slots = BSIT_EVALUATOR_TIME_SLOTS;
-  const first = slots[effectiveStart];
-  const last = slots[effectiveStart + dur - 1];
-  if (!first || !last) return "—";
-  const start = first.label.split(" - ")[0] ?? "";
-  const end = last.label.split(" - ").pop() ?? "";
-  return `${start} – ${end}`;
+  return formatPlotTimeRange(effectiveStart, dur, BSIT_PLOT_SLOTS);
 }
 
 function startSlotIndexFromEntry(e: ScheduleEntry): number {
   const h = hhmm(e.startTime);
-  return BSIT_EVALUATOR_TIME_SLOTS.findIndex((t) => t.startTime === h);
+  return BSIT_PLOT_SLOTS.findIndex((t) => t.startTime === h);
 }
 
 function durationForEntry(e: ScheduleEntry): number {
@@ -62,7 +57,7 @@ export function GecSectionSchedulePreview({
   userById,
   facultyProfileByUserId,
 }: Props) {
-  const slots = BSIT_EVALUATOR_TIME_SLOTS;
+  const slots = BSIT_PLOT_SLOTS;
   const list = useMemo(
     () => entries.filter((e) => e.academicPeriodId === academicPeriodId && e.sectionId === sectionId),
     [entries, academicPeriodId, sectionId],

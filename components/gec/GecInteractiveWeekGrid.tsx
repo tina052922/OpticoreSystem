@@ -26,8 +26,11 @@ import {
   clampPlotStartSlotIndex,
   inferDurationSlotsFromTimes,
   plotEntryDurationSlots,
+  plotRowsForHours,
+  plotSlotHours,
   timesFromSlotRange,
 } from "@/lib/evaluator/plot-duration";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
 import { isGecCurriculumScheduleEntry } from "@/lib/gec/gec-vacant";
 import {
@@ -60,30 +63,57 @@ function durationForEntry(e: ScheduleEntry): number {
   return inferDurationSlotsFromTimes(e.startTime, e.endTime);
 }
 
+/**
+ * One grid row — half an hour — in pixels.
+ *
+ * Fixed rather than sized to the tallest card, so the geometry is knowable. An hour is two of these,
+ * which is the height a one-hour card had before the grid was re-pitched; nothing looks smaller,
+ * there are simply twice as many lines.
+ */
+const PLOT_ROW_HEIGHT_PX = 44;
+
+/**
+ * True for a row that starts at half past.
+ *
+ * Twice as many rows as there used to be would be twice as much to read, so the hours stay bold and
+ * the half hours recede — the eye finds 2:00 PM at a glance and 2:30 PM when it needs it.
+ */
+function isHalfPastSlot(slot: { startTime: string }): boolean {
+  return slot.startTime.slice(3, 5) === "30";
+}
+
 function entryTimeBounds(
   e: ScheduleEntry,
   slots: { startTime: string; endTime: string }[],
-): { startIdx: number; dur: number } | null {
+): { startIdx: number; dur: number; rows: number } | null {
   const dur = durationForEntry(e);
   const startIdx = startSlotIndexFromEntry(e, slots);
   if (startIdx < 0) return null;
-  const maxS = slots.length - dur;
-  const eff = clampPlotStartSlotIndex(startIdx, dur, slots.length);
+  /*
+   * `dur` is hours; `rows` is how many grid cells the card covers. The grid is pitched in half
+   * hours, so a 1.5 hour class is three rows and lands exactly on a boundary.
+   */
+  const rows = plotRowsForHours(dur, plotSlotHours(slots));
+  const maxS = slots.length - rows;
+  const eff = clampPlotStartSlotIndex(startIdx, dur, slots);
   if (eff < 0 || eff > maxS) return null;
-  return { startIdx: eff, dur };
+  return { startIdx: eff, dur, rows };
 }
 
+/**
+ * The time a plotted meeting actually covers, e.g. `10:00 AM – 11:30 AM`.
+ *
+ * Derived from the start plus the duration rather than from the last covered row's label, which can
+ * only ever end on the hour.
+ */
 function formatTimeRangeFromSlots(
   effectiveStart: number,
   dur: number,
-  slots: { label: string }[],
+  slots: { startTime: string; endTime: string }[],
 ): string {
-  const first = slots[effectiveStart];
-  const last = slots[effectiveStart + dur - 1];
-  if (!first || !last) return "—";
-  const start = first.label.split(" - ")[0] ?? "";
-  const end = last.label.split(" - ").pop() ?? "";
-  return `${start} – ${end}`;
+  const times = timesFromSlotRange(effectiveStart, dur, slots);
+  if (!times) return "—";
+  return formatTimeRange12h(times.startTime, times.endTime);
 }
 
 function cellConflictClasses(
@@ -321,7 +351,7 @@ export function GecInteractiveWeekGrid({
       if (!bounds) continue;
       const day = e.day as BsitEvaluatorWeekday;
       if (!days.includes(day)) continue;
-      for (let k = 1; k < bounds.dur; k++) {
+      for (let k = 1; k < bounds.rows; k++) {
         m.add(`${day}-${bounds.startIdx + k}`);
       }
     }
@@ -555,8 +585,12 @@ export function GecInteractiveWeekGrid({
           </thead>
           <tbody>
             {slots.map((slot, slotIdx) => (
-              <tr key={slot.label}>
-                <td className="border border-black px-1 py-1.5 text-center whitespace-nowrap text-black bg-white/95">
+              <tr key={slot.label} style={{ height: PLOT_ROW_HEIGHT_PX }}>
+                <td
+                  className={`border border-black px-1 py-1.5 text-center whitespace-nowrap bg-white/95 ${
+                    isHalfPastSlot(slot) ? "text-black/45" : "font-semibold text-black"
+                  }`}
+                >
                   {slot.label}
                 </td>
                 {days.map((day) => {
@@ -575,7 +609,8 @@ export function GecInteractiveWeekGrid({
                       return (
                         <td
                           key={day}
-                          className="border border-black px-0.5 py-0.5 align-top min-h-[44px] bg-neutral-100 text-neutral-400"
+                          style={{ height: PLOT_ROW_HEIGHT_PX }}
+                          className="border border-black px-0.5 py-0.5 align-top bg-neutral-100 text-neutral-400"
                         >
                           <span className="block text-center text-[8px] font-semibold">
                             {programMode === "night" ? "Day window" : ""}
@@ -586,7 +621,8 @@ export function GecInteractiveWeekGrid({
                     return (
                       <td
                         key={day}
-                        className={`border border-black px-0.5 py-0.5 align-top min-h-[44px] ${cellConflictClasses(
+                        style={{ height: PLOT_ROW_HEIGHT_PX }}
+                        className={`border border-black px-0.5 py-0.5 align-top ${cellConflictClasses(
                           { faculty: "No", room: "No", section: "No" },
                           false,
                           false,
@@ -597,7 +633,7 @@ export function GecInteractiveWeekGrid({
                         <button
                           type="button"
                           disabled={!canEditVacant}
-                          className="w-full min-h-[40px] rounded border border-dashed border-black/20 text-black/30 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50/50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-0.5 transition-colors"
+                          className="w-full h-full min-h-[40px] rounded border border-dashed border-black/20 text-black/30 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50/50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-0.5 transition-colors"
                           aria-label={`Plot vacant GEC on ${day} at ${slot.label}`}
                           onClick={() => openModalForEmptyCell(day, slotIdx)}
                         >
@@ -608,7 +644,7 @@ export function GecInteractiveWeekGrid({
                   }
 
                   const rowspan = Math.max(
-                    ...atHere.map((e) => entryTimeBounds(e, slots)?.dur ?? 1),
+                    ...atHere.map((e) => entryTimeBounds(e, slots)?.rows ?? 1),
                   );
                   const cfMerged = atHere.map((e) => conflictForEntry(e));
                   const scanHit = atHere.some((e) => highlightConflictEntryIds.has(e.id));
@@ -623,6 +659,8 @@ export function GecInteractiveWeekGrid({
                     <td
                       key={day}
                       rowSpan={rowspan}
+                      /* A definite height is what lets a card below take a fraction of this cell. */
+                      style={{ height: rowspan * PLOT_ROW_HEIGHT_PX }}
                       className={`px-0.5 py-0.5 min-w-[100px] ${cellConflictClasses(
                         mergedCf,
                         scanHit,
@@ -631,7 +669,7 @@ export function GecInteractiveWeekGrid({
                         atHere.some((e) => vacantGecSourceIds.has(e.id)),
                       )}`}
                     >
-                      <ul className="space-y-1">
+                      <ul className="flex h-full flex-col gap-1">
                         {atHere.map((e) => {
                           const bounds = entryTimeBounds(e, slots);
                           const anchor: CellAnchor = {
@@ -649,12 +687,21 @@ export function GecInteractiveWeekGrid({
                           const hoursOverLimit = overLimitEntryIds.has(e.id);
                           const lockedMajor = !isVacant;
 
+                          /*
+                           * A card alone in its cell fills the rows it spans, so the grid reads as a
+                           * timetable: the rows are half hours, so a 1.5 hour class is exactly three
+                           * of them. Cards sharing one start keep their natural heights, stacked.
+                           */
                           return (
-                            <li key={e.id} id={`gec-hub-eval-row-${e.id}`}>
+                            <li
+                              key={e.id}
+                              id={`gec-hub-eval-row-${e.id}`}
+                              className={atHere.length === 1 ? "min-h-0 flex-1" : "min-h-0"}
+                            >
                               <div
                                 role={lockedMajor ? undefined : "button"}
                                 tabIndex={lockedMajor ? undefined : 0}
-                                className={`w-full text-left rounded-md px-1.5 py-1.5 leading-tight transition-colors relative ${
+                                className={`h-full w-full overflow-hidden text-left rounded-md px-1.5 py-1 leading-tight transition-colors relative ${
                                   lockedMajor
                                     ? "bg-gray-200/80 text-black/55 cursor-not-allowed"
                                     : isVacant
@@ -766,7 +813,7 @@ export function GecInteractiveWeekGrid({
                 const sub = gecSubjects.find((s) => s.id === pickedSubjectId);
                 if (!sub) return;
                 const d = plotEntryDurationSlots(programCode, sub, 1);
-                const eff = clampPlotStartSlotIndex(startSlotIndexFromEntry(modal.draft, slots), d, slots.length);
+                const eff = clampPlotStartSlotIndex(startSlotIndexFromEntry(modal.draft, slots), d, slots);
                 const times = timesFromSlotRange(eff, d, slots);
                 if (!times) return;
                 setModal((m) =>
