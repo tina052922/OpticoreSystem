@@ -5,17 +5,21 @@ import { useEffect, useMemo, useState } from "react";
 import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import { AuthFormHeader } from "@/components/login/AuthFormHeader";
 import { LoginContainer } from "@/components/login/LoginContainer";
-import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi, ApiClientError } from "@/lib/api/client";
 import {
   getDefaultHomeForRole,
   pathAllowedForRole,
 } from "@/lib/auth/role-home";
+
+/** One field style across every signed-out form, so sign-in and register stop diverging. */
+const FIELD_CLASS =
+  "h-11 rounded-lg border-black/15 bg-white text-sm shadow-sm placeholder:text-black/35 focus-visible:ring-2 focus-visible:ring-[#780301]/25";
 
 export function LoginClient() {
   const params = useSearchParams();
@@ -26,7 +30,6 @@ export function LoginClient() {
   const branding = useCampusBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -113,146 +116,87 @@ export function LoginClient() {
 
   return (
     <LoginContainer>
-      <div className="space-y-8">
-        <div className="flex justify-center">
-          <div className="w-32 h-32 sm:w-36 sm:h-36 shrink-0 rounded-full overflow-hidden ring-2 ring-black/[0.06] shadow-sm bg-white">
-            <img
-              src={branding.logoUrl || CTU_LOGO_PNG}
-              alt={branding.universityName}
-              width={144}
-              height={144}
-              className="w-full h-full object-cover object-center"
-              onError={(e) => {
-                const el = e.currentTarget;
-                if (!el.src.includes("ctu-logo.svg"))
-                  el.src = "/login/ctu-logo.svg";
-              }}
-            />
-          </div>
+      <AuthFormHeader
+        title="Sign in"
+        subtitle={`Continue to ${branding.headerTitle} — Campus Intelligence System.`}
+      />
+
+      <form onSubmit={onSubmit} className="space-y-5">
+        <div className="space-y-1.5">
+          <label htmlFor="email" className="block text-sm font-medium text-[#181818]">
+            Email
+          </label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            className={FIELD_CLASS}
+            required
+          />
         </div>
 
-        <div className="text-center space-y-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-[#181818] tracking-tight">
-            {branding.universityName}
-          </h1>
-          <h2 className="text-lg sm:text-xl font-bold text-black">Sign in</h2>
-          <p className="text-sm sm:text-base text-neutral-600">
-            to continue {branding.headerTitle}–Campus Intelligence System
-          </p>
-        </div>
-
-        <form onSubmit={onSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-[#181818]"
-            >
-              Email
-            </label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 text-sm shadow-sm placeholder:text-neutral-500"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-[#181818]"
-            >
+        <div className="space-y-1.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <label htmlFor="password" className="block text-sm font-medium text-[#181818]">
               Password
             </label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                className="h-12 rounded-lg border-neutral-300 bg-sky-50/60 pr-11 text-sm shadow-sm placeholder:text-neutral-500"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[#636364] hover:text-[#181818] outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? (
-                  <Eye className="size-5" />
-                ) : (
-                  <EyeOff className="size-5" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2">
-              <input
-                id="remember"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="size-4 rounded border border-black/25 accent-[#780301] shadow-sm"
-              />
-              <label
-                htmlFor="remember"
-                className="text-sm text-[#181818] cursor-pointer font-medium"
-              >
-                Remember me
-              </label>
-            </div>
             <Link
               href={forgotPasswordHref}
-              className="text-sm text-[#181818] hover:underline font-medium"
+              className="text-xs font-medium text-[#780301] hover:underline"
             >
-              Forgot password
+              Forgot password?
             </Link>
           </div>
+          <PasswordInput
+            id="password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            className={FIELD_CLASS}
+            required
+          />
+        </div>
 
-          <Button
-            type="submit"
-            disabled={loading}
-            className="h-12 w-full rounded-xl bg-[#780301] text-base font-semibold tracking-wide text-white shadow-md hover:bg-[#5a0201]"
-          >
-            {loading ? "Signing in…" : "Sign in"}
-          </Button>
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-black/70">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="size-4 rounded border border-black/25 accent-[#780301]"
+          />
+          Keep me signed in
+        </label>
 
-          <p className="text-center text-sm">
-            <span className="text-[#595959]">New student? </span>
-            <Link
-              href="/register"
-              className="text-[#5483b3] font-medium hover:underline"
-            >
-              Sign up
-            </Link>
-          </p>
+        <Button
+          type="submit"
+          disabled={loading}
+          className="h-11 w-full rounded-lg bg-[#780301] text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#5a0201] disabled:opacity-70"
+        >
+          {loading ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
 
-          <p className="text-center text-sm">
-            <Link
-              href="/register/instructor"
-              className="text-[#5483b3] font-medium hover:underline"
-            >
-              Sign Up as Instructor
-            </Link>
-          </p>
-          <p className="text-center text-sm">
-            <Link
-              href="/"
-              className="text-[#5483b3] font-medium hover:underline"
-            >
-              ← Back to home
-            </Link>
-          </p>
-        </form>
+      {/*
+        One block, not three stacked paragraphs. The two sign-up routes differ by who you are, so
+        they read as a choice rather than as two unrelated links; "Back to home" lives in the panel.
+      */}
+      <div className="mt-6 border-t border-black/[0.07] pt-5 text-center text-sm">
+        <p className="text-black/55">
+          New here?{" "}
+          <Link href="/register" className="font-semibold text-[#780301] hover:underline">
+            Create a student account
+          </Link>
+        </p>
+        <p className="mt-1.5 text-black/55">
+          Teaching staff?{" "}
+          <Link href="/register/instructor" className="font-semibold text-[#780301] hover:underline">
+            Register as an instructor
+          </Link>
+        </p>
       </div>
     </LoginContainer>
   );

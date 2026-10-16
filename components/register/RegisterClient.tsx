@@ -5,8 +5,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { AuthFormHeader } from "@/components/login/AuthFormHeader";
 import { LoginContainer } from "@/components/login/LoginContainer";
-import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { registerApi, apiFetch } from "@/lib/api/client";
 import { OtpVerificationPanel } from "@/components/register/OtpVerificationPanel";
@@ -16,6 +16,13 @@ import {
   savePendingRegistration,
 } from "@/lib/auth/pending-registration-state";
 import { useActionToast } from "@/components/alerts/useActionToast";
+
+/** One field style across every signed-out form, so sign-in and register stop diverging. */
+const FIELD_CLASS =
+  "h-11 rounded-lg border-black/15 bg-white text-sm shadow-sm placeholder:text-black/35 focus-visible:ring-2 focus-visible:ring-[#780301]/25";
+const SELECT_CLASS =
+  "flex h-11 w-full rounded-lg border border-black/15 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#780301]/25 disabled:opacity-60";
+const LABEL_CLASS = "block text-sm font-medium text-[#181818]";
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = {
@@ -252,37 +259,20 @@ export function RegisterClient() {
 
   return (
     <LoginContainer>
-      <div className="space-y-8">
-        <div className="flex justify-center">
-          <div className="w-32 h-32 sm:w-36 sm:h-36 shrink-0 rounded-full overflow-hidden ring-2 ring-black/[0.06] shadow-sm bg-white">
-            {/* eslint-disable-next-line no-restricted-syntax */}
-            <img
-              src={branding.logoUrl || CTU_LOGO_PNG}
-              alt={branding.universityName}
-              width={144}
-              height={144}
-              className="w-full h-full object-cover object-center"
-              onError={(e) => {
-                const el = e.currentTarget;
-                if (!el.src.includes("ctu-logo.svg")) el.src = "/login/ctu-logo.svg";
-              }}
-            />
-          </div>
-        </div>
+      <AuthFormHeader
+        title="Create your account"
+        subtitle={`Student registration for ${branding.headerTitle} — Campus Intelligence System.`}
+      />
 
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-medium text-[#181818] tracking-tight">
-            {branding.universityName}
-          </h1>
-          <h2 className="text-xl sm:text-2xl font-bold text-black">Create account</h2>
-          <p className="text-base sm:text-lg text-black/90">
-            to continue {branding.headerTitle}–Campus Intelligence System
-          </p>
-        </div>
+      <form onSubmit={(e) => void onSubmit(e)} className="space-y-6">
+        {/* Grouped so seven fields read as two short steps rather than one long column. */}
+        <fieldset className="space-y-4">
+          <legend className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-black/40">
+            Your details
+          </legend>
 
-        <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
-          <div className="space-y-2">
-            <label htmlFor="fullName" className="block text-lg font-medium text-[#181818]">
+          <div className="space-y-1.5">
+            <label htmlFor="fullName" className={LABEL_CLASS}>
               Full name
             </label>
             <Input
@@ -291,13 +281,13 @@ export function RegisterClient() {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               autoComplete="name"
-              className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
+              className={FIELD_CLASS}
               required
             />
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="reg-email" className="block text-lg font-medium text-[#181818]">
+          <div className="space-y-1.5">
+            <label htmlFor="reg-email" className={LABEL_CLASS}>
               Email
             </label>
             <Input
@@ -307,51 +297,55 @@ export function RegisterClient() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
-              className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
+              className={FIELD_CLASS}
               required
             />
-            <p className="text-sm text-black/55">
-              Student registration requires a Gmail address. We&apos;ll send a
-              verification link there.
+            <p className="text-xs leading-relaxed text-black/50">
+              Use a Gmail address — the verification code is sent there.
             </p>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="reg-password" className="block text-lg font-medium text-[#181818]">
-              Password
-            </label>
-            <PasswordInput
-              id="reg-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-              className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
-              buttonClassName="right-3"
-              required
-              minLength={8}
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="reg-password" className={LABEL_CLASS}>
+                Password
+              </label>
+              <PasswordInput
+                id="reg-password"
+                placeholder="At least 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                className={FIELD_CLASS}
+                required
+                minLength={8}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="confirmPassword" className={LABEL_CLASS}>
+                Confirm password
+              </label>
+              <PasswordInput
+                id="confirmPassword"
+                placeholder="Repeat it"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                className={FIELD_CLASS}
+                required
+                minLength={8}
+              />
+            </div>
           </div>
+        </fieldset>
 
-          <div className="space-y-2">
-            <label htmlFor="confirmPassword" className="block text-lg font-medium text-[#181818]">
-              Confirm password
-            </label>
-            <PasswordInput
-              id="confirmPassword"
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-              className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
-              buttonClassName="right-3"
-              required
-              minLength={8}
-            />
-          </div>
+        <fieldset className="space-y-4 border-t border-black/[0.07] pt-5">
+          <legend className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-black/40">
+            Your program
+          </legend>
 
-          <div className="space-y-2">
-            <label htmlFor="college" className="block text-lg font-medium text-[#181818]">
+          <div className="space-y-1.5">
+            <label htmlFor="college" className={LABEL_CLASS}>
               College / Department
             </label>
             <select
@@ -359,10 +353,10 @@ export function RegisterClient() {
               value={collegeId}
               onChange={(e) => setCollegeId(e.target.value)}
               disabled={loadingCatalog}
-              className="flex h-14 w-full rounded-xl border border-black/25 bg-white px-3 text-base shadow-md outline-none focus-visible:ring-2 focus-visible:ring-[#FF990A]/40"
+              className={SELECT_CLASS}
               required
             >
-              <option value="">Select college…</option>
+              <option value="">{loadingCatalog ? "Loading…" : "Select college…"}</option>
               {colleges.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code} — {c.name}
@@ -371,8 +365,8 @@ export function RegisterClient() {
             </select>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="program" className="block text-lg font-medium text-[#181818]">
+          <div className="space-y-1.5">
+            <label htmlFor="program" className={LABEL_CLASS}>
               Program
             </label>
             <select
@@ -380,102 +374,105 @@ export function RegisterClient() {
               value={programId}
               onChange={(e) => setProgramId(e.target.value)}
               disabled={loadingCatalog || !collegeId}
-              className="flex h-14 w-full rounded-xl border border-black/25 bg-white px-3 text-base shadow-md outline-none focus-visible:ring-2 focus-visible:ring-[#FF990A]/40"
-              required
-            >
-              <option value="">{!collegeId ? "Select college first…" : "Select program…"}</option>
-              {programsForCollege.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code} — {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="yearLevel" className="block text-lg font-medium text-[#181818]">
-              Year level
-            </label>
-            <select
-              id="yearLevel"
-              value={yearLevel}
-              onChange={(e) => setYearLevel(parseInt(e.target.value, 10))}
-              className="flex h-14 w-full rounded-xl border border-black/25 bg-white px-3 text-base shadow-md outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-              required
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                  {y === 1 ? "st" : y === 2 ? "nd" : y === 3 ? "rd" : "th"} year
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="section" className="block text-lg font-medium text-[#181818]">
-              Section
-            </label>
-            <select
-              id="section"
-              value={sectionId}
-              onChange={(e) => setSectionId(e.target.value)}
-              disabled={!programId || sectionOptions.length === 0}
-              className="flex h-14 w-full rounded-xl border border-black/25 bg-white px-3 text-base shadow-md outline-none focus-visible:ring-2 focus-visible:ring-black/10 disabled:opacity-60"
+              className={SELECT_CLASS}
               required
             >
               <option value="">
-                {!programId ? "Select program first…" : sectionOptions.length === 0 ? "No section for this year" : "Select section…"}
+                {!collegeId ? "Select a college first…" : "Select program…"}
               </option>
-              {sectionOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+              {programsForCollege.map((pr) => (
+                <option key={pr.id} value={pr.id}>
+                  {pr.code} — {pr.name}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="studentId" className="block text-lg font-medium text-[#181818]">
-              Student ID <span className="text-black/50 font-normal">(optional)</span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="yearLevel" className={LABEL_CLASS}>
+                Year level
+              </label>
+              <select
+                id="yearLevel"
+                value={yearLevel}
+                onChange={(e) => setYearLevel(parseInt(e.target.value, 10))}
+                className={SELECT_CLASS}
+                required
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                    {y === 1 ? "st" : y === 2 ? "nd" : y === 3 ? "rd" : "th"} year
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="section" className={LABEL_CLASS}>
+                Section
+              </label>
+              <select
+                id="section"
+                value={sectionId}
+                onChange={(e) => setSectionId(e.target.value)}
+                disabled={!programId || sectionOptions.length === 0}
+                className={SELECT_CLASS}
+                required
+              >
+                <option value="">
+                  {!programId
+                    ? "Select a program first…"
+                    : sectionOptions.length === 0
+                      ? "No section for this year"
+                      : "Select section…"}
+                </option>
+                {sectionOptions.map((sec) => (
+                  <option key={sec.id} value={sec.id}>
+                    {sec.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="studentId" className={LABEL_CLASS}>
+              Student ID <span className="font-normal text-black/40">(optional)</span>
             </label>
             <Input
               id="studentId"
               placeholder="University ID number"
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
-              className="h-14 rounded-xl border-black/25 shadow-md text-base placeholder:text-[#636364]"
+              className={FIELD_CLASS}
             />
           </div>
+        </fieldset>
 
+        <Button
+          type="submit"
+          disabled={submitting || loadingCatalog}
+          className="h-11 w-full rounded-lg bg-[#780301] text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#5a0201] disabled:opacity-70"
+        >
+          {submitting ? "Creating account…" : "Create account"}
+        </Button>
+      </form>
 
-          <Button
-            type="submit"
-            disabled={submitting || loadingCatalog}
-            className="w-full h-14 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg text-lg font-semibold tracking-wide"
-          >
-            {submitting ? "Creating account…" : "Register"}
-          </Button>
-
-          <p className="text-center text-base">
-            <span className="text-[#595959]">Already have an account? </span>
-            <Link href="/login" className="text-[#5483b3] font-medium hover:underline">
-              Login
-            </Link>
-          </p>
-
-          <p className="text-center text-xs text-black/45 leading-relaxed">
-            Instructors with Gmail can also{" "}
-            <Link href="/register/instructor" className="text-[#5483b3] hover:underline">
-              self-register
-            </Link>
-            . Staff with admin credentials:{" "}
-            <Link href="/login" className="text-[#5483b3] hover:underline">
-              Sign in
-            </Link>
-            .
-          </p>
-        </form>
+      <div className="mt-6 border-t border-black/[0.07] pt-5 text-center text-sm">
+        <p className="text-black/55">
+          Already have an account?{" "}
+          <Link href="/login" className="font-semibold text-[#780301] hover:underline">
+            Sign in
+          </Link>
+        </p>
+        <p className="mt-1.5 text-black/55">
+          Teaching staff?{" "}
+          <Link href="/register/instructor" className="font-semibold text-[#780301] hover:underline">
+            Register as an instructor
+          </Link>
+        </p>
       </div>
     </LoginContainer>
   );

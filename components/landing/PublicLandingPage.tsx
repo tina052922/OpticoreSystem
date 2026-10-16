@@ -1,220 +1,386 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, Calendar, Cloud, Users } from "lucide-react";
+import { ArrowRight, BarChart3, Calendar, Cloud, MapPin, Menu, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 
+const NAV_LINKS = [
+  { href: "#features", label: "Features" },
+  { href: "#about", label: "About" },
+] as const;
+
+const FEATURES = [
+  {
+    icon: Calendar,
+    title: "Smart scheduling",
+    desc: "Plot timetables in half-hour steps, with conflicts checked across faculty, rooms and sections as you go.",
+  },
+  {
+    icon: Users,
+    title: "Faculty load",
+    desc: "Track loads, designations and advisory assignments, and generate INS-compliant forms straight from them.",
+  },
+  {
+    icon: Cloud,
+    title: "One source of truth",
+    desc: "The same schedule everywhere — Chairman, GEC, College, DOI and Faculty all read the one record.",
+  },
+  {
+    icon: BarChart3,
+    title: "Campus intelligence",
+    desc: "Dashboards for conflicts, room utilisation, approval status and activity across the term.",
+  },
+] as const;
+
 /**
- * Public home: unauthenticated landing.
- * Public landing layout (Home / Features / About + CTA), adapted to Next.js.
+ * Public home: the page everyone sees before signing in.
+ *
+ * The hero photograph is bright all the way across — sky, pale building, sunlit grass — so the
+ * headline sits on a gradient scrim rather than on drop shadows. Shadows were holding the old
+ * layout together and they fail exactly where the image is lightest.
  */
 export function PublicLandingPage() {
   const branding = useCampusBranding();
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  /* The bar is transparent over the photograph and solid once the page moves under it. */
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  /* A menu left open behind a navigation would cover the page it opened. */
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    window.addEventListener("hashchange", close);
+    return () => window.removeEventListener("hashchange", close);
+  }, [menuOpen]);
+
+  const navSolid = scrolled || menuOpen;
+
   return (
-    <div className="min-h-dvh w-full max-w-[100%] bg-white overflow-x-hidden supports-[overflow:clip]:overflow-x-clip">
-      <nav
-        className="fixed top-0 left-0 right-0 z-50 w-full bg-white/90 backdrop-blur-sm border-b border-black/10 shadow-sm supports-[backdrop-filter]:bg-white/85"
-        aria-label="Primary"
+    <div className="min-h-dvh w-full overflow-x-hidden bg-white supports-[overflow:clip]:overflow-x-clip">
+      <a
+        href="#home"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-[#780301] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
       >
-        <div className="w-full px-3 sm:px-6 lg:px-10 xl:px-12 min-h-[3.5rem] sm:h-[4.5rem] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-2 sm:py-0">
+        Skip to content
+      </a>
+
+      {/* ───────────────────────── nav ───────────────────────── */}
+      <header
+        className={`fixed inset-x-0 top-0 z-50 w-full transition-colors duration-300 ${
+          navSolid
+            ? "border-b border-black/10 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85"
+            : "border-b border-transparent bg-transparent"
+        }`}
+      >
+        <nav
+          aria-label="Primary"
+          className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:h-20 sm:px-6 lg:px-8"
+        >
           <Link
             href="#home"
-            className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0 w-fit rounded-lg outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-opticore-orange"
+            className="flex min-w-0 items-center gap-2.5 rounded-lg outline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff990a]"
           >
-            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full overflow-hidden bg-white ring-1 ring-black/10 shrink-0 grid place-items-center">
-              {/* eslint-disable-next-line no-restricted-syntax */}
+            <span
+              className={`grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-white ring-1 transition-shadow sm:h-11 sm:w-11 ${
+                navSolid ? "ring-black/10" : "ring-white/40 shadow-lg"
+              }`}
+            >
+              {/* eslint-disable-next-line no-restricted-syntax -- may be an admin-uploaded remote URL */}
               <img
                 src={branding.logoUrl || CTU_LOGO_PNG}
-                alt={`${branding.universityName} logo`}
+                alt=""
                 width={88}
                 height={88}
-                className="h-full w-full object-contain scale-105"
+                className="h-full w-full scale-105 object-contain"
               />
-            </div>
-            <span className="font-bold text-lg sm:text-xl text-[#a30000] truncate">{branding.headerTitle}</span>
+            </span>
+            <span className="min-w-0 leading-tight">
+              <span
+                className={`block truncate text-base font-bold tracking-tight transition-colors sm:text-lg ${
+                  navSolid ? "text-[#780301]" : "text-white drop-shadow"
+                }`}
+              >
+                {branding.headerTitle}
+              </span>
+              <span
+                className={`hidden truncate text-[11px] font-medium transition-colors sm:block ${
+                  navSolid ? "text-black/55" : "text-white/85"
+                }`}
+              >
+                CTU Argao Campus
+              </span>
+            </span>
           </Link>
-          <div className="flex items-center gap-2 sm:gap-3 lg:gap-6 min-w-0 w-full sm:w-auto justify-between sm:justify-end">
-            <div className="flex items-center gap-3 sm:gap-5 lg:gap-8 min-w-0 flex-1 sm:flex-initial overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] pr-2 sm:pr-0 pb-px [&::-webkit-scrollbar]:hidden">
-              <a href="#home" className="text-[#a30000] font-medium text-sm shrink-0 hover:opacity-80">
-                Home
+
+          <div className="hidden items-center gap-8 md:flex">
+            {NAV_LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                className={`text-sm font-medium transition-colors ${
+                  navSolid ? "text-black/70 hover:text-[#780301]" : "text-white/90 hover:text-white"
+                }`}
+              >
+                {l.label}
               </a>
-              <a href="#features" className="text-[#a30000] text-sm shrink-0 hover:opacity-80">
-                Features
-              </a>
-              <a href="#about" className="text-[#a30000] text-sm shrink-0 hover:opacity-80">
-                About
-              </a>
-            </div>
+            ))}
             <Button
               asChild
               size="sm"
-              className="shrink-0 h-9 sm:h-10 rounded-full px-4 sm:px-5 font-semibold bg-[#780301] text-white shadow-sm hover:bg-[#5a0201] sm:text-sm"
+              className="h-10 rounded-full bg-[#780301] px-6 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#5a0201]"
             >
-              <Link href="/login" className="inline-flex items-center justify-center whitespace-nowrap">
+              <Link href="/login">Sign in</Link>
+            </Button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+            aria-controls="landing-menu"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            className={`grid h-10 w-10 place-items-center rounded-lg transition-colors md:hidden ${
+              navSolid ? "text-[#780301] hover:bg-black/5" : "text-white hover:bg-white/15"
+            }`}
+          >
+            {menuOpen ? <X className="h-5 w-5" aria-hidden /> : <Menu className="h-5 w-5" aria-hidden />}
+          </button>
+        </nav>
+
+        {menuOpen ? (
+          <div id="landing-menu" className="border-t border-black/10 bg-white px-4 pb-4 pt-2 md:hidden">
+            {NAV_LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={() => setMenuOpen(false)}
+                className="block rounded-lg px-3 py-3 text-sm font-medium text-black/75 hover:bg-black/5"
+              >
+                {l.label}
+              </a>
+            ))}
+            <Button
+              asChild
+              className="mt-2 h-11 w-full rounded-full bg-[#780301] font-semibold text-white hover:bg-[#5a0201]"
+            >
+              <Link href="/login" onClick={() => setMenuOpen(false)}>
                 Sign in
               </Link>
             </Button>
-            <Button
-              asChild
-              size="sm"
-              className="shrink-0 h-9 sm:h-10 rounded-full px-4 sm:px-5 font-semibold bg-[#ff990a] text-white shadow-sm hover:bg-[#e88909] sm:text-sm"
-            >
-              <Link href="/register" className="inline-flex items-center justify-center whitespace-nowrap">
-                Sign up
-              </Link>
-            </Button>
           </div>
-        </div>
-      </nav>
+        ) : null}
+      </header>
 
-      <section
-        id="home"
-        className="relative isolate w-full min-h-[100dvh] min-w-0 overflow-hidden scroll-mt-[4rem] sm:scroll-mt-[4.75rem]"
-      >
-        {/* Full-viewport cover photo — no overlay so the provided image is visible */}
-        {/* eslint-disable-next-line no-restricted-syntax -- static asset from public/ */}
-        <img
-          src="/landing-bg.jpg"
-          alt="Cebu Technological University Argao campus buildings"
-          className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-[center_70%] sm:object-center"
+      {/* ───────────────────────── hero ───────────────────────── */}
+      <section id="home" className="relative isolate flex min-h-[100dvh] w-full items-center overflow-hidden">
+        <Image
+          src="/ctu-ac-bg.png"
+          alt="The Science and Technology building at Cebu Technological University, Argao Campus"
+          fill
+          priority
+          sizes="100vw"
+          className="-z-10 object-cover object-[65%_center] sm:object-center"
         />
-        <div className="relative z-10 flex min-h-[100dvh] w-full flex-col justify-center px-4 sm:px-8 md:px-12 lg:px-16 xl:px-20 pt-[max(5.5rem,calc(env(safe-area-inset-top)+4.25rem))] sm:pt-[max(6.25rem,calc(env(safe-area-inset-top)+4.75rem))] pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto w-full max-w-[min(56rem,calc(100vw-2rem))] text-center sm:mx-0 sm:max-w-none sm:text-left">
-            <h1 className="text-[clamp(2.125rem,6vw+0.75rem,4.75rem)] font-bold leading-[1.08] tracking-tight text-white drop-shadow-[0_6px_4px_rgba(0,0,0,0.65)]">
-              OptiCore
-            </h1>
-            <h2 className="mt-3 sm:mt-5 text-[clamp(1.2rem,2.8vw+0.75rem,2.5rem)] font-semibold text-white drop-shadow-md">
-              Campus Intelligence System
-            </h2>
-            <p className="mx-auto mt-4 max-w-[min(40rem,100%)] text-sm leading-relaxed font-medium text-white/95 sm:mx-0 sm:mt-6 sm:max-w-xl sm:text-base md:max-w-2xl md:text-xl">
-              Coordinate timetables, faculty load, and campus workflows for CTU Argao — built for chairs, admins, faculty,
-              and students.
+        {/*
+          Two scrims, not one. The vertical pass keeps the bar and the scroll cue legible at the
+          edges; the horizontal pass darkens only the side the text sits on, so the building stays
+          visible instead of the whole photograph going flat.
+        */}
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 bg-gradient-to-b from-black/55 via-black/25 to-black/60"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 bg-gradient-to-r from-black/70 via-black/35 to-transparent"
+        />
+
+        <div className="mx-auto w-full max-w-7xl px-4 pb-24 pt-28 sm:px-6 sm:pb-28 sm:pt-32 lg:px-8">
+          <div className="max-w-2xl text-center sm:text-left">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#ffc46b] sm:text-xs">
+              {branding.universityName} · Argao Campus
             </p>
-            <div className="mx-auto mt-8 flex w-full max-w-md flex-col gap-3 min-[380px]:max-w-none min-[380px]:flex-row min-[380px]:flex-wrap sm:mx-0 sm:mt-10">
+            <h1 className="mt-4 text-[clamp(2.75rem,8vw+0.5rem,5.5rem)] font-bold leading-[1.02] tracking-tight text-white">
+              {branding.headerTitle}
+            </h1>
+            <p className="mt-3 text-[clamp(1.125rem,2vw+0.65rem,1.875rem)] font-semibold leading-snug text-white/95">
+              Campus Intelligence System
+            </p>
+            <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-white/85 sm:mx-0 sm:mt-6 sm:text-lg">
+              One place for timetables, faculty load and the approvals between them — built for the
+              chairs, administrators, faculty and students of CTU Argao.
+            </p>
+
+            <div className="mx-auto mt-9 flex w-full max-w-sm flex-col gap-3 sm:mx-0 sm:max-w-none sm:flex-row sm:items-center">
               <Button
                 asChild
                 size="lg"
-                className="w-full min-[380px]:w-auto min-[380px]:flex-1 sm:flex-initial h-11 justify-center rounded-full bg-[#ff990a] px-6 font-semibold text-white shadow-md hover:bg-[#e88909]"
+                className="group h-12 w-full justify-center rounded-full bg-[#ff990a] px-7 text-base font-semibold text-white shadow-lg transition-colors hover:bg-[#e88909] sm:w-auto"
               >
-                <Link href="/register">Sign up</Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                className="w-full min-[380px]:w-auto min-[380px]:flex-1 sm:flex-initial h-11 justify-center rounded-full bg-[#780301] px-6 font-semibold text-white shadow-md ring-2 ring-white/35 hover:bg-[#5a0201]"
-              >
-                <Link href="/login">Sign in</Link>
+                <Link href="/register">
+                  Get started
+                  <ArrowRight
+                    className="ml-2 h-4 w-4 transition-transform motion-safe:group-hover:translate-x-0.5"
+                    aria-hidden
+                  />
+                </Link>
               </Button>
               <Button
                 asChild
                 size="lg"
                 variant="outline"
-                className="w-full min-[380px]:w-auto min-[380px]:flex-1 sm:flex-initial h-11 justify-center rounded-full border-2 border-white/80 bg-transparent px-6 font-semibold text-white hover:bg-white/12"
+                className="h-12 w-full justify-center rounded-full border-2 border-white/70 bg-white/10 px-7 text-base font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20 hover:text-white sm:w-auto"
               >
-                <Link href="/campus-navigation">Campus navigation</Link>
+                <Link href="/campus-navigation">
+                  <MapPin className="mr-2 h-4 w-4" aria-hidden />
+                  Campus navigation
+                </Link>
               </Button>
             </div>
+
+            <p className="mt-6 text-sm text-white/70">
+              Already have an account?{" "}
+              <Link
+                href="/login"
+                className="font-semibold text-white underline underline-offset-4 hover:text-[#ffc46b]"
+              >
+                Sign in
+              </Link>
+            </p>
           </div>
         </div>
       </section>
 
-      <section id="about" className="scroll-mt-[4rem] sm:scroll-mt-[4.75rem] py-12 md:py-20 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 xl:gap-14 items-center">
-          <div className="order-2 lg:order-1 w-full min-w-0 flex justify-center lg:justify-start">
-            <div className="w-full max-w-xl xl:max-w-none rounded-2xl overflow-hidden bg-[#faf8f6]/80 ring-1 ring-black/[0.06] shadow-sm">
-              {/* eslint-disable-next-line no-restricted-syntax -- static asset from public/ */}
-              <img
-                src="/laptopinlandingpage.png"
-                alt="OptiCore scheduling and dashboard interfaces on a laptop"
-                loading="lazy"
-                decoding="async"
-                sizes="(max-width: 1024px) 94vw, 48vw"
-                className="block mx-auto max-h-[min(560px,calc(100dvh-8rem))] w-auto max-w-full bg-transparent object-contain object-center sm:max-h-[min(520px,58dvh)] lg:max-h-[min(640px,72dvh)] h-auto"
-              />
-            </div>
-          </div>
-          <div className="order-1 lg:order-2 min-w-0">
-            <h2 className="text-[clamp(1.875rem,3vw+1rem,3.125rem)] font-bold text-[#780301] mb-3 sm:mb-4">
-              About Us
-            </h2>
-            <h3 className="text-lg sm:text-xl md:text-2xl text-[#780301] mb-4 sm:mb-6 leading-snug">
-              Campus Intelligence System
-            </h3>
-            <p className="text-sm sm:text-base md:text-lg text-[#780301]/85 leading-relaxed">
-              OptiCore is CTU Argao&apos;s Campus Intelligence System: schedule plotting, INS-style forms, access workflows,
-              and dashboards that keep academic operations transparent and aligned with institutional policy.
+      {/* ───────────────────────── features ───────────────────────── */}
+      <section id="features" className="scroll-mt-20 bg-[#fdfbfa] px-4 py-20 sm:px-6 sm:py-24 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#ff990a]">
+              What it does
             </p>
-            <div className="mt-6 sm:mt-8">
-              <Button
-                type="button"
-                disabled
-                className="w-full min-[380px]:w-auto justify-center bg-[#a30000] text-white rounded-full px-6 py-5 sm:py-6 text-sm sm:text-base opacity-95"
-              >
-                Download App (coming soon)
-              </Button>
-            </div>
+            <h2 className="mt-3 text-[clamp(1.875rem,3vw+1rem,2.75rem)] font-bold tracking-tight text-[#780301]">
+              Built around how the campus actually schedules
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-black/65 sm:text-lg">
+              Every role works from the same timetable, so a change made by a chairman is the change
+              the dean, the faculty member and the student all see.
+            </p>
           </div>
-        </div>
-      </section>
 
-      <section
-        id="features"
-        className="scroll-mt-[4rem] sm:scroll-mt-[4.75rem] py-12 md:py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-orange-50/60 to-red-50/35"
-      >
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-8 sm:mb-10 px-1">
-            <h2 className="text-[clamp(1.875rem,3vw+1rem,3.125rem)] font-bold text-[#780301]">
-              Features
-            </h2>
-            <p className="mt-2 sm:mt-3 text-sm sm:text-base md:text-lg text-[#780301]/75 max-w-2xl mx-auto leading-relaxed">
-              Everything you need to manage campus operations efficiently
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            {[
-              {
-                icon: Calendar,
-                title: "Smart Scheduling",
-                desc: "Plot schedules with conflict checking across faculty, rooms, and sections.",
-              },
-              {
-                icon: Users,
-                title: "Faculty Management",
-                desc: "Track loads, designations, and assignments; generate INS-compliant outputs.",
-              },
-              {
-                icon: Cloud,
-                title: "Synchronization",
-                desc: "Consistent schedule data across roles (Chairman, GEC, College, DOI, Faculty).",
-              },
-              {
-                icon: BarChart3,
-                title: "Dashboards",
-                desc: "Campus Intelligence views for conflicts, activity, and term status.",
-              },
-            ].map((f) => {
+          <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.map((f) => {
               const Icon = f.icon;
               return (
-                <div
+                <article
                   key={f.title}
-                  className="bg-white rounded-2xl p-5 sm:p-6 border border-red-100/90 shadow-sm min-w-0"
+                  className="group rounded-2xl border border-black/[0.07] bg-white p-6 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_8px_24px_rgba(120,3,1,0.08)]"
                 >
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#780301] flex items-center justify-center mb-4 shrink-0">
-                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={2.5} aria-hidden />
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-bold text-[#780301] break-words">{f.title}</h3>
-                  <p className="mt-2 text-sm text-[#780301]/82 leading-relaxed">{f.desc}</p>
-                </div>
+                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#780301] text-white transition-colors group-hover:bg-[#ff990a]">
+                    <Icon className="h-5 w-5" strokeWidth={2.25} aria-hidden />
+                  </span>
+                  <h3 className="mt-5 text-lg font-bold tracking-tight text-[#780301]">{f.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-black/60">{f.desc}</p>
+                </article>
               );
             })}
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-black/10 py-6 sm:py-8 px-4 max-w-6xl mx-auto w-full text-center text-xs sm:text-sm text-black/55 leading-relaxed">
-        © {new Date().getFullYear()} {branding.footerText}
+      {/* ───────────────────────── about ───────────────────────── */}
+      <section id="about" className="scroll-mt-20 bg-white px-4 py-20 sm:px-6 sm:py-24 lg:px-8">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-16">
+          <div className="order-2 lg:order-1">
+            <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#fdf6ee] to-[#fbeee9] p-6 ring-1 ring-black/[0.05] sm:p-8">
+              <Image
+                src="/laptopinlandingpage.png"
+                alt="OptiCore scheduling and dashboard screens shown on a laptop"
+                width={1200}
+                height={800}
+                sizes="(max-width: 1024px) 92vw, 46vw"
+                className="mx-auto h-auto w-full max-w-xl object-contain"
+              />
+            </div>
+          </div>
+
+          <div className="order-1 lg:order-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#ff990a]">
+              About
+            </p>
+            <h2 className="mt-3 text-[clamp(1.875rem,3vw+1rem,2.75rem)] font-bold tracking-tight text-[#780301]">
+              A campus intelligence system, not just a timetable
+            </h2>
+            <p className="mt-5 text-base leading-relaxed text-black/70 sm:text-lg">
+              OptiCore carries a term from first plot to published form: schedule plotting with live
+              conflict checking, INS Forms 5A–5C generated from the real schedule, teaching-load
+              policy with justifications, and the approval trail between chairman, dean and DOI.
+            </p>
+            <ul className="mt-8 space-y-3">
+              {[
+                "Half-hour plotting with faculty, room and section conflict checks",
+                "INS forms generated from the schedule, never retyped",
+                "Teaching-load policy, overload justification and approval history",
+              ].map((point) => (
+                <li key={point} className="flex gap-3 text-sm leading-relaxed text-black/70 sm:text-base">
+                  <span
+                    aria-hidden
+                    className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff990a]"
+                  />
+                  {point}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* ───────────────────────── footer ───────────────────────── */}
+      <footer className="border-t border-black/[0.08] bg-[#fdfbfa]">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-10 text-center sm:px-6 lg:flex-row lg:justify-between lg:px-8 lg:text-left">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-white ring-1 ring-black/10">
+              {/* eslint-disable-next-line no-restricted-syntax -- may be an admin-uploaded remote URL */}
+              <img
+                src={branding.logoUrl || CTU_LOGO_PNG}
+                alt=""
+                width={80}
+                height={80}
+                className="h-full w-full scale-105 object-contain"
+              />
+            </span>
+            <span className="text-sm font-semibold text-[#780301]">{branding.headerTitle}</span>
+          </div>
+
+          <nav aria-label="Footer" className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <a href="#features" className="text-sm text-black/60 hover:text-[#780301]">
+              Features
+            </a>
+            <a href="#about" className="text-sm text-black/60 hover:text-[#780301]">
+              About
+            </a>
+            <Link href="/campus-navigation" className="text-sm text-black/60 hover:text-[#780301]">
+              Campus navigation
+            </Link>
+            <Link href="/login" className="text-sm text-black/60 hover:text-[#780301]">
+              Sign in
+            </Link>
+          </nav>
+
+          <p className="text-xs leading-relaxed text-black/45">
+            © {new Date().getFullYear()} {branding.footerText}
+          </p>
+        </div>
       </footer>
     </div>
   );

@@ -5,10 +5,9 @@ import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AuthFormHeader } from "@/components/login/AuthFormHeader";
 import { LoginContainer } from "@/components/login/LoginContainer";
 import { OtpVerificationPanel } from "@/components/register/OtpVerificationPanel";
-import { CTU_LOGO_PNG } from "@/lib/branding";
-import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { apiFetch, instructorEmailPolicyApi, registerApi } from "@/lib/api/client";
 import {
   DEFAULT_INSTRUCTOR_EMAIL_POLICY,
@@ -45,7 +44,6 @@ const labelClass = "block text-sm font-medium text-[#181818] mb-1";
 const MIN_PASSWORD_LENGTH = 8;
 
 export function InstructorRegisterClient() {
-  const branding = useCampusBranding();
   const [phase, setPhase] = useState<"register" | "otp" | "submitted">("register");
   /** Composed from the three name cells; the account and the profile store the same string. */
   const [email, setEmail] = useState("");
@@ -286,37 +284,20 @@ export function InstructorRegisterClient() {
   }
 
   return (
-    <LoginContainer>
-      <div className="space-y-6 max-w-lg mx-auto">
-        <div className="flex justify-center">
-          <div className="w-28 h-28 shrink-0 rounded-full overflow-hidden ring-2 ring-black/[0.06] shadow-sm bg-white">
-            {/* eslint-disable-next-line no-restricted-syntax */}
-            <img
-              src={branding.logoUrl || CTU_LOGO_PNG}
-              alt={branding.universityName}
-              width={112}
-              height={112}
-              className="w-full h-full object-cover object-center"
-              onError={(e) => {
-                const el = e.currentTarget;
-                if (!el.src.includes("ctu-logo.svg")) el.src = "/login/ctu-logo.svg";
-              }}
-            />
-          </div>
-        </div>
+    <LoginContainer width="wide">
+      <div className="space-y-6">
+        <AuthFormHeader
+          title="Instructor registration"
+          subtitle="Register with your CTU email. Program faculty choose a home department for chairman review; GEC instructors are college-scoped and not locked to one. We email you a code, then an administrator confirms your Employee ID."
+        />
 
-        <div className="text-center space-y-1">
-          <h1 className="text-xl font-medium text-[#181818]">{branding.universityName}</h1>
-          <h2 className="text-lg font-bold text-black">Instructor registration</h2>
-          <p className="text-[13px] text-black/55">
-            Register with your CTU email. Program faculty choose a home department for
-            chairman review; GEC instructors are college-scoped and not locked to one
-            department. We&apos;ll email you a code, then an administrator confirms your
-            Employee ID.
-          </p>
-        </div>
-
-        <form onSubmit={(e) => void onSubmit(e)} className="space-y-5 max-h-[min(70vh,640px)] overflow-y-auto pr-1">
+        {/*
+          No inner scroller. The form used to cap its own height and scroll inside the card, which
+          now puts a second scrollbar inside the one the shell already gives the form column — two
+          nested tracks for one list of fields, and a submit button stranded below a fold of its
+          own. The column scrolls; the form is just as long as it is.
+        */}
+        <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
             <fieldset className="space-y-3 border-0 p-0">
               <legend className="text-sm font-bold text-[#780301]">Account</legend>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -674,20 +655,25 @@ export function InstructorRegisterClient() {
             </fieldset>
 
 
+            {/*
+              Sits at the end of the form, not pinned to the bottom of it. The button was `sticky`
+              to stay reachable while the form scrolled inside its own box; that box is gone, so
+              sticky only left it hovering over the last fields.
+            */}
             <Button
               type="submit"
               disabled={submitting || loadingColleges}
-              className="w-full h-12 bg-[#780301] hover:bg-[#5a0201] text-white rounded-xl shadow-lg font-semibold sticky bottom-0"
+              className="h-11 w-full rounded-lg bg-[#780301] text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#5a0201] disabled:opacity-70"
             >
               {submitting ? "Sending code…" : "Register"}
             </Button>
 
-            <p className="text-center text-sm pb-2">
-              <Link href="/login" className="text-[#5483b3] font-medium hover:underline">
+            <p className="border-t border-black/[0.07] pt-5 text-center text-sm text-black/55">
+              <Link href="/login" className="font-semibold text-[#780301] hover:underline">
                 Back to sign in
               </Link>
               {" · "}
-              <Link href="/register" className="text-[#5483b3] font-medium hover:underline">
+              <Link href="/register" className="font-semibold text-[#780301] hover:underline">
                 Student registration
               </Link>
             </p>
