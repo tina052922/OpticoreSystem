@@ -1,4 +1,5 @@
 import type { InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
+import { insCourseEnrollment } from "@/lib/scheduling/offering-enrollment";
 import { INS_DAYS } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { buildInsFacultyView } from "@/lib/ins/build-ins-faculty-view";
 import { emptyInsSectionSchedule, type InsSectionSchedule } from "@/lib/ins/build-ins-section-view";
@@ -14,7 +15,8 @@ function toInsDay(day: string): InsDay | null {
 /** Build INS 5B grid + course list from hydrated student schedule rows (one section). */
 export function buildPortalStudentIns5B(rows: ScheduleRowView[]): {
   schedule: InsSectionSchedule;
-  courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }>;
+  courses: Array<{ /** Null when nobody has recorded it — the form prints a blank to write in. */
+    students: number | null; code: string; title: string; degreeYrSec: string }>;
 } {
   const schedule = emptyInsSectionSchedule();
   for (const r of rows) {
@@ -28,14 +30,15 @@ export function buildPortalStudentIns5B(rows: ScheduleRowView[]): {
     });
   }
 
-  const courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }> = [];
+  const courses: Array<{ /** Null when nobody has recorded it — the form prints a blank to write in. */
+    students: number | null; code: string; title: string; degreeYrSec: string }> = [];
   const seen = new Set<string>();
   const section = rows[0]?.section;
   for (const r of rows) {
     if (!r.subject || seen.has(r.entry.subjectId)) continue;
     seen.add(r.entry.subjectId);
     courses.push({
-      students: section?.studentCount ?? 0,
+      students: insCourseEnrollment(r.entry.studentCount),
       code: r.subject.code,
       title: r.subject.title,
       degreeYrSec: section?.name ?? "—",

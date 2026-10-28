@@ -51,7 +51,8 @@ export function insSummaryColumns(studentsFirst: boolean, showSection: boolean):
 }
 
 function cellValue(column: Column, course: PDFCourseRow): string {
-  if (column.key === "students") return String(course.students);
+  // A blank, not "0": nobody has counted this class yet, so leave room to write it in.
+  if (column.key === "students") return course.students == null ? "" : String(course.students);
   if (column.key === "code") return course.code;
   if (column.key === "title") return course.title;
   return course.degreeYrSec;
@@ -60,9 +61,13 @@ function cellValue(column: Column, course: PDFCourseRow): string {
 /**
  * Summary of Courses — the subjects on this form, one row each.
  *
- * The student count is per course, taken from the enrolment of the section taking it. It used to
- * appear only as a single total beside the title, which answered "how many students altogether"
- * rather than "how many sit in this class" — the question the form is read for.
+ * The student count is per course: the enrolment entered when the subject was plotted, which is
+ * per subject-within-section rather than per section. Irregular students are why — one block can
+ * bring 40 to its major and 12 to an elective, and a section-wide number cannot say that. A row
+ * plotted before that figure existed falls back to the section's size (`insCourseEnrollment`).
+ *
+ * It used to appear only as a single total beside the title, which answered "how many students
+ * altogether" rather than "how many sit in this class" — the question the form is read for.
  */
 export function INSSummaryTable({
   courses,

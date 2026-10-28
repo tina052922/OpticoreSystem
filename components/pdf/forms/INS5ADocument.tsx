@@ -8,11 +8,19 @@ import { INSNightScheduleGrid } from "../shared/INSNightScheduleGrid";
 import { INSSummaryTable } from "../shared/INSSummaryTable";
 import { WordSafeText } from "../shared/WordSafeText";
 
+/**
+ * A labelled value on the printed form.
+ *
+ * An empty value prints as nothing, leaving the space blank for someone to write in. It used to
+ * substitute an em dash, which overrode every caller: all seven pass `""` when a figure is absent,
+ * so changing a value at the call site could never remove the dash — the placeholder was decided
+ * here and won regardless.
+ */
 function FieldRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <View style={ins.fieldRow}>
       <Text style={ins.fieldLabel}>{label}:</Text>
-      <Text style={ins.fieldValue}>{value?.trim() || "—"}</Text>
+      <Text style={ins.fieldValue}>{value?.trim() ?? ""}</Text>
     </View>
   );
 }

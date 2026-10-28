@@ -52,7 +52,6 @@ export function AcademicStructureWorkspace({
   const [savingYears, setSavingYears] = useState(false);
 
   const [sectionName, setSectionName] = useState("");
-  const [sectionStudents, setSectionStudents] = useState("");
   const [savingSection, setSavingSection] = useState(false);
 
   const [editingCollegeId, setEditingCollegeId] = useState<string | null>(null);
@@ -276,10 +275,8 @@ export function AcademicStructureWorkspace({
         programId: selectedProgramId,
         name: sectionName.trim(),
         yearLevel: selectedYearLevel,
-        studentCount: Math.max(0, parseInt(sectionStudents, 10) || 0),
       });
       setSectionName("");
-      setSectionStudents("");
       await load();
       flashOk("Section added");
     } catch (e) {
@@ -289,14 +286,9 @@ export function AcademicStructureWorkspace({
     }
   }
 
-  async function handleSaveSectionEdit(
-    section: Section,
-    name: string,
-    studentCount: number,
-    yearLevel: number,
-  ) {
+  async function handleSaveSectionEdit(section: Section, name: string, yearLevel: number) {
     try {
-      await academicStructureApi.updateSection(section.id, { name, studentCount, yearLevel });
+      await academicStructureApi.updateSection(section.id, { name, yearLevel });
       setEditingSectionId(null);
       await load();
       flashOk("Section updated");
@@ -596,6 +588,15 @@ export function AcademicStructureWorkspace({
               ? `Under ${selectedProgram.code} · Year ${selectedYearLevel}`
               : "Select a program and year first."}
           </p>
+          {/*
+            Enrollment is not a property of the section. Irregular students mean one block can take
+            40 to its major and 12 to an elective, so the figure is entered per subject when the
+            schedule is plotted, and that is the only place it is kept.
+          */}
+          <p className="text-xs text-black/45 mt-1.5">
+            Number of students is entered per subject in the Evaluator when plotting a schedule, not
+            here — irregular students make it differ from one subject to the next.
+          </p>
         </div>
 
         {selectedProgram && selectedYearLevel != null ? (
@@ -608,17 +609,6 @@ export function AcademicStructureWorkspace({
                   value={sectionName}
                   onChange={(e) => setSectionName(e.target.value)}
                   placeholder={`${selectedProgram.code}-${selectedYearLevel}A`}
-                />
-              </label>
-              <label className="text-xs text-black/70">
-                Students
-                <Input
-                  className="mt-1 w-24"
-                  type="number"
-                  min={0}
-                  value={sectionStudents}
-                  onChange={(e) => setSectionStudents(e.target.value)}
-                  placeholder="40"
                 />
               </label>
               <Button
@@ -644,17 +634,12 @@ export function AcademicStructureWorkspace({
                           section={s}
                           maxYear={programYearCount(selectedProgram)}
                           onCancel={() => setEditingSectionId(null)}
-                          onSave={(name, studentCount, yearLevel) =>
-                            void handleSaveSectionEdit(s, name, studentCount, yearLevel)
-                          }
+                          onSave={(name, yearLevel) => void handleSaveSectionEdit(s, name, yearLevel)}
                         />
                       ) : (
                         <>
                           <div className="flex-1 min-w-[120px]">
                             <span className="font-medium text-black">{s.name}</span>
-                            <span className="text-xs text-black/45 ml-2">
-                              {s.studentCount} students
-                            </span>
                           </div>
                           <Button
                             type="button"
@@ -760,10 +745,9 @@ function SectionEditRow({
   section: Section;
   maxYear: number;
   onCancel: () => void;
-  onSave: (name: string, studentCount: number, yearLevel: number) => void;
+  onSave: (name: string, yearLevel: number) => void;
 }) {
   const [name, setName] = useState(section.name);
-  const [students, setStudents] = useState(String(section.studentCount ?? 0));
   const [yearLevel, setYearLevel] = useState(String(section.yearLevel ?? 1));
   return (
     <div className="flex flex-wrap gap-2 items-center w-full">
@@ -779,22 +763,11 @@ function SectionEditRow({
           </option>
         ))}
       </select>
-      <Input
-        className="w-24"
-        type="number"
-        min={0}
-        value={students}
-        onChange={(e) => setStudents(e.target.value)}
-      />
       <Button
         type="button"
         size="sm"
         onClick={() =>
-          onSave(
-            name.trim(),
-            Math.max(0, parseInt(students, 10) || 0),
-            Math.min(maxYear, Math.max(1, parseInt(yearLevel, 10) || 1)),
-          )
+          onSave(name.trim(), Math.min(maxYear, Math.max(1, parseInt(yearLevel, 10) || 1)))
         }
       >
         Save

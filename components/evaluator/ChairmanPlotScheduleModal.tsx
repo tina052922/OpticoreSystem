@@ -63,6 +63,12 @@ import {
   detectConflictsSparse,
   type SparseScheduleBlock,
 } from "@/lib/scheduling/conflicts";
+import {
+  MAX_OFFERING_ENROLLMENT,
+  enrollmentForOffering,
+  isCompleteEnrollment,
+  parseEnrollmentInput,
+} from "@/lib/scheduling/offering-enrollment";
 import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 import type { Building, Room, Section } from "@/types/db";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
@@ -137,6 +143,11 @@ export type ChairmanPlotScheduleModalProps = {
   existingBlocks: SparseScheduleBlock[];
   /** Instructor weekly teaching-hours snapshot (current campus-wide hours + cap) for the live overload indicator. */
   instructorLoadById?: Map<string, { hours: number; cap: number }>;
+  /**
+   * Enrollment already entered per offering (`offeringKey(sectionId, subjectCode)`), so a second
+   * meeting of a subject inherits the first one's figure instead of asking for it again.
+   */
+  plottedEnrollment?: ReadonlyMap<string, number>;
   /** Required weekly contact vs hours already plotted for this section + subject (excluding this draft). */
   subjectHourBudget?: { required: number; alreadyPlotted: number } | null;
   readOnly: boolean;
@@ -167,6 +178,7 @@ export function ChairmanPlotScheduleModal({
   sectionNameById,
   termProspectusSemester,
   plottedCodesBySectionId,
+  plottedEnrollment,
   conflictFlags,
   conflictDetailLines = [],
   academicPeriodId,
@@ -197,6 +209,18 @@ export function ChairmanPlotScheduleModal({
   const [meetingError, setMeetingError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  /** The figure to show for the offering now in the draft, in `enrollmentForOffering`'s order. */
+  const seedEnrollmentFor = useCallback(
+    (row: PlotRow) =>
+      enrollmentForOffering({
+        sectionId: row.sectionId,
+        subjectCode: row.subjectCode,
+        draft: row,
+        plotted: plottedEnrollment,
+      }),
+    [plottedEnrollment],
+  );
+
   useEffect(() => {
     if (!open) {
       setAnimateIn(false);
@@ -213,6 +237,12 @@ export function ChairmanPlotScheduleModal({
         slots,
       }),
     );
+    /*
+     * Show what the section already carries rather than an empty box: a second subject plotted for
+     * a section the user has already given an enrollment should not ask for it again.
+     */
+    const seeded = seedEnrollmentFor(draft);
+    if (seeded !== draft.students) onDraftChange({ ...draft, students: seeded });
     const t = window.requestAnimationFrame(() => setAnimateIn(true));
     return () => window.cancelAnimationFrame(t);
     // Seed from the row that opened the modal, not from later draft keystrokes.
@@ -257,6 +287,10 @@ export function ChairmanPlotScheduleModal({
   const yearLevel = sectionName
     ? yearLevelFromSchedulingSectionName(sectionName)
     : null;
+
+  /** "CC-112 in BSIT 3A" — names the offering the figure belongs to, not just the section. */
+  const offeringLabel =
+    draft.subjectCode && sectionName ? `${draft.subjectCode} in ${sectionName}` : "";
 
   const rawSubjectOptions = useMemo(() => {
     const forSection = subjectRowsForPlotDropdown(
@@ -357,6 +391,8 @@ export function ChairmanPlotScheduleModal({
   const missingBuilding = !buildingValue;
   const missingDay = !meetings.slots[0]?.day;
   const missingTime = !meetings.timeText.trim();
+  /** INS Form 5A has a "No. of Students" column with no other source, so a blank prints a blank. */
+  const missingStudents = !isCompleteEnrollment(draft.students);
   const plotIncomplete =
     missingSection ||
     missingSubject ||
@@ -364,7 +400,8 @@ export function ChairmanPlotScheduleModal({
     missingRoom ||
     missingBuilding ||
     missingDay ||
-    missingTime;
+    missingTime ||
+    missingStudents;
   const hoursOverLimit =
     Boolean(subjectHourBudget) &&
     hoursExceedSubjectRequirement({
@@ -727,7 +764,14 @@ export function ChairmanPlotScheduleModal({
                     subjectCode = "";
                   }
                 }
-                onDraftChange({ ...draft, sectionId, subjectCode });
+                onDraftChange({
+                  ...draft,
+                  sectionId,
+                  subjectCode,
+                  // Enrollment belongs to the offering, so it follows the pick rather than
+                  // lingering from the section that was selected a moment ago.
+                  students: seedEnrollmentFor({ ...draft, sectionId, subjectCode }),
+                });
               }}
             >
               <option value="">
@@ -759,6 +803,7 @@ export function ChairmanPlotScheduleModal({
                     ...draft,
                     subjectCode: "",
                     lecLabMode: "lec",
+                    students: "",
                   });
                   return;
                 }
@@ -785,6 +830,12 @@ export function ChairmanPlotScheduleModal({
                   lecLabMode: mode,
                   startSlotIndex,
                   durationSlots: 1,
+                  /*
+                   * Each subject enrolls separately — irregular students are why this field moved
+                   * off the section — so the figure is re-seeded for the subject now chosen rather
+                   * than inherited from the one before it.
+                   */
+                  students: seedEnrollmentFor({ ...draft, subjectCode }),
                 });
               }}
             >
@@ -974,19 +1025,31 @@ export function ChairmanPlotScheduleModal({
             <input
               id="plot-students"
               type="number"
-              min={0}
-              className={`${fieldClass} mt-1 tabular-nums`}
-              disabled={readOnly}
+              min={1}
+              max={MAX_OFFERING_ENROLLMENT}
+              required
+              aria-describedby="plot-students-help"
+              className={
+                missingStudents && !readOnly ? incompleteField : `${fieldClass} mt-1 tabular-nums`
+              }
+              disabled={readOnly || missingSection || missingSubject}
               value={draft.students === "" ? "" : draft.students}
-              onChange={(e) => {
-                const v = e.target.value;
-                onDraftChange({
-                  ...draft,
-                  students: v === "" ? "" : Math.max(0, parseInt(v, 10) || 0),
-                });
-              }}
-              placeholder="Optional"
+              onChange={(e) =>
+                onDraftChange({ ...draft, students: parseEnrollmentInput(e.target.value) })
+              }
+              placeholder={
+                missingSection
+                  ? "Select section first"
+                  : missingSubject
+                    ? "Select subject first"
+                    : "Required"
+              }
             />
+            <p id="plot-students-help" className="mt-1 text-[11px] leading-relaxed text-black/55">
+              {offeringLabel
+                ? `How many take ${offeringLabel} — count this subject, not the whole section, so irregular students are reflected. Every meeting of it uses this figure, and it prints as No. of Students on the INS forms.`
+                : "Counted per subject, not per section, so irregular students are reflected. Every meeting of a subject uses the same figure, and it prints as No. of Students on the INS forms."}
+            </p>
           </div>
         </div>
 

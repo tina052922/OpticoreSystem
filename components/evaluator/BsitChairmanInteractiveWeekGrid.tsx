@@ -175,6 +175,8 @@ export type BsitChairmanInteractiveWeekGridProps = {
   roomCodeById: Map<string, string>;
   termProspectusSemester: BsitSemester | null;
   plottedCodesBySectionId: Map<string, Set<string>>;
+  /** Enrollment already entered per offering, keyed by `offeringKey` — seeds the plot modal. */
+  plottedEnrollment?: ReadonlyMap<string, number>;
   conflictForRow: (row: PlotRow) => RowConflictFlags;
   conflictDetailForRow?: (row: PlotRow) => string[];
   campusScanConflictIds: Set<string>;
@@ -290,6 +292,7 @@ export function BsitChairmanInteractiveWeekGrid({
   roomCodeById,
   termProspectusSemester,
   plottedCodesBySectionId,
+  plottedEnrollment,
   conflictForRow,
   conflictDetailForRow,
   campusScanConflictIds,
@@ -790,6 +793,7 @@ export function BsitChairmanInteractiveWeekGrid({
         sectionNameById={sectionNameById}
         termProspectusSemester={termProspectusSemester}
         plottedCodesBySectionId={plottedCodesBySectionId}
+        plottedEnrollment={plottedEnrollment}
         conflictFlags={modalConflictFlags}
         conflictDetailLines={modalConflictLines}
         academicPeriodId={academicPeriodId}

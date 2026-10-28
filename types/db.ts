@@ -212,6 +212,14 @@ export interface ScheduleEntry {
   status: ScheduleStatus;
   /** `day` or `night` program; optional until migration is applied. */
   programSession?: "day" | "night" | null;
+  /**
+   * Students enrolled in THIS subject for THIS section.
+   *
+   * Irregular students make this differ from `Section.studentCount` — a block of 40 may bring 12
+   * to an elective. Null on rows plotted before migration 027, and on databases without the
+   * column; readers fall back to the section's count (`insCourseEnrollment`).
+   */
+  studentCount?: number | null;
   /** Set when VPAA publishes the term; plotted rows cannot be edited by chairman/college (RLS). */
   lockedByDoiAt?: string | null;
   /**

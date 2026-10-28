@@ -2,6 +2,12 @@
 
 import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/api/client";
 import {
+  applyOfferingEnrollmentToRows,
+  enrollmentForOffering,
+  enrollmentForStorage,
+  offeringEnrollmentIndex,
+} from "@/lib/scheduling/offering-enrollment";
+import {
   filterInstructorsExcludingGec,
   filterInstructorsForDepartment,
 } from "@/lib/evaluator/instructor-scope";
@@ -744,6 +750,12 @@ export function BsitChairmanEvaluatorWorksheet({
       relevant.filter((e) => Boolean(e.lockedByDoiAt)).map((e) => e.id),
     );
 
+    /*
+     * Enrollment is read back from the row's own column. Rows used to hydrate at `students: ""` —
+     * whatever was typed in the plot modal lived in local state until the page reloaded, and never
+     * reached the INS forms at all. A row with nothing recorded stays blank and has to be typed;
+     * the section carries no count to borrow.
+     */
     const mapToPlotRows = (list: ScheduleEntry[], mode: ProgramMode): PlotRow[] => {
       const slots = evaluatorTimeSlots(mode);
       const slotIndexByStartTime = new Map<string, number>();
@@ -765,7 +777,11 @@ export function BsitChairmanEvaluatorWorksheet({
           {
             id: e.id,
             sectionId: e.sectionId,
-            students: "",
+            students: enrollmentForOffering({
+              sectionId: e.sectionId,
+              subjectCode,
+              draft: { sectionId: e.sectionId, subjectCode, students: e.studentCount ?? "" },
+            }),
             subjectCode,
             // lecLabMode is derived from subjectCode inside normalizePlotRow
             lecLabMode: "lec",
@@ -800,7 +816,10 @@ export function BsitChairmanEvaluatorWorksheet({
             local.roomId === nr.roomId &&
             local.instructorId === nr.instructorId &&
             local.subjectCode === nr.subjectCode &&
-            (local.lecLabMode ?? "lec") === (nr.lecLabMode ?? "lec");
+            (local.lecLabMode ?? "lec") === (nr.lecLabMode ?? "lec") &&
+            // Enrollment counts as part of the row: a figure typed but not yet saved must not be
+            // cleared by a refetch just because the plot itself is unchanged.
+            local.students === nr.students;
           if (samePlot) {
             locallyEditedRowIdsRef.current.delete(nr.id);
             return nr;
@@ -1140,6 +1159,37 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     return m;
   }, [allTermScheduleEntries, academicPeriodId, programSectionIdSet, rows, subjectCodeById, programCodeForSummary, pendingDeletedIds, programMode]);
+
+  /**
+   * Enrollment already entered per offering, so plotting a subject's second meeting — or editing
+   * either of them — starts from the figure the first one carries rather than asking again.
+   *
+   * Worksheet rows are indexed after the saved entries so an unsaved edit wins over what the
+   * database still holds.
+   */
+  const plottedEnrollment = useMemo(
+    () =>
+      offeringEnrollmentIndex([
+        ...allTermScheduleEntries
+          .filter(
+            (e) =>
+              (!academicPeriodId || e.academicPeriodId === academicPeriodId) &&
+              programSectionIdSet.has(e.sectionId) &&
+              !pendingDeletedIds.has(e.id),
+          )
+          .map((e) => ({
+            sectionId: e.sectionId,
+            subjectCode: subjectCodeById.get(e.subjectId) ?? "",
+            students: e.studentCount ?? ("" as number | ""),
+          })),
+        ...rows.map((r) => ({
+          sectionId: r.sectionId,
+          subjectCode: r.subjectCode,
+          students: r.students,
+        })),
+      ]),
+    [allTermScheduleEntries, academicPeriodId, programSectionIdSet, pendingDeletedIds, subjectCodeById, rows],
+  );
 
   /**
    * Full `ScheduleBlock` set for the term: DB snapshot + worksheet overlay. Drives the explicit
@@ -1950,6 +2000,29 @@ export function BsitChairmanEvaluatorWorksheet({
         updateRow(row.id, { students: row.students });
       };
       for (const row of allMeetings) applyOne(row);
+      /*
+       * A subject meeting twice a week is one offering with one enrollment, so the figure entered
+       * on either meeting is carried to the rest. Only this subject in this section — the section's
+       * other subjects enroll separately, which is the point of the per-offering figure.
+       *
+       * The sibling meetings are marked locally edited as well: they are usually already saved, and
+       * without the mark a refetch landing before the next save would pull them back to the figure
+       * the database still holds, leaving one offering showing two counts.
+       */
+      setRows((prev) => {
+        const next = applyOfferingEnrollmentToRows(
+          prev,
+          draft.sectionId,
+          draft.subjectCode,
+          draft.students,
+        );
+        if (next !== prev) {
+          for (let i = 0; i < next.length; i++) {
+            if (next[i] !== prev[i]) locallyEditedRowIdsRef.current.add(next[i]!.id);
+          }
+        }
+        return next;
+      });
     },
     [rows, schedulePublished, viewOnly, commitRowPatch, updateRow, subjects, programCodeForSummary, toast],
   );
@@ -2246,6 +2319,7 @@ export function BsitChairmanEvaluatorWorksheet({
             endTime: tb.endTime,
             status: "draft",
             programMode,
+            studentCount: enrollmentForStorage(row.students),
           });
         }
 
@@ -2620,6 +2694,7 @@ export function BsitChairmanEvaluatorWorksheet({
         roomCodeById={roomCodeById}
         termProspectusSemester={termProspectusSemester}
         plottedCodesBySectionId={plottedCodesBySectionId}
+        plottedEnrollment={plottedEnrollment}
         conflictForRow={conflictForRow}
         conflictDetailForRow={conflictDetailForRow}
         campusScanConflictIds={campusScanConflictIds}

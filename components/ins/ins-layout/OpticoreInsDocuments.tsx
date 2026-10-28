@@ -256,7 +256,7 @@ function InsSummaryOfCourses({
   studentsFirst = false,
   showSection = true,
 }: {
-  courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }>;
+  courses: Array<{ students: number | null; code: string; title: string; degreeYrSec: string }>;
   emptyMessage?: string;
   /** Form 5A metrics block, printed inside the same bordered box. */
   footer?: ReactNode;
@@ -282,10 +282,10 @@ function InsSummaryOfCourses({
   const cellBase =
     "flex min-h-[1.4rem] items-center bg-white px-1 py-1 print:min-h-0 print:py-0";
 
-  function cells(c: { students: number; code: string; title: string; degreeYrSec: string }) {
+  function cells(c: { students: number | null; code: string; title: string; degreeYrSec: string }) {
     const students = (
       <span key="students" className={`${cellBase} justify-end tabular-nums`}>
-        {c.students}
+        {c.students ?? ""}
       </span>
     );
     const rest = [
@@ -378,7 +378,8 @@ export type OpticoreInsForm5AProps = {
   facultyName: string;
   schedule: FacultySchedule;
   courses: Array<{
-    students: number;
+    /** Null when nobody has recorded it — shown blank, never as a 0. */
+    students: number | null;
     code: string;
     title: string;
     degreeYrSec: string;
@@ -800,7 +801,8 @@ export type OpticoreInsForm5BProps = {
   major?: string;
   schedule: SectionSchedule;
   courses: Array<{
-    students: number;
+    /** Null when nobody has recorded it — shown blank, never as a 0. */
+    students: number | null;
     code: string;
     title: string;
     degreeYrSec: string;

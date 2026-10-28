@@ -1,4 +1,5 @@
 import { INS_DAYS, toInsDay, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
+import { insCourseEnrollment } from "@/lib/scheduling/offering-enrollment";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import { slotDurationHours } from "@/lib/scheduling/time";
 import { filterByProgramMode } from "@/lib/scheduling/program-mode";
@@ -68,7 +69,8 @@ export function buildInsFacultyView(args: {
 }): {
   schedule: InsFacultySchedule;
   courses: Array<{
-    students: number;
+    /** Null when nobody has recorded it — the form prints a blank to write in. */
+    students: number | null;
     code: string;
     title: string;
     degreeYrSec: string;
@@ -125,7 +127,8 @@ export function buildInsFacultyView(args: {
   }
 
   const courses: Array<{
-    students: number;
+    /** Null when nobody has recorded it — the form prints a blank to write in. */
+    students: number | null;
     code: string;
     title: string;
     degreeYrSec: string;
@@ -139,7 +142,7 @@ export function buildInsFacultyView(args: {
     const sec = args.sectionById.get(e.sectionId);
     if (!sub || !sec) continue;
     courses.push({
-      students: sec.studentCount,
+      students: insCourseEnrollment(e.studentCount),
       code: sub.code,
       title: sub.title,
       degreeYrSec: sec.name,

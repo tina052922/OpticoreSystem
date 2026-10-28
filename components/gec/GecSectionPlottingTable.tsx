@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { insCourseEnrollment } from "@/lib/scheduling/offering-enrollment";
 import { AlertTriangle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -351,7 +352,10 @@ export function GecSectionPlottingTable({
                   >
                     <td className="border border-black/10 px-2 py-1.5 font-semibold">{program?.code ?? "—"}</td>
                     <td className="border border-black/10 px-2 py-1.5">{sec?.name ?? "—"}</td>
-                    <td className="border border-black/10 px-2 py-1.5 tabular-nums">{sec?.studentCount ?? "—"}</td>
+                    {/* The figure plotted for THIS subject, not the section's — sections no longer carry one. */}
+                    <td className="border border-black/10 px-2 py-1.5 tabular-nums">
+                      {insCourseEnrollment(e.studentCount) ?? "—"}
+                    </td>
                     <td className="border border-black/10 px-1 py-1 min-w-[160px]">
                       {editable ? (
                         <div className="space-y-1">

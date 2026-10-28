@@ -41,7 +41,13 @@ export type PDFSignatureSlot = {
 };
 
 export type PDFCourseRow = {
-  students: number;
+  /**
+   * Enrolled in this subject for this section — see `lib/scheduling/offering-enrollment`.
+   *
+   * Null when nobody has recorded it, which prints as a blank. A `0` would read as "no students
+   * enrolled", which is a different and wrong statement.
+   */
+  students: number | null;
   code: string;
   title: string;
   degreeYrSec: string;

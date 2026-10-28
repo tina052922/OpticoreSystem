@@ -1,4 +1,5 @@
 import { detectConflictsSparse, scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
+import { insCourseEnrollment } from "@/lib/scheduling/offering-enrollment";
 import type { FacultyProfile, Program, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { formatUserInstructorLabel } from "@/lib/evaluator/instructor-employee-id";
 import { formatTimeRange12h } from "@/lib/time/format-12h";
@@ -100,7 +101,7 @@ export function buildScheduleEvaluatorTableRows(args: {
       college: pr ? collegeNameById.get(pr.collegeId) ?? pr.collegeId : "",
       major: pr?.code ?? "",
       section: sec.name,
-      students: sec.studentCount,
+      students: insCourseEnrollment(e.studentCount),
       subjectCode: sub?.code ?? "—",
       instructor: formatUserInstructorLabel(inst, facultyProfileByUserId?.get(e.instructorId)),
       room: room?.code ?? "TBA",

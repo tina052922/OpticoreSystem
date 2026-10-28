@@ -1,4 +1,5 @@
 import { INS_DAYS, toInsDay, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
+import { insCourseEnrollment } from "@/lib/scheduling/offering-enrollment";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import type { FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
@@ -35,7 +36,8 @@ export function buildInsSectionView(args: {
   facultyProfileByUserId: Map<string, Pick<FacultyProfile, "fullName">>;
 }): {
   schedule: InsSectionSchedule;
-  courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }>;
+  courses: Array<{ /** Null when nobody has recorded it — the form prints a blank to write in. */
+    students: number | null; code: string; title: string; degreeYrSec: string }>;
 } {
   const schedule = emptyInsSectionSchedule();
   const list = args.entries.filter(
@@ -63,7 +65,8 @@ export function buildInsSectionView(args: {
     });
   }
 
-  const courses: Array<{ students: number; code: string; title: string; degreeYrSec: string }> = [];
+  const courses: Array<{ /** Null when nobody has recorded it — the form prints a blank to write in. */
+    students: number | null; code: string; title: string; degreeYrSec: string }> = [];
   const seenSubject = new Set<string>();
   for (const e of list) {
     if (seenSubject.has(e.subjectId)) continue;
@@ -71,7 +74,7 @@ export function buildInsSectionView(args: {
     const sub = args.subjectById.get(e.subjectId);
     if (!sub || !sec) continue;
     courses.push({
-      students: sec.studentCount,
+      students: insCourseEnrollment(e.studentCount),
       code: sub.code,
       title: sub.title,
       degreeYrSec: sec.name,

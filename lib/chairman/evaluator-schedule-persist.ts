@@ -10,6 +10,10 @@ import {
   timesFromSlotRange,
 } from "@/lib/evaluator/plot-duration";
 import { encodeDayForStorage, resolveProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
+import {
+  enrollmentForOffering,
+  enrollmentForStorage,
+} from "@/lib/scheduling/offering-enrollment";
 import type { ScheduleEntry, Subject } from "@/types/db";
 
 /** Minimal row shape shared with `BsitChairmanEvaluatorWorksheet` for DB round-trip. */
@@ -86,6 +90,8 @@ export function plotRowsToScheduleEntries(args: {
       endTime: times.endTime,
       status: "draft",
       programMode,
+      /* Enrollment is per offering (see `offering-enrollment`), so it travels with the row. */
+      studentCount: enrollmentForStorage(row.students),
     });
   }
 
@@ -96,7 +102,6 @@ export function plotRowsToScheduleEntries(args: {
 export function scheduleEntriesToPlotRows(args: {
   entries: ScheduleEntry[];
   subjectById: Map<string, Subject>;
-  sectionStudentCount: Map<string, number>;
 }): ChairmanPersistablePlotRow[] {
   const out: ChairmanPersistablePlotRow[] = [];
   for (const e of args.entries) {
@@ -115,7 +120,11 @@ export function scheduleEntriesToPlotRows(args: {
     out.push({
       id: e.id,
       sectionId: e.sectionId,
-      students: args.sectionStudentCount.get(e.sectionId) ?? "",
+      students: enrollmentForOffering({
+        sectionId: e.sectionId,
+        subjectCode: sub.code,
+        draft: { sectionId: e.sectionId, subjectCode: sub.code, students: e.studentCount ?? "" },
+      }),
       subjectCode: sub.code,
       instructorId: e.instructorId,
       roomId: e.roomId,
