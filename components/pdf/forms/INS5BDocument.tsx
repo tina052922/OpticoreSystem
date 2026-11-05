@@ -76,7 +76,7 @@ export function INS5BDocument({ data }: { data: INS5BProps }) {
             ]}
           />
         )}
-        <INSSummaryTable courses={courses} showSection={false} />
+        <INSSummaryTable courses={courses} studentsFirst />
         <INSBrandedFooter text={insFooterText} />
       </Page>
     </Document>

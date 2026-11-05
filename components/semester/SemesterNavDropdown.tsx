@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -17,6 +18,14 @@ type Variant = "header" | "sidebar";
  */
 export function SemesterNavDropdown({ variant = "sidebar", className }: { variant?: Variant; className?: string }) {
   const { periods, selectedPeriodId, setSelectedPeriodId, loading, error, ready } = useSemesterFilter();
+  /*
+   * Radix gives the trigger an auto-generated id (useId). Anything above this in the shell that
+   * renders differently on the server and in the browser shifts that id, and React reports a
+   * hydration mismatch on every page. Before mount the pill is a plain disabled button — it is
+   * disabled then anyway, since terms load in the browser — so there is no id to disagree on.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const label =
     periods.find((p) => p.id === selectedPeriodId)?.name ??
@@ -31,6 +40,15 @@ export function SemesterNavDropdown({ variant = "sidebar", className }: { varian
       : /* Sidebar-only term switcher: no harsh black ring (header variant may still be used in legacy embeds). */
         "border border-white/35 px-4 py-3 text-[15px]",
   );
+
+  if (!mounted) {
+    return (
+      <button type="button" disabled className={cn(pillClass, className)} aria-label="Academic term: Loading terms…">
+        <span className="truncate text-left flex-1 min-w-0">Loading terms…</span>
+        <ChevronDown className="w-5 h-5 shrink-0" aria-hidden />
+      </button>
+    );
+  }
 
   return (
     <DropdownMenu>

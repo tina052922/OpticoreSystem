@@ -139,13 +139,6 @@ export function StudentDashboardTermClient({
                 <ChevronRight className="w-4 h-4" />
               </Link>
               <Link
-                href="/student/ins?tab=section"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-4 py-2.5 text-sm font-semibold hover:bg-black/[0.03]"
-              >
-                Browse by section or room
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-              <Link
                 href="/campus-navigation"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 bg-white px-4 py-2.5 text-sm font-semibold hover:bg-black/[0.03]"
               >

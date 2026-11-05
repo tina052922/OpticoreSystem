@@ -19,7 +19,8 @@ describe("schedule visibility", () => {
 
   it("hides faculty personal-schedule grouping from students", () => {
     expect(showInsFacultyGrouping("/student/ins")).toBe(false);
-    expect(showInsFacultyGrouping("/faculty/ins")).toBe(true);
+    // An instructor's own 5A is My schedule, so the generator offers only section and room.
+    expect(showInsFacultyGrouping("/faculty/ins")).toBe(false);
     expect(showInsFacultyGrouping("/doi/ins")).toBe(true);
     expect(showInsFacultyGrouping("/chairman/ins")).toBe(true);
   });

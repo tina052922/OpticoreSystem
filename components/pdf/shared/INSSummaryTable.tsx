@@ -37,6 +37,16 @@ type Column = {
   right?: boolean;
 };
 
+/**
+ * Space after the right-aligned count. Without it "No. of Students" ran straight into
+ * "Course Code" and a row read "34AP-6".
+ */
+const STUDENTS_GAP_PT = 10;
+
+function alignStyle(col: Column) {
+  return col.right ? [{ textAlign: "right" as const, paddingRight: STUDENTS_GAP_PT }] : [];
+}
+
 const COLUMNS: Record<ColumnKey, Column> = {
   students: { key: "students", label: "No. of Students", flex: INS_SUMMARY_COL_STUDENTS, right: true },
   code: { key: "code", label: "Course Code", flex: INS_SUMMARY_COL_CODE },
@@ -87,7 +97,7 @@ export function INSSummaryTable({
             style={[
               ins.summaryHeaderCell,
               { flex: col.flex },
-              ...(col.right ? [{ textAlign: "right" as const }] : []),
+              ...alignStyle(col),
             ]}
           >
             {col.label}
@@ -112,7 +122,7 @@ export function INSSummaryTable({
                 style={[
                   ins.summaryCell,
                   { flex: col.flex },
-                  ...(col.right ? [{ textAlign: "right" as const }] : []),
+                  ...alignStyle(col),
                 ]}
               >
                 {cellValue(col, c)}

@@ -89,6 +89,13 @@ export type PDFScheduleCell = {
    * than as two stacked cells.
    */
   openBottom?: boolean;
+  /**
+   * Minutes from midnight of the class whose text this cell carries. The Day grid draws that class
+   * as one box from `startMin` to `endMin`, so a 7:30–8:30 class straddles the hour line instead of
+   * squeezing its text into half a row.
+   */
+  startMin?: number;
+  endMin?: number;
 };
 
 export type PDFScheduleGrid = Record<InsDay, (PDFScheduleCell | null)[]>;

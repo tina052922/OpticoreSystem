@@ -1,9 +1,10 @@
 import {
   BSIT_PLOT_SLOTS,
   NIGHT_EVALUATOR_WEEKDAYS,
+  evaluatorTimeSlots,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { evaluatorTimeSlots, stripNightDayPrefix, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { stripNightDayPrefix, type ProgramMode } from "@/lib/scheduling/program-mode";
 
 /**
  * Normalize Postgres / API time strings ("7:00", "07:00", "7:00:00") to "HH:MM" for slot map lookups.
@@ -41,7 +42,7 @@ export function normalizeScheduleEntryDayForEvaluator(day: string | null | undef
 }
 
 /**
- * First 1-hour slot index for chairman / GEC grids (0 = 7:00–8:00). Returns 0 only when no slot matches.
+ * First half-hour row index for chairman / GEC grids (0 = 7:00, 1 = 7:30). Returns 0 only when no slot matches.
  */
 export function startSlotIndexFromScheduleEntryStartTime(
   startTime: string | null | undefined,

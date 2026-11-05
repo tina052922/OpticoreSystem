@@ -7,6 +7,7 @@
 
 import { DEFAULT_MAX_FACULTY_HOURS_PER_WEEK, TIME_SLOT_OPTIONS, WEEKDAYS } from "./constants";
 import { detectConflictsForEntry } from "./conflicts";
+import { overlapsLunchBreak } from "./program-mode";
 import type { GASuggestion, ScheduleBlock } from "./types";
 
 function addHoursClamped(startTime: string, hours: number, latestEndHour = 19): { startTime: string; endTime: string } {
@@ -77,6 +78,8 @@ function buildCandidatePool(p: GAParams): Gene[] {
   for (const day of WEEKDAYS) {
     for (const startTime of starts) {
       const { startTime: st, endTime } = addHoursClamped(startTime, p.durationHours);
+      // Never suggest a time that touches the 12:00–1:00 PM lunch break.
+      if (overlapsLunchBreak(st, endTime)) continue;
       for (const roomId of p.roomIds) {
         for (const instructorId of instructorPool) {
           pool.push({

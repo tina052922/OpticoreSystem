@@ -945,6 +945,7 @@ export function GecCentralHubEvaluatorClient() {
         if (hoursExceedSubjectRequirement({ requiredHours: required, alreadyPlottedHours: already, additionalHours: additional })) {
           const msg = subjectHoursOverLimitMessage({
             subjectCode: sub.code,
+            sectionName: sectionById.get(e.sectionId)?.name,
             requiredHours: required,
             alreadyPlottedHours: already,
             additionalHours: additional,
@@ -1389,9 +1390,13 @@ export function GecCentralHubEvaluatorClient() {
         roomCode: room?.code,
         subjectCode: sub?.code,
         when: `${e.day} ${candidate.startTime.slice(0, 5)}–${candidate.endTime.slice(0, 5)}`,
+        subjectCodeForEntry: (id) => {
+          const other = modeMergedEntries.find((x) => x.id === id);
+          return other ? subjectById.get(other.subjectId)?.code : undefined;
+        },
       });
     },
-    [sparseCampusWideUniverse, subjectById, roomById, userById, sectionById],
+    [sparseCampusWideUniverse, subjectById, roomById, userById, sectionById, modeMergedEntries],
   );
 
   const landingTiles = gecHubCollegeTiles(colleges.map((c) => ({ id: c.id, name: c.name, code: c.code })));

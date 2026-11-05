@@ -175,3 +175,39 @@ export function facultyNamePartsFrom(
   if (last || first) return { lastName: last, firstName: first, middleName: middle };
   return splitFullName(profile.fullName ?? fallbackName ?? "");
 }
+
+
+function ymdLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Youngest age a faculty member can be registered with.
+ */
+export const MIN_FACULTY_AGE = 20;
+
+/**
+ * The latest date of birth a date picker should offer: today, {@link MIN_FACULTY_AGE} years ago.
+ * Used as the `max` of every Date of Birth input, so anyone younger cannot be picked. Someone
+ * whose 20th birthday is today is allowed.
+ *
+ * Built as a string rather than with `setFullYear`, which turns 29 Feb into 1 Mar in a non-leap
+ * year and would let a 19-year-old through for a day.
+ */
+export function latestDateOfBirth(asOf: Date = new Date()): string {
+  const today = ymdLocal(asOf);
+  return `${asOf.getFullYear() - MIN_FACULTY_AGE}${today.slice(4)}`;
+}
+
+/** Empty is allowed (the field is optional); otherwise a real `YYYY-MM-DD` of someone 20 or older. */
+export function isValidDateOfBirth(raw: string | null | undefined, asOf: Date = new Date()): boolean {
+  const v = (raw ?? "").trim();
+  if (!v) return true;
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!ymd) return false;
+  const born = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+  if (Number.isNaN(born.getTime()) || ymdLocal(born) !== v) return false;
+  return v <= latestDateOfBirth(asOf) && Number(ymd[1]) >= 1900;
+}
+
+export const DATE_OF_BIRTH_ERROR = `Faculty must be at least ${MIN_FACULTY_AGE} years old — choose a date of birth ${MIN_FACULTY_AGE} or more years ago.`;

@@ -18,16 +18,10 @@ const slots = Array.from({ length: 10 }, (_, i) => ({
 }));
 
 describe("plotDurationChoices", () => {
-  it("offers half-hour steps up to the subject's budget", () => {
-    expect(plotDurationChoices(3)).toEqual([0.5, 1, 1.5, 2, 2.5, 3]);
-  });
-
-  it("never offers more than the budget", () => {
-    expect(plotDurationChoices(1.5)).toEqual([0.5, 1, 1.5]);
-  });
-
-  it("still offers one step when the budget is nonsense", () => {
-    expect(plotDurationChoices(0)).toEqual([0.5]);
+  it("offers only 1 hr and 1.5 hrs, whatever the budget", () => {
+    expect(plotDurationChoices(3)).toEqual([1, 1.5]);
+    expect(plotDurationChoices(1)).toEqual([1, 1.5]);
+    expect(plotDurationChoices(0)).toEqual([1, 1.5]);
   });
 });
 
@@ -59,10 +53,9 @@ describe("resolvePlotMeetings", () => {
     if (got.ok) expect(got.meetings[0]?.durationSlots).toBe(1.5);
   });
 
-  it("accepts half an hour", () => {
-    const got = resolvePlotMeetings(draft("10:00 AM", "0.5"), args);
-    expect(got.ok).toBe(true);
-    if (got.ok) expect(got.meetings[0]?.durationSlots).toBe(0.5);
+  it("refuses half an hour and anything but 1 or 1.5 hours", () => {
+    expect(resolvePlotMeetings(draft("10:00 AM", "0.5"), args).ok).toBe(false);
+    expect(resolvePlotMeetings(draft("10:00 AM", "2"), args).ok).toBe(false);
   });
 
   it("refuses more than the subject's budget", () => {

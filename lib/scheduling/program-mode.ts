@@ -283,12 +283,40 @@ export function isWeekend(day: string): boolean {
   return d === "saturday" || d === "sunday" || d === "sat" || d === "sun";
 }
 
+/** Lunch break, 12:00 PM – 1:00 PM, in minutes from midnight. No class may touch it. */
+export const LUNCH_BREAK_START_MINUTES = 12 * 60;
+export const LUNCH_BREAK_END_MINUTES = 13 * 60;
+export const LUNCH_BREAK_LABEL = "12:00 PM – 1:00 PM";
+
+function hhmmToMinutes(hhmm: string | null | undefined): number | null {
+  const [h, m] = String(hhmm ?? "").trim().split(":");
+  const hours = parseInt(h ?? "", 10);
+  const minutes = parseInt(m ?? "0", 10);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+/** True when [start, end) shares any minute with the lunch break. Times are "HH:MM". */
+export function overlapsLunchBreak(startTime: string | null | undefined, endTime: string | null | undefined): boolean {
+  const start = hhmmToMinutes(startTime);
+  const end = hhmmToMinutes(endTime);
+  if (start == null || end == null) return false;
+  return start < LUNCH_BREAK_END_MINUTES && end > LUNCH_BREAK_START_MINUTES;
+}
+
+/** A grid row that falls inside the lunch break (12:00 and 12:30 rows on the half-hour grid). */
+export function isLunchBreakSlot(slot: HourSlot): boolean {
+  return overlapsLunchBreak(slot.startTime, slot.endTime);
+}
+
 /**
  * Night Mon–Fri may only be plotted 4:00 PM–10:00 PM.
  * Night Sat–Sun may be plotted 7:00 AM–10:00 PM.
- * Day Program: all day-evaluator slots are plottable (Mon–Fri 7:00 AM–5:00 PM).
+ * Day Program: Mon–Fri 7:00 AM–5:00 PM.
+ * The 12:00 PM–1:00 PM lunch break is never plottable.
  */
 export function isEvaluatorSlotPlottable(mode: ProgramMode, day: string, slot: HourSlot): boolean {
+  if (isLunchBreakSlot(slot)) return false;
   if (mode === "day") return slot.startHour >= 7 && slot.startHour < 17;
   if (isWeekend(day)) return slot.startHour >= 7 && slot.startHour < 22;
   return slot.startHour >= 16 && slot.startHour < 22;

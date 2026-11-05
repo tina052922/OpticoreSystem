@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye } from "lucide-react";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
+import { Button } from "@/components/ui/button";
+import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
+import { INS5BDocument } from "@/components/pdf/forms/INS5BDocument";
+import type { INS5BProps } from "@/components/pdf/types/insTypes";
+import { sectionScheduleToPdfGrid } from "@/lib/ins/ins-pdf-adapters";
+import { useCampusBranding } from "@/contexts/CampusBrandingContext";
+import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
@@ -15,6 +22,8 @@ type StudentPayload = {
   rows: ScheduleRowView[];
   section: Section | null;
   program: Program | null;
+  /** Faculty Profile advisory for the student's section; empty when none is set. */
+  adviser?: string;
 };
 
 async function fetchStudentTermData(
@@ -36,6 +45,8 @@ export function StudentScheduleTermClient() {
   const [data, setData] = useState<StudentPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const branding = useCampusBranding();
 
   useEffect(() => {
     if (!ready || !selectedPeriodId) return;
@@ -84,6 +95,23 @@ export function StudentScheduleTermClient() {
         : program?.name ?? "—";
   const assignment = section?.name ?? "—";
   const semesterLabel = selectedPeriod?.name ?? "—";
+  const adviser = data?.adviser?.trim() || "—";
+
+  /** The same Form 5B as on screen, as a printable PDF. */
+  const pdfData = useMemo(
+    (): INS5BProps => ({
+      degreeAndYear,
+      major: program?.name || undefined,
+      adviser,
+      assignment,
+      semesterLabel,
+      schedule: sectionScheduleToPdfGrid(schedule, programMode),
+      courses,
+      programMode,
+      ...insPdfBrandingProps(branding),
+    }),
+    [degreeAndYear, program?.name, adviser, assignment, semesterLabel, schedule, courses, programMode, branding],
+  );
 
   if (!ready || !selectedPeriodId) {
     return <p className="text-sm text-black/55 p-6">Loading academic term…</p>;
@@ -103,18 +131,26 @@ export function StudentScheduleTermClient() {
           <ArrowLeft className="w-4 h-4" />
           Back to dashboard
         </Link>
-        <Link href="/student/ins?tab=section" className="text-sm font-medium text-[#780301] hover:underline">
-          Browse by section or room
-        </Link>
       </div>
 
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">My schedule</h1>
-        <p className="text-gray-600 text-sm mt-1">
-          INS Form 5B — Program by Section (your section only). Matches the official grid format used in Campus
-          Intelligence. To look up other sections or rooms, open INS Forms Generator.
-          {loading ? <span className="ml-2 text-black/40">Updating…</span> : null}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">My schedule</h1>
+          <p className="text-gray-600 text-sm mt-1">
+            INS Form 5B — Program by Section (your section only).
+            {loading ? <span className="ml-2 text-black/40">Updating…</span> : null}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="gap-2 bg-white"
+          onClick={() => setPdfOpen(true)}
+          disabled={loading || rows.length === 0}
+        >
+          <Eye className="h-4 w-4" aria-hidden />
+          Preview PDF
+        </Button>
       </div>
 
       {rows.length === 0 ? (
@@ -127,7 +163,7 @@ export function StudentScheduleTermClient() {
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 sm:p-6">
         <OpticoreInsForm5B
           degreeAndYear={degreeAndYear}
-          adviser="—"
+          adviser={adviser}
           assignment={assignment}
           major={program?.name ?? ""}
           schedule={schedule}
@@ -136,6 +172,13 @@ export function StudentScheduleTermClient() {
           semesterLabel={semesterLabel}
         />
       </div>
+
+      <PDFPreviewModal
+        filename={`INS-5B-${assignment.replace(/[^a-zA-Z0-9]/g, "-")}.pdf`}
+        open={pdfOpen}
+        onClose={() => setPdfOpen(false)}
+        document={<INS5BDocument data={pdfData} />}
+      />
     </div>
   );
 }

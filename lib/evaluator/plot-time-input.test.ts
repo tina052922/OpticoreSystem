@@ -70,7 +70,7 @@ describe("resolvePlotMeetings", () => {
         slots: [
           { day: "Monday", durationHours: "1" },
           { day: "Wednesday", durationHours: "1" },
-          { day: "Friday", durationHours: "2" },
+          { day: "Friday", durationHours: "1" },
         ],
       },
       { slots: DAY_ONE_HOUR_SLOTS, programMode: "day", maxDur: 3, weekdays },
@@ -80,7 +80,7 @@ describe("resolvePlotMeetings", () => {
     expect(result.meetings).toEqual([
       { day: "Monday", startSlotIndex: 1, durationSlots: 1 },
       { day: "Wednesday", startSlotIndex: 1, durationSlots: 1 },
-      { day: "Friday", startSlotIndex: 1, durationSlots: 2 },
+      { day: "Friday", startSlotIndex: 1, durationSlots: 1 },
     ]);
   });
 

@@ -10,7 +10,6 @@ import {
   isNightCellClosed,
   slotsForSession,
 } from "@/lib/scheduling/program-session";
-import { InsPartialHourRule } from "./InsPartialHourRule";
 import { INS_DAYS } from "./opticore-ins-constants";
 
 const insTableBorder = "border border-neutral-900";
@@ -163,6 +162,19 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                     }
                     const { rowSpan, items, fillFraction, startFraction, continuesBelow, continuesAbove } =
                       pick;
+                    /*
+                     * Free time above the class, the class, free time below — stacked, with their
+                     * share of the cell set by the real start and end.
+                     *
+                     * The class used to be centred with padding sized from `--ins-row-h` while the
+                     * ruled-off parts were absolute overlays sized as a percentage of the cell. A
+                     * row taller than `--ins-row-h` pulled the two apart, and the 7:30 line ran
+                     * through the course code. As flex parts the box can never sit under its own
+                     * rule, and it still grows the row when its text needs the room (print rows
+                     * are far shorter than three lines).
+                     */
+                    const start = startFraction ?? 0;
+                    const end = fillFraction ?? 1;
                     return (
                       <td
                         key={`${time}-${day}`}
@@ -172,31 +184,31 @@ export function OpticoreInsScheduleTableWithSignatures(props: Props) {
                         className={`${insCellBorder({
                           openTop: continuesAbove,
                           openBottom: continuesBelow,
-                        })} relative p-0 align-stretch`}
+                        })} p-0 align-top`}
+                        /* 1px lets the child's 100% height fill the cell as the row stretches. */
+                        style={{ height: 1 }}
                       >
                         <div
-                          className="relative z-10 flex h-full min-h-0 flex-col items-center justify-center gap-0 px-1 py-1 print:py-0 print:px-0.5 print:text-[6pt] text-center text-[10px] leading-tight text-neutral-900 overflow-hidden"
-                          style={{
-                            minHeight: `calc(var(--ins-row-h) * ${rowSpan})`,
-                            /* Centred on the class, not on the merged cell: a 3:00–4:30 class sits
-                               in the middle of its hour and a half, between the ruled-off parts. */
-                            ...(fillFraction == null
-                              ? null
-                              : { paddingBottom: `calc(var(--ins-row-h) * ${rowSpan * (1 - fillFraction)})` }),
-                            ...(startFraction == null
-                              ? null
-                              : { paddingTop: `calc(var(--ins-row-h) * ${rowSpan * startFraction})` }),
-                          }}
+                          className="flex h-full flex-col"
+                          style={{ minHeight: `calc(var(--ins-row-h) * ${rowSpan})` }}
                         >
-                          {props.renderSpanned({
-                            day: day as InsDay,
-                            timeSlotLabel: time,
-                            slotIndex: slotIdx,
-                            rowSpan,
-                            items,
-                          })}
+                          {start > 0 ? <div aria-hidden style={{ flexGrow: start, flexShrink: 1, flexBasis: 0 }} /> : null}
+                          <div
+                            className={`flex flex-col items-center justify-center gap-0 px-1 py-1 print:py-0 print:px-0.5 print:text-[6pt] text-center text-[10px] leading-tight text-neutral-900 border-neutral-900 ${
+                              start > 0 ? "border-t" : ""
+                            } ${end < 1 ? "border-b" : ""}`}
+                            style={{ flexGrow: end - start, flexShrink: 0, flexBasis: 0 }}
+                          >
+                            {props.renderSpanned({
+                              day: day as InsDay,
+                              timeSlotLabel: time,
+                              slotIndex: slotIdx,
+                              rowSpan,
+                              items,
+                            })}
+                          </div>
+                          {end < 1 ? <div aria-hidden style={{ flexGrow: 1 - end, flexShrink: 1, flexBasis: 0 }} /> : null}
                         </div>
-                        <InsPartialHourRule fraction={fillFraction} startFraction={startFraction} />
                       </td>
                     );
                   }

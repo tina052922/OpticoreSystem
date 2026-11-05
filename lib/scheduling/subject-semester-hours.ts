@@ -116,12 +116,15 @@ export function subjectWeeklyHoursCaption(args: {
 
 export function subjectHoursOverLimitMessage(args: {
   subjectCode: string;
+  /** Named in the message so an excess on another section is not mistaken for the visible one. */
+  sectionName?: string | null;
   requiredHours: number;
   alreadyPlottedHours: number;
   additionalHours: number;
 }): string {
   const total = args.alreadyPlottedHours + args.additionalHours;
-  return `${args.subjectCode} is over the prospectus limit: ${total} hour(s) plotted this term, but the subject only needs ${args.requiredHours} hour(s) per week. Reduce duration or remove extra meetings before saving.`;
+  const where = args.sectionName?.trim() ? ` on ${args.sectionName.trim()}` : "";
+  return `${args.subjectCode}${where} is over the prospectus limit: ${total} hour(s) plotted this term, but the subject only needs ${args.requiredHours} hour(s) per week. Reduce duration or remove extra meetings before saving.`;
 }
 
 /**

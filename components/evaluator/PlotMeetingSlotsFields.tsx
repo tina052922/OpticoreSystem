@@ -36,7 +36,7 @@ export function PlotMeetingSlotsFields({
   incomplete = false,
   error = null,
 }: PlotMeetingSlotsFieldsProps) {
-  /* Half-hour steps, offered as a list so a duration can only ever be a plottable one. */
+  /* 1 hr or 1.5 hrs only, offered as a list so a duration can only ever be a plottable one. */
   const durationOptions = plotDurationChoices(maxDur);
 
   const timeFieldClass = incomplete
@@ -134,6 +134,11 @@ export function PlotMeetingSlotsFields({
                     onChange={(e) => patchSlot(i, { durationHours: e.target.value })}
                   >
                     <option value="">hrs</option>
+                    {/* An older plot saved at another length stays visible instead of reading blank. */}
+                    {slot.durationHours &&
+                    !durationOptions.some((h) => formatPlotDurationHours(h) === slot.durationHours) ? (
+                      <option value={slot.durationHours}>{slot.durationHours} hrs (saved)</option>
+                    ) : null}
                     {durationOptions.map((h) => {
                       const value = formatPlotDurationHours(h);
                       return (
@@ -149,9 +154,8 @@ export function PlotMeetingSlotsFields({
           })}
         </div>
         <p className="text-[10px] text-black/50 mt-1">
-          Duration runs from the start time in 30-minute steps (max {maxDur} for this subject) — a
-          1.5 hr meeting starting 1:00 PM ends 2:30 PM, leaving 2:30 PM free for the next one. Clear
-          Day to also clear Hours.
+          Each meeting is 1 hr or 1.5 hrs from the start time — a 1.5 hr meeting starting 1:00 PM
+          ends 2:30 PM, leaving 2:30 PM free for the next one. Clear Day to also clear Hours.
         </p>
       </div>
       {error ? (

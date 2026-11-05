@@ -284,7 +284,7 @@ function InsSummaryOfCourses({
 
   function cells(c: { students: number | null; code: string; title: string; degreeYrSec: string }) {
     const students = (
-      <span key="students" className={`${cellBase} justify-end tabular-nums`}>
+      <span key="students" className={`${cellBase} justify-end tabular-nums pr-4 print:pr-3`}>
         {c.students ?? ""}
       </span>
     );
@@ -315,7 +315,7 @@ function InsSummaryOfCourses({
       <div className="mb-1.5 print:mb-0 border-b border-neutral-900 pb-1.5 print:pb-0 text-[11px] font-semibold print:text-[6pt]">
         <div className={gridCols}>
           {headers.map((h) => (
-            <span key={h} className={h === "No. of Students" ? "text-right" : undefined}>
+            <span key={h} className={h === "No. of Students" ? "text-right pr-4 print:pr-3" : undefined}>
               {h}
             </span>
           ))}
@@ -922,9 +922,6 @@ export function OpticoreInsForm5B({
                     <div className="font-semibold break-words">
                       {row.course}
                     </div>
-                    <div className="text-[10px] text-neutral-600 print:text-[6pt]">
-                      {row.time}
-                    </div>
                     <div className="break-words">{row.instructor}</div>
                     <div className="break-words">{row.room}</div>
                   </div>
@@ -954,7 +951,7 @@ export function OpticoreInsForm5B({
       />
       )}
 
-      <InsSummaryOfCourses courses={courses} showSection={false} />
+      <InsSummaryOfCourses courses={courses} studentsFirst />
 
       <InsPrintFooter />
     </div>
@@ -1047,9 +1044,6 @@ export function OpticoreInsForm5C({
                   <div className="w-full space-y-0.5 text-xs leading-snug break-words">
                     <div className="font-semibold break-words">
                       {classAtTime.course}
-                    </div>
-                    <div className="text-[10px] text-neutral-600">
-                      {classAtTime.time}
                     </div>
                     <div className="break-words">{classAtTime.instructor}</div>
                     <div className="break-words">{classAtTime.yearSec}</div>

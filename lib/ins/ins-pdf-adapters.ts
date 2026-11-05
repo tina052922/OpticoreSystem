@@ -199,7 +199,9 @@ function placeDayEntries<T extends { startTime?: string; endTime?: string; time?
 
     // Earliest wins when two classes want the same row; the grid has only one cell to give.
     const owner = touching.find((p) => p.textRow === i);
-    const cell: PDFScheduleCell = owner ? toCell(owner.entry) : { line1: "" };
+    const cell: PDFScheduleCell = owner
+      ? { ...toCell(owner.entry), startMin: owner.startMin, endMin: owner.endMin }
+      : { line1: "" };
 
     // Where a class begins or ends inside this hour, as a fraction of it.
     const beginsHere = touching.find((p) => p.startMin > slotStart && p.startMin < slotEnd);

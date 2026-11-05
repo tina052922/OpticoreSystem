@@ -24,6 +24,9 @@ export function buildPortalStudentIns5B(rows: ScheduleRowView[]): {
     if (!insDay) continue;
     schedule[insDay].push({
       time: scheduleEntryTimeLabel(r.entry.startTime, r.entry.endTime),
+      // Raw times, so a 7:30–8:30 class is drawn at 7:30 on the grid and in the PDF.
+      startTime: r.entry.startTime,
+      endTime: r.entry.endTime,
       course: r.subject?.code ?? "—",
       instructor: r.instructor?.name ?? "—",
       room: r.room?.code ?? "TBA",

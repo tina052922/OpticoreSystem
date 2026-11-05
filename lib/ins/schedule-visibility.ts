@@ -18,8 +18,12 @@ export function isInsReadOnlyPortal(insBasePath: string): boolean {
   return isFacultyInsPortal(insBasePath) || isStudentInsPortal(insBasePath);
 }
 
-/** Students never get a faculty personal-schedule (5A) picker. */
+/**
+ * Students never get a faculty personal-schedule (5A) picker. Instructors don't either: their own
+ * 5A is My schedule, so the INS Forms Generator offers only the section and room views.
+ */
 export function showInsFacultyGrouping(insBasePath: string): boolean {
+  if (insBasePath.startsWith("/faculty")) return false;
   return !isStudentInsPortal(insBasePath);
 }
 

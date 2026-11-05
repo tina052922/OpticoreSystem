@@ -78,8 +78,9 @@ import { filterSubjectsBySemester, semesterFilterForPeriod } from "@/lib/subject
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
 import { FACULTY_POLICY_CONSTANTS } from "@/lib/scheduling/constants";
 import { sortProgramsForTeachingLoad } from "@/lib/scheduling/teaching-load-summary";
-import { BSIT_PLOT_SLOTS, BSIT_EVALUATOR_WEEKDAYS, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import { encodeDayForStorage, evaluatorTimeSlots, evaluatorWeekdaysForMode, filterByProgramMode, isEvaluatorSlotPlottable, resolveProgramMode } from "@/lib/scheduling/program-mode";
+// Half-hour rows (7:00, 7:30, …) so a class can start at 2:30 PM; not the hourly INS table in program-mode.
+import { BSIT_PLOT_SLOTS, BSIT_EVALUATOR_WEEKDAYS, evaluatorTimeSlots, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
+import { encodeDayForStorage, evaluatorWeekdaysForMode, filterByProgramMode, isEvaluatorSlotPlottable, resolveProgramMode } from "@/lib/scheduling/program-mode";
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
 import { termIsDoiPublished, DOI_SCHEDULE_LOCKED_MESSAGE } from "@/lib/scheduling/term-doi-lock";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
@@ -1274,9 +1275,18 @@ export function BsitChairmanEvaluatorWorksheet({
         roomCode: row.roomId ? roomCodeById.get(row.roomId) : undefined,
         subjectCode: row.subjectCode,
         when: `${row.day} ${candidate.startTime.slice(0, 5)}–${candidate.endTime.slice(0, 5)}`,
+        subjectCodeForEntry: (id) => {
+          const local = rows.find((r) => r.id === id)?.subjectCode;
+          if (local) return local;
+          const entry = allTermScheduleEntries.find((e) => e.id === id);
+          return entry ? subjectCodeById.get(entry.subjectId) : undefined;
+        },
       });
     },
     [
+      rows,
+      allTermScheduleEntries,
+      subjectCodeById,
       academicPeriodId,
       sparseCampusUniverse,
       programCodeForSummary,
@@ -2404,16 +2414,27 @@ export function BsitChairmanEvaluatorWorksheet({
           return;
         }
 
+        /* Only meetings actually on the grid count; an unplotted placeholder row adds no hours. */
         const hourMeetings = rows
-          .filter((r) => r.sectionId && r.subjectCode)
+          .filter((r) => r.sectionId && r.subjectCode && r.day && rowTimeBounds(r, programCodeForSummary, slotsForMode))
           .map((r) => ({
             id: r.id,
             sectionId: r.sectionId,
             subjectCode: r.subjectCode,
             hours: plottedDurationHours(r.durationSlots),
           }));
-        for (const row of rows) {
-          if (!row.sectionId || !row.subjectCode) continue;
+        /*
+         * `rows` holds every section of the program, not just the one on screen. An excess on
+         * another section used to block this save with a message that never said which section,
+         * so it read as an error on the visible grid. Now only the selected section blocks; other
+         * sections are named in a warning and the save goes ahead (their rows are already stored).
+         */
+        const otherSectionWarnings = new Map<string, string>();
+        const checkedKeys = new Set<string>();
+        for (const row of hourMeetings) {
+          const key = `${row.sectionId}|${normalizeProspectusCode(row.subjectCode)}`;
+          if (checkedKeys.has(key)) continue;
+          checkedKeys.add(key);
           const catalog = subjects.find(
             (s) => normalizeProspectusCode(s.code) === normalizeProspectusCode(row.subjectCode),
           );
@@ -2431,20 +2452,32 @@ export function BsitChairmanEvaluatorWorksheet({
             subjectCode: row.subjectCode,
             excludeId: row.id,
           });
-          const additional = hourMeetings.find((m) => m.id === row.id)?.hours ?? 0;
+          const additional = row.hours;
           if (hoursExceedSubjectRequirement({ requiredHours: required, alreadyPlottedHours: already, additionalHours: additional })) {
             const msg = subjectHoursOverLimitMessage({
               subjectCode: row.subjectCode,
+              sectionName: sectionNameById.get(row.sectionId),
               requiredHours: required,
               alreadyPlottedHours: already,
               additionalHours: additional,
             });
+            if (row.sectionId !== selectedSectionId) {
+              otherSectionWarnings.set(key, msg);
+              continue;
+            }
             if (source === "manual") {
               setSaveScheduleMsg(msg);
               toast.error("Cannot save: subject hours exceeded", msg);
             }
             return;
           }
+        }
+        if (source === "manual" && otherSectionWarnings.size > 0) {
+          const list = [...otherSectionWarnings.values()];
+          toast.info(
+            "Check other sections",
+            list.slice(0, 2).join(" ") + (list.length > 2 ? ` (+${list.length - 2} more)` : ""),
+          );
         }
 
         if (upserts.length > 0) {
@@ -2525,7 +2558,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, schedulePublished, subjects],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, selectedSectionId, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, schedulePublished, subjects],
   );
 
   /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */

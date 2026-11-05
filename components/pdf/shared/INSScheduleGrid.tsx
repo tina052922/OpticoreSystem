@@ -209,6 +209,84 @@ export function PartialHourRule({
   );
 }
 
+/** First printed hour of the Day grid (7:00 AM), in minutes from midnight. */
+const DAY_GRID_START_MIN = 7 * 60;
+
+const cg = StyleSheet.create({
+  table: { flexDirection: "row" },
+  timeCol: { width: 44 },
+  timeHeader: {
+    height: DAY_HEADER_H,
+    fontSize: 6,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "center",
+    justifyContent: "center",
+    borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
+  },
+  timeCell: {
+    height: DAY_ROW_H,
+    padding: 2,
+    fontSize: 5.5,
+    textAlign: "center",
+    justifyContent: "center",
+    borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
+  },
+  dayCol: { flex: 1, borderRightWidth: 0.5, borderRightColor: "#000000" },
+  dayHeader: {
+    height: DAY_HEADER_H,
+    fontSize: 6,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "center",
+    justifyContent: "center",
+    borderBottomWidth: 0.5,
+  },
+  body: { position: "relative" },
+  hourLine: { height: DAY_ROW_H, borderBottomWidth: 0.5, borderBottomColor: "#000000" },
+  /** One class, from its real start to its real end — white, ruled top and bottom. */
+  classBox: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: "#000000",
+    paddingHorizontal: 1.5,
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+});
+
+type ClassBox = { key: string; top: number; height: number; cell: PDFScheduleCell };
+
+/**
+ * The classes of one day as boxes placed by time.
+ *
+ * The grid used to be hour rows with a class's text in one of them and white masks over the unused
+ * half. A 7:30–8:30 class owns half of two rows, so its text was pushed into a 14pt half-row and
+ * spilled across the rule. Drawn as one box from 7:30 to 8:30 it has the full hour of room and
+ * crosses the 8:00 line the way it does on the plotting grid.
+ */
+function dayClassBoxes(cells: (PDFScheduleCell | null)[], slotCount: number): ClassBox[] {
+  const gridEnd = DAY_GRID_START_MIN + slotCount * 60;
+  const out: ClassBox[] = [];
+  cells.forEach((cell, slotIdx) => {
+    if (!cell || !cell.line1) return;
+    const start = Math.max(DAY_GRID_START_MIN, cell.startMin ?? DAY_GRID_START_MIN + slotIdx * 60);
+    const end = Math.min(gridEnd, cell.endMin ?? start + 60);
+    if (end <= start) return;
+    out.push({
+      key: `${slotIdx}-${start}`,
+      top: ((start - DAY_GRID_START_MIN) / 60) * DAY_ROW_H,
+      height: ((end - start) / 60) * DAY_ROW_H,
+      cell,
+    });
+  });
+  return out;
+}
+
 function GridTable({
   schedule,
   flush = false,
@@ -219,42 +297,34 @@ function GridTable({
   const days = INS_DAYS;
   const timeSlots = insTimeSlotLabels("day");
   return (
-    <View style={flush ? gs.gridContainerFlush : ins.gridContainer}>
-      <View style={ins.gridHeaderRow} wrap={false}>
-        <View style={ins.gridTimeHeader}>
+    <View style={[flush ? gs.gridContainerFlush : ins.gridContainer, cg.table]} wrap={false}>
+      <View style={cg.timeCol}>
+        <View style={cg.timeHeader}>
           <Text>TIME</Text>
         </View>
-        {days.map((day) => (
-          <View key={day} style={ins.gridDayHeader}>
-            <Text>{day.slice(0, 3)}</Text>
+        {timeSlots.map((slot) => (
+          <View key={slot} style={cg.timeCell}>
+            <Text>{slot}</Text>
           </View>
         ))}
       </View>
 
-      {timeSlots.map((slot, slotIdx) => (
-        <View key={slot} style={ins.gridRow} wrap={false}>
-          <View style={ins.gridTimeCell}>
-            <Text>{slot}</Text>
+      {days.map((day, dayIdx) => (
+        <View key={day} style={[cg.dayCol, ...(dayIdx === days.length - 1 ? [{ borderRightWidth: 0 }] : [])]}>
+          <View style={cg.dayHeader}>
+            <Text>{day.slice(0, 3)}</Text>
           </View>
-          {days.map((day, dayIdx) => {
-            const cells = schedule[day] ?? [];
-            const cell = cells[slotIdx] ?? null;
-            const isAlt = dayIdx % 2 === 1;
-            return (
-              <View
-                key={day}
-                style={[
-                  isAlt ? ins.gridCellAlt : ins.gridCell,
-                  gs.cellBox,
-                  ...continuedCellStyle(cell),
-                ]}
-              >
-                {/* Rules first: react-pdf paints in order, and these are opaque white. */}
-                <PartialHourRule fraction={cell?.partialFill} startFraction={cell?.startFill} />
-                <CellContent cell={cell} />
+          <View style={[cg.body, { height: timeSlots.length * DAY_ROW_H }]}>
+            {timeSlots.map((slot) => (
+              <View key={slot} style={cg.hourLine} />
+            ))}
+            {/* Boxes after the hour lines: react-pdf paints in order, and a box is opaque white. */}
+            {dayClassBoxes(schedule[day] ?? [], timeSlots.length).map((b) => (
+              <View key={b.key} style={[cg.classBox, { top: b.top, height: b.height }]}>
+                <CellContent cell={b.cell} />
               </View>
-            );
-          })}
+            ))}
+          </View>
         </View>
       ))}
     </View>

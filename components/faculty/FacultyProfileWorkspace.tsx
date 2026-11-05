@@ -67,7 +67,7 @@ import {
   compareFacultyAlphabetically,
   composeFullName,
   composeListName,
-  computeAge,
+  computeAge, DATE_OF_BIRTH_ERROR, isValidDateOfBirth, latestDateOfBirth,
   facultyNamePartsFrom,
   formatDateOfBirth,
   normalizeFacultySex,
@@ -735,6 +735,10 @@ export function FacultyProfileWorkspace({
       toast.refuse("Enter the name first", "Last Name and First Name are both needed.");
       return;
     }
+    if (!isValidDateOfBirth(dateOfBirth)) {
+      toast.refuse("Check the date of birth", DATE_OF_BIRTH_ERROR);
+      return;
+    }
 
     /** HR Form 23B cells, written on both create and update. */
     const hrFormFields = {
@@ -1337,6 +1341,7 @@ export function FacultyProfileWorkspace({
               <div className="text-sm font-medium">Date of Birth</div>
               <Input
                 type="date"
+                max={latestDateOfBirth()}
                 value={dateOfBirth}
                 onChange={(e) => setDateOfBirth(e.target.value)}
                 disabled={!collegeId}

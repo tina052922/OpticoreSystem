@@ -206,6 +206,8 @@ export function INSFormSection({
           .join(" ")
       : displayAssignment;
   const formAssignment = programMode === "night" ? displayAssignment : "";
+  /** Faculty Profile advisory for this section, the same for every portal that opens the form. */
+  const formAdviser = useLiveData ? (catalog.adviserNameBySectionId.get(selectedSectionId) ?? "") : "";
 
   const insSignatureSlots = useMemo(() => {
     if (!useLiveData || !selectedSectionId) return null;
@@ -279,7 +281,7 @@ export function INSFormSection({
   const pdfData = useMemo((): INS5BProps => ({
     degreeAndYear: formDegreeAndYear,
     major: formMajor || undefined,
-    adviser: "",
+    adviser: formAdviser,
     assignment: formAssignment,
     semesterLabel: catalog.periodLabel ?? "____ Semester, AY ____",
     schedule: sectionScheduleToPdfGrid(displaySchedule, programMode),
@@ -287,7 +289,7 @@ export function INSFormSection({
     signatureSlots: pdfSignatureSlots,
     programMode,
     ...insPdfBrandingProps(branding),
-  }), [formDegreeAndYear, formMajor, formAssignment, displaySchedule, displayCourses, catalog.periodLabel, pdfSignatureSlots, programMode, branding]);
+  }), [formDegreeAndYear, formMajor, formAdviser, formAssignment, displaySchedule, displayCourses, catalog.periodLabel, pdfSignatureSlots, programMode, branding]);
 
   const sectionConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;
@@ -591,7 +593,7 @@ export function INSFormSection({
         <div className="bg-white rounded-lg border border-gray-200 p-8 md:p-10 shadow-sm print-paper print:shadow-none">
           <OpticoreInsForm5B
             degreeAndYear={formDegreeAndYear}
-            adviser=""
+            adviser={formAdviser}
             assignment={formAssignment}
             major={formMajor}
             schedule={displaySchedule}
@@ -609,7 +611,7 @@ export function INSFormSection({
       <div className="print-only hidden print:block print-paper ins-print-one-page ins-print-form-5b ins-print-avoid-break">
         <OpticoreInsForm5B
           degreeAndYear={formDegreeAndYear}
-          adviser=""
+          adviser={formAdviser}
           assignment={formAssignment}
           major={formMajor}
           schedule={displaySchedule}

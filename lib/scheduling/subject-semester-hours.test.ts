@@ -172,3 +172,17 @@ describe("subjectWeeklyHoursCaption", () => {
     expect(requiredWeeklyContactHours({ programCode: "BSIT", subjectCode: "NOPE-1" })).toBe(0);
   });
 });
+
+describe("subjectHoursOverLimitMessage section name", () => {
+  it("names the section so an excess elsewhere is not read as the visible one", async () => {
+    const { subjectHoursOverLimitMessage } = await import("./subject-semester-hours");
+    const msg = subjectHoursOverLimitMessage({
+      subjectCode: "GEE-FE",
+      sectionName: "BSIT-3A",
+      requiredHours: 3,
+      alreadyPlottedHours: 3.5,
+      additionalHours: 1,
+    });
+    expect(msg.startsWith("GEE-FE on BSIT-3A is over the prospectus limit: 4.5 hour(s)")).toBe(true);
+  });
+});

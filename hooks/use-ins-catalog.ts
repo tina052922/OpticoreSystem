@@ -44,6 +44,7 @@ import type {
   User,
 } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
+import { advisorySectionIdsOf } from "@/lib/faculty/advisory-sections";
 
 /** Merge catalog rows by primary key (later arrays win) — links term `ScheduleEntry` to cross-college Section/Subject. */
 function mergeRowsById<T extends { id: string }>(primary: T[], ...extras: T[][]): T[] {
@@ -125,7 +126,7 @@ export function useInsCatalog(args: {
   const [colleges, setColleges] = useState<College[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   /** `userId` + name for INS labels (full name; never Employee ID). */
-  const [facultyInsNames, setFacultyInsNames] = useState<Pick<FacultyProfile, "userId" | "fullName">[]>([]);
+  const [facultyInsNames, setFacultyInsNames] = useState<Pick<FacultyProfile, "userId" | "fullName" | "advisorySectionId" | "advisorySectionIds">[]>([]);
   const [campusInsSettings, setCampusInsSettings] = useState<CampusInsSettings | null>(null);
   /** Periods with DOI-approved finalization (from ins-bundle). */
   const [doiLockedPeriodIds, setDoiLockedPeriodIds] = useState<string[]>([]);
@@ -212,7 +213,7 @@ export function useInsCatalog(args: {
       colleges: College[];
       users: User[];
       settings: CampusInsSettings | null;
-      facultyProfiles: Pick<FacultyProfile, "userId" | "fullName">[];
+      facultyProfiles: Pick<FacultyProfile, "userId" | "fullName" | "advisorySectionId" | "advisorySectionIds">[];
       doiLockedPeriodIds?: string[];
     } | null = null;
 
@@ -453,6 +454,24 @@ export function useInsCatalog(args: {
     }
     return m;
   }, [facultyInsNames]);
+
+  /**
+   * INS Form 5B "Adviser": the faculty whose profile lists the section as an advisory. Every viewer
+   * (student, instructor, admin) reads the same bundle, so the line no longer depends on scope.
+   */
+  const adviserNameBySectionId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of facultyInsNames) {
+      const name = p.fullName?.trim() || (userById.get(p.userId)?.name ?? "").trim();
+      if (!name) continue;
+      for (const sectionId of advisorySectionIdsOf(p)) {
+        const prev = m.get(sectionId);
+        if (!prev) m.set(sectionId, name);
+        else if (!prev.split(", ").includes(name)) m.set(sectionId, `${prev}, ${name}`);
+      }
+    }
+    return m;
+  }, [facultyInsNames, userById]);
 
   const modeEntries = useMemo(
     () => filterByProgramMode(entries, programMode),
@@ -1031,6 +1050,7 @@ export function useInsCatalog(args: {
     users,
     userById,
     facultyProfileByUserId,
+    adviserNameBySectionId,
     instructorOptions,
     sectionOptions,
     roomOptions,

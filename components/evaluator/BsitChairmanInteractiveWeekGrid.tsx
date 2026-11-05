@@ -19,7 +19,7 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { isEvaluatorSlotPlottable, isLunchBreakSlot, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import {
   clampPlotStartSlotIndex,
@@ -652,7 +652,7 @@ export function BsitChairmanInteractiveWeekGrid({
                           key={day}
                           className="border border-black bg-neutral-100 px-0.5 py-0.5 align-middle text-center text-[8px] text-neutral-400"
                         >
-                          {programMode === "night" ? "Day window" : ""}
+                          {isLunchBreakSlot(slot) ? "Lunch break" : programMode === "night" ? "Day window" : ""}
                         </td>
                       );
                     }

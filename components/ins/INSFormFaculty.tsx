@@ -77,6 +77,8 @@ export type INSFormFacultyProps = {
   doiFormalApprovalPanel?: boolean;
   /** Combined INS page (e.g. faculty portal): hide Faculty/Section/Room sub-tabs — parent provides tabs. */
   hideInnerInsTabs?: boolean;
+  /** Faculty My schedule: only the instructor's own 5A, without the By faculty / section / room strip. */
+  hideGroupingStrip?: boolean;
 };
 
 export function INSFormFaculty({
@@ -92,6 +94,7 @@ export function INSFormFaculty({
   campusWide = false,
   doiFormalApprovalPanel = false,
   hideInnerInsTabs = false,
+  hideGroupingStrip = false,
 }: INSFormFacultyProps) {
   const { programMode } = useProgramMode();
   const branding = useCampusBranding();
@@ -291,7 +294,7 @@ export function INSFormFaculty({
             </div>
           ) : null}
 
-          {useLiveData && insBasePath && (!lockedInstructorId || hideInnerInsTabs) ? (
+          {useLiveData && insBasePath && !hideGroupingStrip && (!lockedInstructorId || hideInnerInsTabs) ? (
             <InsEntityGroupingStrip
               insBasePath={insBasePath}
               facultyCount={live.instructorOptions.length}

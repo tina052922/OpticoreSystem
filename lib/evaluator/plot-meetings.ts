@@ -1,5 +1,10 @@
 import type { BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
-import type { HourSlot, ProgramMode } from "@/lib/scheduling/program-mode";
+import {
+  LUNCH_BREAK_LABEL,
+  overlapsLunchBreak,
+  type HourSlot,
+  type ProgramMode,
+} from "@/lib/scheduling/program-mode";
 import { formatSlotStartForInput, slotIndexFromTypedTime } from "@/lib/evaluator/plot-time-input";
 import {
   PLOT_STEP_HOURS,
@@ -46,14 +51,15 @@ function slotText(slot: PlotMeetingSlotFields | undefined): { day: string; durat
   return { day: text(slot?.day), durationHours: text(slot?.durationHours) };
 }
 
-/** Half-hour duration choices up to a subject's budget, for the Duration dropdown. */
-export function plotDurationChoices(maxDur: number): number[] {
-  const top = Math.max(PLOT_STEP_HOURS, quantizePlotHours(maxDur) || PLOT_STEP_HOURS);
-  const out: number[] = [];
-  for (let h = PLOT_STEP_HOURS; h <= top + 1e-9; h += PLOT_STEP_HOURS) {
-    out.push(Number(h.toFixed(1)));
-  }
-  return out;
+/** The only meeting lengths a plot may use: 1 hour or 1.5 hours. */
+export const PLOT_DURATION_OPTIONS: readonly number[] = [1, 1.5];
+
+/**
+ * Duration dropdown choices. Fixed at 1 and 1.5 hours whatever the subject's budget; the weekly
+ * hours over the budget are still caught by the load/contact-hour checks, not by this list.
+ */
+export function plotDurationChoices(_maxDur?: number): number[] {
+  return [...PLOT_DURATION_OPTIONS];
 }
 
 /** "1.5" rather than "1.5000000002", and "2" rather than "2.0". */
@@ -107,12 +113,12 @@ export function seedPlotMeetingsDraft(args: {
   return draft;
 }
 
-function parseDurationHours(raw: string | null | undefined, maxDur: number): number | null {
+function parseDurationHours(raw: string | null | undefined, _maxDur?: number): number | null {
   const n = parseFloat(text(raw));
   if (!Number.isFinite(n)) return null;
   // Snapped to the half hour, not the hour: a 1.5 hour class is ordinary, not a typo.
   const stepped = quantizePlotHours(n);
-  if (stepped < PLOT_STEP_HOURS || stepped > maxDur + 1e-9) return null;
+  if (!PLOT_DURATION_OPTIONS.some((h) => Math.abs(h - stepped) < 1e-9)) return null;
   return stepped;
 }
 
@@ -181,15 +187,26 @@ export function resolvePlotMeetings(
     if (durationSlots == null) {
       return {
         ok: false,
-        error: `Choose a duration for ${day} (${PLOT_STEP_HOURS}–${args.maxDur} hours, in half-hour steps).`,
+        error: `Choose a duration for ${day} (1 hr or 1.5 hrs).`,
       };
     }
 
     /* Rows, not hours: on the half-hour grid a 1.5 hour class covers three of them. */
-    if (startSlotIndex + plotRowsForHours(durationSlots, plotSlotHours(args.slots)) > args.slots.length) {
+    const rows = plotRowsForHours(durationSlots, plotSlotHours(args.slots));
+    if (startSlotIndex + rows > args.slots.length) {
       return {
         ok: false,
         error: `${formatPlotDurationHours(durationSlots)} hour${durationSlots === 1 ? "" : "s"} from “${timeText}” does not fit the ${day} grid.`,
+      };
+    }
+
+    /* A class that starts at 11:00 or 11:30 can still run into lunch, so check the whole span. */
+    const startTime = args.slots[startSlotIndex]?.startTime;
+    const endTime = args.slots[startSlotIndex + rows - 1]?.endTime;
+    if (overlapsLunchBreak(startTime, endTime)) {
+      return {
+        ok: false,
+        error: `${LUNCH_BREAK_LABEL} is lunch break. ${formatPlotDurationHours(durationSlots)} hour${durationSlots === 1 ? "" : "s"} from “${timeText}” on ${day} runs into it — pick another start or a shorter duration.`,
       };
     }
 

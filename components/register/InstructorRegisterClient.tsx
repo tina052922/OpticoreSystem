@@ -20,7 +20,7 @@ import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
 import {
   ACADEMIC_RANK_SUGGESTIONS,
   composeFullName,
-  computeAge,
+  computeAge, DATE_OF_BIRTH_ERROR, isValidDateOfBirth, latestDateOfBirth,
   normalizeFacultySex,
 } from "@/lib/faculty/hr-form-23b";
 import {
@@ -173,6 +173,10 @@ export function InstructorRegisterClient() {
     }
     if (!lastName.trim() || !firstName.trim()) {
       toast.refuse("Enter your name", "Last name and first name are both needed.");
+      return;
+    }
+    if (!isValidDateOfBirth(dateOfBirth)) {
+      toast.refuse("Check your date of birth", DATE_OF_BIRTH_ERROR);
       return;
     }
     if (!collegeId) {
@@ -597,6 +601,7 @@ export function InstructorRegisterClient() {
                   <Input
                     id="ins-dob"
                     type="date"
+                    max={latestDateOfBirth()}
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     className={fieldClass}

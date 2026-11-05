@@ -8,7 +8,9 @@ import {
   BSIT_EVALUATOR_WEEKDAYS,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { evaluatorTimeSlots, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { evaluatorTimeSlots } from "@/lib/chairman/bsit-evaluator-constants";
+import { plotFreeTimeNotice, sectionFreeTimeFrom } from "@/lib/evaluator/plot-free-time";
 import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import {
   PLOT_STEP_HOURS,
@@ -281,6 +283,37 @@ export function ChairmanPlotScheduleModal({
       .map((m) => `${m.day} ${formatPlotTimeRange(m.startSlotIndex, m.durationSlots, slots)}`)
       .join(" · ");
   }, [meetings, slots, programMode, maxDur, days, draft.subjectCode]);
+  /*
+   * Plain-language reason a start does not work, e.g. 9:30 with a class at 10:00 leaves 30 min,
+   * shorter than any allowed meeting. Without it the user only saw an hours/conflict error.
+   */
+  const freeTimeNotices = useMemo(() => {
+    if (!draft.sectionId || readOnly) return [] as string[];
+    const out: string[] = [];
+    for (const slot of meetings.slots) {
+      const day = slot.day?.trim();
+      if (!day || !meetings.timeText.trim()) continue;
+      const idx = slotIndexFromTypedTime(meetings.timeText, slots, day, programMode);
+      const startTime = idx == null ? null : slots[idx]?.startTime;
+      if (!startTime) continue;
+      const hrs = parseFloat(slot.durationHours);
+      const msg = plotFreeTimeNotice({
+        day,
+        startTime,
+        durationHours: Number.isFinite(hrs) ? hrs : null,
+        free: sectionFreeTimeFrom({
+          sectionId: draft.sectionId,
+          day,
+          startTime,
+          blocks: existingBlocks,
+          slots,
+          excludeId: draft.id,
+        }),
+      });
+      if (msg) out.push(msg);
+    }
+    return out;
+  }, [meetings, slots, programMode, draft.sectionId, draft.id, existingBlocks, readOnly]);
   const sectionName = draft.sectionId
     ? (sectionNameById.get(draft.sectionId) ?? "")
     : "";
@@ -618,6 +651,16 @@ export function ChairmanPlotScheduleModal({
               Complete the highlighted fields before this plot can be saved.
             </p>
           ) : null}
+          {freeTimeNotices.map((msg) => (
+            <p
+              key={msg}
+              className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] font-medium text-amber-950"
+              role="alert"
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+              <span>{msg}</span>
+            </p>
+          ))}
           {subjectHourBudget && draft.subjectCode && !readOnly ? (
             <SubjectWeeklyHoursBanner
               requiredHours={subjectHourBudget.required}

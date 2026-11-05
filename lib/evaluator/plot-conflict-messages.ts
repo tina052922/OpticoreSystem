@@ -12,6 +12,8 @@ export function formatSparseConflictLines(
     roomCode?: string;
     subjectCode?: string;
     when?: string;
+    /** Subject of the class already there; the section line names it, not the one being plotted. */
+    subjectCodeForEntry?: (entryId: string) => string | undefined;
   },
 ): string[] {
   const lines: string[] = [];
@@ -32,7 +34,7 @@ export function formatSparseConflictLines(
       line = `${room} is already in use on ${overlapWhen}.`;
     } else if (h.type === "section") {
       const sec = labels.sectionName?.trim() || "This section";
-      const subj = labels.subjectCode?.trim();
+      const subj = h.withEntryId ? labels.subjectCodeForEntry?.(h.withEntryId)?.trim() : undefined;
       line = subj
         ? `${sec} already has ${subj} scheduled on ${overlapWhen}.`
         : `${sec} has another class on ${overlapWhen}.`;

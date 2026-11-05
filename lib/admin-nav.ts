@@ -148,9 +148,10 @@ export const GEC_CHAIRMAN_NAV: AdminNavEntry[] = [
 /** Instructor (faculty portal) — Campus Intelligence shell + semester filter. */
 export const INSTRUCTOR_NAV: AdminNavEntry[] = [
   { label: "Campus Intelligence", href: "/faculty", icon: "LayoutDashboard" },
-  // Load Generator was a second door to the same schedules, and an unfiltered one. Its Faculty,
-  // Section and Room views now live under My schedule, each limited to this instructor's classes.
+  // My schedule is the instructor's own Form 5A. The INS Forms Generator holds the Faculty, Section
+  // and Room views — each still limited to this instructor's own classes.
   { label: "My schedule", href: "/faculty/schedule", icon: "CalendarPlus" },
+  { label: LOAD_GENERATOR_NAV_LABEL, href: "/faculty/ins?tab=section", icon: "BookOpen" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
@@ -158,7 +159,6 @@ export const INSTRUCTOR_NAV: AdminNavEntry[] = [
 export const STUDENT_PORTAL_NAV: AdminNavItem[] = [
   { label: "Dashboard", href: "/student", icon: "LayoutDashboard" },
   { label: "My schedule", href: "/student/schedule", icon: "CalendarPlus" },
-  { label: LOAD_GENERATOR_NAV_LABEL, href: "/student/ins?tab=section", icon: "BookOpen" },
   { label: "Profile", href: "/student/profile", icon: "UserCircle" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];

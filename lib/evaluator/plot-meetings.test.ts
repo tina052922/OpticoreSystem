@@ -57,18 +57,18 @@ describe("seedPlotMeetingsDraft", () => {
 
 describe("totalPlotMeetingHours", () => {
   it("ignores slots whose fields are missing entirely", () => {
-    const draft = draftWith([{ day: undefined, durationHours: undefined }, {}, { day: "Monday", durationHours: "2" }]);
+    const draft = draftWith([{ day: undefined, durationHours: undefined }, {}, { day: "Monday", durationHours: "1.5" }]);
     expect(() => totalPlotMeetingHours(draft, 3)).not.toThrow();
-    expect(totalPlotMeetingHours(draft, 3)).toBe(2);
+    expect(totalPlotMeetingHours(draft, 3)).toBe(1.5);
   });
 
   it("sums every filled meeting", () => {
     const draft = draftWith([
-      { day: "Monday", durationHours: "2" },
+      { day: "Monday", durationHours: "1.5" },
       { day: "Tuesday", durationHours: "1" },
       { day: "", durationHours: "" },
     ]);
-    expect(totalPlotMeetingHours(draft, 3)).toBe(3);
+    expect(totalPlotMeetingHours(draft, 3)).toBe(2.5);
   });
 
   it("skips a duration outside the allowed range", () => {
@@ -112,12 +112,12 @@ describe("resolvePlotMeetings", () => {
   });
 
   it("resolves a filled meeting", () => {
-    const draft = draftWith([{ day: "Monday", durationHours: "2" }]);
+    const draft = draftWith([{ day: "Monday", durationHours: "1.5" }]);
     const result = resolvePlotMeetings(draft, args);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.meetings).toHaveLength(1);
-      expect(result.meetings[0]).toMatchObject({ day: "Monday", durationSlots: 2 });
+      expect(result.meetings[0]).toMatchObject({ day: "Monday", durationSlots: 1.5 });
     }
   });
 

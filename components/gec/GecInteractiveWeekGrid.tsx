@@ -20,7 +20,7 @@ import {
   evaluatorWeekdays,
   type BsitEvaluatorWeekday,
 } from "@/lib/chairman/bsit-evaluator-constants";
-import { isEvaluatorSlotPlottable, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { isEvaluatorSlotPlottable, isLunchBreakSlot, type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { normalizeSlotHHMM } from "@/lib/chairman/evaluator-schedule-hydration";
 import {
   clampPlotStartSlotIndex,
@@ -613,7 +613,11 @@ export function GecInteractiveWeekGrid({
                           className="border border-black px-0.5 py-0.5 align-top bg-neutral-100 text-neutral-400"
                         >
                           <span className="block text-center text-[8px] font-semibold">
-                            {programMode === "night" ? "Day window" : ""}
+                            {isLunchBreakSlot(slots[slotIdx]!)
+                              ? "Lunch break"
+                              : programMode === "night"
+                                ? "Day window"
+                                : ""}
                           </span>
                         </td>
                       );
