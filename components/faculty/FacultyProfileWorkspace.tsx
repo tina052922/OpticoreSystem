@@ -46,6 +46,7 @@ import {
   advisoryProgramFilter,
   facultyMatchesProgramScope,
   sectionsInAdvisoryScope,
+  advisorySectionsForInstructor,
 } from "@/lib/faculty/faculty-program-scope";
 import {
   facultyScopeCollegeParam,
@@ -1026,6 +1027,17 @@ export function FacultyProfileWorkspace({
   );
 
   /** Sections taken by someone other than the faculty open in the form above. */
+  /** Advisory choices in the form: the selected department's sections only (GEC / none: all in scope). */
+  const formAdvisorySections = useMemo(
+    () =>
+      advisorySectionsForInstructor(
+        sections,
+        facultyCategory === FACULTY_CATEGORY_GEC ? null : departmentProgramId,
+        advisorySectionIds,
+      ),
+    [sections, facultyCategory, departmentProgramId, advisorySectionIds],
+  );
+
   const formAdvisoryHolders = useMemo(
     () => advisoryHoldersBySection(advisoryAssignments, { excludeUserId: editingUserId }),
     [advisoryAssignments, editingUserId],
@@ -1410,7 +1422,15 @@ export function FacultyProfileWorkspace({
               <select
                 className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
                 value={facultyCategory === FACULTY_CATEGORY_GEC ? "" : departmentProgramId}
-                onChange={(e) => setDepartmentProgramId(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setDepartmentProgramId(next);
+                  // Advisory follows the department: drop sections that belong to another program.
+                  if (next) {
+                    const inProgram = new Set(sections.filter((sec) => sec.programId === next).map((sec) => sec.id));
+                    setAdvisorySectionIds((prev) => prev.filter((id) => inProgram.has(id)));
+                  }
+                }}
                 disabled={
                   !collegeId ||
                   facultyCategory === FACULTY_CATEGORY_GEC ||
@@ -1476,13 +1496,15 @@ export function FacultyProfileWorkspace({
             <div className="space-y-1 lg:col-span-2">
               <div className="text-sm font-medium">Advisory (Assigned Sections)</div>
               <div className="max-h-40 overflow-auto rounded-md border border-black/25 bg-white p-2">
-                {sections.length === 0 ? (
+                {formAdvisorySections.length === 0 ? (
                   <p className="text-[11px] text-black/45 px-1 py-2">
-                    No sections in scope yet.
+                    {departmentProgramId && facultyCategory !== FACULTY_CATEGORY_GEC
+                      ? "No sections in this department yet."
+                      : "No sections in scope yet."}
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                    {sections.map((sec) => {
+                    {formAdvisorySections.map((sec) => {
                       const checked = advisorySectionIds.includes(sec.id);
                       const holder = formAdvisoryHolders.get(sec.id);
                       const assignable = canAssignAdvisorySection(sec.id, {
@@ -1640,6 +1662,12 @@ export function FacultyProfileWorkspace({
                       const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
                         excludeUserId: user.id,
                       });
+                    // Only this instructor's own program's sections (GEC / unplaced: all in scope).
+                    const rowAdvisorySections = advisorySectionsForInstructor(
+                      sections,
+                      parseFacultyCategory(user.facultyCategory) === FACULTY_CATEGORY_GEC ? null : user.chairmanProgramId,
+                      draft.advisorySectionIds,
+                    );
                       const dirty =
                         enableFacultyListEdit && facultyRowIsDirty(draft, storedDraftForRow({ user, profile }));
                       const age = computeAge(profile?.dateOfBirth);
@@ -1754,10 +1782,10 @@ export function FacultyProfileWorkspace({
                                   <ChevronDown className="h-3.5 w-3.5 shrink-0 text-black/40 transition-transform group-open:rotate-180" aria-hidden />
                                 </summary>
                                 <div className="mt-1 max-h-40 overflow-auto rounded-md border border-black/15 bg-white p-1">
-                                  {sections.length === 0 ? (
+                                  {rowAdvisorySections.length === 0 ? (
                                     <span className="text-[11px] text-black/45 px-1">No sections in scope.</span>
                                   ) : (
-                                    sections.map((sec) => {
+                                    rowAdvisorySections.map((sec) => {
                                       const picked = draft.advisorySectionIds.includes(sec.id);
                                       const holder = rowHolders.get(sec.id);
                                       const assignable = canAssignAdvisorySection(sec.id, {
@@ -2008,6 +2036,12 @@ ${issuedAccount.password}`)
                     const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
                       excludeUserId: user.id,
                     });
+                    // Only this instructor's own program's sections (GEC / unplaced: all in scope).
+                    const rowAdvisorySections = advisorySectionsForInstructor(
+                      sections,
+                      parseFacultyCategory(user.facultyCategory) === FACULTY_CATEGORY_GEC ? null : user.chairmanProgramId,
+                      draft.advisorySectionIds,
+                    );
                     // Students column sums every section the faculty advises.
                     const advisedSections = sections.filter((sec) => draft.advisorySectionIds.includes(sec.id));
                     const advisedStudents = advisedSections.reduce(
@@ -2021,10 +2055,10 @@ ${issuedAccount.password}`)
                           {enableFacultyListEdit ? (
 <div className="space-y-1">
                                 <div className="max-h-28 overflow-auto rounded-md border border-gray-300 bg-white p-1">
-                                  {sections.length === 0 ? (
+                                  {rowAdvisorySections.length === 0 ? (
                                     <span className="text-[11px] text-black/45 px-1">No sections in scope.</span>
                                   ) : (
-                                    sections.map((sec) => {
+                                    rowAdvisorySections.map((sec) => {
                                       const picked = draft.advisorySectionIds.includes(sec.id);
                                       const holder = rowHolders.get(sec.id);
                                       const assignable = canAssignAdvisorySection(sec.id, {
