@@ -75,6 +75,7 @@ import {
 } from "@/lib/evaluator-central-hub";
 import { HubCollegesNavLink } from "@/components/evaluator/HubCollegesNavLink";
 import { GecHubEvaluatorTabs } from "@/components/gec/GecHubEvaluatorTabs";
+import { NoInstructorsNotice } from "@/components/evaluator/NoInstructorsNotice";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
 import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-registry";
@@ -694,12 +695,20 @@ export function GecCentralHubEvaluatorClient() {
    */
   const entryInstructorIdsForPlotMerge = useMemo(
     () => [
-      ...instructorIdsOnRowsInScope(mergedEntries, {
-        sectionId: sectionIdFilter,
-        academicPeriodId,
-      }),
+      /*
+       * GEC rows only. The exemption is there so a GEC slot already filled stays readable; drawn
+       * from every row in the section, it also readmitted whoever teaches the section's majors —
+       * e.g. a Program Chairman teaching PC-4215 showed up as a GEC choice.
+       */
+      ...instructorIdsOnRowsInScope(
+        mergedEntries.filter((e) => isGecCurriculumScheduleEntry(e, subjectById)),
+        {
+          sectionId: sectionIdFilter,
+          academicPeriodId,
+        },
+      ),
     ],
-    [mergedEntries, sectionIdFilter, academicPeriodId],
+    [mergedEntries, subjectById, sectionIdFilter, academicPeriodId],
   );
 
   const instructorPlotOptionsBase = useMemo(() => {
@@ -1725,10 +1734,7 @@ export function GecCentralHubEvaluatorClient() {
                     gridFooter={
                       <>
                         {instructorPlotOptionsBase.length === 0 ? (
-                          <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                            No GEC instructors on campus yet. Mark faculty as GEC in{" "}
-                            <strong>Faculty Profile</strong> first.
-                          </p>
+                          <NoInstructorsNotice gec facultyProfileHref="/admin/gec/faculty-profile" />
                         ) : null}
                         {gecEnrichedConflicts.length > 0 ? (
                           <EnrichedConflictIssuesPanel

@@ -1,3 +1,4 @@
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import { INS_DAYS, toInsDay, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { insCourseEnrollment } from "@/lib/scheduling/offering-enrollment";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
@@ -59,7 +60,7 @@ export function buildInsSectionView(args: {
       endTime: e.endTime,
       course: sub?.code ?? "—",
       instructor: insInstructorDisplayName(inst, args.facultyProfileByUserId.get(e.instructorId)),
-      room: room?.code ?? "TBA",
+      room: insRoomLabel(room),
       vacantGec,
       scheduleEntryId: e.id,
     });

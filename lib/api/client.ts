@@ -1309,6 +1309,23 @@ export const adminApi = {
       },
     );
   },
+  /** 1st + 2nd Semester of a school year together; the one containing `today` becomes current. */
+  createSchoolYear(body: {
+    academicYear: string;
+    firstSemester: { startDate: string; endDate: string };
+    secondSemester: { startDate: string; endDate: string };
+    today?: string;
+    setCurrentFromToday?: boolean;
+  }) {
+    return apiFetch<{ ok: true; periods: AcademicPeriod[]; current: { id: string; name: string } | null }>(
+      "/api/admin/academic-periods/school-year",
+      {
+        method: "POST",
+        body,
+        invalidates: ["/api/admin", "/api/semesters", "/api/catalog"],
+      },
+    );
+  },
   updateAcademicPeriod(id: string, body: Partial<AcademicPeriod>) {
     return apiFetch<{ ok: true; period: AcademicPeriod }>(
       `/api/admin/academic-periods/${id}`,
@@ -1640,9 +1657,6 @@ export const academicStructureApi = {
       { method: "PUT", body: input },
     );
   },
-  deleteProgram(id: string) {
-    return apiFetch<{ ok: true }>(`/api/catalog/programs/${id}`, { method: "DELETE" });
-  },
   createSection(input: {
     programId: string;
     name: string;
@@ -1663,9 +1677,6 @@ export const academicStructureApi = {
       method: "PUT",
       body: input,
     });
-  },
-  deleteSection(id: string) {
-    return apiFetch<{ ok: true }>(`/api/catalog/sections/${id}`, { method: "DELETE" });
   },
 };
 

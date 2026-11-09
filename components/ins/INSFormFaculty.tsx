@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { INS_HIGHLIGHT_URL_PARAM, INS_INSTRUCTOR_URL_PARAM } from "@/lib/ins/load-generator-href";
 import { Download, Eye, MoreHorizontal, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -136,6 +138,29 @@ export function INSFormFaculty({
     /** Faculty portal Form 5A is always this instructor — never another faculty’s personal schedule. */
     instructorPortalUserId: instructorReadOnlyPortal || hideInstructorSearch ? lockedInstructorId : null,
   });
+
+  /*
+   * "View schedule" from the Plot schedule modal lands here with `?instructorId=…&highlight=…`:
+   * open on that instructor once, then ring and scroll to the class that made them busy.
+   */
+  const searchParams = useSearchParams();
+  const urlInstructorId = (searchParams?.get(INS_INSTRUCTOR_URL_PARAM) ?? "").trim();
+  const highlightEntryId = (searchParams?.get(INS_HIGHLIGHT_URL_PARAM) ?? "").trim() || null;
+  const appliedUrlInstructor = useRef(false);
+  useEffect(() => {
+    if (appliedUrlInstructor.current || !urlInstructorId || lockedInstructorId) return;
+    appliedUrlInstructor.current = true;
+    live.setSelectedInstructorId(urlInstructorId);
+  }, [urlInstructorId, lockedInstructorId, live]);
+  useEffect(() => {
+    if (!highlightEntryId || live.selectedInstructorId !== urlInstructorId) return;
+    const t = window.setTimeout(() => {
+      document
+        .querySelector(`[data-ins-entry-id="${CSS.escape(highlightEntryId)}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [highlightEntryId, urlInstructorId, live.selectedInstructorId]);
 
   /** College Admin + DOI: allow one-click GA apply; chairmen use the Evaluator for edits. */
   const enableInsAltApply =
@@ -489,6 +514,7 @@ export function INSFormFaculty({
               facultyCredentials={useLiveData && live.termPublishLocked ? live.facultyCredentials : null}
               facultyFormSummary={useLiveData ? live.facultyFormSummary : null}
               conflictingScheduleEntryIds={useLiveData ? live.insConflictingEntryIds : null}
+              highlightScheduleEntryId={highlightEntryId}
             />
           </div>
         </div>

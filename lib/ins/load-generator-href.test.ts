@@ -39,3 +39,22 @@ describe("periodIdFromLocation", () => {
     expect(periodIdFromLocation("")).toBe("");
   });
 });
+
+describe("insFacultyScheduleHref", async () => {
+  const { insFacultyScheduleHref } = await import("./load-generator-href");
+  it("opens the busy instructor's Form 5A with the clashing class marked", () => {
+    expect(
+      insFacultyScheduleHref({
+        basePath: "/chairman/ins",
+        instructorId: "u-1",
+        highlightEntryId: "e-9",
+        periodId: "p-2026",
+      }),
+    ).toBe("/chairman/ins?tab=faculty&instructorId=u-1&highlight=e-9&periodId=p-2026");
+  });
+  it("omits what it was not given", () => {
+    expect(insFacultyScheduleHref({ basePath: "/doi/ins", instructorId: "u-1" })).toBe(
+      "/doi/ins?tab=faculty&instructorId=u-1",
+    );
+  });
+});

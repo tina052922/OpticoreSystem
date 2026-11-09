@@ -1,6 +1,9 @@
 "use client";
 
 import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/api/client";
+import { useSubjectCategoryLabels } from "@/hooks/use-subject-category-labels";
+import { NoInstructorsNotice, facultyProfileHrefForInsBase } from "@/components/evaluator/NoInstructorsNotice";
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import {
   applyOfferingEnrollmentToRows,
   enrollmentForOffering,
@@ -915,7 +918,6 @@ export function BsitChairmanEvaluatorWorksheet({
     return sorted.length > 0 ? sorted : rooms;
   }, [rooms, buildings, chairmanCollegeId, programCodeForSummary, programId]);
 
-  const rowInstructorIds = useMemo(() => rows.map((r) => r.instructorId).filter(Boolean) as string[], [rows]);
 
   const facultyProfileByUserId = useMemo(() => {
     const m = new Map<string, FacultyProfile>();
@@ -923,10 +925,29 @@ export function BsitChairmanEvaluatorWorksheet({
     return m;
   }, [facultyProfiles]);
 
+  /**
+   * Who the Plot schedule window offers: the selected program's own faculty only, for every role.
+   *
+   * A Program Chairman was already limited to their department, but College Admin and DOI got the
+   * whole college — picking BIT Garments still listed BSIT and GEC instructors. Now the department
+   * chosen in the scheduler decides it (`User.chairmanProgramId`); GEC instructors stay with the GEC
+   * Chairman. Instructors already on this program's own (non-GEC) classes are kept so those rows
+   * stay readable. `dbInstructors` keeps the wider list for names on existing cells.
+   */
+  const plotRowInstructorIds = useMemo(
+    () =>
+      rows
+        .filter((r) => r.instructorId && r.subjectCode && !isGecCurriculumSubjectCode(r.subjectCode))
+        .map((r) => r.instructorId) as string[],
+    [rows],
+  );
+
   const instructorPlotOptions = useMemo((): InstructorPlotOption[] => {
-    const base = usersToInstructorPlotOptions(dbInstructors, facultyProfileByUserId);
-    return mergeLegacyRowInstructorsIntoPlotOptions(base, dbInstructors, rowInstructorIds, facultyProfileByUserId);
-  }, [dbInstructors, rowInstructorIds, facultyProfileByUserId]);
+    const keep = new Set(plotRowInstructorIds);
+    const programFaculty = filterInstructorsForDepartment(dbInstructors, programId, keep);
+    const base = usersToInstructorPlotOptions(programFaculty, facultyProfileByUserId);
+    return mergeLegacyRowInstructorsIntoPlotOptions(base, programFaculty, plotRowInstructorIds, facultyProfileByUserId);
+  }, [dbInstructors, programId, plotRowInstructorIds, facultyProfileByUserId]);
 
   /** Week preview / conflict UI: full name (Faculty Profile when set). */
   const instructorDisplayById = useMemo(() => {
@@ -995,7 +1016,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const roomCodeById = useMemo(() => {
     const m = new Map<string, string>();
     for (const r of rooms) {
-      m.set(r.id, r.displayName?.trim() ? `${r.code} — ${r.displayName}` : r.code);
+      // Room name only ("IT Lab 01"), as the INS forms print it; the code when no name is set.
+      m.set(r.id, insRoomLabel(r, r.code));
     }
     return m;
   }, [rooms]);
@@ -1059,6 +1081,25 @@ export function BsitChairmanEvaluatorWorksheet({
       ),
     [subjects, programId, selectedPeriod, collegeWidePrograms, campusWidePrograms],
   );
+
+  /**
+   * Summary of Subjects: the term's whole curriculum for the program, GEC/GEE included, for every
+   * role (Program Chairman, College Admin, DOI). Only the plot dropdown above leaves GEC out for
+   * College Admin — they can see GEC subjects here but the GEC Chairman still plots them.
+   */
+  const summarySubjectRows = useMemo(
+    () =>
+      catalogSubjectsToProspectusRows(
+        filterSubjectsBySemester(
+          subjects.filter((s) => !programId || s.programId === programId),
+          semesterFilterForPeriod(selectedPeriod),
+        ),
+      ),
+    [subjects, programId, selectedPeriod],
+  );
+
+  /** Labels for the Summary's Category column, matching Subject Codes (GEC, CC, AP, …). */
+  const categoryLabelByCode = useSubjectCategoryLabels(programId);
 
   const subjectById = useMemo(() => {
     const m = new Map<string, Subject>();
@@ -2668,7 +2709,8 @@ export function BsitChairmanEvaluatorWorksheet({
         lastPlottedSubjectCode={lastPlottedSubjectFlash}
         collegeLabel={summaryCollegeLabel}
         sectionLabel={summarySectionLabel}
-        fallbackSubjects={catalogSubjectRows}
+        fallbackSubjects={summarySubjectRows}
+        categoryLabelByCode={categoryLabelByCode}
       />
       {overLimitSubjectCodesForSection.size > 0 && !viewOnly ? (
         <div
@@ -2772,11 +2814,8 @@ export function BsitChairmanEvaluatorWorksheet({
         }}
         gridFooter={
           <>
-            {instructorPlotOptions.length === 0 ? (
-              <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                No instructors with an Employee ID in this college. Add faculty in <strong>Faculty Profile</strong> and
-                set their Employee ID before plotting.
-              </p>
+            {instructorPlotOptions.length === 0 && !viewOnly ? (
+              <NoInstructorsNotice facultyProfileHref={facultyProfileHrefForInsBase(insFormBasePath)} />
             ) : null}
             {saveScheduleMsg ? (
               <p className="text-[12px] text-black/70 border border-black/10 rounded-lg px-3 py-2 bg-emerald-50/80">

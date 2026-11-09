@@ -776,6 +776,7 @@ export function BsitChairmanInteractiveWeekGrid({
       {gridFooter ? <div className="mt-4 space-y-3 border-t border-black/10 pt-4">{gridFooter}</div> : null}
 
       <ChairmanPlotScheduleModal
+        insFormBasePath={insFormBasePath}
         open={modal != null}
         onClose={closeModal}
         draft={modal?.draft ?? emptyPlotRow()}

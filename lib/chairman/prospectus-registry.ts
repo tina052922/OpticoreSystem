@@ -116,6 +116,7 @@ export function catalogSubjectsToProspectusRows(subjects: Subject[]): Prospectus
       labHours: s.labHours ?? labHoursFromUnits(s.labUnits),
       yearLevel,
       semester,
+      category: s.category ?? null,
     });
   }
   return out.sort((a, b) => a.code.localeCompare(b.code));

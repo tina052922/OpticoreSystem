@@ -1,3 +1,4 @@
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import type { InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { insCourseEnrollment } from "@/lib/scheduling/offering-enrollment";
 import { INS_DAYS } from "@/components/ins/ins-layout/opticore-ins-constants";
@@ -29,7 +30,7 @@ export function buildPortalStudentIns5B(rows: ScheduleRowView[]): {
       endTime: r.entry.endTime,
       course: r.subject?.code ?? "—",
       instructor: r.instructor?.name ?? "—",
-      room: r.room?.code ?? "TBA",
+      room: insRoomLabel(r.room),
     });
   }
 

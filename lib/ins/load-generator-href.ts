@@ -36,3 +36,30 @@ export function periodIdFromLocation(href?: string | null): string {
     return "";
   }
 }
+
+/** Query keys the INS Faculty view reads to open on one instructor and mark one class. */
+export const INS_INSTRUCTOR_URL_PARAM = "instructorId";
+export const INS_HIGHLIGHT_URL_PARAM = "highlight";
+
+/**
+ * Link from the Plot schedule modal to a busy instructor's Form 5A, with the class that makes them
+ * busy highlighted. Carries the term so the INS page opens on the same semester.
+ */
+export function insFacultyScheduleHref({
+  basePath,
+  instructorId,
+  highlightEntryId,
+  periodId,
+}: {
+  basePath: string;
+  instructorId: string;
+  highlightEntryId?: string | null;
+  periodId?: string | null;
+}): string {
+  const params = new URLSearchParams({ tab: "faculty", [INS_INSTRUCTOR_URL_PARAM]: instructorId });
+  const highlight = (highlightEntryId ?? "").trim();
+  if (highlight) params.set(INS_HIGHLIGHT_URL_PARAM, highlight);
+  const period = (periodId ?? "").trim();
+  if (period) params.set(SEMESTER_FILTER_URL_PARAM, period);
+  return `${basePath}?${params.toString()}`;
+}

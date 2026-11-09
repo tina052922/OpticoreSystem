@@ -1,3 +1,4 @@
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import { INS_DAYS, toInsDay, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import type { FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
@@ -41,7 +42,7 @@ export function buildInsRoomView(args: {
     (e) => e.academicPeriodId === args.academicPeriodId && e.roomId === args.roomId,
   );
   const room = args.roomById.get(args.roomId);
-  const roomLabel = room?.code ?? "Room";
+  const roomLabel = insRoomLabel(room, "Room");
 
   for (const e of list) {
     const insDay = toInsDay(e.day);
@@ -57,7 +58,7 @@ export function buildInsRoomView(args: {
       course: sub?.code ?? "—",
       instructor: insInstructorDisplayName(instUser, args.facultyProfileByUserId.get(e.instructorId)),
       yearSec: sec?.name ?? "—",
-      room: room?.code ?? "TBA",
+      room: insRoomLabel(room),
       vacantGec,
       scheduleEntryId: e.id,
     });

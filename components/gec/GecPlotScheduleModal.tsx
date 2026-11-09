@@ -1,5 +1,6 @@
 "use client";
 
+import { NoInstructorsNotice } from "@/components/evaluator/NoInstructorsNotice";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -303,7 +304,7 @@ export function GecPlotScheduleModal({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-black/10 bg-gradient-to-r from-emerald-500/10 to-white px-5 py-4">
+        <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-black/10 bg-white bg-gradient-to-r from-[#e8f8f1] to-white px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
           <div>
             <h2 id="gec-plot-schedule-modal-title" className="text-lg font-bold text-[#780301]">
               {readOnly ? "View schedule" : isNewPlot ? "Plot vacant GEC" : "Edit vacant GEC"}
@@ -439,6 +440,9 @@ export function GecPlotScheduleModal({
                 </option>
               ))}
             </select>
+            {instructorPlotOptions.length === 0 && !readOnly ? (
+              <NoInstructorsNotice compact gec facultyProfileHref="/admin/gec/faculty-profile" />
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -509,7 +513,7 @@ export function GecPlotScheduleModal({
           </p>
         </div>
 
-        <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white/95 backdrop-blur px-5 py-4">
+        <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white px-5 py-4">
           {onRemove && !readOnly ? (
             <Button type="button" variant="outline" className="mr-auto text-red-800 border-red-200" onClick={onRemove}>
               Remove schedule

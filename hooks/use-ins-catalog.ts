@@ -1,5 +1,6 @@
 "use client";
 
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, catalogApi } from "@/lib/api/client";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
@@ -626,7 +627,8 @@ export function useInsCatalog(args: {
     const list: InsRoomOption[] = [];
     for (const id of ids) {
       const r = roomById.get(id);
-      if (r) list.push({ id: r.id, name: r.code });
+      // Same name the form prints: "IT Lab 04", not "COTE 303 — IT Lab 04".
+      if (r) list.push({ id: r.id, name: insRoomLabel(r, r.code) });
     }
     list.sort((a, b) => a.name.localeCompare(b.name));
     return list;

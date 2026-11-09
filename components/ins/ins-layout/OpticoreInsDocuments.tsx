@@ -357,12 +357,25 @@ function InsSummaryOfCourses({
 function InsConflictCellShell({
   entryId,
   conflictingIds,
+  highlightId = null,
   children,
 }: {
   entryId?: string | null;
   conflictingIds?: ReadonlySet<string> | null;
+  /** The class a "View schedule" link points at: amber ring, and a hook to scroll to. */
+  highlightId?: string | null;
   children: ReactNode;
 }) {
+  if (entryId && highlightId && entryId === highlightId) {
+    return (
+      <div
+        data-ins-entry-id={entryId}
+        className="rounded-md ring-2 ring-[#FF990A] bg-amber-100/80 animate-pulse print:animate-none print:ring-0 print:bg-transparent px-0.5 -mx-0.5"
+      >
+        {children}
+      </div>
+    );
+  }
   const mark = Boolean(entryId && conflictingIds?.has(entryId));
   if (!mark) return <>{children}</>;
   return (
@@ -404,6 +417,8 @@ export type OpticoreInsForm5AProps = {
   facultyFormSummary?: InsFacultyFormSummary | null;
   /** Term-wide conflict scan: matching cells get a light red highlight on screen. */
   conflictingScheduleEntryIds?: ReadonlySet<string> | null;
+  /** One class to point at (from Plot schedule "View schedule"): amber ring, screen only. */
+  highlightScheduleEntryId?: string | null;
 };
 
 /** INS FORM 5A — Program by Teacher (layout matched to PDF `INS5ADocument`). */
@@ -418,6 +433,7 @@ export function OpticoreInsForm5A({
   facultyCredentials = null,
   facultyFormSummary = null,
   conflictingScheduleEntryIds = null,
+  highlightScheduleEntryId = null,
 }: OpticoreInsForm5AProps) {
   const { programMode } = useProgramMode();
   return (
@@ -585,6 +601,7 @@ export function OpticoreInsForm5A({
                       <InsConflictCellShell
                         entryId={entryId}
                         conflictingIds={conflictingScheduleEntryIds}
+                        highlightId={highlightScheduleEntryId}
                       >
                         {inner}
                       </InsConflictCellShell>

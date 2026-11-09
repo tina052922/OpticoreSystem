@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ExternalLink, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
   BSIT_PLOT_SLOTS,
@@ -11,6 +17,8 @@ import {
 import { type HourSlot, type ProgramMode } from "@/lib/scheduling/program-mode";
 import { evaluatorTimeSlots } from "@/lib/chairman/bsit-evaluator-constants";
 import { plotFreeTimeNotice, sectionFreeTimeFrom } from "@/lib/evaluator/plot-free-time";
+import { insFacultyScheduleHref, periodIdFromLocation } from "@/lib/ins/load-generator-href";
+import { NoInstructorsNotice, facultyProfileHrefForInsBase } from "@/components/evaluator/NoInstructorsNotice";
 import { type BsitSemester, type ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
 import {
   PLOT_STEP_HOURS,
@@ -160,6 +168,8 @@ export type ChairmanPlotScheduleModalProps = {
   programMode?: ProgramMode;
   onApply: (meetings: ResolvedPlotMeeting[]) => void;
   onRemove?: () => void;
+  /** INS Forms Generator for this role (e.g. `/chairman/ins`), for "View schedule" on a busy instructor. */
+  insFormBasePath?: string;
 };
 
 export function ChairmanPlotScheduleModal({
@@ -195,6 +205,7 @@ export function ChairmanPlotScheduleModal({
   programMode = "day",
   onApply,
   onRemove,
+  insFormBasePath = "/chairman/ins",
 }: ChairmanPlotScheduleModalProps) {
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
   const days = weekdays;
@@ -443,6 +454,7 @@ export function ChairmanPlotScheduleModal({
       additionalHours,
     });
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
+  const selectedInstructorOption = instructorPlotOptions.find((o) => o.id === draft.instructorId) ?? null;
 
   const draftDurationHours = draft.subjectCode ? additionalHours : 0;
 
@@ -462,10 +474,11 @@ export function ChairmanPlotScheduleModal({
     projectedInstructorHours != null &&
     projectedInstructorHours >= selectedInstructorLoad.cap - 2 + 1e-6;
 
+  /** Busy instructor id → the class that clashes, so "View schedule" can point straight at it. */
   const busyInstructorIds = useMemo(() => {
     if (!draft.day || !draft.subjectCode || existingBlocks.length === 0)
       return null;
-    const busy = new Set<string>();
+    const busy = new Map<string, string | null>();
     for (const opt of instructorPlotOptions) {
       if (!opt.id) continue;
       const candidate = buildCandidateBlock(
@@ -478,8 +491,9 @@ export function ChairmanPlotScheduleModal({
       );
       if (!candidate) continue;
       const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
-      if (hits.some((h) => h.type === "faculty")) {
-        busy.add(opt.id);
+      const facultyHit = hits.find((h) => h.type === "faculty");
+      if (facultyHit) {
+        busy.set(opt.id, facultyHit.withEntryId ?? null);
       }
     }
     return busy;
@@ -625,7 +639,8 @@ export function ChairmanPlotScheduleModal({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-black/10 bg-gradient-to-r from-[#ff990a]/10 to-white px-5 py-4">
+        {/* Opaque: the old 10%-orange gradient let alerts scrolling underneath show through the title. */}
+        <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-black/10 bg-white bg-gradient-to-r from-[#fff5e7] to-white px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
           <div>
             <h2
               id="plot-schedule-modal-title"
@@ -927,34 +942,86 @@ export function ChairmanPlotScheduleModal({
             <label className={labelClass} htmlFor="plot-instructor">
               Instructor
             </label>
-            <select
-              id="plot-instructor"
-              className={missingInstructor && !readOnly ? incompleteField : `${fieldClass} mt-1`}
-              value={draft.instructorId}
-              disabled={readOnly || noInstructors}
-              onChange={(e) =>
-                onDraftChange({ ...draft, instructorId: e.target.value })
-              }
-            >
-              <option value="">
-                {noInstructors
-                  ? "No instructors (set Employee ID in Faculty Profile)"
-                  : "Select instructor…"}
-              </option>
-              {instructorPlotOptions.map((opt) => {
-                const conflict = busyInstructorIds?.has(opt.id) === true;
-                return (
-                  <option
-                    key={opt.id}
-                    value={opt.id}
-                    disabled={conflict && draft.instructorId !== opt.id}
-                  >
-                    {formatInstructorPlotOptionLabel(opt)}
-                    {conflict ? " — Busy at this time" : ""}
-                  </option>
-                );
-              })}
-            </select>
+            {/*
+              A custom list rather than a native <select>: an <option> can hold only text, and a
+              busy instructor needs a "View schedule" link beside their name. Busy instructors
+              cannot be picked; choosing their row opens their Form 5A in a new tab, with the
+              clashing class highlighted, so the plot being edited here is not lost.
+            */}
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  id="plot-instructor"
+                  type="button"
+                  disabled={readOnly || noInstructors}
+                  className={`${
+                    missingInstructor && !readOnly ? incompleteField : `${fieldClass} mt-1`
+                  } flex items-center justify-between gap-2 text-left disabled:opacity-60`}
+                >
+                  <span className={`truncate ${selectedInstructorOption ? "text-black" : "text-black/70"}`}>
+                    {noInstructors
+                      ? "No instructors available"
+                      : selectedInstructorOption
+                        ? formatInstructorPlotOptionLabel(selectedInstructorOption)
+                        : "Select instructor…"}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-black/50" aria-hidden />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                sideOffset={4}
+                className="z-[200] w-[var(--radix-dropdown-menu-trigger-width)] max-h-72 overflow-y-auto p-1"
+              >
+                <DropdownMenuItem
+                  className="text-[13px] text-black/60"
+                  onSelect={() => onDraftChange({ ...draft, instructorId: "" })}
+                >
+                  Select instructor…
+                </DropdownMenuItem>
+                {instructorPlotOptions.map((opt) => {
+                  const busy = busyInstructorIds?.has(opt.id) === true && draft.instructorId !== opt.id;
+                  const selected = draft.instructorId === opt.id;
+                  const label = formatInstructorPlotOptionLabel(opt);
+                  if (busy) {
+                    const href = insFacultyScheduleHref({
+                      basePath: insFormBasePath,
+                      instructorId: opt.id,
+                      highlightEntryId: busyInstructorIds?.get(opt.id),
+                      periodId: academicPeriodId || periodIdFromLocation(),
+                    });
+                    return (
+                      <DropdownMenuItem
+                        key={opt.id}
+                        className="flex items-center justify-between gap-3 text-[13px]"
+                        onSelect={() => window.open(href, "_blank", "noopener,noreferrer")}
+                      >
+                        <span className="min-w-0 truncate text-black/45">
+                          {label} <span className="text-[11px]">— Busy at this time</span>
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold text-[#780301]">
+                          View schedule
+                          <ExternalLink className="h-3 w-3" aria-hidden />
+                        </span>
+                      </DropdownMenuItem>
+                    );
+                  }
+                  return (
+                    <DropdownMenuItem
+                      key={opt.id}
+                      className={`flex items-center justify-between gap-3 text-[13px] ${selected ? "font-semibold" : ""}`}
+                      onSelect={() => onDraftChange({ ...draft, instructorId: opt.id })}
+                    >
+                      <span className="min-w-0 truncate">{label}</span>
+                      {selected ? <Check className="h-4 w-4 shrink-0 text-[#780301]" aria-hidden /> : null}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {noInstructors && !readOnly ? (
+              <NoInstructorsNotice compact facultyProfileHref={facultyProfileHrefForInsBase(insFormBasePath)} />
+            ) : null}
             {selectedInstructorLoad ? (
               <p
                 className={`mt-1 text-[11px] font-medium rounded-md px-2 py-1 border ${
@@ -1096,7 +1163,7 @@ export function ChairmanPlotScheduleModal({
           </div>
         </div>
 
-        <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white/95 backdrop-blur px-5 py-4">
+        <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white px-5 py-4">
           {!isNewPlot && onRemove && !readOnly ? (
             <Button
               type="button"

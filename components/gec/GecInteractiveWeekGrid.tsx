@@ -48,6 +48,7 @@ import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
 import type { Building, FacultyProfile, Room, ScheduleEntry, Subject, User } from "@/types/db";
 import { AlertTriangle, Save } from "lucide-react";
 import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 
 function hhmm(t: string): string {
   return normalizeSlotHHMM(t);
@@ -745,7 +746,7 @@ export function GecInteractiveWeekGrid({
                                   {sub?.code ?? "—"}
                                 </span>
                                 {room ? (
-                                  <span className="text-[8px] text-black/55 block truncate">{room.code}</span>
+                                  <span className="text-[8px] text-black/55 block truncate">{insRoomLabel(room, room.code)}</span>
                                 ) : null}
                                 {inst ? (
                                   <span className="text-[8px] text-black/55 block truncate">

@@ -1,9 +1,9 @@
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import { INS_DAYS, toInsDay, type InsDay } from "@/components/ins/ins-layout/opticore-ins-constants";
 import { insCourseEnrollment } from "@/lib/scheduling/offering-enrollment";
 import { isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
 import { slotDurationHours } from "@/lib/scheduling/time";
 import { filterByProgramMode } from "@/lib/scheduling/program-mode";
-import { subjectPrepKey } from "@/lib/scheduling/prep-key";
 import { formatTimeRange12h } from "@/lib/time/format-12h";
 import type { Room, ScheduleEntry, Section, Subject } from "@/types/db";
 
@@ -24,7 +24,7 @@ export type InsFacultyCell = {
 export type InsFacultySchedule = Record<InsDay, InsFacultyCell[]>;
 
 export type InsFacultyTeachingMetrics = {
-  /** Distinct subjects taught this term (preparations). */
+  /** Rows in the form's Summary of Courses (one per subject per section). */
   preparations: number;
   /** Sum of (lec + lab) units for each unique subject–section pairing. */
   totalUnits: number;
@@ -93,11 +93,6 @@ export function buildInsFacultyView(args: {
     hoursPerWeek += slotDurationHours(e.startTime, e.endTime);
   }
 
-  const distinctSubjects = new Set(
-    list.map((e) => subjectPrepKey(args.subjectById.get(e.subjectId)?.code) || e.subjectId).filter(Boolean),
-  );
-  const preparations = distinctSubjects.size;
-
   const seenPair = new Set<string>();
   let totalUnits = 0;
   for (const e of list) {
@@ -120,7 +115,7 @@ export function buildInsFacultyView(args: {
       endTime: e.endTime,
       course: sub?.code ?? "—",
       yearSec: sec?.name ?? "—",
-      room: room?.code ?? "TBA",
+      room: insRoomLabel(room),
       vacantGec: isGecVacantScheduleEntry(e, args.subjectById),
       scheduleEntryId: e.id,
     });
@@ -148,6 +143,14 @@ export function buildInsFacultyView(args: {
       degreeYrSec: sec.name,
     });
   }
+
+  /*
+   * No. of Preparations is the number of rows in the Summary of Courses printed on the same form
+   * (one per subject per section), so the two always agree on screen and in the PDF. The load
+   * policy's own preparation count (distinct subjects, for justifications) is separate and
+   * unchanged — see `facultyPolicies.ts`.
+   */
+  const preparations = courses.length;
 
   const teachingMetrics: InsFacultyTeachingMetrics = {
     preparations,

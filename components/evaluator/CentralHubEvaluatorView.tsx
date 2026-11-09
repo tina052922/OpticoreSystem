@@ -69,7 +69,8 @@ import {
 import { BsitChairmanEvaluatorWorksheet } from "@/components/evaluator/BsitChairmanEvaluatorWorksheet";
 import { ChairmanProgramProspectusSummaryTable } from "@/components/evaluator/ChairmanProgramProspectusSummaryTable";
 import { prospectusSemesterFromAcademicPeriod } from "@/lib/academic-period-prospectus";
-import { hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
+import { catalogSubjectsToProspectusRows, hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
+import { useSubjectCategoryLabels } from "@/hooks/use-subject-category-labels";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { inferDurationSlotsFromTimes } from "@/lib/evaluator/plot-duration";
 import { plottedHoursBySubjectCode } from "@/lib/scheduling/subject-semester-hours";
@@ -419,6 +420,23 @@ export function CentralHubEvaluatorView({
     const withProspectus = programsInCollege.find((p) => hasProspectusForProgram(p.code));
     return withProspectus?.code ?? programsInCollege[0]?.code ?? "";
   }, [scopeCollegeId, programId, programs, programsInCollege]);
+
+  /** The program the Summary describes, and its Subject Codes rows (categories included). */
+  const effectiveProgramIdForSummary = useMemo(() => {
+    if (programId.trim()) return programId;
+    const code = effectiveProgramCodeForSummary;
+    return programsInCollege.find((p) => p.code === code)?.id ?? "";
+  }, [programId, programsInCollege, effectiveProgramCodeForSummary]);
+
+  const summarySubjectRowsForHub = useMemo(
+    () =>
+      effectiveProgramIdForSummary
+        ? catalogSubjectsToProspectusRows(subjects.filter((s) => s.programId === effectiveProgramIdForSummary))
+        : [],
+    [subjects, effectiveProgramIdForSummary],
+  );
+
+  const categoryLabelByCodeForHub = useSubjectCategoryLabels(effectiveProgramIdForSummary || null);
 
   const effectiveProgramNameForSummary = useMemo(() => {
     if (programId.trim()) {
@@ -944,11 +962,7 @@ export function CentralHubEvaluatorView({
           <div className="mb-5">
             <h2 className="text-[15px] font-semibold text-black/80">Choose a college</h2>
             <p className="text-[13px] text-black/55 mt-0.5">
-              Open a college to plot and review its timetable. Teaching-load totals live on{" "}
-              <Link href="/admin/college/teaching-load-summary" className="font-semibold text-[#780301] hover:underline">
-                Summary of Teaching Load
-              </Link>
-              .
+              Open a college to plot and review its timetable. 
             </p>
           </div>
 
@@ -1350,7 +1364,8 @@ export function CentralHubEvaluatorView({
                     Select a <strong>section</strong> to view the schedule for that section.
                   </p>
                 ) : null}
-                {effectiveProgramCodeForSummary.trim() && hasProspectusForProgram(effectiveProgramCodeForSummary) ? (
+                {effectiveProgramCodeForSummary.trim() &&
+                (summarySubjectRowsForHub.length > 0 || hasProspectusForProgram(effectiveProgramCodeForSummary)) ? (
                   <ChairmanProgramProspectusSummaryTable
                     programCode={effectiveProgramCodeForSummary}
                     programName={effectiveProgramNameForSummary}
@@ -1359,6 +1374,8 @@ export function CentralHubEvaluatorView({
                     filterSemester={prospectusSemesterFromAcademicPeriod(currentPeriod)}
                     plottedSubjectCodes={plottedSubjectCodesForHub}
                     plottedHoursBySubjectCode={plottedHoursBySubjectCodeForHub}
+                    fallbackSubjects={summarySubjectRowsForHub}
+                    categoryLabelByCode={categoryLabelByCodeForHub}
                   />
                 ) : null}
               </div>

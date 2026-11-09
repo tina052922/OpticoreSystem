@@ -37,6 +37,8 @@ export type ProspectusSubjectRow = {
   labHours: number;
   yearLevel: number;
   semester: BsitSemester;
+  /** Category stored in Subject Codes (e.g. `gec`, `cc`, `ap`); absent for built-in prospectus rows. */
+  category?: string | null;
 };
 
 /** Official prospectus rows for Subject Codes UI and client-side validation. */

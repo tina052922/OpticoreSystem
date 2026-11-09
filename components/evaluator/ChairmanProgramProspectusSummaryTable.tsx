@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getProspectusSubjectsForProgram, hasProspectusForProgram } from "@/lib/chairman/prospectus-registry";
 import { groupProspectusByYearAndSemester } from "@/lib/gec/prospectus-summary";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
+import { normalizeSubjectCategoryCode } from "@/lib/subjects/subject-category";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { subjectWeeklyContactHours } from "@/lib/subjects/contact-hours";
 import { SubjectWeeklyHoursChip } from "@/components/evaluator/SubjectWeeklyHoursBanner";
@@ -51,7 +52,10 @@ type Props = {
     labHours?: number;
     yearLevel?: number;
     semester?: 1 | 2;
+    category?: string | null;
   }>;
+  /** Category code → label, as Subject Codes shows it (GEC, CC, AP, …). */
+  categoryLabelByCode?: ReadonlyMap<string, string>;
   className?: string;
 };
 
@@ -59,6 +63,21 @@ type Props = {
  * Program Chairman: prospectus rows (major + GEC) for the **selected section’s year** (and term semester when known),
  * grouped by year level × semester. “Plotted” reflects assignments for the selected section only.
  */
+/**
+ * The category Subject Codes shows for a subject (GEC, CC, AP, NSTP, …). Falls back to the code's
+ * own prefix only when no category has been set yet — the old fixed "Major"/"GEC" pair ignored
+ * what was recorded in Subject Codes.
+ */
+function categoryLabelOf(
+  s: { category?: string | null },
+  isGec: boolean,
+  labels: ReadonlyMap<string, string> | undefined,
+): string {
+  const code = normalizeSubjectCategoryCode(s.category);
+  if (code) return labels?.get(code) ?? code.toUpperCase();
+  return isGec ? "GEC" : "—";
+}
+
 export function ChairmanProgramProspectusSummaryTable({
   programCode,
   programName: _programName,
@@ -71,6 +90,7 @@ export function ChairmanProgramProspectusSummaryTable({
   collegeLabel = null,
   sectionLabel = null,
   fallbackSubjects = [],
+  categoryLabelByCode,
   className = "",
 }: Props) {
   const [activeCode, setActiveCode] = useState<string | null>(null);
@@ -95,6 +115,7 @@ export function ChairmanProgramProspectusSummaryTable({
           labHours: s.labHours ?? 0,
           yearLevel: s.yearLevel && s.yearLevel >= 1 ? s.yearLevel : 1,
           semester: (s.semester === 2 ? 2 : 1) as 1 | 2,
+          category: s.category ?? null,
         }))
       : getProspectusSubjectsForProgram(programCode);
     if (yearLevelFilter == null) return [];
@@ -166,7 +187,8 @@ export function ChairmanProgramProspectusSummaryTable({
               <div className="text-[11px] font-semibold text-black/70">{g.label}</div>
               <table className="w-full border-collapse text-[11px]">
                 <tbody>
-                  {g.subjects.slice(0, 14).map((s) => {
+                  {/* Every subject, majors and GEC alike — a cap here cut the GEC rows off the end. */}
+                  {g.subjects.map((s) => {
                     const n = normalizeProspectusCode(s.code);
                     const plotted = Boolean(selectedSectionId) && plottedSubjectCodes.has(n);
                     const isGec = isGecCurriculumSubjectCode(s.code);
@@ -180,7 +202,7 @@ export function ChairmanProgramProspectusSummaryTable({
                         className={`border-b border-black/5 last:border-b-0 ${overLimit ? "bg-red-50/80" : ""}`}
                       >
                         <td className="py-1 pr-2 font-mono font-semibold text-[#780301] whitespace-nowrap">{s.code}</td>
-                        <td className="py-1 pr-2 text-black/70">{isGec ? "GEC" : "Major"}</td>
+                        <td className="py-1 pr-2 text-black/70">{categoryLabelOf(s as { category?: string | null }, isGec, categoryLabelByCode)}</td>
                         <td className="py-1 text-black/75">{s.title}</td>
                         <td className="py-1 pl-2 text-right whitespace-nowrap">
                           {/* The chip decides tick and colour; see `subjectHoursProgress`. */}
@@ -195,9 +217,6 @@ export function ChairmanProgramProspectusSummaryTable({
                   })}
                 </tbody>
               </table>
-              {g.subjects.length > 14 ? (
-                <div className="text-[11px] text-black/45 mt-1">… and {g.subjects.length - 14} more</div>
-              ) : null}
             </div>
           ))}
         </div>

@@ -14,7 +14,7 @@ type PendingDelete = { entity: CascadeEntity; id: string; name: string; noun: st
 export type AcademicStructureWorkspaceProps = {
   /** When set (College Admin), lock to that college and hide Add College. */
   lockedCollegeId?: string | null;
-  /** DOI can create/delete colleges; College Admin cannot. */
+  /** DOI can create/delete colleges; College Admin cannot. Programs and sections are never deleted. */
   canManageColleges?: boolean;
 };
 
@@ -186,24 +186,15 @@ export function AcademicStructureWorkspace({
   }
 
   /**
-   * The three deletes open the shared dialog rather than refusing.
+   * College delete opens the shared dialog, which counts what is underneath and removes it on
+   * confirm. Accounts and audit history are detached, never deleted.
    *
-   * This page used to stop at "Delete programs under this college first", leaving the person to
-   * unpick a college by hand from the bottom up. The dialog counts what is underneath — programs,
-   * their sections and subjects, buildings, rooms, plotted meetings — and removes it on confirm.
-   * Accounts and audit history are detached, never deleted; the dialog lists those separately.
+   * Programs and sections have no Delete: they carry subjects, plotted schedules, advisory and
+   * student records, and are edited rather than removed (the server refuses them too).
    */
   function askDeleteCollege(c: College) {
     if (!canManageColleges) return;
     setPendingDelete({ entity: "college", id: c.id, name: c.code || c.name, noun: "College" });
-  }
-
-  function askDeleteProgram(p: Program) {
-    setPendingDelete({ entity: "program", id: p.id, name: p.code || p.name, noun: "Program" });
-  }
-
-  function askDeleteSection(sec: Section) {
-    setPendingDelete({ entity: "section", id: sec.id, name: sec.name, noun: "Section" });
   }
 
   async function afterDeleted(pending: PendingDelete) {
@@ -211,7 +202,6 @@ export function AcademicStructureWorkspace({
       setSelectedCollegeId(lockedCollegeId);
       setSelectedProgramId(null);
     }
-    if (pending.entity === "program" && selectedProgramId === pending.id) setSelectedProgramId(null);
     await load();
     flashOk(`${pending.noun} deleted`);
   }
@@ -503,15 +493,6 @@ export function AcademicStructureWorkspace({
                           >
                             Edit
                           </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="border-red-200 text-red-800"
-                            onClick={() => askDeleteProgram(p)}
-                          >
-                            Delete
-                          </Button>
                         </>
                       )}
                     </li>
@@ -648,15 +629,6 @@ export function AcademicStructureWorkspace({
                             onClick={() => setEditingSectionId(s.id)}
                           >
                             Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="border-red-200 text-red-800"
-                            onClick={() => askDeleteSection(s)}
-                          >
-                            Delete
                           </Button>
                         </>
                       )}
