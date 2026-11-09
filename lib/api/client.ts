@@ -1316,8 +1316,15 @@ export const adminApi = {
     secondSemester: { startDate: string; endDate: string };
     today?: string;
     setCurrentFromToday?: boolean;
+    /** Copy each new semester's plotted schedule from the same semester of the previous school year. */
+    copySchedule?: boolean;
   }) {
-    return apiFetch<{ ok: true; periods: AcademicPeriod[]; current: { id: string; name: string } | null }>(
+    return apiFetch<{
+      ok: true;
+      periods: AcademicPeriod[];
+      current: { id: string; name: string } | null;
+      copied?: Array<{ periodId: string; fromPeriodId: string; fromName: string; count: number }>;
+    }>(
       "/api/admin/academic-periods/school-year",
       {
         method: "POST",
@@ -1325,6 +1332,13 @@ export const adminApi = {
         invalidates: ["/api/admin", "/api/semesters", "/api/catalog"],
       },
     );
+  },
+  /** Plotted classes per term, for the "copy from last school year" preview. */
+  getScheduleCountsByPeriod() {
+    return apiFetch<{ counts: Record<string, number> }>("/api/admin/academic-periods/schedule-counts", {
+      method: "GET",
+      forceRefresh: true,
+    });
   },
   updateAcademicPeriod(id: string, body: Partial<AcademicPeriod>) {
     return apiFetch<{ ok: true; period: AcademicPeriod }>(

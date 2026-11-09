@@ -89,3 +89,23 @@ export function formatSpan(startDate: string | null | undefined, endDate: string
   const b = fmt(endDate);
   return a && b ? `${a} – ${b}` : a || b;
 }
+
+
+/**
+ * The earlier term a new semester's schedule would be copied from: the latest one with the same
+ * semester label (1st → 1st, 2nd → 2nd). Mirrors the server's `copySourceFor`.
+ */
+export function copySourceFor<T extends { id: string; semester?: string | null; startDate?: string | null }>(
+  target: { semester: string; startDate: string },
+  existing: readonly T[],
+): T | null {
+  const label = target.semester.trim().toLowerCase();
+  let best: T | null = null;
+  for (const p of existing) {
+    if ((p.semester ?? "").trim().toLowerCase() !== label) continue;
+    const start = (p.startDate ?? "").slice(0, 10);
+    if (!start || start >= target.startDate) continue;
+    if (!best || start > (best.startDate ?? "").slice(0, 10)) best = p;
+  }
+  return best;
+}

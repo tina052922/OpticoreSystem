@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { adminApi, semestersApi, ApiClientError } from "@/lib/api/client";
 import { notifySystemConfigurationSaved } from "@/contexts/SystemConfigurationContext";
 import type { AcademicPeriod } from "@/types/db";
+import { SchoolYearCopyModal, type SchoolYearCopyChoice } from "@/components/admin/SchoolYearCopyModal";
 import {
   defaultSchoolYearDraft,
   formatSpan,
@@ -41,6 +42,7 @@ export function SystemConfigAcademicYearCard({ canWrite }: { canWrite: boolean }
   const draftTouched = useRef(false);
   const [setCurrentFromToday, setSetCurrentFromToday] = useState(true);
 
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({ name: "", startDate: "", endDate: "" });
 
@@ -108,8 +110,14 @@ export function SystemConfigAcademicYearCard({ canWrite }: { canWrite: boolean }
     }
   }
 
-  async function addSchoolYear(e: React.FormEvent) {
+  /** The form's button opens the copy/start-empty modal; saving happens on its confirm. */
+  function addSchoolYear(e: React.FormEvent) {
     e.preventDefault();
+    setMsg(null);
+    setCopyModalOpen(true);
+  }
+
+  async function confirmAddSchoolYear(choice: SchoolYearCopyChoice) {
     setMsg(null);
     setBusy(true);
     try {
@@ -119,17 +127,28 @@ export function SystemConfigAcademicYearCard({ canWrite }: { canWrite: boolean }
         secondSemester: draft.secondSemester,
         today,
         setCurrentFromToday,
+        copySchedule: choice.copySchedule,
       });
       draftTouched.current = false;
+      setCopyModalOpen(false);
+      const copiedTotal = (res.copied ?? []).reduce((n, c) => n + c.count, 0);
+      const copiedText = choice.copySchedule
+        ? copiedTotal > 0
+          ? ` Copied ${copiedTotal} plotted class${copiedTotal === 1 ? "" : "es"} as drafts.`
+          : " There was no earlier schedule to copy."
+        : " Started empty.";
       setMsg({
         kind: "ok",
-        text: res.current
-          ? `School year ${draft.academicYear} added. ${res.current.name} is now current (today falls in it).`
-          : `School year ${draft.academicYear} added. The current term was not changed.`,
+        text:
+          (res.current
+            ? `School year ${draft.academicYear} added. ${res.current.name} is now current (today falls in it).`
+            : `School year ${draft.academicYear} added. The current term was not changed.`) + copiedText,
       });
       await load();
       notifySystemConfigurationSaved("academicPeriod");
     } catch (err) {
+      // Close the modal so the error below the form is visible.
+      setCopyModalOpen(false);
       setMsg({ kind: "error", text: err instanceof ApiClientError ? err.message : "Could not add the school year" });
     } finally {
       setBusy(false);
@@ -366,6 +385,15 @@ export function SystemConfigAcademicYearCard({ canWrite }: { canWrite: boolean }
           </Button>
         </form>
       ) : null}
+
+      <SchoolYearCopyModal
+        open={copyModalOpen}
+        draft={draft}
+        periods={periods}
+        busy={busy}
+        onCancel={() => setCopyModalOpen(false)}
+        onConfirm={(choice) => void confirmAddSchoolYear(choice)}
+      />
 
       {msg ? (
         <p className={`text-sm ${msg.kind === "ok" ? "text-emerald-800" : "text-red-700"}`} role="status">
