@@ -100,19 +100,21 @@ export function BuildingsRoomsWorkspace({
   /** A department is what makes a building or a standalone room belong to someone. */
   const canEdit = Boolean(formScope.programId);
 
+  /**
+   * Every building and room on campus, for every role.
+   *
+   * The list used to follow the scope, so a College Admin (locked to their college) saw only rooms
+   * tagged with that college — "COTE Building · 1 room" where DOI saw 27, and no standalone rooms —
+   * because most rooms carry no college of their own. Plotting offers every room to every role, so
+   * this page shows the same campus-wide data to DOI and College Admin alike. The scope only picks the
+   * department that new buildings and rooms are saved under.
+   */
   const load = useCallback(async () => {
-    // No college in scope means "all colleges": list every building rather than nothing.
     setLoading(true);
     try {
       const [bRes, rRes] = await Promise.all([
-        buildingsRoomsApi.listBuildings({
-          collegeId: scopeCollegeId || null,
-          programId: scopeProgramId || null,
-        }),
-        buildingsRoomsApi.listRooms({
-          collegeId: scopeCollegeId || null,
-          programId: scopeProgramId || null,
-        }),
+        buildingsRoomsApi.listBuildings({ collegeId: null, programId: null }),
+        buildingsRoomsApi.listRooms({ collegeId: null, programId: null }),
       ]);
       const nextBuildings = bRes.buildings ?? [];
       const incomingRooms = rRes.rooms ?? [];
@@ -144,7 +146,7 @@ export function BuildingsRoomsWorkspace({
     } finally {
       setLoading(false);
     }
-  }, [scopeCollegeId, scopeProgramId, toast]);
+  }, [toast]);
 
   useEffect(() => {
     void load();
@@ -616,16 +618,16 @@ export function BuildingsRoomsWorkspace({
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-8 space-y-6 max-w-[1100px]">
       <p className="text-[13px] text-black/65 leading-relaxed">
-        Create buildings, set floor counts, and add rooms for the selected department. Those rooms are available
-        only to that department when plotting. Mark a building as GEC-usable so GEC subjects can be assigned there.
-        This is for scheduling only — it does not affect Campus Navigation.
+        Every building and room on campus is listed here, the same for DOI and College Admin, and every one of
+        them can be picked when plotting. New buildings and rooms are saved under the department you choose.
+        Mark a building as GEC-usable to flag it for GEC subjects. This is for scheduling only — it does not
+        affect Campus Navigation.
       </p>
 
       {!canEdit ? (
         <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          {scopeCollegeId
-            ? "Pick a department above to add or edit — a building belongs to one. The list below shows every building in this college."
-            : "Showing every building on campus. Pick a college and department above to add or edit."}
+          Pick a department above to add buildings or rooms — each one is saved under a department. The lists
+          below show every building and room on campus.
         </p>
       ) : null}
 
@@ -785,7 +787,7 @@ export function BuildingsRoomsWorkspace({
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
         <div className="p-4 border-b border-black/10 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[16px] font-semibold">Department buildings</div>
+            <div className="text-[16px] font-semibold">Buildings</div>
             <div className="text-[12px] text-black/55">
               {loading ? "Loading…" : `${filteredBuildings.length} building${filteredBuildings.length === 1 ? "" : "s"}`}
               {scopeProgramCode ? ` · ${scopeProgramCode}` : ""}
@@ -806,7 +808,7 @@ export function BuildingsRoomsWorkspace({
         {filteredBuildings.length === 0 ? (
           <p className="px-4 py-8 text-center text-[13px] text-black/50">
             {buildings.length === 0
-              ? "No buildings for this department yet."
+              ? "No buildings yet."
               : "No buildings or rooms match your search."}
           </p>
         ) : (
