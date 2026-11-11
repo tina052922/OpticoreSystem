@@ -10,8 +10,6 @@ Smart-Campus Navigation System/dist/
 public/campus-photos/
 
 # env (never commit secrets)
-.env
-.env.local
 .env.*.local
 
 # debug / os
@@ -25,4 +23,4 @@ sample_forms/
 *.md
 !docs/*.md
 .vercel
-.env*
+config.bat
