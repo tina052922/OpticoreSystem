@@ -4,8 +4,7 @@ import {
   buildingNameForRoom,
   buildingNamesForPlotting,
   roomsInBuildingNamed,
-  sortedRoomsInBuildingNamed,
-} from "./building-options";
+  sortedRoomsInBuildingNamed, STANDALONE_ROOMS_KEY } from "./building-options";
 
 function building(partial: Partial<Building> & Pick<Building, "id" | "name">): Building {
   return {
@@ -43,9 +42,12 @@ describe("buildingNamesForPlotting", () => {
       room({ id: "r2", code: "NEW-1", buildingId: "b-new", building: "New Building" }),
       balikRoom,
     ];
+    // "BALIK" is not offered. Its leftover room is in no building on file, so — as on the Buildings &
+    // Rooms page — it is reachable under the standalone group instead of disappearing.
     expect(buildingNamesForPlotting([cote, newBuilding], rooms)).toEqual([
       "COTE Building",
       "New Building",
+      STANDALONE_ROOMS_KEY,
     ]);
   });
 

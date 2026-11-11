@@ -1,6 +1,6 @@
 import type { Building, Room } from "@/types/db";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
-import { buildingNameForRoom } from "@/lib/evaluator/building-options";
+import { STANDALONE_ROOMS_KEY, buildingNameForRoom } from "@/lib/evaluator/building-options";
 import { insRoomLabel } from "@/lib/ins/ins-room-label";
 
 /**
@@ -22,6 +22,7 @@ export function roomsForPlotting(rooms: readonly Room[]): Room[] {
   });
 }
 
+/** `buildingName` is the Building-select value to pick: a building name, or the standalone key. */
 export type PlotRoomSearchHit = { room: Room; buildingName: string };
 
 /** "04" → "4", "0" stays "0". */
@@ -32,9 +33,8 @@ function norm(v: string | null | undefined): string {
 }
 
 /**
- * Rooms matching a typed search, across all buildings. Every word must start a word of the room's
- * name, code or building ("lab 4", "cote 303", "agri"). Only rooms that sit in a building the
- * Building select knows are returned, so picking a hit can fill both selects.
+ * Rooms matching a typed search, across all buildings and the standalone rooms. Every word must
+ * start a word of the room's name, code or building ("lab 4", "cote 303", "agri", "ab 05").
  */
 export function searchPlotRooms(
   rooms: readonly Room[],
@@ -46,11 +46,12 @@ export function searchPlotRooms(
   if (words.length === 0) return [];
   const hits: PlotRoomSearchHit[] = [];
   for (const room of rooms) {
-    const buildingName = buildingNameForRoom(room, buildings);
-    if (!buildingName) continue;
+    // A room in no building is still offered — it fills the "Standalone rooms" group.
+    const buildingName = buildingNameForRoom(room, buildings) || STANDALONE_ROOMS_KEY;
     // Each typed word must START a word of the room's name, code or building, so "it lab 4" finds
     // "IT Lab 04" but not "Digital … COTE 204". Leading zeros are ignored ("lab 4" = "Lab 04").
-    const tokens = norm([insRoomLabel(room, ""), room.code, room.displayName, buildingName].join(" "))
+    const where = buildingName === STANDALONE_ROOMS_KEY ? "standalone" : buildingName;
+    const tokens = norm([insRoomLabel(room, ""), room.code, room.displayName, where].join(" "))
       .split(/[\s\-–—:|/]+/)
       .filter(Boolean)
       .map(unpad);

@@ -37,7 +37,6 @@ import {
   requiredWeeklyContactHours,
 } from "@/lib/scheduling/subject-semester-hours";
 import { sortedNavigationBuildingKeysFromRooms } from "@/lib/campus/campus-navigation-catalog";
-import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
 import type { PlotRow, RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
 import { emptyPlotRow, newPlotRowId, normalizePlotRow } from "@/lib/evaluator/chairman-plot-row";
 import { formatLecLabDisplay } from "@/lib/evaluator/chairman-plot-leclab";
@@ -46,7 +45,11 @@ import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
 import type { InstructorPlotOption } from "@/lib/evaluator/instructor-employee-id";
 import type { Building, Room, Section } from "@/types/db";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
-import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
+import {
+  buildingNamesForPlotting,
+  plotBuildingKeyForRoom,
+  sortedRoomsInBuildingNamed,
+} from "@/lib/evaluator/building-options";
 
 export type { RowConflictFlags };
 
@@ -420,7 +423,8 @@ export function BsitChairmanInteractiveWeekGrid({
     (row: PlotRow, anchor: CellAnchor, isNew: boolean) => {
       if (schedulePublished || row.lockedByDoiAt) return;
       const pickedRoom = row.roomId ? roomById.get(row.roomId) : undefined;
-      const buildingValue = roomBuildingByRowId[row.id] ?? (pickedRoom ? roomBuildingKey(pickedRoom) : "");
+      const buildingValue =
+        roomBuildingByRowId[row.id] ?? (pickedRoom ? plotBuildingKeyForRoom(pickedRoom, buildingsCatalog) : "");
       setHighlightedCell(anchor);
       setModal({
         draft: normalizePlotRow({ ...row }, programCodeForSummary, catalogSubjectRows),

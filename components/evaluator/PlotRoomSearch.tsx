@@ -5,6 +5,7 @@ import { Search, X } from "lucide-react";
 import type { Building, Room } from "@/types/db";
 import { searchPlotRooms } from "@/lib/scheduling/program-plot-rooms";
 import { insRoomLabel } from "@/lib/ins/ins-room-label";
+import { plotBuildingOptionLabel } from "@/lib/evaluator/building-options";
 
 /**
  * "Search room" box above the Building / Room selects of the plot windows. Typing a room name, code
@@ -123,7 +124,7 @@ export function PlotRoomSearch({
                   <span className="min-w-0">
                     <span className="font-semibold text-black/85">{name}</span>
                     {name !== h.room.code ? <span className="ml-1.5 text-[11px] text-black/45">{h.room.code}</span> : null}
-                    <span className="block truncate text-[11px] text-black/50">{h.buildingName}</span>
+                    <span className="block truncate text-[11px] text-black/50">{plotBuildingOptionLabel(h.buildingName)}</span>
                   </span>
                   {busy ? <span className="shrink-0 text-[11px] font-semibold text-red-700">Occupied</span> : null}
                 </li>

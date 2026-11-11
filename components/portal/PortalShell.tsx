@@ -17,6 +17,7 @@ import {
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi } from "@/lib/api/client";
+import { LogoutConfirmDialog } from "@/components/account/LogoutConfirmDialog";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { ProgramModeProvider } from "@/contexts/ProgramModeContext";
@@ -65,6 +66,8 @@ export function PortalShell({
   const router = useRouter();
   const branding = useCampusBranding();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  /** Logout asks first — see `LogoutConfirmDialog`. */
+  const [logoutOpen, setLogoutOpen] = useState(false);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -84,7 +87,7 @@ export function PortalShell({
     } catch {
       // Even if the backend call fails, still clear the UI session.
     }
-    router.replace("/login");
+    router.replace("/login?notice=signed_out");
     router.refresh();
   }
 
@@ -190,7 +193,7 @@ export function PortalShell({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => void logout()}
+                onClick={() => setLogoutOpen(true)}
                 className="text-red-700 focus:bg-red-50 focus:text-red-800 data-[highlighted]:bg-red-50 data-[highlighted]:text-red-800 [&_svg]:text-red-600"
               >
                 <LogOut aria-hidden />
@@ -254,7 +257,7 @@ export function PortalShell({
           </nav>
 
           <div className="p-3 no-print border-t border-black/5">
-            <Button variant="outline" className="w-full bg-white justify-center" onClick={() => void logout()}>
+            <Button variant="outline" className="w-full bg-white justify-center" onClick={() => setLogoutOpen(true)}>
               <LogOut className="w-4 h-4" />
               Logout
             </Button>
@@ -266,6 +269,14 @@ export function PortalShell({
           {children}
         </main>
       </div>
+      <LogoutConfirmDialog
+        open={logoutOpen}
+        onCancel={() => setLogoutOpen(false)}
+        onConfirm={async () => {
+          setMobileNavOpen(false);
+          await logout();
+        }}
+      />
     </div>
     </SemesterFilterProvider>
     </ProgramModeProvider>

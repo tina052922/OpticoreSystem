@@ -51,6 +51,14 @@ export function BuildingsRoomsWorkspace({
   const [panelRoomFloor, setPanelRoomFloor] = useState("1");
   const [panelRoomCapacity, setPanelRoomCapacity] = useState("");
   const [savingPanelRoom, setSavingPanelRoom] = useState(false);
+  /** The Standalone Rooms section has its own search and quick add (rooms in no building). */
+  const [standaloneSearch, setStandaloneSearch] = useState("");
+  const [standaloneAddOpen, setStandaloneAddOpen] = useState(false);
+  const [standaloneCode, setStandaloneCode] = useState("");
+  const [standaloneName, setStandaloneName] = useState("");
+  const [standaloneFloor, setStandaloneFloor] = useState("1");
+  const [standaloneCapacity, setStandaloneCapacity] = useState("");
+  const [savingStandalone, setSavingStandalone] = useState(false);
   /**
    * Rooms typed on the same form as the building.
    *
@@ -222,19 +230,78 @@ export function BuildingsRoomsWorkspace({
    * Rooms with no building, for the scope in view. Without a list of their own these were invisible:
    * every other view groups rooms under a building.
    */
-  const standaloneRooms = useMemo(() => {
-    const q = searchQ;
-    return rooms
-      .filter((r) => !buildings.some((b) => roomBelongsToBuilding(r, b)))
-      .filter(
+  const allStandaloneRooms = useMemo(
+    () =>
+      rooms
+        .filter((r) => !buildings.some((b) => roomBelongsToBuilding(r, b)))
+        .sort((a, b) => a.code.localeCompare(b.code)),
+    [rooms, buildings],
+  );
+  const standaloneQ = norm(standaloneSearch);
+  const standaloneRooms = useMemo(
+    () =>
+      allStandaloneRooms.filter(
         (r) =>
-          !q ||
-          norm(r.code).includes(q) ||
-          norm(r.displayName).includes(q) ||
-          norm(r.building).includes(q),
-      )
-      .sort((a, b) => a.code.localeCompare(b.code));
-  }, [rooms, buildings, searchQ]);
+          !standaloneQ ||
+          norm(r.code).includes(standaloneQ) ||
+          norm(r.displayName).includes(standaloneQ) ||
+          norm(r.building).includes(standaloneQ),
+      ),
+    [allStandaloneRooms, standaloneQ],
+  );
+
+  /** Quick add from the Standalone Rooms section: a room in no building, for the chosen department. */
+  async function onCreateStandalone() {
+    const code = standaloneCode.trim();
+    if (!formScope.programId) {
+      toast.refuse("Choose a department first", "A standalone room has to belong to one.");
+      return;
+    }
+    if (!code) {
+      toast.refuse("Enter a room code", "e.g. AB 08");
+      return;
+    }
+    if (rooms.some((r) => norm(r.code) === norm(code))) {
+      toast.refuse("That room code already exists", `“${code}” is already on file.`);
+      return;
+    }
+    setSavingStandalone(true);
+    try {
+      const floor = Math.max(1, parseInt(standaloneFloor, 10) || 1);
+      const { room, warning: w } = await buildingsRoomsApi.createRoom({
+        code,
+        displayName: standaloneName.trim() || null,
+        buildingId: null,
+        floor,
+        capacity: standaloneCapacity.trim() ? parseInt(standaloneCapacity, 10) : null,
+        collegeId: formScope.collegeId,
+        programId: formScope.programId,
+        gecUsable: false,
+        building: null,
+      });
+      setRooms((prev) => [
+        ...prev.filter((x) => x.id !== room.id),
+        {
+          ...room,
+          floor: room.floor ?? floor,
+          programId: room.programId ?? formScope.programId,
+          collegeId: room.collegeId ?? formScope.collegeId,
+        },
+      ]);
+      toast.caution(w, "Saved with a limitation");
+      toast.ok(`Standalone room “${room.code}” added`);
+      setStandaloneCode("");
+      setStandaloneName("");
+      setStandaloneFloor("1");
+      setStandaloneCapacity("");
+      setStandaloneAddOpen(false);
+      void load();
+    } catch (e) {
+      toast.fail(e, "Could not add the room", "buildings & rooms: add standalone room");
+    } finally {
+      setSavingStandalone(false);
+    }
+  }
 
   const floorOptions = useMemo(() => {
     const n = selectedBuilding?.floorCount ?? Math.max(1, parseInt(floorCount, 10) || 1);
@@ -841,9 +908,101 @@ export function BuildingsRoomsWorkspace({
         )}
       </div>
 
-      {standaloneRooms.length > 0 ? (
-        <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-3">
-          <div className="text-[16px] font-semibold">Standalone Rooms</div>
+      <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[16px] font-semibold">Standalone Rooms</div>
+              <div className="text-[12px] text-black/55">
+                {loading
+                  ? "Loading…"
+                  : `${allStandaloneRooms.length} room${allStandaloneRooms.length === 1 ? "" : "s"} not in any building`}
+              </div>
+            </div>
+            <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+              <label className="min-w-[200px] flex-1 max-w-xs">
+                <span className="sr-only">Search standalone rooms</span>
+                <Input
+                  value={standaloneSearch}
+                  onChange={(e) => setStandaloneSearch(e.target.value)}
+                  placeholder="Search standalone rooms…"
+                  disabled={loading}
+                />
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10"
+                disabled={!canEdit}
+                title={canEdit ? undefined : "Choose a department in the form above first"}
+                onClick={() => setStandaloneAddOpen((v) => !v)}
+              >
+                {standaloneAddOpen ? "Cancel" : "+ Add standalone room"}
+              </Button>
+            </div>
+          </div>
+
+          {standaloneAddOpen ? (
+            <div className="grid grid-cols-1 gap-3 rounded-lg border border-[#780301]/20 bg-[#fdf6f5] p-3 sm:grid-cols-[1fr_1.3fr_6rem_7rem_auto] sm:items-end">
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Room code</span>
+                <Input
+                  value={standaloneCode}
+                  onChange={(e) => setStandaloneCode(e.target.value)}
+                  placeholder="e.g. AB 08"
+                  disabled={savingStandalone}
+                  autoFocus
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Room name</span>
+                <Input
+                  value={standaloneName}
+                  onChange={(e) => setStandaloneName(e.target.value)}
+                  placeholder="optional, e.g. Audio-Visual Room"
+                  disabled={savingStandalone}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Floor</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={standaloneFloor}
+                  onChange={(e) => setStandaloneFloor(e.target.value)}
+                  disabled={savingStandalone}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[12px] font-semibold text-black/75">Capacity</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={standaloneCapacity}
+                  onChange={(e) => setStandaloneCapacity(e.target.value)}
+                  placeholder="optional"
+                  disabled={savingStandalone}
+                />
+              </label>
+              <Button
+                type="button"
+                className="h-10 bg-[#780301] text-white hover:bg-[#5a0201]"
+                disabled={savingStandalone}
+                onClick={() => void onCreateStandalone()}
+              >
+                {savingStandalone ? "Saving…" : "Add room"}
+              </Button>
+            </div>
+          ) : null}
+
+          {standaloneRooms.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-black/15 px-3 py-6 text-center text-[13px] text-black/50">
+              {allStandaloneRooms.length === 0
+                ? "No standalone rooms yet."
+                : `No standalone room matches “${standaloneSearch.trim()}”.`}
+            </p>
+          ) : (
           <ul className="divide-y divide-black/10 rounded-lg border border-black/10">
             {standaloneRooms.map((r) => (
               <li
@@ -907,6 +1066,9 @@ export function BuildingsRoomsWorkspace({
                 ) : (
                   <>
                     <span className="text-[13px] font-semibold">{r.code}</span>
+                    {r.displayName?.trim() ? (
+                      <span className="text-[13px] text-black/75">{r.displayName.trim()}</span>
+                    ) : null}
                     <span className="text-[12px] text-black/55">
                       Floor {r.floor ?? 1}
                       {r.capacity ? ` · ${r.capacity} seats` : ""}
@@ -924,8 +1086,8 @@ export function BuildingsRoomsWorkspace({
               </li>
             ))}
           </ul>
-        </div>
-      ) : null}
+          )}
+      </div>
 
       {selectedBuilding ? (
         <div

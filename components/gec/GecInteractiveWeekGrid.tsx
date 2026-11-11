@@ -42,12 +42,15 @@ import {
   formatUserInstructorLabel,
   type InstructorPlotOption,
 } from "@/lib/evaluator/instructor-employee-id";
-import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
 import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
 import type { Building, FacultyProfile, Room, ScheduleEntry, Subject, User } from "@/types/db";
 import { AlertTriangle, Save } from "lucide-react";
-import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
+import {
+  buildingNamesForPlotting,
+  plotBuildingKeyForRoom,
+  sortedRoomsInBuildingNamed,
+} from "@/lib/evaluator/building-options";
 import { insRoomLabel } from "@/lib/ins/ins-room-label";
 
 function hhmm(t: string): string {
@@ -381,7 +384,8 @@ export function GecInteractiveWeekGrid({
       if (!isVacant) return;
       const readOnly = !canEditVacant;
       const pickedRoom = e.roomId ? roomById.get(e.roomId) : undefined;
-      const buildingValue = roomBuildingByEntryId[e.id] ?? (pickedRoom ? roomBuildingKey(pickedRoom) : "");
+      const buildingValue =
+        roomBuildingByEntryId[e.id] ?? (pickedRoom ? plotBuildingKeyForRoom(pickedRoom, buildingsCatalog) : "");
       setHighlightedCell(anchor);
       setModal({
         entryId: e.id,

@@ -41,12 +41,15 @@ import {
 } from "@/lib/evaluator/instructor-employee-id";
 import {
   formatRoomOptionLabel,
-  roomBuildingKey,
   roomsInBuildingSorted,
 } from "@/lib/evaluator/room-by-building";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
 import type { Building, Room, ScheduleEntry, Subject } from "@/types/db";
-import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
+import {
+  buildingNamesForPlotting,
+  plotBuildingOptionLabel,
+  sortedRoomsInBuildingNamed,
+} from "@/lib/evaluator/building-options";
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
 
 const fieldClass =
@@ -471,14 +474,16 @@ export function GecPlotScheduleModal({
                 onChange={(e) => {
                   const b = e.target.value;
                   onBuildingChange(b);
-                  const keep = draft.roomId && rooms.some((r) => r.id === draft.roomId && roomBuildingKey(r) === b);
+                  const keep =
+                    draft.roomId &&
+                    sortedRoomsInBuildingNamed(rooms, b, buildingsCatalog).some((r) => r.id === draft.roomId);
                   if (!keep) onDraftChange({ ...draft, roomId: "" });
                 }}
               >
                 <option value="">Select building…</option>
                 {buildingLabels.map((b) => (
                   <option key={b} value={b}>
-                    {campusNavigationBuildingOptionLabel(b)}
+                    {plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel)}
                   </option>
                 ))}
               </select>

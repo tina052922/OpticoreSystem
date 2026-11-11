@@ -16,6 +16,7 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi } from "@/lib/api/client";
+import { LogoutConfirmDialog } from "@/components/account/LogoutConfirmDialog";
 import type { AdminNavEntry, AdminNavGroup, AdminNavItem } from "@/lib/admin-nav";
 import { isNavGroup, navEntryHrefs } from "@/lib/admin-nav";
 import { isNavItemActive } from "@/lib/nav-active";
@@ -24,7 +25,6 @@ import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { SystemConfigurationProvider } from "@/contexts/SystemConfigurationContext";
 import { ProgramModeProvider } from "@/contexts/ProgramModeContext";
-import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
 import { UserShellAvatar } from "@/components/profile/UserShellAvatar";
 import { usePendingPolicyReviewsCount } from "@/hooks/use-pending-policy-reviews-count";
@@ -161,6 +161,8 @@ export function CampusIntelligenceShell({
     );
   }
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  /** Logout asks first — see `LogoutConfirmDialog`. */
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const pendingDoiPolicyReviews = usePendingPolicyReviewsCount({ enabled: policyReviewsBadge });
   const showDoiPolicyBadge = policyReviewsBadge && pendingDoiPolicyReviews > 0;
   const collegePolicyBadgeEnabled = Boolean(policyJustificationsBadgeCollegeId?.trim());
@@ -193,16 +195,15 @@ export function CampusIntelligenceShell({
     return () => document.body.classList.remove("oc-shell-scroll-lock");
   }, []);
 
-  const toast = useOpticoreToast();
 
   async function logout() {
     try {
       await authApi.logout();
-      toast.success("Signed out");
     } catch {
-      toast.success("Signed out");
+      // Even if the backend call fails, still clear the UI session.
     }
-    router.replace("/login");
+    // The login page shows the "signed out successfully" message.
+    router.replace("/login?notice=signed_out");
     router.refresh();
   }
 
@@ -294,7 +295,7 @@ export function CampusIntelligenceShell({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => void logout()}
+                onClick={() => setLogoutOpen(true)}
                 className="text-red-700 focus:bg-red-50 focus:text-red-800 data-[highlighted]:bg-red-50 data-[highlighted]:text-red-800 [&_svg]:text-red-600"
               >
                 <LogOut aria-hidden />
@@ -355,7 +356,7 @@ export function CampusIntelligenceShell({
           </nav>
 
           <div className="p-3 no-print border-t border-black/5">
-            <Button variant="outline" className="w-full bg-white justify-center" onClick={() => void logout()}>
+            <Button variant="outline" className="w-full bg-white justify-center" onClick={() => setLogoutOpen(true)}>
               <LogOut className="w-4 h-4" />
               Logout
             </Button>
@@ -370,6 +371,14 @@ export function CampusIntelligenceShell({
           {children}
         </main>
       </div>
+      <LogoutConfirmDialog
+        open={logoutOpen}
+        onCancel={() => setLogoutOpen(false)}
+        onConfirm={async () => {
+          setMobileNavOpen(false);
+          await logout();
+        }}
+      />
       </div>
     </SemesterFilterProvider>
     </ProgramModeProvider>

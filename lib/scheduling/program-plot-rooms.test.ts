@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { roomsForPlotting, searchPlotRooms } from "./program-plot-rooms";
+import {
+  STANDALONE_ROOMS_KEY,
+  buildingNamesForPlotting,
+  plotBuildingKeyForRoom,
+  roomsInBuildingNamed,
+} from "@/lib/evaluator/building-options";
 import type { Building, Room } from "@/types/db";
 
 function room(partial: Partial<Room> & Pick<Room, "id" | "code">): Room {
@@ -34,9 +40,15 @@ describe("searchPlotRooms", () => {
     expect(searchPlotRooms(all, buildings, "lab 4").map((h) => h.room.id)).toEqual(["r1"]);
   });
 
-  it("returns nothing for a blank query or a room in no building", () => {
+  it("returns nothing for a blank query", () => {
     expect(searchPlotRooms(all, buildings, "  ")).toEqual([]);
-    expect(searchPlotRooms(all, buildings, "loose")).toEqual([]);
+  });
+
+  it("finds standalone rooms (no building) and puts them in the standalone group", () => {
+    const hits = searchPlotRooms(all, buildings, "loose");
+    expect(hits.map((h) => h.room.id)).toEqual(["r3"]);
+    expect(hits[0]?.buildingName).toBe(STANDALONE_ROOMS_KEY);
+    expect(searchPlotRooms(all, buildings, "standalone").map((h) => h.room.id)).toEqual(["r3"]);
   });
 });
 
@@ -45,5 +57,21 @@ describe("searchPlotRooms word starts", () => {
   const lab2 = room({ id: "l2", code: "COTE 304", displayName: "IT Lab 02", buildingId: "b-cote" });
   it("does not match letters or digits in the middle of a word", () => {
     expect(searchPlotRooms([etLab, coteLab, lab2], buildings, "iT LAB 4").map((h) => h.room.id)).toEqual(["r1"]);
+  });
+});
+
+describe("standalone rooms in the Building select", () => {
+  const all = [coteLab, agriRoom, loose];
+  it("adds a standalone group at the end, holding only rooms in no building", () => {
+    const names = buildingNamesForPlotting(buildings, all);
+    expect(names.at(-1)).toBe(STANDALONE_ROOMS_KEY);
+    expect(roomsInBuildingNamed(all, STANDALONE_ROOMS_KEY, buildings).map((r) => r.id)).toEqual(["r3"]);
+  });
+  it("leaves the group out when every room has a building", () => {
+    expect(buildingNamesForPlotting(buildings, [coteLab, agriRoom])).not.toContain(STANDALONE_ROOMS_KEY);
+  });
+  it("re-selects the right group when a plot is reopened", () => {
+    expect(plotBuildingKeyForRoom(coteLab, buildings)).toBe("COTE Building");
+    expect(plotBuildingKeyForRoom(loose, buildings)).toBe(STANDALONE_ROOMS_KEY);
   });
 });

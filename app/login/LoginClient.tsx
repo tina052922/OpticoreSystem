@@ -25,8 +25,20 @@ export function LoginClient() {
   const params = useSearchParams();
   const nextParam = useMemo(() => params.get("next"), [params]);
   const errorParam = params.get("error");
-  /** Set by Change password after a successful update (the user was signed out on purpose). */
-  const passwordChanged = params.get("notice") === "password_changed";
+  /**
+   * Notices from the page that sent the user here: `password_changed` (Change password signs out on
+   * purpose) and `signed_out` (Logout). Read once, then removed from the address bar so a refresh
+   * or a shared link does not show it again.
+   */
+  const [notice] = useState(() => params.get("notice"));
+  const passwordChanged = notice === "password_changed";
+  const signedOut = notice === "signed_out";
+  useEffect(() => {
+    if (!notice) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("notice");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }, [notice]);
 
   const toast = useOpticoreToast();
   const branding = useCampusBranding();
@@ -130,6 +142,15 @@ export function LoginClient() {
         >
           <p className="font-semibold">Your password has been updated.</p>
           <p className="mt-0.5 text-emerald-900/80">Please sign in with your new password to continue.</p>
+        </div>
+      ) : null}
+      {signedOut ? (
+        <div
+          role="status"
+          className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+        >
+          <p className="font-semibold">You have been signed out successfully.</p>
+          <p className="mt-0.5 text-emerald-900/80">Thank you for using OptiCore. Sign in again whenever you are ready.</p>
         </div>
       ) : null}
 

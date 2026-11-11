@@ -17,6 +17,19 @@ import type { Building, Room } from "@/types/db";
 import { roomBuildingKey } from "@/lib/evaluator/room-by-building";
 import { CAMPUS_NAVIGATION_BUILDING_SORT_ORDER } from "@/lib/campus/campus-navigation-catalog";
 
+/**
+ * Building-select key for rooms in no building ("Standalone Rooms" in Buildings & Rooms). They used
+ * to be unreachable when plotting: the Building select only lists buildings, and the Room select only
+ * opens after one is picked. Only ever UI state — it is never saved on a room or a schedule row.
+ */
+export const STANDALONE_ROOMS_KEY = "__standalone_rooms__";
+export const STANDALONE_ROOMS_LABEL = "Standalone rooms (no building)";
+
+/** Label for a Building-select value: the standalone group gets its own name. */
+export function plotBuildingOptionLabel(value: string, fallback: (v: string) => string = (v) => v): string {
+  return value === STANDALONE_ROOMS_KEY ? STANDALONE_ROOMS_LABEL : fallback(value);
+}
+
 function norm(v: string | null | undefined): string {
   return (v ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 }
@@ -55,7 +68,9 @@ export function buildingNamesForPlotting(
   const withRooms = [...new Set(named)].filter(
     (name) => roomsInBuildingNamed(rooms, name, list).length > 0,
   );
-  return sortBuildingNames(withRooms);
+  const sorted = sortBuildingNames(withRooms);
+  // Rooms in no building get one extra entry at the end, so they can be picked too.
+  return rooms.some((r) => !buildingNameForRoom(r, list)) ? [...sorted, STANDALONE_ROOMS_KEY] : sorted;
 }
 
 /**
@@ -67,10 +82,14 @@ export function roomsInBuildingNamed(
   buildingName: string | null | undefined,
   buildings: readonly Building[] | null | undefined = [],
 ): Room[] {
+  const list = buildings ?? [];
+  if (buildingName === STANDALONE_ROOMS_KEY) {
+    return rooms.filter((r) => !buildingNameForRoom(r, list));
+  }
+
   const name = norm(buildingName);
   if (!name) return [];
 
-  const list = buildings ?? [];
   const ids = new Set(list.filter((b) => norm(b.name) === name).map((b) => b.id));
   // With a Building table in hand, only a building it knows can claim rooms. This is what keeps a
   // deleted building (its name still sitting on room rows) from coming back.
@@ -99,6 +118,19 @@ export function sortedRoomsInBuildingNamed(
     if (fa !== fb) return fa - fb;
     return a.code.localeCompare(b.code);
   });
+}
+
+/**
+ * Building-select value for a saved room: its building's name, or {@link STANDALONE_ROOMS_KEY} for a
+ * room in no building, so reopening a plot re-selects the standalone group.
+ */
+export function plotBuildingKeyForRoom(
+  room: Pick<Room, "building" | "buildingId"> | null | undefined,
+  buildings: readonly Building[] | null | undefined = [],
+): string {
+  if (!room) return "";
+  if ((buildings ?? []).length === 0) return (room.building ?? "").trim();
+  return buildingNameForRoom(room, buildings) || STANDALONE_ROOMS_KEY;
 }
 
 /** The building a saved room belongs to, for pre-selecting the dropdown; `""` when it has none. */

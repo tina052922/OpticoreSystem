@@ -66,7 +66,6 @@ import {
 } from "@/lib/evaluator/instructor-employee-id";
 import {
   formatRoomOptionLabel,
-  roomBuildingKey,
   roomsInBuildingSorted,
 } from "@/lib/evaluator/room-by-building";
 import {
@@ -82,7 +81,11 @@ import {
 import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 import type { Building, Room, Section } from "@/types/db";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
-import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
+import {
+  buildingNamesForPlotting,
+  plotBuildingOptionLabel,
+  sortedRoomsInBuildingNamed,
+} from "@/lib/evaluator/building-options";
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
 
 const fieldClass =
@@ -1082,7 +1085,7 @@ export function ChairmanPlotScheduleModal({
                 </option>
                 {buildingLabelsForGrid.map((b) => (
                   <option key={b} value={b}>
-                    {campusNavigationBuildingOptionLabel(b)}
+                    {plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel)}
                   </option>
                 ))}
               </select>
