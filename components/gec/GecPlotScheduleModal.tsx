@@ -47,6 +47,7 @@ import {
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
 import type { Building, Room, ScheduleEntry, Subject } from "@/types/db";
 import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
+import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
 
 const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -444,6 +445,18 @@ export function GecPlotScheduleModal({
               <NoInstructorsNotice compact gec facultyProfileHref="/admin/gec/faculty-profile" />
             ) : null}
           </div>
+
+          {!readOnly ? (
+            <PlotRoomSearch
+              rooms={rooms}
+              buildingsCatalog={buildingsCatalog}
+              currentRoomId={draft.roomId}
+              onPick={(b, roomId) => {
+                onBuildingChange(b);
+                onDraftChange({ ...draft, roomId });
+              }}
+            />
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

@@ -17,6 +17,13 @@
  */
 
 import type { CampusAccountSaveRole } from "@/lib/admin/campus-account-posts";
+import {
+  IDEMPOTENCY_HEADER,
+  newIdempotencyKey,
+  shouldRetryWrite,
+  writeDedupeKey,
+  writeRetryDelayMs,
+} from "@/lib/api/idempotency";
 import type { SubjectCategoryRow } from "@/lib/subjects/subject-category";
 import {
   API_CACHE_TTL,
@@ -359,7 +366,9 @@ export async function apiFetch<T>(
     );
   }
 
-  const result = await apiFetchUncached<T>(path, options);
+  const result = isRead || IS_SERVER
+    ? await apiFetchUncached<T>(path, options)
+    : await sendWriteOnce<T>(path, options, upperMethod);
 
   // A successful write makes cached reads for that resource family stale.
   if (!isRead && !IS_SERVER && invalidates !== null) {
@@ -375,6 +384,49 @@ export async function apiFetch<T>(
   }
 
   return result;
+}
+
+/** Writes currently on their way, by {@link writeDedupeKey}: a double click joins the first one. */
+const writesInFlight = new Map<string, Promise<unknown>>();
+
+/**
+ * Sends a write with an `Idempotency-Key` and retries it with the SAME key when it got no answer or
+ * the server is still running the first copy — so a write can never be saved twice. Identical writes
+ * started while one is in flight (double clicks) share that one request.
+ */
+function sendWriteOnce<T>(path: string, options: ApiFetchOptions, method: string): Promise<T> {
+  const dedupe = options.signal ? null : writeDedupeKey(method, buildUrl(path), options.body);
+  if (dedupe) {
+    const pending = writesInFlight.get(dedupe);
+    if (pending) return pending as Promise<T>;
+  }
+
+  const given = new Headers(options.headers as HeadersInit | undefined).get(IDEMPOTENCY_HEADER);
+  const key = given || newIdempotencyKey();
+  const withKey: ApiFetchOptions = {
+    ...options,
+    headers: { ...(options.headers as Record<string, string> | undefined), [IDEMPOTENCY_HEADER]: key },
+  };
+
+  const run = (async () => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await apiFetchUncached<T>(path, withKey);
+      } catch (err) {
+        if (options.signal?.aborted || !shouldRetryWrite(err as ApiClientError, attempt)) throw err;
+        await new Promise((r) => setTimeout(r, writeRetryDelayMs(attempt)));
+      }
+    }
+  })();
+
+  if (dedupe) {
+    writesInFlight.set(dedupe, run);
+    const clear = () => {
+      if (writesInFlight.get(dedupe) === run) writesInFlight.delete(dedupe);
+    };
+    run.then(clear, clear);
+  }
+  return run;
 }
 
 async function apiFetchUncached<T>(

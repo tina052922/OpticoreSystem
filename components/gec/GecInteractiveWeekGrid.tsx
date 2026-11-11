@@ -252,14 +252,8 @@ export function GecInteractiveWeekGrid({
   const router = useRouter();
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
   const days = weekdays ?? evaluatorWeekdays(programMode);
-  /**
-   * Buildings GEC may plot into: the ones flagged "Set for GEC" in Buildings & Rooms. Until an admin
-   * flags any, every building stays available so plotting is never blocked.
-   */
-  const gecBuildings = useMemo(() => {
-    const flagged = buildingsCatalog.filter((b) => b.gecUsable);
-    return flagged.length > 0 ? flagged : buildingsCatalog;
-  }, [buildingsCatalog]);
+  /** Every building in Buildings & Rooms — GEC plotting is not limited to "Set for GEC" buildings. */
+  const gecBuildings = buildingsCatalog;
 
   /** Buildings that still exist; a deleted one must not survive as text on a room row. */
   const buildingLabels = useMemo(

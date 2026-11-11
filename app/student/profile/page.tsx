@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { AdminProfileCard } from "@/components/admin/AdminProfileCard";
+import { StudentEnrolmentCard } from "@/components/portal/StudentSectionPrompt";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ProfileAvatarUpload } from "@/components/profile/ProfileAvatarUpload";
 import { STUDENT_PORTAL_NAV } from "@/lib/admin-nav";
@@ -46,13 +47,6 @@ async function fetchStudentEnrolment(userId: string): Promise<StudentEnrolment |
   }
 }
 
-/** Year levels read as ordinals on a student's own record, not as bare digits. */
-function yearLevelLabel(yearLevel: number | null): string {
-  if (!yearLevel || yearLevel < 1) return "—";
-  const names = ["1st year", "2nd year", "3rd year", "4th year", "5th year", "6th year"];
-  return names[yearLevel - 1] ?? `Year ${yearLevel}`;
-}
-
 export default async function StudentProfilePage() {
   const profile = await requireRoles(["student"]);
 
@@ -72,7 +66,6 @@ export default async function StudentProfilePage() {
   const unknown = (hasId: boolean) => (hasId ? "Not on file" : "—");
   const programName = enrolment?.programName ?? unknown(Boolean(studentProfile?.programId));
   const sectionName = enrolment?.sectionName ?? unknown(Boolean(studentProfile?.sectionId));
-  const yearLevel = yearLevelLabel(enrolment?.yearLevel ?? studentProfile?.yearLevel ?? null);
 
   return (
     <PortalShell
@@ -80,6 +73,7 @@ export default async function StudentProfilePage() {
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       sidebarBadge="Student"
+      studentSectionPrompt
       navItems={STUDENT_PORTAL_NAV}
       periodLabel="Current semester"
     >
@@ -111,12 +105,10 @@ export default async function StudentProfilePage() {
           editable
           // Students sign in with the password they set at registration; there is no reset here.
           showChangePassword={false}
-          extraRows={[
-            { label: "Program", value: programName },
-            { label: "Section", value: sectionName },
-            { label: "Year level", value: yearLevel },
-          ]}
         />
+
+        {/* Program, year and section for this semester — changeable when the student moves up. */}
+        <StudentEnrolmentCard />
       </div>
     </PortalShell>
   );

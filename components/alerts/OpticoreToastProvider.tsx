@@ -11,6 +11,8 @@ export type OpticoreToast = {
   variant: OpticoreToastVariant;
   title: string;
   description?: string | null;
+  /** How long it stays up, for the countdown bar; 0 = until dismissed (no bar). */
+  durationMs?: number;
 };
 
 type Ctx = {
@@ -45,7 +47,10 @@ export function OpticoreToastProvider({ children }: { children: React.ReactNode 
       const id = t.id ?? uid();
       const durationMs = typeof t.durationMs === "number" ? t.durationMs : 4500;
       setToasts((prev) => {
-        const next = [{ id, variant: t.variant, title: t.title, description: t.description ?? null }, ...prev.filter((x) => x.id !== id)];
+        const next = [
+          { id, variant: t.variant, title: t.title, description: t.description ?? null, durationMs },
+          ...prev.filter((x) => x.id !== id),
+        ];
         return next.slice(0, 4);
       });
       /** durationMs <= 0 keeps the toast visible until user dismisses it (e.g. offline banner). */
@@ -74,33 +79,60 @@ export function OpticoreToastProvider({ children }: { children: React.ReactNode 
       {children}
       <div className="fixed top-4 right-4 z-[100] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2">
         {toasts.map((t) => {
-          const accent =
+          /*
+           * A soft wash of the variant colour fading to white, a gradient edge, and a gradient icon
+           * badge — noticeable without being heavy: plain CSS gradients, no blur, no images.
+           */
+          const style =
             t.variant === "success"
-              ? "border-emerald-200 bg-emerald-50"
+              ? {
+                  card: "border-emerald-200/80 bg-gradient-to-br from-emerald-50 via-white to-white",
+                  edge: "from-emerald-400 to-teal-500",
+                  badge: "from-emerald-500 to-teal-500",
+                  bar: "bg-gradient-to-r from-emerald-400 to-teal-400",
+                  title: "text-emerald-950",
+                }
               : t.variant === "error"
-                ? "border-red-200 bg-red-50"
-                : "border-[var(--color-opticore-orange)]/25 bg-[var(--color-opticore-orange)]/10";
+                ? {
+                    card: "border-red-200/80 bg-gradient-to-br from-red-50 via-white to-white",
+                    edge: "from-red-500 to-[#780301]",
+                    badge: "from-red-500 to-[#780301]",
+                    bar: "bg-gradient-to-r from-red-400 to-[#780301]",
+                    title: "text-red-950",
+                  }
+                : {
+                    card: "border-orange-200/80 bg-gradient-to-br from-orange-50 via-white to-white",
+                    edge: "from-[#FF990A] to-[#780301]",
+                    badge: "from-[#FF990A] to-[#e0700a]",
+                    bar: "bg-gradient-to-r from-[#FF990A] to-[#780301]",
+                    title: "text-[#4a1d00]",
+                  };
           const Icon = t.variant === "success" ? CheckCircle2 : t.variant === "error" ? XCircle : Info;
-          const iconColor =
-            t.variant === "success"
-              ? "text-emerald-700"
-              : t.variant === "error"
-                ? "text-red-700"
-                : "text-[var(--color-opticore-orange)]";
+          const timed = typeof t.durationMs === "number" && t.durationMs > 0;
 
           return (
             <div
               key={t.id}
               role={t.variant === "error" ? "alert" : "status"}
               className={cn(
-                "rounded-xl border shadow-sm px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-white/80",
-                accent,
+                "oc-toast-enter relative overflow-hidden rounded-xl border pl-4 pr-2.5 py-3",
+                "shadow-[0_10px_30px_-12px_rgba(0,0,0,0.25)]",
+                style.card,
               )}
             >
-              <div className="flex items-start gap-2">
-                <Icon className={cn("mt-0.5 h-5 w-5 flex-none", iconColor)} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-black">{t.title}</p>
+              <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b", style.edge)} />
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-gradient-to-br text-white shadow-sm",
+                    style.badge,
+                  )}
+                >
+                  <Icon className="h-[18px] w-[18px]" />
+                </span>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p className={cn("text-sm font-semibold", style.title)}>{t.title}</p>
                   {t.description ? (
                     <p className="mt-0.5 text-xs text-black/70 whitespace-pre-wrap break-words">{t.description}</p>
                   ) : null}
@@ -108,12 +140,19 @@ export function OpticoreToastProvider({ children }: { children: React.ReactNode 
                 <button
                   type="button"
                   onClick={() => dismiss(t.id)}
-                  className="flex-none rounded-md p-1 text-black/50 hover:text-black/80 hover:bg-black/[0.05] transition-colors"
+                  className="flex-none rounded-md p-1 text-black/45 hover:text-black/80 hover:bg-black/[0.05] transition-colors"
                   aria-label="Dismiss notification"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
+              {timed ? (
+                <span
+                  aria-hidden
+                  className={cn("oc-toast-timer absolute bottom-0 left-0 h-[3px] w-full opacity-70", style.bar)}
+                  style={{ animationDuration: `${t.durationMs}ms` }}
+                />
+              ) : null}
             </div>
           );
         })}

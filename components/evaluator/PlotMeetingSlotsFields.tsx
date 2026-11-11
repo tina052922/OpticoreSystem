@@ -4,8 +4,7 @@ import type { BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constan
 import {
   PLOT_MEETING_SLOT_COUNT,
   durationHoursAfterDayChange,
-  formatPlotDurationHours,
-  plotDurationChoices,
+  plotDurationError,
   type PlotMeetingsDraft,
 } from "@/lib/evaluator/plot-meetings";
 
@@ -30,15 +29,12 @@ export function PlotMeetingSlotsFields({
   draft,
   onChange,
   days,
-  maxDur,
+  maxDur: _maxDur,
   readOnly,
   busyDays,
   incomplete = false,
   error = null,
 }: PlotMeetingSlotsFieldsProps) {
-  /* 1 hr or 1.5 hrs only, offered as a list so a duration can only ever be a plottable one. */
-  const durationOptions = plotDurationChoices(maxDur);
-
   const timeFieldClass = incomplete
     ? `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`
     : `${fieldClass} mt-1`;
@@ -86,6 +82,7 @@ export function PlotMeetingSlotsFields({
           {draft.slots.map((slot, i) => {
             const dayId = `${idPrefix}-day-${i + 1}`;
             const durId = `${idPrefix}-duration-${i + 1}`;
+            const durError = slot.day ? plotDurationError(slot.durationHours) : null;
             return (
               <div key={dayId} className="space-y-2 min-w-0">
                 <div>
@@ -126,36 +123,39 @@ export function PlotMeetingSlotsFields({
                   <label className={labelClass} htmlFor={durId}>
                     Duration {i + 1}
                   </label>
-                  <select
-                    id={durId}
-                    className={`${fieldClass} mt-1 tabular-nums`}
-                    disabled={readOnly || !slot.day}
-                    value={slot.durationHours}
-                    onChange={(e) => patchSlot(i, { durationHours: e.target.value })}
-                  >
-                    <option value="">hrs</option>
-                    {/* An older plot saved at another length stays visible instead of reading blank. */}
-                    {slot.durationHours &&
-                    !durationOptions.some((h) => formatPlotDurationHours(h) === slot.durationHours) ? (
-                      <option value={slot.durationHours}>{slot.durationHours} hrs (saved)</option>
-                    ) : null}
-                    {durationOptions.map((h) => {
-                      const value = formatPlotDurationHours(h);
-                      return (
-                        <option key={value} value={value}>
-                          {value} {h === 1 ? "hr" : "hrs"}
-                        </option>
-                      );
-                    })}
-                  </select>
+                  <div className="relative mt-1">
+                    <input
+                      id={durId}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder={slot.day ? "e.g. 1.5" : "—"}
+                      aria-invalid={Boolean(durError)}
+                      aria-describedby={durError ? `${durId}-error` : undefined}
+                      className={`${fieldClass} pr-11 tabular-nums ${
+                        durError ? "border-red-400 bg-red-50/70 ring-2 ring-red-500" : ""
+                      }`}
+                      disabled={readOnly || !slot.day}
+                      value={slot.durationHours}
+                      onChange={(e) => patchSlot(i, { durationHours: e.target.value.replace(/[^\d.]/g, "") })}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-black/45">
+                      hrs
+                    </span>
+                  </div>
+                  {durError ? (
+                    <p id={`${durId}-error`} className="mt-1 text-[10px] font-medium text-red-700">
+                      {durError}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             );
           })}
         </div>
         <p className="text-[10px] text-black/50 mt-1">
-          Each meeting is 1 hr or 1.5 hrs from the start time — a 1.5 hr meeting starting 1:00 PM
-          ends 2:30 PM, leaving 2:30 PM free for the next one. Clear Day to also clear Hours.
+          Type the hours for each meeting — at least 1 hr, in half hours (1, 1.5, 2, 2.5 …). A 1.5 hr
+          meeting starting 1:00 PM ends 2:30 PM. Clear Day to also clear Hours.
         </p>
       </div>
       {error ? (

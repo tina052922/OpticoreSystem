@@ -1,129 +1,49 @@
 import { describe, expect, it } from "vitest";
-import {
-  filterRoomsForGecPlot,
-  filterRoomsForProgramPlot,
-  isRoomEligibleForProgramPlot,
-} from "./program-plot-rooms";
-import type { Room } from "@/types/db";
+import { roomsForPlotting, searchPlotRooms } from "./program-plot-rooms";
+import type { Building, Room } from "@/types/db";
 
 function room(partial: Partial<Room> & Pick<Room, "id" | "code">): Room {
-  return {
-    building: null,
-    floor: null,
-    capacity: null,
-    type: null,
-    collegeId: "c1",
-    ...partial,
-  };
+  return { building: null, floor: null, capacity: null, type: null, collegeId: null, ...partial };
 }
 
-describe("department-scoped plot rooms", () => {
-  const bsitLab = room({ id: "lab1", code: "IT LAB 1", displayName: "IT Lab 01", programId: null });
-  const deptA = room({ id: "a1", code: "A-101", programId: "prog-a", building: "Annex" });
-  const deptB = room({ id: "b1", code: "B-201", programId: "prog-b", building: "North" });
-  const shared = room({ id: "s1", code: "SHARED-1", programId: null, collegeId: null });
+const buildings = [
+  { id: "b-cote", name: "COTE Building", collegeId: "c1" },
+  { id: "b-agri", name: "Agriculture Building", collegeId: "c2" },
+] as Building[];
 
-  it("keeps a department's own rooms AND the shared ones", () => {
-    // Owning a room must not cost the department every general classroom: when BSIT had two tagged
-    // rooms, picking "COTE Building" in the plot modal listed no rooms at all.
-    const rooms = [deptA, deptB, shared, bsitLab];
-    const scoped = filterRoomsForProgramPlot(rooms, "BIT-AUTO", "c1", "prog-a");
-    expect(scoped.map((r) => r.id).sort()).toEqual(["a1", "lab1", "s1"]);
-    // Another department's room is still off limits.
-    expect(scoped.some((r) => r.id === "b1")).toBe(false);
-  });
+const coteLab = room({ id: "r1", code: "COTE 303", displayName: "IT Lab 04", buildingId: "b-cote", programId: "prog-bsit" });
+const agriRoom = room({ id: "r2", code: "AGRI 101", buildingId: "b-agri", collegeId: "c2" });
+const loose = room({ id: "r3", code: "LOOSE-1" });
 
-  it("blocks another department from assigning foreign department rooms", () => {
-    expect(isRoomEligibleForProgramPlot(deptA, "BSIT", "c1", "prog-b")).toBe(false);
-    expect(isRoomEligibleForProgramPlot(deptA, "BSIT", "c1", "prog-a")).toBe(true);
-  });
-
-  it("keeps BSIT IT-lab eligibility when no department rooms are assigned", () => {
-    const scoped = filterRoomsForProgramPlot([bsitLab, shared], "BSIT", "c1", "prog-bsit");
-    expect(scoped.some((r) => r.id === "lab1")).toBe(true);
-  });
-
-  it("shows rooms added in Buildings & Rooms to the BSIT plotter", () => {
-    // A COTE Building room created by College Admin: same college, no department lock.
-    const coteRoom = room({ id: "cote-1", code: "COTE-101", building: "COTE Building", programId: null });
-    const scoped = filterRoomsForProgramPlot([coteRoom, bsitLab], "BSIT", "c1", "prog-bsit");
-    expect(scoped.map((r) => r.id).sort()).toEqual(["cote-1", "lab1"]);
-  });
-
-  it("never shows a room from another college", () => {
-    const otherCollege = room({ id: "x9", code: "X-9", collegeId: "c2", programId: null });
-    const scoped = filterRoomsForProgramPlot([otherCollege, shared], "BIT-AUTO", "c1", "prog-a");
-    expect(scoped.map((r) => r.id)).toEqual(["s1"]);
-  });
-
-  it("falls back to the legacy IT labs only when the college has no rooms at all", () => {
-    const foreignLab = room({ id: "lab9", code: "IT LAB 2", displayName: "IT Lab 02", collegeId: "c2" });
-    const scoped = filterRoomsForProgramPlot([foreignLab], "BSIT", "c1", "prog-bsit");
-    expect(scoped.map((r) => r.id)).toEqual(["lab9"]);
+describe("roomsForPlotting", () => {
+  it("offers every room, whatever college or department owns it", () => {
+    expect(roomsForPlotting([coteLab, agriRoom, loose]).map((r) => r.id).sort()).toEqual(["r1", "r2", "r3"]);
   });
 });
 
-describe("a chairman stays inside their own college", () => {
-  // Most rooms carry no collegeId of their own; the building is what puts them in a college.
-  const buildings = [
-    { id: "b-cote", name: "COTE Building", collegeId: "c1" },
-    { id: "b-agri", name: "Agriculture Building", collegeId: "c2" },
-    { id: "b-shared", name: "Admin Building", collegeId: null },
-  ];
-  const coteRoom = room({ id: "r1", code: "COTE-101", buildingId: "b-cote", collegeId: null });
-  const agriRoom = room({ id: "r2", code: "AGRI-1", buildingId: "b-agri", collegeId: null });
-  const sharedRoom = room({ id: "r3", code: "ADM-1", buildingId: "b-shared", collegeId: null });
-  const looseRoom = room({ id: "r4", code: "LOOSE-1", buildingId: null, collegeId: null, building: null });
+describe("searchPlotRooms", () => {
+  const all = [coteLab, agriRoom, loose];
 
-  it("never offers a room that belongs to another college", () => {
-    const scoped = filterRoomsForProgramPlot(
-      [coteRoom, agriRoom, sharedRoom, looseRoom],
-      "BSIT",
-      "c1",
-      "prog-bsit",
-      buildings,
-    );
-    expect(scoped.map((r) => r.id).sort()).toEqual(["r1", "r3", "r4"]);
-    expect(scoped.some((r) => r.id === "r2")).toBe(false);
+  it("matches the room name, code or building", () => {
+    expect(searchPlotRooms(all, buildings, "it lab").map((h) => h.room.id)).toEqual(["r1"]);
+    expect(searchPlotRooms(all, buildings, "agri").map((h) => h.room.id)).toEqual(["r2"]);
+    expect(searchPlotRooms(all, buildings, "cote 303")[0]?.buildingName).toBe("COTE Building");
   });
 
-  it("reads the college from the building even when the room text is the only link", () => {
-    const byName = room({ id: "r5", code: "AGRI-2", buildingId: null, building: "Agriculture Building" });
-    expect(isRoomEligibleForProgramPlot(byName, "BSIT", "c1", "prog-bsit", buildings)).toBe(false);
-    expect(isRoomEligibleForProgramPlot(byName, "BSAG", "c2", "prog-ag", buildings)).toBe(true);
+  it("ignores leading zeros", () => {
+    expect(searchPlotRooms(all, buildings, "lab 4").map((h) => h.room.id)).toEqual(["r1"]);
   });
 
-  it("keeps campus-shared rooms available to every college", () => {
-    expect(isRoomEligibleForProgramPlot(sharedRoom, "BSIT", "c1", "prog-bsit", buildings)).toBe(true);
-    expect(isRoomEligibleForProgramPlot(looseRoom, "BSIT", "c1", "prog-bsit", buildings)).toBe(true);
-  });
-
-  it("still honours a room's own college when it sits in no building", () => {
-    const owned = room({ id: "r6", code: "X-1", buildingId: null, building: null, collegeId: "c2" });
-    expect(isRoomEligibleForProgramPlot(owned, "BSIT", "c1", "prog-bsit", buildings)).toBe(false);
-  });
-
-  it("applies the same rule to GEC plotting", () => {
-    const scoped = filterRoomsForGecPlot([coteRoom, agriRoom, sharedRoom], "c1", buildings);
-    expect(scoped.map((r) => r.id).sort()).toEqual(["r1", "r3"]);
+  it("returns nothing for a blank query or a room in no building", () => {
+    expect(searchPlotRooms(all, buildings, "  ")).toEqual([]);
+    expect(searchPlotRooms(all, buildings, "loose")).toEqual([]);
   });
 });
 
-describe("GEC-usable room filter", () => {
-  it("prefers gecUsable rooms when any exist for the college", () => {
-    const rooms = [
-      room({ id: "g1", code: "GEC-1", gecUsable: true }),
-      room({ id: "x1", code: "X-1", gecUsable: false }),
-      room({ id: "g2", code: "GEC-2", collegeId: "c2", gecUsable: true }),
-    ];
-    expect(filterRoomsForGecPlot(rooms, "c1").map((r) => r.id)).toEqual(["g1"]);
-  });
-
-  it("falls back to college rooms when no GEC flag is set yet", () => {
-    const rooms = [
-      room({ id: "a", code: "A", gecUsable: false }),
-      room({ id: "b", code: "B", collegeId: null, gecUsable: null }),
-    ];
-    expect(filterRoomsForGecPlot(rooms, "c1").map((r) => r.id).sort()).toEqual(["a", "b"]);
+describe("searchPlotRooms word starts", () => {
+  const etLab = room({ id: "e1", code: "COTE 204", displayName: "ET Lab 03 Digital Communication Lab", buildingId: "b-cote" });
+  const lab2 = room({ id: "l2", code: "COTE 304", displayName: "IT Lab 02", buildingId: "b-cote" });
+  it("does not match letters or digits in the middle of a word", () => {
+    expect(searchPlotRooms([etLab, coteLab, lab2], buildings, "iT LAB 4").map((h) => h.room.id)).toEqual(["r1"]);
   });
 });

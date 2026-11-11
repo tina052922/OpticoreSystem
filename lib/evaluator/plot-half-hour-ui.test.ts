@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatPlotDurationHours,
-  plotDurationChoices,
+  plotDurationError,
   resolvePlotMeetings,
   seedPlotMeetingsDraft,
   type PlotMeetingsDraft,
@@ -17,11 +17,15 @@ const slots = Array.from({ length: 10 }, (_, i) => ({
   startHour: 7 + i,
 }));
 
-describe("plotDurationChoices", () => {
-  it("offers only 1 hr and 1.5 hrs, whatever the budget", () => {
-    expect(plotDurationChoices(3)).toEqual([1, 1.5]);
-    expect(plotDurationChoices(1)).toEqual([1, 1.5]);
-    expect(plotDurationChoices(0)).toEqual([1, 1.5]);
+describe("plotDurationError", () => {
+  it("accepts 1 hr and up, in half hours", () => {
+    for (const ok of ["1", "1.5", "2", "2.5", "5", "1.0", ""]) expect(plotDurationError(ok)).toBeNull();
+  });
+  it("rejects under 1 hr, quarter hours and non-numbers", () => {
+    expect(plotDurationError("0.5")).toBe("At least 1 hr");
+    expect(plotDurationError("1.25")).toMatch(/half hours/);
+    expect(plotDurationError("abc")).toMatch(/number/);
+    expect(plotDurationError("-2")).toMatch(/number/);
   });
 });
 
@@ -53,9 +57,13 @@ describe("resolvePlotMeetings", () => {
     if (got.ok) expect(got.meetings[0]?.durationSlots).toBe(1.5);
   });
 
-  it("refuses half an hour and anything but 1 or 1.5 hours", () => {
+  it("refuses under 1 hour and anything off the half hour, but takes longer meetings", () => {
     expect(resolvePlotMeetings(draft("10:00 AM", "0.5"), args).ok).toBe(false);
-    expect(resolvePlotMeetings(draft("10:00 AM", "2"), args).ok).toBe(false);
+    expect(resolvePlotMeetings(draft("10:00 AM", "1.25"), args).ok).toBe(false);
+    expect(resolvePlotMeetings(draft("1:00 PM", "2"), args).ok).toBe(true);
+    expect(resolvePlotMeetings(draft("1:00 PM", "2.5"), args).ok).toBe(true);
+    // Still refused when it runs into lunch.
+    expect(resolvePlotMeetings(draft("10:00 AM", "2.5"), args).ok).toBe(false);
   });
 
   it("refuses more than the subject's budget", () => {

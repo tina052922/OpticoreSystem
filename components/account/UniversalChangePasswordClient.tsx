@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -41,8 +41,6 @@ function homeForRole(role: UserRole | null): string {
  * email, role, and whether they're in first-time setup.
  */
 export function UniversalChangePasswordClient() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
@@ -65,6 +63,8 @@ export function UniversalChangePasswordClient() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  /** Seconds left before the post-update sign-out; null until the password has been changed. */
+  const [redirectIn, setRedirectIn] = useState<number | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -82,6 +82,29 @@ export function UniversalChangePasswordClient() {
       }
     })();
   }, []);
+
+  /**
+   * After a successful change the session is ended and the user signs in again with the new
+   * password — confirming it works, and closing any session opened with the old one.
+   */
+  async function signOutToLogin() {
+    try {
+      await authApi.logout();
+    } catch {
+      /* the redirect below still ends the visit */
+    }
+    window.location.replace("/login?notice=password_changed");
+  }
+
+  useEffect(() => {
+    if (redirectIn == null) return;
+    if (redirectIn <= 0) {
+      void signOutToLogin();
+      return;
+    }
+    const t = window.setTimeout(() => setRedirectIn((n) => (n == null ? n : n - 1)), 1000);
+    return () => window.clearTimeout(t);
+  }, [redirectIn]);
 
   async function sendCode() {
     setCodeBusy(true);
@@ -137,11 +160,10 @@ export function UniversalChangePasswordClient() {
         currentPassword: firstTime ? undefined : currentPassword,
         newPassword,
       });
-      const nextRaw = searchParams.get("next")?.trim();
-      const next =
-        nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : homeForRole(role);
-      router.refresh();
-      router.replace(next);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setRedirectIn(5);
     } catch (err) {
       setError(
         err instanceof ApiClientError
@@ -153,6 +175,56 @@ export function UniversalChangePasswordClient() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (redirectIn != null) {
+    const secondsLeft = Math.max(redirectIn, 0);
+    return (
+      /* Centered modal over a blurred backdrop; the page behind stays visible but out of focus. */
+      <div
+        className="fixed inset-0 z-[150] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+        role="presentation"
+      >
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="pw-updated-title"
+          aria-describedby="pw-updated-body"
+          className="oc-toast-enter w-full max-w-md rounded-2xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50 via-white to-white p-7 text-center shadow-[0_24px_60px_-20px_rgba(0,0,0,0.45)]"
+        >
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md">
+            <CheckCircle2 className="h-8 w-8" aria-hidden />
+          </span>
+          <h2 id="pw-updated-title" className="mt-4 text-xl font-bold text-gray-900">
+            Password updated successfully
+          </h2>
+          <p id="pw-updated-body" className="mt-2 text-sm leading-relaxed text-black/70">
+            Your password has been changed. For your security, you will be signed out and asked to sign in again
+            with your new password.
+          </p>
+          <p className="mt-4 text-sm font-medium text-black/60" aria-live="polite">
+            {secondsLeft > 0 ? (
+              <>
+                Redirecting to the sign-in page in{" "}
+                <span className="tabular-nums font-semibold text-[#780301]">{secondsLeft}</span> second
+                {secondsLeft === 1 ? "" : "s"}…
+              </>
+            ) : (
+              "Signing you out…"
+            )}
+          </p>
+          <Button
+            type="button"
+            autoFocus
+            className="mt-5 h-11 w-full bg-[#780301] text-white hover:bg-[#5a0201]"
+            onClick={() => void signOutToLogin()}
+            disabled={secondsLeft === 0}
+          >
+            Sign in now
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {

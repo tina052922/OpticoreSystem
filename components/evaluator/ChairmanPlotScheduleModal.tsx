@@ -83,6 +83,7 @@ import type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 import type { Building, Room, Section } from "@/types/db";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
 import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
+import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
 
 const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -1041,6 +1042,19 @@ export function ChairmanPlotScheduleModal({
               </p>
             ) : null}
           </div>
+
+          {!readOnly ? (
+            <PlotRoomSearch
+              rooms={roomsForEvaluatorGrid}
+              buildingsCatalog={buildingsCatalog}
+              busyRoomIds={busyRoomIds ?? undefined}
+              currentRoomId={draft.roomId}
+              onPick={(b, roomId) => {
+                onBuildingChange(b);
+                onDraftChange({ ...draft, roomId });
+              }}
+            />
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

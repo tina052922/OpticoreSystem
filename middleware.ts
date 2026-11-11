@@ -63,7 +63,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/doi") ||
     pathname.startsWith("/faculty") ||
     pathname.startsWith("/student") ||
-    pathname.startsWith("/gec");
+    pathname.startsWith("/gec") ||
+    pathname.startsWith("/account");
 
   if (isProtectedRoute) {
     const gate = sessionGateFor({
@@ -108,6 +109,7 @@ export const config = {
     "/faculty/:path*",
     "/student/:path*",
     "/gec/:path*",
+    "/account/:path*",
     "/",
     "/login",
     "/campus-navigation",

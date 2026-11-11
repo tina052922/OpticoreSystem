@@ -153,6 +153,48 @@ body {
 }
 
 /**
+ * Toasts — slide in from the right, and a thin bar that empties over the toast's lifetime.
+ * Transform and opacity only, so both stay on the compositor and cost nothing on load.
+ */
+@keyframes oc-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes oc-toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.oc-toast-enter {
+  animation: oc-toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.oc-toast-timer {
+  transform-origin: left;
+  animation-name: oc-toast-timer;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-toast-enter,
+  .oc-toast-timer {
+    animation: none;
+  }
+}
+
+/**
  * App shell pages own their scrolling.
  *
  * The shell is a full-viewport flex column whose <main> scrolls. Without this, anything that makes

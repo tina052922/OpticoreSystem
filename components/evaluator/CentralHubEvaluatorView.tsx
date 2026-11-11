@@ -503,7 +503,7 @@ export function CentralHubEvaluatorView({
       const pr = sec ? programById.get(sec.programId) : null;
       const cid = pr?.collegeId;
       if (!cid) return [];
-      const roomIds = rooms.filter((r) => !r.collegeId || r.collegeId === cid).map((r) => r.id);
+      const roomIds = rooms.map((r) => r.id);
       const instructorIds = users
         .filter((u) => u.collegeId === cid && isPlottableFacultyUser(u))
         .map((u) => u.id);
@@ -549,11 +549,9 @@ export function CentralHubEvaluatorView({
   }, [editEntry, sectionById, programById]);
 
   const roomsForEdit = useMemo(() => {
-    const scoped = !editCollegeId
-      ? rooms
-      : rooms.filter((r) => !r.collegeId || r.collegeId === editCollegeId);
-    return dedupeLegacyItLabsForCampusNavigation(scoped);
-  }, [rooms, editCollegeId]);
+    // Every room is offered; the room-conflict check guards double bookings.
+    return dedupeLegacyItLabsForCampusNavigation(rooms);
+  }, [rooms]);
 
   const instructorsForEdit = useMemo(() => {
     if (!editCollegeId) return users.filter((u) => isPlottableFacultyUser(u));
@@ -794,7 +792,7 @@ export function CentralHubEvaluatorView({
       setAltSuggestions([]);
       return;
     }
-    const roomIds = rooms.filter((r) => r.collegeId === cid || r.collegeId == null).map((r) => r.id);
+    const roomIds = rooms.map((r) => r.id);
     const instructorIds = users
       .filter((u) => u.collegeId === cid && isPlottableFacultyUser(u))
       .map((u) => u.id);

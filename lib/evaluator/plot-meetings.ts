@@ -51,15 +51,22 @@ function slotText(slot: PlotMeetingSlotFields | undefined): { day: string; durat
   return { day: text(slot?.day), durationHours: text(slot?.durationHours) };
 }
 
-/** The only meeting lengths a plot may use: 1 hour or 1.5 hours. */
-export const PLOT_DURATION_OPTIONS: readonly number[] = [1, 1.5];
+/** Shortest meeting a plot may use. Longer ones go up in half hours: 1, 1.5, 2, 2.5 … */
+export const PLOT_DURATION_MIN_HOURS = 1;
 
 /**
- * Duration dropdown choices. Fixed at 1 and 1.5 hours whatever the subject's budget; the weekly
- * hours over the budget are still caught by the load/contact-hour checks, not by this list.
+ * Why a typed duration cannot be used, or null when it can. Durations are typed, not picked: at
+ * least 1 hour, in half-hour steps ("1.5", "2.5", "5"). Whether it fits the day — the grid's end,
+ * lunch, the next class — is checked separately once the start time is known.
  */
-export function plotDurationChoices(_maxDur?: number): number[] {
-  return [...PLOT_DURATION_OPTIONS];
+export function plotDurationError(raw: string | null | undefined): string | null {
+  const t = text(raw);
+  if (!t) return null;
+  if (!/^\d+(\.\d+)?$/.test(t)) return "Type hours as a number, e.g. 1.5";
+  const n = Number(t);
+  if (n < PLOT_DURATION_MIN_HOURS) return "At least 1 hr";
+  if (Math.abs(n * 2 - Math.round(n * 2)) > 1e-9) return "Use half hours: 1, 1.5, 2, 2.5 …";
+  return null;
 }
 
 /** "1.5" rather than "1.5000000002", and "2" rather than "2.0". */
@@ -114,12 +121,8 @@ export function seedPlotMeetingsDraft(args: {
 }
 
 function parseDurationHours(raw: string | null | undefined, _maxDur?: number): number | null {
-  const n = parseFloat(text(raw));
-  if (!Number.isFinite(n)) return null;
-  // Snapped to the half hour, not the hour: a 1.5 hour class is ordinary, not a typo.
-  const stepped = quantizePlotHours(n);
-  if (!PLOT_DURATION_OPTIONS.some((h) => Math.abs(h - stepped) < 1e-9)) return null;
-  return stepped;
+  if (!text(raw) || plotDurationError(raw)) return null;
+  return quantizePlotHours(Number(text(raw)));
 }
 
 export function filledPlotMeetingCount(draft: PlotMeetingsDraft): number {
@@ -187,7 +190,7 @@ export function resolvePlotMeetings(
     if (durationSlots == null) {
       return {
         ok: false,
-        error: `Choose a duration for ${day} (1 hr or 1.5 hrs).`,
+        error: `Type a duration for ${day}: at least 1 hr, in half hours (1, 1.5, 2, 2.5 …).`,
       };
     }
 

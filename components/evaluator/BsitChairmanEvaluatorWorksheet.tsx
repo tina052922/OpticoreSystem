@@ -74,8 +74,7 @@ import {
   campusNavigationBuildingOptionLabel,
   sortedNavigationBuildingKeysFromRooms,
 } from "@/lib/campus/campus-navigation-catalog";
-import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
-import { filterRoomsForProgramPlot } from "@/lib/scheduling/program-plot-rooms";
+import { roomsForPlotting } from "@/lib/scheduling/program-plot-rooms";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { filterSubjectsBySemester, semesterFilterForPeriod } from "@/lib/subjects/subject-semester-filter";
 import { useSystemConfigurationOptional } from "@/contexts/SystemConfigurationContext";
@@ -900,23 +899,8 @@ export function BsitChairmanEvaluatorWorksheet({
     void loadAllData();
   }, [loadAllData]);
 
-  /** Program-scoped plot rooms (department-owned rooms when configured; BSIT → IT labs otherwise). */
-  const roomsForEvaluatorGrid = useMemo((): Room[] => {
-    const catalog = dedupeLegacyItLabsForCampusNavigation(rooms);
-    const scoped = filterRoomsForProgramPlot(
-      catalog,
-      programCodeForSummary,
-      chairmanCollegeId,
-      programId,
-      buildings,
-    );
-    const sorted = [...scoped].sort((a, b) => {
-      const ba = (a.building ?? "").localeCompare(b.building ?? "");
-      if (ba !== 0) return ba;
-      return a.code.localeCompare(b.code);
-    });
-    return sorted.length > 0 ? sorted : rooms;
-  }, [rooms, buildings, chairmanCollegeId, programCodeForSummary, programId]);
+  /** Every room in Buildings & Rooms — plotting is not limited by college or department. */
+  const roomsForEvaluatorGrid = useMemo((): Room[] => roomsForPlotting(rooms), [rooms]);
 
 
   const facultyProfileByUserId = useMemo(() => {

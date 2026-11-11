@@ -6,7 +6,7 @@ import {
   type HourSlot,
 } from "@/lib/scheduling/program-mode";
 import { formatHHMMTo12h } from "@/lib/time/format-12h";
-import { PLOT_DURATION_OPTIONS } from "@/lib/evaluator/plot-meetings";
+import { PLOT_DURATION_MIN_HOURS } from "@/lib/evaluator/plot-meetings";
 
 function toMinutes(hhmm: string | null | undefined): number | null {
   const [h, m] = String(hhmm ?? "").trim().split(":");
@@ -78,7 +78,7 @@ export function sectionFreeTimeFrom(args: {
 }
 
 /**
- * A short notice when the chosen start leaves too little room for a 1 hr / 1.5 hr meeting, or for
+ * A short notice when the chosen start leaves too little room for a 1 hr meeting, or for
  * the duration picked. Null when the meeting fits.
  */
 export function plotFreeTimeNotice(args: {
@@ -89,15 +89,15 @@ export function plotFreeTimeNotice(args: {
 }): string | null {
   const { free } = args;
   if (!free) return null;
-  const shortest = Math.min(...PLOT_DURATION_OPTIONS) * 60;
+  const shortest = PLOT_DURATION_MIN_HOURS * 60;
   const what = free.until === "class" ? "next class" : free.until === "lunch" ? "lunch break" : "end of day";
   const from = formatHHMMTo12h(args.startTime);
   if (free.freeMinutes < shortest) {
-    return `Only ${formatHours(free.freeMinutes)} free on ${args.day} from ${from} (${what} at ${free.untilLabel}). A meeting must be 1 hr or 1.5 hrs, so pick another start time.`;
+    return `Only ${formatHours(free.freeMinutes)} free on ${args.day} from ${from} (${what} at ${free.untilLabel}). A meeting must be at least 1 hr, so pick another start time.`;
   }
   const want = (args.durationHours ?? 0) * 60;
   if (want > free.freeMinutes) {
-    return `Only ${formatHours(free.freeMinutes)} free on ${args.day} from ${from} (${what} at ${free.untilLabel}). Choose ${formatHours(free.freeMinutes >= 90 ? 90 : 60)} or another start time.`;
+    return `Only ${formatHours(free.freeMinutes)} free on ${args.day} from ${from} (${what} at ${free.untilLabel}). Make it ${formatHours(Math.floor(free.freeMinutes / 30) * 30)} or shorter, or pick another start time.`;
   }
   return null;
 }

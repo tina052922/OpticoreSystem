@@ -25,6 +25,8 @@ export function LoginClient() {
   const params = useSearchParams();
   const nextParam = useMemo(() => params.get("next"), [params]);
   const errorParam = params.get("error");
+  /** Set by Change password after a successful update (the user was signed out on purpose). */
+  const passwordChanged = params.get("notice") === "password_changed";
 
   const toast = useOpticoreToast();
   const branding = useCampusBranding();
@@ -120,6 +122,16 @@ export function LoginClient() {
         title="Sign in"
         subtitle={`Continue to ${branding.headerTitle} — Campus Intelligence System.`}
       />
+
+      {passwordChanged ? (
+        <div
+          role="status"
+          className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+        >
+          <p className="font-semibold">Your password has been updated.</p>
+          <p className="mt-0.5 text-emerald-900/80">Please sign in with your new password to continue.</p>
+        </div>
+      ) : null}
 
       <form onSubmit={onSubmit} className="space-y-5">
         <div className="space-y-1.5">

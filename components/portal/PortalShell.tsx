@@ -22,6 +22,7 @@ import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { ProgramModeProvider } from "@/contexts/ProgramModeContext";
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
 import { SemesterNavDropdown } from "@/components/semester/SemesterNavDropdown";
+import { StudentSectionPrompt } from "@/components/portal/StudentSectionPrompt";
 import { isNavItemActive } from "@/lib/nav-active";
 import { NAV_ICONS } from "@/components/nav/nav-icons";
 import type { NavIconKey } from "@/lib/admin-nav";
@@ -43,6 +44,8 @@ export type PortalShellProps = {
   inboxHref?: string;
   /** Fixes Day / Evening to the viewer's own programme and hides the toggle. */
   lockedProgramMode?: ProgramMode | null;
+  /** Student portal: ask for the year/section on a new semester (see `StudentSectionPrompt`). */
+  studentSectionPrompt?: boolean;
 };
 
 export function PortalShell({
@@ -56,6 +59,7 @@ export function PortalShell({
   profileHref,
   inboxHref,
   lockedProgramMode = null,
+  studentSectionPrompt = false,
 }: PortalShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -257,7 +261,10 @@ export function PortalShell({
           </div>
         </aside>
 
-        <main className="flex-1 overflow-auto min-w-0 bg-[#F8F8F8]">{children}</main>
+        <main className="flex-1 overflow-auto min-w-0 bg-[#F8F8F8]">
+          {studentSectionPrompt ? <StudentSectionPrompt /> : null}
+          {children}
+        </main>
       </div>
     </div>
     </SemesterFilterProvider>

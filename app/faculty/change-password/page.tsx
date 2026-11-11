@@ -1,11 +1,10 @@
-import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { FacultyChangePasswordClient } from "@/components/faculty/FacultyChangePasswordClient";
+import { redirect } from "next/navigation";
 
+/**
+ * Instructors use the same Change password page as every other role. This older faculty-only page
+ * always demanded the current password, so an instructor on an admin-issued temporary password
+ * could not set their own; old links land on the shared page instead.
+ */
 export default function FacultyChangePasswordPage() {
-  return (
-    <div>
-      <ChairmanPageHeader title="Change password" subtitle="Required when your account uses a temporary password." />
-      <FacultyChangePasswordClient />
-    </div>
-  );
+  redirect("/account/change-password?next=/faculty");
 }

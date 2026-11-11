@@ -179,6 +179,10 @@ export function InstructorRegisterClient() {
       toast.refuse("Check your date of birth", DATE_OF_BIRTH_ERROR);
       return;
     }
+    if (!employeeId.trim()) {
+      toast.refuse("Enter your Employee ID", "Your CTU employee / staff ID is required.");
+      return;
+    }
     if (!collegeId) {
       toast.refuse("Choose your college", "Pick the college you teach in.");
       return;
@@ -201,7 +205,7 @@ export function InstructorRegisterClient() {
         facultyCategory,
         programId:
           facultyCategory === FACULTY_CATEGORY_GEC ? null : programId,
-        employeeId: employeeId.trim() || undefined,
+        employeeId: employeeId.trim(),
         ...profilePayload(),
       });
 
@@ -420,20 +424,21 @@ export function InstructorRegisterClient() {
               </div>
               <div>
                 <label htmlFor="ins-employee-id" className={labelClass}>
-                  Employee ID (optional)
+                  Employee ID
                 </label>
                 <Input
                   id="ins-employee-id"
                   placeholder="CTU employee / staff ID"
                   value={employeeId}
                   onChange={(e) => setEmployeeId(e.target.value)}
+                  required
                   autoComplete="off"
                   className={fieldClass}
                   aria-describedby="ins-employee-id-hint"
                 />
                 <p id="ins-employee-id-hint" className="mt-1 text-xs text-black/55">
-                  Helps your reviewer find you. They confirm the final Employee ID
-                  when approving your account.
+                  Required. Helps your reviewer find you; they confirm it when
+                  approving your account.
                 </p>
               </div>
               <div>

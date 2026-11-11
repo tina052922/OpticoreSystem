@@ -63,8 +63,7 @@ import {
   isGecCurriculumSubjectCode,
   isGecVacantScheduleEntry,
 } from "@/lib/gec/gec-vacant";
-import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
-import { filterRoomsForGecPlot } from "@/lib/scheduling/program-plot-rooms";
+import { roomsForPlotting as allPlotRooms } from "@/lib/scheduling/program-plot-rooms";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
@@ -746,11 +745,8 @@ export function GecCentralHubEvaluatorClient() {
     );
   }, [users, plotCollegeId, entryInstructorIdsForPlotMerge, facultyProfileByUserId]);
 
-  const roomsForPlotting = useMemo(() => {
-    if (!plotCollegeId) return [];
-    const scoped = filterRoomsForGecPlot(rooms, plotCollegeId, buildings);
-    return dedupeLegacyItLabsForCampusNavigation(scoped);
-  }, [rooms, buildings, plotCollegeId]);
+  /** Every room in Buildings & Rooms — GEC plotting is not limited to one college's buildings. */
+  const roomsForPlotting = useMemo(() => allPlotRooms(rooms), [rooms]);
 
   function patchEdit(entryId: string, patch: GecPlotEditPatch) {
     setEdits((prev) => ({

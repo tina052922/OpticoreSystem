@@ -71,9 +71,10 @@ describe("totalPlotMeetingHours", () => {
     expect(totalPlotMeetingHours(draft, 3)).toBe(2.5);
   });
 
-  it("skips a duration outside the allowed range", () => {
-    const draft = draftWith([{ day: "Monday", durationHours: "9" }]);
-    expect(totalPlotMeetingHours(draft, 3)).toBe(0);
+  it("skips a duration that is not a valid one", () => {
+    expect(totalPlotMeetingHours(draftWith([{ day: "Monday", durationHours: "0.5" }]), 3)).toBe(0);
+    expect(totalPlotMeetingHours(draftWith([{ day: "Monday", durationHours: "1.25" }]), 3)).toBe(0);
+    expect(totalPlotMeetingHours(draftWith([{ day: "Monday", durationHours: "2.5" }]), 3)).toBe(2.5);
   });
 });
 

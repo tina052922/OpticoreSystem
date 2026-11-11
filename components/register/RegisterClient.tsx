@@ -157,6 +157,10 @@ export function RegisterClient() {
       toast.refuse("Finish your enrolment details", "Program, year level and section are all needed.");
       return;
     }
+    if (!/^\d{7}$/.test(studentId.trim())) {
+      toast.refuse("Enter your Student ID", "Your Student ID must be exactly 7 digits.");
+      return;
+    }
 
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -169,7 +173,7 @@ export function RegisterClient() {
         programId,
         sectionId,
         yearLevel,
-        studentId: studentId.trim() || "",
+        studentId: studentId.trim(),
       });
 
       /**
@@ -439,15 +443,26 @@ export function RegisterClient() {
 
           <div className="space-y-1.5">
             <label htmlFor="studentId" className={LABEL_CLASS}>
-              Student ID <span className="font-normal text-black/40">(optional)</span>
+              Student ID <span className="text-[#780301]">*</span>
             </label>
             <Input
               id="studentId"
-              placeholder="University ID number"
+              placeholder="7-digit Student ID"
               value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
+              // Digits only, at most 7 — the university ID format.
+              onChange={(e) => setStudentId(e.target.value.replace(/\D/g, "").slice(0, 7))}
+              inputMode="numeric"
+              pattern="\d{7}"
+              maxLength={7}
+              required
+              autoComplete="off"
               className={FIELD_CLASS}
+              aria-describedby="studentId-hint"
             />
+            <p id="studentId-hint" className="text-xs text-black/60">
+              Enter your <strong className="font-semibold text-black/80">7-digit Student ID</strong> exactly as it
+              appears on your university ID (numbers only).
+            </p>
           </div>
         </fieldset>
 

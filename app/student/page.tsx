@@ -12,6 +12,7 @@ export default async function StudentDashboardPage() {
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       sidebarBadge="Student"
+      studentSectionPrompt
       navItems={STUDENT_PORTAL_NAV}
       periodLabel="Current semester"
     >
