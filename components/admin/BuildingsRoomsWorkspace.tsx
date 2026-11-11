@@ -60,6 +60,14 @@ export function BuildingsRoomsWorkspace({
   const [standaloneCapacity, setStandaloneCapacity] = useState("");
   const [savingStandalone, setSavingStandalone] = useState(false);
   /**
+   * Department for a standalone room, picked inside its own form. It starts from the big form's
+   * department, but the button no longer depends on that one being filled in.
+   */
+  const [standaloneScope, setStandaloneScope] = useState<{ collegeId: string | null; programId: string | null }>({
+    collegeId: null,
+    programId: null,
+  });
+  /**
    * Rooms typed on the same form as the building.
    *
    * With no building name these are saved as standalone rooms, which is why the department is
@@ -255,8 +263,8 @@ export function BuildingsRoomsWorkspace({
   /** Quick add from the Standalone Rooms section: a room in no building, for the chosen department. */
   async function onCreateStandalone() {
     const code = standaloneCode.trim();
-    if (!formScope.programId) {
-      toast.refuse("Choose a department first", "A standalone room has to belong to one.");
+    if (!standaloneScope.programId) {
+      toast.refuse("Choose a department", "A room with no building is saved under a department.");
       return;
     }
     if (!code) {
@@ -276,8 +284,8 @@ export function BuildingsRoomsWorkspace({
         buildingId: null,
         floor,
         capacity: standaloneCapacity.trim() ? parseInt(standaloneCapacity, 10) : null,
-        collegeId: formScope.collegeId,
-        programId: formScope.programId,
+        collegeId: standaloneScope.collegeId,
+        programId: standaloneScope.programId,
         gecUsable: false,
         building: null,
       });
@@ -286,8 +294,8 @@ export function BuildingsRoomsWorkspace({
         {
           ...room,
           floor: room.floor ?? floor,
-          programId: room.programId ?? formScope.programId,
-          collegeId: room.collegeId ?? formScope.collegeId,
+          programId: room.programId ?? standaloneScope.programId,
+          collegeId: room.collegeId ?? standaloneScope.collegeId,
         },
       ]);
       toast.caution(w, "Saved with a limitation");
@@ -338,8 +346,9 @@ export function BuildingsRoomsWorkspace({
       toast.refuse("Choose a department first", "A building or room has to belong to one.");
       return;
     }
-    if (!name && roomRows.length === 0) {
-      toast.refuse("Nothing to save yet", "Enter a building name, one or more room codes, or both.");
+    if (!name) {
+      // Rooms with no building are added from "+ Add standalone room" in the Standalone Rooms section.
+      toast.refuse("Enter a building name", "To add a room with no building, use “+ Add standalone room” below.");
       return;
     }
 
@@ -635,8 +644,8 @@ export function BuildingsRoomsWorkspace({
         <div>
           <div className="text-[16px] font-semibold">Add building and rooms</div>
           <p className="text-[12px] text-black/55 mt-0.5">
-            Fill both halves to create a building with its rooms, or leave the building blank to add
-            standalone rooms to a department.
+            Create a building and, optionally, its rooms. For a room that is not in any building, use
+            <strong> + Add standalone room</strong> in the Standalone Rooms section.
           </p>
         </div>
 
@@ -645,21 +654,24 @@ export function BuildingsRoomsWorkspace({
           onChange={(next) => setFormScope({ collegeId: next.collegeId, programId: next.programId })}
           label="Department"
           placeholder="Search a department — code or name"
-          helpText="Required. A building, and any standalone room, belongs to one department."
+          helpText="Required. A building belongs to one department."
           requireScope
           kind="program"
           className="max-w-xl"
         />
 
         <div className="space-y-3">
-          <div className="text-[13px] font-semibold text-black/80">Building (optional)</div>
+          <div className="text-[13px] font-semibold text-black/80">Building</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <label className="space-y-1 sm:col-span-2">
-              <span className="text-[12px] font-semibold text-black/75">Building name</span>
+              <span className="text-[12px] font-semibold text-black/75">
+                Building name <span className="text-red-600" aria-hidden>*</span>
+              </span>
               <Input
                 value={buildingName}
                 onChange={(e) => setBuildingName(e.target.value)}
                 placeholder="e.g. Technology Building"
+                aria-required="true"
                 disabled={!canEdit || savingBuilding}
               />
             </label>
@@ -697,12 +709,8 @@ export function BuildingsRoomsWorkspace({
 
         <div className="space-y-3 border-t border-black/10 pt-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div className="text-[13px] font-semibold text-black/80">Rooms</div>
-            <p className="text-[11px] text-black/50">
-              {buildingName.trim()
-                ? "Saved inside the building above."
-                : "No building name — these are saved as standalone rooms for the department."}
-            </p>
+            <div className="text-[13px] font-semibold text-black/80">Rooms (optional)</div>
+            <p className="text-[11px] text-black/50">Saved inside the building above.</p>
           </div>
 
           {newRooms.map((row, i) => (
@@ -935,9 +943,13 @@ export function BuildingsRoomsWorkspace({
                 variant="outline"
                 size="sm"
                 className="h-10"
-                disabled={!canEdit}
-                title={canEdit ? undefined : "Choose a department in the form above first"}
-                onClick={() => setStandaloneAddOpen((v) => !v)}
+                onClick={() => {
+                  // Start from the department already chosen above, if any.
+                  if (!standaloneAddOpen && !standaloneScope.programId && formScope.programId) {
+                    setStandaloneScope(formScope);
+                  }
+                  setStandaloneAddOpen((v) => !v);
+                }}
               >
                 {standaloneAddOpen ? "Cancel" : "+ Add standalone room"}
               </Button>
@@ -945,7 +957,18 @@ export function BuildingsRoomsWorkspace({
           </div>
 
           {standaloneAddOpen ? (
-            <div className="grid grid-cols-1 gap-3 rounded-lg border border-[#780301]/20 bg-[#fdf6f5] p-3 sm:grid-cols-[1fr_1.3fr_6rem_7rem_auto] sm:items-end">
+            <div className="space-y-3 rounded-lg border border-[#780301]/20 bg-[#fdf6f5] p-3">
+            <ScopeSearchPicker
+              value={standaloneScope}
+              onChange={(next) => setStandaloneScope({ collegeId: next.collegeId, programId: next.programId })}
+              label="Department"
+              placeholder="Search a department — code or name"
+              helpText="Required. A room with no building is saved under a department."
+              requireScope
+              kind="program"
+              className="max-w-xl"
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1.3fr_6rem_7rem_auto] sm:items-end">
               <label className="space-y-1">
                 <span className="text-[12px] font-semibold text-black/75">Room code</span>
                 <Input
@@ -990,11 +1013,13 @@ export function BuildingsRoomsWorkspace({
               <Button
                 type="button"
                 className="h-10 bg-[#780301] text-white hover:bg-[#5a0201]"
-                disabled={savingStandalone}
+                disabled={savingStandalone || !standaloneScope.programId}
+                title={standaloneScope.programId ? undefined : "Choose a department first"}
                 onClick={() => void onCreateStandalone()}
               >
                 {savingStandalone ? "Saving…" : "Add room"}
               </Button>
+            </div>
             </div>
           ) : null}
 
