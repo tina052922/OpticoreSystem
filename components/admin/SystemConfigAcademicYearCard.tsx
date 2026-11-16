@@ -100,7 +100,7 @@ export function SystemConfigAcademicYearCard({ canWrite }: { canWrite: boolean }
     setBusy(true);
     try {
       await adminApi.setCurrentAcademicPeriod(id);
-      setMsg({ kind: "ok", text: `${name} is now the current term campus-wide.` });
+      setMsg({ kind: "ok", text: `Current term updated successfully: ${name} is now the current term campus-wide.` });
       await load();
       notifySystemConfigurationSaved("academicPeriod");
     } catch (e) {
@@ -141,8 +141,8 @@ export function SystemConfigAcademicYearCard({ canWrite }: { canWrite: boolean }
         kind: "ok",
         text:
           (res.current
-            ? `School year ${draft.academicYear} added. ${res.current.name} is now current (today falls in it).`
-            : `School year ${draft.academicYear} added. The current term was not changed.`) + copiedText,
+            ? `School year ${draft.academicYear} added successfully. ${res.current.name} is now current (today falls in it).`
+            : `School year ${draft.academicYear} added successfully. The current term was not changed.`) + copiedText,
       });
       await load();
       notifySystemConfigurationSaved("academicPeriod");
@@ -175,7 +175,7 @@ export function SystemConfigAcademicYearCard({ canWrite }: { canWrite: boolean }
         endDate: editDraft.endDate || null,
       });
       setEditId(null);
-      setMsg({ kind: "ok", text: "Semester updated." });
+      setMsg({ kind: "ok", text: "Semester updated successfully." });
       await load();
       notifySystemConfigurationSaved("academicPeriod");
     } catch (e) {

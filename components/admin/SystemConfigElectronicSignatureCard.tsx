@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/alerts/useActionToast";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { collegeApi, doiApi, systemConfigApi, ApiClientError } from "@/lib/api/client";
@@ -24,6 +25,7 @@ export function SystemConfigElectronicSignatureCard({
   kind,
   collegeId = null,
 }: SystemConfigElectronicSignatureCardProps) {
+  const toast = useActionToast();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -74,6 +76,7 @@ export function SystemConfigElectronicSignatureCard({
       setPreviewUrl(data.url?.trim() || null);
       notifySystemConfigurationSaved("insSigners");
       dispatchInsCatalogReload();
+      toast.ok("E-signature uploaded successfully", "It will print on the INS forms.");
     } catch (e) {
       setErr(e instanceof ApiClientError ? e.message : "Upload failed");
     } finally {
@@ -95,6 +98,7 @@ export function SystemConfigElectronicSignatureCard({
       setPreviewUrl(null);
       notifySystemConfigurationSaved("insSigners");
       dispatchInsCatalogReload();
+      toast.ok("E-signature removed");
     } catch (e) {
       setErr(e instanceof ApiClientError ? e.message : "Could not clear");
     } finally {

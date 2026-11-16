@@ -79,28 +79,6 @@ const s = StyleSheet.create({
     color: "#6b7280",
     textAlign: "center",
   },
-  footerBlock: {
-    marginTop: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  signCol: {
-    width: "23%",
-    fontSize: 7,
-    color: "#111",
-  },
-  signLabel: {
-    fontSize: 6.5,
-    color: "#4b5563",
-    marginBottom: 14,
-  },
-  signLine: {
-    borderTopWidth: 0.5,
-    borderTopColor: "#111",
-    paddingTop: 3,
-    fontFamily: "Helvetica-Bold",
-    fontSize: 7,
-  },
 });
 
 function fmt(n: number): string {
@@ -241,6 +219,8 @@ export function TeachingLoadSummaryDocument({
           semesterLabel={semesterLabel}
           programMode="both"
           headerBanner={headerBanner}
+          // An in-house summary, not a CTU-issued form: no form code, issue date or revision.
+          showFormMeta={false}
         />
         <Text style={s.collegeTitle}>{collegeName}</Text>
         <Text style={s.formTitle}>Summary of Teaching Load</Text>
@@ -250,24 +230,6 @@ export function TeachingLoadSummaryDocument({
         ) : (
           groups.map((g) => <CategoryTable key={g.programId} group={g} />)
         )}
-        <View style={s.footerBlock} wrap={false}>
-          <View style={s.signCol}>
-            <Text style={s.signLabel}>Prepared by</Text>
-            <Text style={s.signLine}>Program Chair</Text>
-          </View>
-          <View style={s.signCol}>
-            <Text style={s.signLabel}>Noted by</Text>
-            <Text style={s.signLine}>College Dean</Text>
-          </View>
-          <View style={s.signCol}>
-            <Text style={s.signLabel}>Recommending Approval</Text>
-            <Text style={s.signLine}>DOI</Text>
-          </View>
-          <View style={s.signCol}>
-            <Text style={s.signLabel}>Approved by</Text>
-            <Text style={s.signLine}>Campus Director</Text>
-          </View>
-        </View>
         <INSBrandedFooter text={insFooterText} />
       </Page>
     </Document>

@@ -133,7 +133,7 @@ export function InsSignerLabelsEditor({ mode, collegeId, onUpdated, layout = "de
         if (!collegeId) throw new Error("College scope required.");
         await collegeApi.patchSignerSettings({ collegeId, insSignerDisplay: display });
       }
-      toast.ok("Signatories saved");
+      toast.ok("Signatories updated successfully");
       notifySystemConfigurationSaved(mode === "doi" ? "insSigners" : "collegeSigners");
       onUpdated?.();
     } catch (e) {

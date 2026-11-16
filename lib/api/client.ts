@@ -156,6 +156,7 @@ export type Section = {
   name: string;
   yearLevel: number;
   studentCount: number;
+  programMode?: "day" | "night" | null;
 };
 export type Subject = {
   id: string;
@@ -789,7 +790,8 @@ export const systemConfigApi = {
 
 export const auditLogApi = {
   list(
-    params: { limit?: number; offset?: number } = {},
+    /** `from` / `to`: YYYY-MM-DD, inclusive. `limit` up to 1000. */
+    params: { limit?: number; offset?: number; from?: string; to?: string } = {},
     opts: { cookieHeader?: string } = {},
   ) {
     return apiFetch<{ entries: AuditLogEntry[]; pagination: Pagination }>(
@@ -861,7 +863,7 @@ export const authApi = {
     // BEFORE the new session exists, so nothing can be read cross-account.
     clearApiCache();
     try {
-      return await apiFetch<{
+      const res = await apiFetch<{
         user: SafeUser;
         session?: {
           access_token: string;
@@ -873,6 +875,13 @@ export const authApi = {
         body: input,
         retryOn401: false,
       });
+      // Other open tabs showing a different account must not keep acting as it.
+      if (typeof window !== "undefined") {
+        void import("@/lib/auth/session-sync")
+          .then((m) => m.announceSession("login", res.user?.id ?? null))
+          .catch(() => undefined);
+      }
+      return res;
     } finally {
       clearApiCache();
       // Reconnect under the new identity so topics are re-derived server-side.
@@ -900,6 +909,10 @@ export const authApi = {
         // And everything this browser remembered about them, drafts included.
         void import("@/lib/auth/clear-session-state")
           .then((m) => m.clearClientSessionState())
+          .catch(() => undefined);
+        // Sign every other open tab out too.
+        void import("@/lib/auth/session-sync")
+          .then((m) => m.announceSession("logout", null))
           .catch(() => undefined);
       }
     }
@@ -1005,7 +1018,7 @@ export const registerApi = {
     password: string;
     collegeId: string;
     /** `program` (default) or `gec` — GEC instructors are not locked to one department. */
-    facultyCategory?: "program" | "gec";
+    facultyCategory?: "program" | "gec" | "both";
     /** Required for program faculty; omit/null for GEC instructors. */
     programId?: string | null;
     employeeId?: string;
@@ -1123,7 +1136,7 @@ export type InstructorRequest = {
   /** What the applicant typed. Advisory only — the chairman sets the real one. */
   claimedEmployeeId: string | null;
   /** `program` or `gec` — GEC instructors are not locked to one department. */
-  facultyCategory?: "program" | "gec" | null;
+  facultyCategory?: "program" | "gec" | "both" | null;
   /** Home department for program faculty; null for GEC. */
   programId?: string | null;
   /** Faculty profile fields from the registration form. */
@@ -1134,6 +1147,13 @@ export type InstructorRequest = {
   reviewerNotes: string | null;
   linkedUserId: string | null;
   createdAt: string;
+  /** Approved: the instructor's account as it is NOW (category/department/email may have changed). */
+  account?: {
+    exists: boolean;
+    email: string | null;
+    facultyCategory: "program" | "gec" | "both" | null;
+    programId: string | null;
+  } | null;
 };
 
 /** An unclaimed placeholder faculty row a chairman can adopt at approval. */
@@ -1190,6 +1210,17 @@ export const instructorRequestsApi = {
       `/api/instructor-requests/${id}/reject`,
       { method: "POST", body },
     );
+  },
+  /** History: fix the email — for an approved instructor this is also their sign-in address. */
+  updateEmail(id: string, email: string) {
+    return apiFetch<{ ok: true; email: string; accountUpdated: boolean }>(`/api/instructor-requests/${id}`, {
+      method: "PATCH",
+      body: { email },
+    });
+  },
+  /** History: remove a reviewed entry (the instructor's account is not affected). */
+  remove(id: string) {
+    return apiFetch<{ ok: true }>(`/api/instructor-requests/${id}`, { method: "DELETE" });
   },
 };
 
@@ -1729,6 +1760,8 @@ export const academicStructureApi = {
     yearLevel: number;
     studentCount?: number;
     id?: string;
+    /** "day" (default) or "night" (Evening Program). */
+    programMode?: "day" | "night";
   }) {
     return apiFetch<{ section: import("@/types/db").Section }>("/api/catalog/sections", {
       method: "POST",
@@ -1737,7 +1770,7 @@ export const academicStructureApi = {
   },
   updateSection(
     id: string,
-    input: { name?: string; yearLevel?: number; studentCount?: number },
+    input: { name?: string; yearLevel?: number; studentCount?: number; programMode?: "day" | "night" },
   ) {
     return apiFetch<{ section: import("@/types/db").Section }>(`/api/catalog/sections/${id}`, {
       method: "PUT",
@@ -1941,7 +1974,8 @@ export const subjectCategoryApi = {
 
 export const profileApi = {
   /** Your own name and employee ID. Role, college and email are not writable from here. */
-  updateDetails(body: { name?: string; employeeId?: string | null }) {
+  /** `chairmanProgramId` is accepted for a Program Chairman only (own college, unclaimed program). */
+  updateDetails(body: { name?: string; employeeId?: string | null; chairmanProgramId?: string }) {
     return apiFetch<{ ok: true; profile: { id: string; name: string | null; employeeId: string | null } }>(
       "/api/profile",
       {

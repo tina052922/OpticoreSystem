@@ -40,7 +40,7 @@ export function BuildingsRoomsWithScope({
               ? "Search a department in your college"
               : "Search a college or department — code or name"
           }
-          helpText="The department new buildings and rooms are saved under. Every building and room on campus is listed below either way."
+          helpText="Pre-fills the college or department for new buildings. Every building and room on campus is listed below either way."
           withinCollegeId={lockedCollegeId}
           className="max-w-xl"
         />
@@ -49,6 +49,7 @@ export function BuildingsRoomsWithScope({
         scopeCollegeId={scopeCollegeId}
         scopeProgramId={scopeProgramId}
         scopeProgramCode={scopeProgramCode}
+        lockedCollegeId={lockedCollegeId}
       />
     </>
   );

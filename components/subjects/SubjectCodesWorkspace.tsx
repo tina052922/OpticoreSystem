@@ -200,7 +200,14 @@ export function SubjectCodesWorkspace({
    */
   const semesterNav = useSemesterFilterOptional();
   const selectedPeriod = semesterNav?.selectedPeriod ?? null;
-  const semesterFilter = semesterFilterForPeriod(selectedPeriod);
+  const termSemesterFilter = semesterFilterForPeriod(selectedPeriod);
+  /**
+   * "Show all subjects": both semesters at once. Off by default — the list starts on the selected
+   * term's semester (2nd Semester shows 2nd-semester subjects) — and switching the term resets it.
+   */
+  const [showAllSemesters, setShowAllSemesters] = useState(false);
+  useEffect(() => setShowAllSemesters(false), [selectedPeriod?.id]);
+  const semesterFilter = showAllSemesters ? "all" : termSemesterFilter;
 
   /**
    * The kinds of subject this program runs (migration 024).
@@ -344,6 +351,10 @@ export function SubjectCodesWorkspace({
           const ya = Number(a.yearLevel) || 0;
           const yb = Number(b.yearLevel) || 0;
           if (ya !== yb) return ya - yb;
+          // With "Show all subjects", 1st-semester rows come before 2nd within each year.
+          const sa = normalizeSubjectSemester(a.semester) ?? 9;
+          const sb = normalizeSubjectSemester(b.semester) ?? 9;
+          if (sa !== sb) return sa - sb;
           return a.code.localeCompare(b.code);
         }),
       ),
@@ -450,10 +461,10 @@ export function SubjectCodesWorkspace({
     try {
       if (editingId) {
         await subjectCodesApi.update(editingId, payload);
-        toast.ok(`“${trimmedCode}” updated`);
+        toast.ok("Subject updated successfully", `“${trimmedCode}”`);
       } else {
         await subjectCodesApi.create(payload);
-        toast.ok(`“${trimmedCode}” added`, "It is now in the subject list below.");
+        toast.ok("Subject added successfully", `“${trimmedCode}” is now in the subject list below.`);
       }
       resetForm();
       void loadSubjects();
@@ -663,8 +674,28 @@ export function SubjectCodesWorkspace({
               <p className="text-[12px] text-black/70 mt-1">
                 Showing <span className="font-semibold tabular-nums">{filteredDbSubjects.length}</span> of{" "}
                 <span className="tabular-nums">{dbSubjects.length}</span> subjects
-                {selectedPeriod ? <> for {selectedPeriod.name}</> : null}.
+                {!showAllSemesters && selectedPeriod ? <> for {selectedPeriod.name}</> : null}.
               </p>
+            ) : null}
+            {termSemesterFilter !== "all" && dbSubjects.length > 0 ? (
+              <div className="mt-2 inline-flex rounded-lg border border-black/15 bg-white p-0.5 text-[12px]" role="group" aria-label="Which subjects to show">
+                <button
+                  type="button"
+                  aria-pressed={!showAllSemesters}
+                  onClick={() => setShowAllSemesters(false)}
+                  className={`rounded-md px-3 py-1 font-semibold ${!showAllSemesters ? "bg-[#780301] text-white" : "text-black/65 hover:bg-black/[0.04]"}`}
+                >
+                  {subjectSemesterFilterLabel(termSemesterFilter)} only
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={showAllSemesters}
+                  onClick={() => setShowAllSemesters(true)}
+                  className={`rounded-md px-3 py-1 font-semibold ${showAllSemesters ? "bg-[#780301] text-white" : "text-black/65 hover:bg-black/[0.04]"}`}
+                >
+                  Show all subjects
+                </button>
+              </div>
             ) : null}
           </div>
           <div className="w-full sm:max-w-xs space-y-1">
@@ -681,26 +712,27 @@ export function SubjectCodesWorkspace({
             />
           </div>
         </div>
-        <div className="overflow-auto">
+        {/* Capped with its own scroll (header stays put), so a long catalog does not stretch the page. */}
+        <div className="max-h-[480px] overflow-auto overscroll-contain">
           <table className="w-full border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-[#ff990a] text-white text-[11px]">
-                <th className="border border-black/10 px-2 py-2 text-left">Yr</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Sem</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Category</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Subject Code</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Descriptive Title</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Units</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Lec Hours</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Lab Hours</th>
-                <th className="border border-black/10 px-2 py-2 text-left">Hrs/wk</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Yr</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Sem</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Category</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Subject Code</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Descriptive Title</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Units</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Lec Hours</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Lab Hours</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Hrs/wk</th>
                 {campusWide ? (
-                  <th className="border border-black/10 px-2 py-2 text-left">Program</th>
+                  <th className="border border-black/10 px-2 py-1 text-left">Program</th>
                 ) : null}
-                <th className="border border-black/10 px-2 py-2 text-right">Actions</th>
+                <th className="border border-black/10 px-2 py-1 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="text-[12px]">
+            <tbody className="text-[11.5px] leading-tight">
               {!scopedProgramId && !campusWide ? (
                 <tr>
                   <td colSpan={campusWide ? 11 : 10} className="border border-black/10 px-2 py-6 text-center text-black/45">
@@ -716,7 +748,7 @@ export function SubjectCodesWorkspace({
                         ? "No saved subjects match your search."
                         : `No ${subjectSemesterFilterLabel(semesterFilter)} subjects${
                             subjectSearch.trim() ? " match your search" : ""
-                          }. Switch the term in the sidebar to see the other semester.`}
+                          }. Press “Show all subjects” to see both semesters.`}
                   </td>
                 </tr>
               ) : (
@@ -724,33 +756,33 @@ export function SubjectCodesWorkspace({
                   <tr key={`yr-db-${group.yearLevel}`} className="bg-black/[0.04]">
                     <td
                       colSpan={campusWide ? 11 : 10}
-                      className="border border-black/10 px-2 py-2 text-[12px] font-bold text-black/80"
+                      className="border border-black/10 px-2 py-1 text-[11px] font-bold text-black/80"
                     >
                       {group.label}
                     </td>
                   </tr>,
                   ...group.subjects.map((s) => (
                     <tr key={s.id} className={editingId === s.id ? "bg-amber-50/80" : undefined}>
-                      <td className="border border-black/10 px-2 py-2 tabular-nums">{s.yearLevel}</td>
-                      <td className="border border-black/10 px-2 py-2">{subjectSemesterLabel(s.semester)}</td>
-                      <td className="border border-black/10 px-2 py-2">{subjectCategoryLabel(s.category, categoryOptions)}</td>
-                      <td className="border border-black/10 px-2 py-2 font-semibold">{s.code}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.title}</td>
-                      <td className="border border-black/10 px-2 py-2">
+                      <td className="border border-black/10 px-2 py-1 tabular-nums">{s.yearLevel}</td>
+                      <td className="border border-black/10 px-2 py-1">{subjectSemesterLabel(s.semester)}</td>
+                      <td className="border border-black/10 px-2 py-1">{subjectCategoryLabel(s.category, categoryOptions)}</td>
+                      <td className="border border-black/10 px-2 py-1 font-semibold">{s.code}</td>
+                      <td className="border border-black/10 px-2 py-1">{s.title}</td>
+                      <td className="border border-black/10 px-2 py-1">
                         {(s.lecUnits ?? 0) + (s.labUnits ?? 0)}
                       </td>
-                      <td className="border border-black/10 px-2 py-2">{s.lecHours ?? 0}</td>
-                      <td className="border border-black/10 px-2 py-2">{s.labHours ?? 0}</td>
+                      <td className="border border-black/10 px-2 py-1">{s.lecHours ?? 0}</td>
+                      <td className="border border-black/10 px-2 py-1">{s.labHours ?? 0}</td>
                       {/* What the Evaluator requires for this subject. */}
-                      <td className="border border-black/10 px-2 py-2 font-semibold tabular-nums">
+                      <td className="border border-black/10 px-2 py-1 font-semibold tabular-nums">
                         {subjectWeeklyContactHours(s)}
                       </td>
                       {campusWide ? (
-                        <td className="border border-black/10 px-2 py-2">
+                        <td className="border border-black/10 px-2 py-1">
                           {programCodeById[s.programId] ?? "—"}
                         </td>
                       ) : null}
-                      <td className="border border-black/10 px-2 py-2 text-right whitespace-nowrap">
+                      <td className="border border-black/10 px-2 py-1 text-right whitespace-nowrap">
                         {!canEditSubject(s) ? (
                           // Readable as context, but another department's to change.
                           <span className="text-[11px] text-black/40">Not GEC</span>
@@ -792,7 +824,7 @@ export function SubjectCodesWorkspace({
           onClose={() => setPendingDelete(null)}
           onDeleted={() => {
             if (editingId === pendingDelete.id) resetForm();
-            toast.ok(`“${pendingDelete.code}” deleted`);
+            toast.ok("Subject deleted successfully", `“${pendingDelete.code}”`);
             void loadSubjects();
           }}
         />

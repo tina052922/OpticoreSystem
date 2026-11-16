@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/alerts/useActionToast";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ export function DoiInsFormalApprovalPanel({
   gridIntegration,
   onConflictScanComplete,
 }: DoiInsFormalApprovalPanelProps) {
+  const toast = useActionToast();
   const { user } = useCurrentUser();
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflict, setConflict] = useState<ConflictPayload | null>(null);
@@ -145,6 +147,18 @@ export function DoiInsFormalApprovalPanel({
         setSignedAck(false);
         await reloadCatalog?.();
       }
+      toast.ok(
+        action === "approve"
+          ? "Schedule approved and published successfully"
+          : action === "unpublish"
+            ? "Schedule unpublished successfully"
+            : "Decision saved successfully",
+        action === "approve"
+          ? "The term is now locked for editing."
+          : action === "unpublish"
+            ? "Chairmen, College Admins and GEC can edit the term again."
+            : null,
+      );
     } catch (e) {
       setDecisionError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Update failed");
     } finally {

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatTimeRange12h } from "@/lib/time/format-12h";
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MapPin, ChevronRight, Clock } from "lucide-react";
@@ -117,14 +119,14 @@ export function StudentDashboardTermClient({
                   >
                     <span className="font-medium text-black min-w-[72px]">{r.entry.day}</span>
                     <span className="text-black/70 tabular-nums">
-                      {r.entry.startTime}–{r.entry.endTime}
+                      {formatTimeRange12h(r.entry.startTime, r.entry.endTime)}
                     </span>
                     <span className="text-black font-medium flex-1 min-w-[120px]">
                       {r.subject?.code ?? "Subject"} — {r.subject?.title ?? ""}
                     </span>
                     <span className="text-black/60 flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 shrink-0" />
-                      {r.room?.code ?? "—"}
+                      {insRoomLabel(r.room, "—")}
                     </span>
                   </li>
                 ))}
@@ -166,7 +168,7 @@ export function StudentDashboardTermClient({
                         {r.subject?.code} · {r.subject?.title}
                       </p>
                       <p className="text-xs text-black/55">
-                        {r.entry.day} · {r.entry.startTime}–{r.entry.endTime} · {r.room?.code}
+                        {r.entry.day} · {formatTimeRange12h(r.entry.startTime, r.entry.endTime)} · {insRoomLabel(r.room, "—")}
                       </p>
                     </div>
                   </li>

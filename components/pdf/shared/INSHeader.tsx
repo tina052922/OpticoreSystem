@@ -29,6 +29,11 @@ type INSHeaderProps = {
   /** Pass `null` to hide the banner (e.g. printing on pre-headed paper). */
   headerBanner?: string | null;
   programMode?: "day" | "night" | "both";
+  /**
+   * The top-right box (form code, issue date, revision). On by default for the CTU-issued INS forms;
+   * off for in-house reports such as the Summary of Teaching Load, which carry no form issue.
+   */
+  showFormMeta?: boolean;
 };
 
 export function INSHeader({
@@ -40,6 +45,7 @@ export function INSHeader({
   revision = "2",
   headerBanner,
   programMode = "day",
+  showFormMeta = true,
 }: INSHeaderProps) {
   const bannerSrc = headerBanner === undefined ? DEFAULT_INS_HEADER_BANNER : headerBanner;
   return (
@@ -61,11 +67,13 @@ export function INSHeader({
           <Text style={ins.universityName}>{universityName}</Text>
         ) : null}
 
-        <View style={ins.headerRight}>
-          <Text style={ins.headerRightBold}>{formCode}</Text>
-          <Text>{formDate}</Text>
-          <Text>Revision: {revision}</Text>
-        </View>
+        {showFormMeta ? (
+          <View style={ins.headerRight}>
+            <Text style={ins.headerRightBold}>{formCode}</Text>
+            <Text>{formDate}</Text>
+            <Text>Revision: {revision}</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={ins.navyRule} />

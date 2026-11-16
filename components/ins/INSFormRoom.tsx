@@ -1,17 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Download, Eye, MoreHorizontal, Share2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
-import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { insScopeLockedCollegeId } from "@/lib/ins/ins-scope-lock";
 import { OpticoreInsForm5C } from "@/components/ins/ins-layout/OpticoreInsDocuments";
@@ -20,7 +12,7 @@ import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
 import { buildInsRoomView, emptyInsRoomSchedule } from "@/lib/ins/build-ins-room-view";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
-import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
+import { insTabHref } from "@/components/ins/InsEntityGroupingStrip";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import type { College } from "@/types/db";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
@@ -120,14 +112,8 @@ export function INSFormRoom({
   const sectionInnerActive = useInsInnerTabIsActive(insBasePath, "section");
   const roomInnerActive = useInsInnerTabIsActive(insBasePath, "room");
 
+  /** Nothing is pre-selected: the user types a room into the search box. */
   const [selectedRoomId, setSelectedRoomId] = useState("");
-
-  const firstRoomId = catalog.roomOptions[0]?.id ?? "";
-
-  useEffect(() => {
-    if (selectedRoomId) return;
-    if (firstRoomId) setSelectedRoomId(firstRoomId);
-  }, [selectedRoomId, firstRoomId]);
 
   const { schedule, roomLabel } = useMemo(() => {
     if (!useLiveData) {
@@ -286,37 +272,6 @@ export function INSFormRoom({
     catalog.insConflictingEntryIds,
   ]);
 
-  async function onShare() {
-    try {
-      if (campusWide || !effectiveCollegeId || !catalog.academicPeriodId) {
-        await shareInsView("room");
-        alert(
-          campusWide
-            ? "Shared notice (campus-wide: no single-college bundle attached)."
-            : "Shared notice. Set a college scope to attach the full INS + Evaluator schedule bundle.",
-        );
-        return;
-      }
-      const termScoped = catalog.insResourceEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
-      const bundle = buildWorkflowScheduleBundle({
-        academicPeriodId: catalog.academicPeriodId,
-        collegeId: effectiveCollegeId,
-        programId: effectiveProgramId,
-        programCode: chairmanProgramCode,
-        insShareView: "room",
-        termScopedEntries: termScoped,
-        insContext: { selectedRoomId: selectedRoomId || undefined },
-        subjectIdByCode: catalog.subjectIdByCode,
-      });
-      await shareInsWorkflowBundle(bundle);
-      alert(
-        `Shared to College Admin with ${bundle.scheduleEntries.length} linked schedule row(s) (INS + Evaluator drafts).`,
-      );
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Share failed");
-    }
-  }
-
   function handleDownload() {
     if (!pdfSignaturesReady) return;
     setPdfPreviewOpen(true);
@@ -410,16 +365,6 @@ export function INSFormRoom({
           </div>
         ) : null}
 
-        {useLiveData && insBasePath ? (
-          <div className="no-print">
-            <InsEntityGroupingStrip
-              insBasePath={insBasePath}
-              facultyCount={catalog.instructorOptions.length}
-              sectionCount={catalog.sectionOptions.length}
-              roomCount={catalog.roomOptions.length}
-            />
-          </div>
-        ) : null}
 
         {useLiveData && catalog.error ? (
           <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">{catalog.error}</p>
@@ -463,7 +408,7 @@ export function INSFormRoom({
           {useLiveData ? (
             <InsScheduleEntitySearch
               label="Room"
-              placeholder="Type room code (e.g. IT LAB 1)"
+              placeholder="Type to search a room (e.g. IT Lab 04)"
               options={catalog.roomOptions}
               selectedId={selectedRoomId}
               onSelectedIdChange={setSelectedRoomId}
@@ -512,45 +457,6 @@ export function INSFormRoom({
                   Run Conflict Check
                 </Button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="bg-white" aria-label="More actions">
-                      <MoreHorizontal className="w-5 h-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
-                      <Download className="w-4 h-4" />
-                      Download / Save as PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => void onShare()}>
-                      <Share2 className="w-4 h-4" />
-                      Share INS Form
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
-                      <Eye className="w-4 h-4 mr-2" />
-                      Preview PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href={
-                          insBasePath.includes("/college")
-                            ? "/admin/college/evaluator"
-                            : insBasePath.includes("/cas")
-                              ? "/admin/cas/evaluator"
-                              : insBasePath.includes("/gec")
-                                ? "/admin/gec/evaluator"
-                                : insBasePath.includes("/doi")
-                                  ? "/doi/evaluator"
-                                  : "/chairman/evaluator"
-                        }
-                        className="cursor-pointer"
-                      >
-                        Open Evaluator
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
 
                 <Button
                   variant="outline"

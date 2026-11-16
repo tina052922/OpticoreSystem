@@ -15,10 +15,13 @@ describe("isInstructorInDepartment", () => {
     expect(isInstructorInDepartment(bitAuto, "prog-bsit")).toBe(false);
   });
 
-  it("rejects a GEC instructor, who is plotted by the GEC Chairman", () => {
+  it("counts a GEC or 'both' instructor in the department they belong to, and only that one", () => {
+    // No department: belongs to none.
     expect(isInstructorInDepartment(gec, "prog-bsit")).toBe(false);
-    // Even one tagged with a department: the category decides.
-    expect(isInstructorInDepartment({ ...gec, chairmanProgramId: "prog-bsit" }, "prog-bsit")).toBe(false);
+    // Drawn from BSIT: belongs to BSIT (the department decides, not the category).
+    expect(isInstructorInDepartment({ ...gec, chairmanProgramId: "prog-bsit" }, "prog-bsit")).toBe(true);
+    expect(isInstructorInDepartment({ ...gec, facultyCategory: "both", chairmanProgramId: "prog-bsit" }, "prog-bsit")).toBe(true);
+    expect(isInstructorInDepartment({ ...gec, chairmanProgramId: "prog-bsit" }, "prog-bit-auto")).toBe(false);
   });
 
   it("rejects faculty with no department on file", () => {
@@ -143,5 +146,23 @@ describe("who each role may plot", () => {
     for (const id of gec) expect(chairs).not.toContain(id);
     // Between them the chairmen and the GEC chairman reach everyone the admin can.
     expect(new Set([...chairs, ...gec])).toEqual(admin);
+  });
+});
+
+describe("filterInstructorsForProgramPlot — program plotting sees its faculty + GEC", async () => {
+  const { filterInstructorsForProgramPlot, sortDepartmentThenGec, filterInstructorsForGec } = await import("./instructor-scope");
+  const bsit = { id: "u-bsit", name: "Ana BSIT", chairmanProgramId: "prog-bsit", facultyCategory: "program" };
+  const bit = { id: "u-bit", name: "Ben BIT", chairmanProgramId: "prog-bit", facultyCategory: "program" };
+  const gec = { id: "u-gec", name: "Carla GEC", chairmanProgramId: null, facultyCategory: "gec" };
+  const all = [gec, bit, bsit];
+
+  it("offers BSIT's own instructors and every GEC instructor, not BIT's", () => {
+    expect(filterInstructorsForProgramPlot(all, "prog-bsit").map((u) => u.id).sort()).toEqual(["u-bsit", "u-gec"]);
+  });
+  it("lists department faculty before GEC instructors", () => {
+    expect(sortDepartmentThenGec(filterInstructorsForProgramPlot(all, "prog-bsit")).map((u) => u.id)).toEqual(["u-bsit", "u-gec"]);
+  });
+  it("keeps the GEC Chairman's list to GEC instructors only", () => {
+    expect(filterInstructorsForGec(all).map((u) => u.id)).toEqual(["u-gec"]);
   });
 });

@@ -46,6 +46,13 @@ export default async function ChairmanProfilePage() {
           }
           email={session.email}
           extraRows={extraRows}
+          editable
+          storedEmployeeId={session.employeeId ?? ""}
+          programScope={
+            session.role === "chairman_admin"
+              ? { programId: session.programId ?? null, collegeId: session.collegeId ?? null }
+              : undefined
+          }
           subheading={`${adminRoleLabel(session.role)} • ${session.collegeId ? collegeDisplayName(session.collegeId) : "No college assigned"}`}
         />
         <ProfileSignatureSectionGate

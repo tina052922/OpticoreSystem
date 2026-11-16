@@ -17,6 +17,8 @@ import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi } from "@/lib/api/client";
 import { LogoutConfirmDialog } from "@/components/account/LogoutConfirmDialog";
+import { SessionGuard } from "@/components/auth/SessionGuard";
+import { FlashToastOnLoad } from "@/components/alerts/FlashToastOnLoad";
 import type { AdminNavEntry, AdminNavGroup, AdminNavItem } from "@/lib/admin-nav";
 import { isNavGroup, navEntryHrefs } from "@/lib/admin-nav";
 import { isNavItemActive } from "@/lib/nav-active";
@@ -40,6 +42,8 @@ const COLLEGE_AUDIT_LOG_HREF = "/admin/college/audit-log";
 const DOI_AUDIT_LOG_HREF = "/doi/audit-log";
 /** Chairman: instructor self-registrations awaiting approval. */
 const CHAIRMAN_PENDING_INSTRUCTORS_HREF = "/chairman/pending-instructors";
+/** Review queues that show the pending-registrations count: Program Chairman and GEC Chairman. */
+const PENDING_INSTRUCTORS_HREFS = new Set([CHAIRMAN_PENDING_INSTRUCTORS_HREF, "/admin/gec/pending-instructors"]);
 
 export type CampusIntelligenceShellProps = {
   children: React.ReactNode;
@@ -108,7 +112,7 @@ export function CampusIntelligenceShell({
     if ((href === COLLEGE_AUDIT_LOG_HREF || href === DOI_AUDIT_LOG_HREF) && showAuditBadge) {
       return auditUnreadCount;
     }
-    if (href === CHAIRMAN_PENDING_INSTRUCTORS_HREF && pendingInstructorCount > 0) {
+    if (PENDING_INSTRUCTORS_HREFS.has(href) && pendingInstructorCount > 0) {
       return pendingInstructorCount;
     }
     return null;
@@ -371,6 +375,9 @@ export function CampusIntelligenceShell({
           {children}
         </main>
       </div>
+      {/* One account per browser: follows sign-ins / sign-outs made in other tabs. */}
+      <SessionGuard />
+      <FlashToastOnLoad />
       <LogoutConfirmDialog
         open={logoutOpen}
         onCancel={() => setLogoutOpen(false)}

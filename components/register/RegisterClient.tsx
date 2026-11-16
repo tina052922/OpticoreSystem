@@ -228,7 +228,7 @@ export function RegisterClient() {
               </svg>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-black">Email verified</h1>
+          <h1 className="text-2xl font-bold text-black">Account created successfully</h1>
           <p className="text-base text-black/80">{verifiedMessage}</p>
           <Button
             asChild
@@ -455,6 +455,7 @@ export function RegisterClient() {
               pattern="\d{7}"
               maxLength={7}
               required
+              aria-required="true"
               autoComplete="off"
               className={FIELD_CLASS}
               aria-describedby="studentId-hint"

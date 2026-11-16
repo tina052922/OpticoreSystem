@@ -123,9 +123,9 @@ export function DoiScheduleHubClient() {
         toast.success("Schedule published and locked successfully");
       } else if (action === "unpublish") {
         setSignedAck(false);
-        toast.success("Schedule unpublished and unlocked");
+        toast.success("Schedule unpublished successfully", "The term is unlocked for editing.");
       } else {
-        toast.success("Schedule decision saved");
+        toast.success("Decision saved successfully");
       }
     } catch (e) {
       const msg = userErrorDetail(e, "Failed to update");

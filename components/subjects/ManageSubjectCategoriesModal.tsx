@@ -111,7 +111,7 @@ export function ManageSubjectCategoriesModal({
     );
     if (ok) {
       setNewLabel("");
-      toast.ok(`“${label}” added`, "It is now available in the Category field.");
+      toast.ok("Category added successfully", `“${label}” is now available in the Category field.`);
     }
   }
 
@@ -121,7 +121,7 @@ export function ManageSubjectCategoriesModal({
     const ok = await run(() => subjectCategoryApi.rename(id, label), "Could not rename the category");
     if (ok) {
       setEditingId(null);
-      toast.ok(`Renamed to “${label}”`);
+      toast.ok("Category renamed successfully", `Now called “${label}”.`);
     }
   }
 

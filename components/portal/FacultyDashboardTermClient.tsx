@@ -1,5 +1,6 @@
 "use client";
 
+import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Clock, MapPin, BookOpen, LayoutGrid, Layers } from "lucide-react";
@@ -283,7 +284,7 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
                   <span className="text-black/60">{r.section?.name}</span>
                   <span className="text-black/55 flex items-center gap-1">
                     <MapPin className="w-3 h-3" />
-                    {r.room?.code}
+                    {insRoomLabel(r.room, "—")}
                   </span>
                 </li>
               ))}

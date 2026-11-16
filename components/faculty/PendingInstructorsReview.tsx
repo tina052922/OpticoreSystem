@@ -8,7 +8,7 @@ import {
   type InstructorRequest,
   type LinkableFaculty,
 } from "@/lib/api/client";
-import { isGecFacultyCategory } from "@/lib/faculty/faculty-category";
+import { facultyCategoryBadge, isGecFacultyCategory } from "@/lib/faculty/faculty-category";
 import { useActionToast } from "@/components/alerts/useActionToast";
 
 /**
@@ -50,6 +50,11 @@ export function PendingInstructorsReview() {
     Record<string, { employeeId: string; linkUserId: string; notes: string }>
   >({});
   const [confirming, setConfirming] = useState<Decision>(null);
+  /** History row whose email is being edited, and the typed value. */
+  const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState("");
+  /** History row waiting for "Yes, delete". */
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -141,6 +146,42 @@ export function PendingInstructorsReview() {
     }
   }
 
+  async function saveEmail(row: InstructorRequest) {
+    const next = emailDraft.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) {
+      toast.refuse("Enter a valid email address");
+      return;
+    }
+    setBusyId(row.id);
+    try {
+      const res = await instructorRequestsApi.updateEmail(row.id, next);
+      toast.ok(
+        "Email updated successfully",
+        res.accountUpdated ? `${row.fullName} now signs in with ${res.email}.` : `Saved as ${res.email}.`,
+      );
+      setEditingEmailId(null);
+      await load();
+    } catch (e) {
+      toast.fail(e, "Could not update the email", "instructor management: email");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function deleteEntry(row: InstructorRequest) {
+    setBusyId(row.id);
+    try {
+      await instructorRequestsApi.remove(row.id);
+      toast.ok("Entry deleted successfully", `${row.fullName} was removed from the history.`);
+      setConfirmDeleteId(null);
+      await load();
+    } catch (e) {
+      toast.fail(e, "Could not delete the entry", "instructor management: delete");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function patch(id: string, next: Partial<(typeof draft)[string]>) {
     setDraft((prev) => ({
       ...prev,
@@ -192,7 +233,7 @@ export function PendingInstructorsReview() {
                         {r.fullName}
                         {isGecFacultyCategory(r.facultyCategory) ? (
                           <span className="ml-2 inline-block rounded-md bg-[#780301]/10 px-1.5 py-0.5 text-xs font-semibold text-[#780301]">
-                            GEC instructor
+                            {facultyCategoryBadge(r.facultyCategory)}
                           </span>
                         ) : null}
                       </p>
@@ -202,9 +243,7 @@ export function PendingInstructorsReview() {
                         {r.claimedEmployeeId
                           ? ` · claims ID ${r.claimedEmployeeId}`
                           : " · no ID provided"}
-                        {isGecFacultyCategory(r.facultyCategory)
-                          ? " · college-scoped (not locked to one department)"
-                          : ""}
+                        {isGecFacultyCategory(r.facultyCategory) ? " · also teaches GEC" : ""}
                       </p>
                     </div>
                     {details.length > 0 ? (
@@ -370,49 +409,128 @@ export function PendingInstructorsReview() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">History</h2>
+        <h2 className="mb-1 text-lg font-semibold">
+          History{history.length > 0 ? ` (${history.length})` : ""}
+        </h2>
+        <p className="mb-3 text-sm text-black/55">
+          Category and email show the instructor as they are now. Changing the email of an approved instructor
+          changes their sign-in address. Deleting removes the entry only — not the account.
+        </p>
         {history.length === 0 ? (
           <p className="text-sm text-black/55">No reviewed registrations yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-black/10">
-            <table className="w-full text-left text-[13px]">
-              <thead>
-                <tr className="bg-black/[0.06]">
-                  <th className="p-2">Name</th>
-                  <th className="p-2">Category</th>
-                  <th className="p-2">Email</th>
-                  <th className="p-2">Status</th>
-                  <th className="p-2">Reviewed</th>
-                  <th className="p-2">Notes</th>
+          // Its own scroll, so a long history does not stretch the page.
+          <div className="max-h-[360px] overflow-auto overscroll-contain rounded-lg border border-black/10">
+            <table className="w-full text-left text-[12.5px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#f1eeee]">
+                  <th className="px-2 py-1.5">Name</th>
+                  <th className="px-2 py-1.5">Category</th>
+                  <th className="px-2 py-1.5">Email</th>
+                  <th className="px-2 py-1.5">Status</th>
+                  <th className="px-2 py-1.5">Reviewed</th>
+                  <th className="px-2 py-1.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {history.map((r) => (
-                  <tr key={r.id} className="border-t border-black/10 bg-white">
-                    <td className="p-2 font-medium">{r.fullName}</td>
-                    <td className="p-2">
-                      {isGecFacultyCategory(r.facultyCategory) ? "GEC" : "Program"}
-                    </td>
-                    <td className="p-2">{r.deliveryEmail}</td>
-                    <td className="p-2">
-                      <span
-                        className={
-                          r.status === "approved"
-                            ? "rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800"
-                            : "rounded-full bg-red-100 px-2 py-0.5 text-red-800"
-                        }
-                      >
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="p-2 whitespace-nowrap">
-                      {r.reviewedAt ? new Date(r.reviewedAt).toLocaleString() : "—"}
-                    </td>
-                    <td className="p-2 max-w-xs truncate" title={r.reviewerNotes ?? ""}>
-                      {r.reviewerNotes || "—"}
-                    </td>
-                  </tr>
-                ))}
+                {history.map((r) => {
+                  const live = r.account?.exists ? r.account : null;
+                  const category = live?.facultyCategory ?? r.facultyCategory;
+                  const email = live?.email ?? r.deliveryEmail;
+                  const editing = editingEmailId === r.id;
+                  const rowBusy = busyId === r.id;
+                  return (
+                    <tr key={r.id} className="border-t border-black/10 bg-white align-middle">
+                      <td className="px-2 py-1.5 font-medium">{r.fullName}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        {facultyCategoryBadge(category) || "Program"}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {editing ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Input
+                              type="email"
+                              value={emailDraft}
+                              onChange={(e) => setEmailDraft(e.target.value)}
+                              className="h-8 min-w-[220px] text-[12.5px]"
+                              autoFocus
+                              disabled={rowBusy}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") void saveEmail(r);
+                                if (e.key === "Escape") setEditingEmailId(null);
+                              }}
+                            />
+                            <Button size="sm" type="button" className="h-8 bg-[#780301] text-white hover:bg-[#5a0201]" disabled={rowBusy} onClick={() => void saveEmail(r)}>
+                              {rowBusy ? "Saving…" : "Save"}
+                            </Button>
+                            <Button size="sm" type="button" variant="outline" className="h-8" disabled={rowBusy} onClick={() => setEditingEmailId(null)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="break-all">{email}</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <span
+                          className={
+                            r.status === "approved"
+                              ? "rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800"
+                              : "rounded-full bg-red-100 px-2 py-0.5 text-red-800"
+                          }
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        {r.reviewedAt ? new Date(r.reviewedAt).toLocaleString() : "—"}
+                      </td>
+                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                        {confirmDeleteId === r.id ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="text-[12px] text-black/65">Delete entry?</span>
+                            <Button size="sm" type="button" className="h-7 bg-red-700 px-2 text-[12px] hover:bg-red-800" disabled={rowBusy} onClick={() => void deleteEntry(r)}>
+                              {rowBusy ? "Deleting…" : "Yes, delete"}
+                            </Button>
+                            <Button size="sm" type="button" variant="outline" className="h-7 px-2 text-[12px]" disabled={rowBusy} onClick={() => setConfirmDeleteId(null)}>
+                              No
+                            </Button>
+                          </span>
+                        ) : (
+                          <span className="inline-flex gap-1.5">
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                              className="h-7 px-2 text-[12px]"
+                              disabled={rowBusy || editing}
+                              onClick={() => {
+                                setConfirmDeleteId(null);
+                                setEditingEmailId(r.id);
+                                setEmailDraft(email);
+                              }}
+                            >
+                              Edit email
+                            </Button>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                              className="h-7 px-2 text-[12px] text-red-800"
+                              disabled={rowBusy}
+                              onClick={() => {
+                                setEditingEmailId(null);
+                                setConfirmDeleteId(r.id);
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -29,10 +29,13 @@ export function BuildingsRoomsWorkspace({
   scopeCollegeId,
   scopeProgramId,
   scopeProgramCode,
+  lockedCollegeId = null,
 }: {
   scopeCollegeId: string | null;
   scopeProgramId: string | null;
   scopeProgramCode?: string | null;
+  /** College Admin: the College / department picker stays inside this college. */
+  lockedCollegeId?: string | null;
 }) {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -88,17 +91,24 @@ export function BuildingsRoomsWorkspace({
   const [savingEdit, setSavingEdit] = useState(false);
 
   /**
-   * Follow the page scope only when it names a department, and never overwrite one already chosen
-   * here. A College Admin's scope is their college with no department, which used to land in this
-   * field as the college itself — unchangeable, and never a valid department.
+   * Follow the page scope: a department when it names one, otherwise the college (a College Admin
+   * starts on their own college). A choice already made here is never overwritten by a college.
    */
   useEffect(() => {
-    if (!scopeProgramId) return;
-    setFormScope({ collegeId: scopeCollegeId, programId: scopeProgramId });
+    if (scopeProgramId) {
+      setFormScope({ collegeId: scopeCollegeId, programId: scopeProgramId });
+      return;
+    }
+    if (!scopeCollegeId) return;
+    setFormScope((cur) => (cur.collegeId || cur.programId ? cur : { collegeId: scopeCollegeId, programId: null }));
   }, [scopeCollegeId, scopeProgramId]);
 
   /** A department is what makes a building or a standalone room belong to someone. */
-  const canEdit = Boolean(formScope.programId);
+  /**
+   * A building belongs to a college (shared by all its programs — e.g. COTE Building) or, optionally,
+   * to one department. Either is enough to save.
+   */
+  const canEdit = Boolean(formScope.collegeId || formScope.programId);
 
   /**
    * Every building and room on campus, for every role.
@@ -283,7 +293,7 @@ export function BuildingsRoomsWorkspace({
         { ...room, floor: room.floor ?? floor },
       ]);
       toast.caution(w, "Saved with a limitation");
-      toast.ok(`Standalone room “${room.code}” added`);
+      toast.ok("Room added successfully", `Standalone room “${room.code}”.`);
       setStandaloneCode("");
       setStandaloneName("");
       setStandaloneFloor("1");
@@ -326,8 +336,8 @@ export function BuildingsRoomsWorkspace({
       .map((r) => ({ ...r, code: r.code.trim() }))
       .filter((r) => r.code);
 
-    if (!formScope.programId) {
-      toast.refuse("Choose a department first", "A building or room has to belong to one.");
+    if (!canEdit) {
+      toast.refuse("Choose a college or department first", "A building belongs to a college, or to one of its departments.");
       return;
     }
     if (!name) {
@@ -462,7 +472,7 @@ export function BuildingsRoomsWorkspace({
       setRooms((prev) => prev.filter((r) => r.id !== pending.id));
       if (editingRoomId === pending.id) setEditingRoomId(null);
     }
-    toast.ok(`${pending.noun} “${pending.name}” deleted`);
+    toast.ok(`${pending.noun} deleted successfully`, `“${pending.name}”`);
   }
 
   /**
@@ -512,7 +522,7 @@ export function BuildingsRoomsWorkspace({
       });
       setPanelRoomCode("");
       setPanelRoomCapacity("");
-      toast.ok(`Room “${linked.code}” added`, `It is now under ${selectedBuilding.name}.`);
+      toast.ok("Room added successfully", `“${linked.code}” is now under ${selectedBuilding.name}.`);
       toast.caution(w, "Saved with a limitation");
       void load();
     } catch (e) {
@@ -550,7 +560,7 @@ export function BuildingsRoomsWorkspace({
         ),
       );
       setEditingBuildingId(null);
-      toast.ok(`Building “${updated.name}” updated`);
+      toast.ok("Building updated successfully", `“${updated.name}”`);
     } catch (e) {
       toast.fail(e, "Could not update the building", "buildings & rooms: edit building");
     } finally {
@@ -600,7 +610,7 @@ export function BuildingsRoomsWorkspace({
       });
       setRooms((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
       setEditingRoomId(null);
-      toast.ok(`Room “${updated.code}” updated`);
+      toast.ok("Room updated successfully", `“${updated.code}”`);
     } catch (e) {
       toast.fail(e, "Could not update the room", "buildings & rooms: edit room");
     } finally {
@@ -612,15 +622,16 @@ export function BuildingsRoomsWorkspace({
     <div className="px-4 sm:px-6 lg:px-8 pb-8 space-y-6 max-w-[1100px]">
       <p className="text-[13px] text-black/65 leading-relaxed">
         Every building and room on campus is listed here, the same for DOI and College Admin, and every one of
-        them can be picked when plotting. New buildings and rooms are saved under the department you choose.
+        them can be picked when plotting. New buildings are saved under the college you choose — or one of its
+        departments, if you pick a department.
         Mark a building as GEC-usable to flag it for GEC subjects. This is for scheduling only — it does not
         affect Campus Navigation.
       </p>
 
       {!canEdit ? (
         <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Pick a department above to add buildings or rooms — each one is saved under a department. The lists
-          below show every building and room on campus.
+          Pick a college (or one of its departments) below to add buildings — a building belongs to a college,
+          or optionally to one department. The lists below show every building and room on campus.
         </p>
       ) : null}
 
@@ -636,11 +647,12 @@ export function BuildingsRoomsWorkspace({
         <ScopeSearchPicker
           value={formScope}
           onChange={(next) => setFormScope({ collegeId: next.collegeId, programId: next.programId })}
-          label="Department"
-          placeholder="Search a department — code or name"
-          helpText="Required. A building belongs to one department."
+          label="College or department"
+          placeholder="Search a college or department — code or name"
+          helpText="Required. Pick a college to share the building with all its programs (e.g. COTE Building), or a department to keep it to one."
           requireScope
-          kind="program"
+          kind="all"
+          withinCollegeId={lockedCollegeId}
           className="max-w-xl"
         />
 
@@ -771,7 +783,7 @@ export function BuildingsRoomsWorkspace({
             Clear form
           </Button>
           {!canEdit ? (
-            <span className="text-[12px] text-amber-900">Choose a department to save.</span>
+            <span className="text-[12px] text-amber-900">Choose a college or department to save.</span>
           ) : null}
         </div>
       </div>
@@ -804,7 +816,7 @@ export function BuildingsRoomsWorkspace({
               : "No buildings or rooms match your search."}
           </p>
         ) : (
-          <ul className="divide-y divide-black/10">
+          <ul className="max-h-[320px] overflow-y-auto overscroll-contain divide-y divide-black/10">
             {filteredBuildings.map((b) => {
               const count = rooms.filter((r) => roomBelongsToBuilding(r, b)).length;
               const active = selectedBuildingId === b.id;
@@ -859,24 +871,24 @@ export function BuildingsRoomsWorkspace({
                       </Button>
                     </div>
                   ) : (
-                  <div className="px-4 py-3 flex flex-wrap items-center gap-2 justify-between">
+                  <div className="px-3 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 justify-between">
                     <button
                       type="button"
-                      className="text-left min-w-0"
+                      className="text-left min-w-0 flex flex-wrap items-baseline gap-x-2"
                       onClick={() => setSelectedBuildingId(b.id)}
                     >
-                      <div className="font-semibold text-[14px] text-[#780301]">{b.name}</div>
-                      <div className="text-[12px] text-black/55">
+                      <span className="font-semibold text-[13px] text-[#780301]">{b.name}</span>
+                      <span className="text-[11px] text-black/55">
                         {b.floorCount} floor{b.floorCount === 1 ? "" : "s"} · {count} room
                         {count === 1 ? "" : "s"}
                         {b.gecUsable ? " · GEC-usable" : ""}
-                      </div>
+                      </span>
                     </button>
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => startEditBuilding(b)}>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[12px]" onClick={() => startEditBuilding(b)}>
                         Edit
                       </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => void onToggleGec(b)}>
+                      <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[12px]" onClick={() => void onToggleGec(b)}>
                         {b.gecUsable ? "Unset GEC" : "Mark GEC"}
                       </Button>
                       <Button
@@ -884,12 +896,12 @@ export function BuildingsRoomsWorkspace({
                         variant="outline"
                         size="sm"
                         aria-pressed={active}
-                        className={active ? "border-[#780301] text-[#780301]" : undefined}
+                        className={`h-7 px-2.5 text-[12px] ${active ? "border-[#780301] text-[#780301]" : ""}`}
                         onClick={() => openRoomsFor(b.id)}
                       >
                         {active ? "Viewing rooms" : "Manage rooms"}
                       </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => askDeleteBuilding(b)}>
+                      <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[12px]" onClick={() => askDeleteBuilding(b)}>
                         Delete
                       </Button>
                     </div>
@@ -997,11 +1009,11 @@ export function BuildingsRoomsWorkspace({
                 : `No standalone room matches “${standaloneSearch.trim()}”.`}
             </p>
           ) : (
-          <ul className="divide-y divide-black/10 rounded-lg border border-black/10">
+          <ul className="max-h-[300px] overflow-y-auto overscroll-contain divide-y divide-black/10 rounded-lg border border-black/10">
             {standaloneRooms.map((r) => (
               <li
                 key={r.id}
-                className={`flex flex-wrap items-center gap-2 px-3 py-2 ${
+                className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1 ${
                   editingRoomId === r.id ? "bg-amber-50/80" : ""
                 }`}
               >
@@ -1059,19 +1071,19 @@ export function BuildingsRoomsWorkspace({
                   </div>
                 ) : (
                   <>
-                    <span className="text-[13px] font-semibold">{r.code}</span>
+                    <span className="text-[12px] font-semibold">{r.code}</span>
                     {r.displayName?.trim() ? (
-                      <span className="text-[13px] text-black/75">{r.displayName.trim()}</span>
+                      <span className="text-[12px] text-black/75">{r.displayName.trim()}</span>
                     ) : null}
-                    <span className="text-[12px] text-black/55">
+                    <span className="text-[11px] text-black/55">
                       Floor {r.floor ?? 1}
                       {r.capacity ? ` · ${r.capacity} seats` : ""}
                     </span>
-                    <div className="ml-auto flex gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => startEditRoom(r)}>
+                    <div className="ml-auto flex gap-1.5">
+                      <Button type="button" size="sm" variant="outline" className="h-7 px-2.5 text-[12px]" onClick={() => startEditRoom(r)}>
                         Edit
                       </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => askDeleteRoom(r)}>
+                      <Button type="button" size="sm" variant="outline" className="h-7 px-2.5 text-[12px]" onClick={() => askDeleteRoom(r)}>
                         Delete
                       </Button>
                     </div>
@@ -1176,10 +1188,11 @@ export function BuildingsRoomsWorkspace({
               {searchQ ? "No rooms match your search in this building." : "No rooms in this building yet."}
             </p>
           ) : (
-            <div className="space-y-4">
+            // Capped with its own scroll: a 30-room building should not stretch the page.
+            <div className="max-h-[420px] overflow-y-auto overscroll-contain space-y-2 pr-1">
               {roomsByFloor.map(({ floor, rooms: floorRooms }) => (
                 <div key={String(floor)} className="border border-black/10 rounded-lg overflow-hidden">
-                  <div className="bg-black/[0.04] px-3 py-2 text-[13px] font-semibold text-black/80">
+                  <div className="bg-black/[0.04] px-3 py-1 text-[12px] font-semibold text-black/80">
                     {floor === "unassigned" ? "Unassigned floor" : `Floor ${floor}`}
                     <span className="ml-2 font-normal text-black/50">
                       ({floorRooms.length} room{floorRooms.length === 1 ? "" : "s"})

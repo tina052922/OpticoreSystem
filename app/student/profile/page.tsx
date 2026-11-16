@@ -96,15 +96,13 @@ export default async function StudentProfilePage() {
           employeeId={profile.employeeId}
           storedEmployeeId={profile.employeeId}
           idLabel="Student ID"
-          // The registrar issues it and enrolment is matched on it.
-          allowIdEdit={false}
+          // Editable, with the same rule as registration: exactly 7 digits (checked on the server too).
+          idInputMode="sevenDigits"
           roleLabel="Student"
           collegeLine={programName}
           email={profile.email ?? ""}
           subheading={`${programName} · ${sectionName}`}
           editable
-          // Students sign in with the password they set at registration; there is no reset here.
-          showChangePassword={false}
         />
 
         {/* Program, year and section for this semester — changeable when the student moves up. */}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/alerts/useActionToast";
 import { useEffect, useMemo, useState } from "react";
 import type { ScheduleLoadJustification } from "@/types/db";
 import { PolicyViolationFaq } from "@/components/evaluator/PolicyViolationFaq";
@@ -16,6 +17,7 @@ export function CollegePolicyReviewsClient({
   rows: CollegePolicyReviewRowVM[];
   realtimeCollegeId?: string | null;
 }) {
+  const toast = useActionToast();
   const [rows, setRows] = useState(initialRows);
 
   useEffect(() => {
@@ -37,6 +39,7 @@ export function CollegePolicyReviewsClient({
       });
       setRows((prev) => prev.filter((row) => row.id !== id));
       setConfirmingId(null);
+      toast.ok("Justification cleared successfully", "A new one will be asked for on the next breach.");
     } catch (err) {
       setClearError(err instanceof Error ? err.message : "Failed to clear the justification.");
     } finally {

@@ -1,15 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ApiClientError, profileApi } from "@/lib/api/client";
+import { catalogApi, profileApi } from "@/lib/api/client";
+import { EmailChangeSection } from "@/components/profile/EmailChangeSection";
 import { useActionToast } from "@/components/alerts/useActionToast";
-
-/** Mirrors the backend cooldown between code sends. */
-const RESEND_COOLDOWN_SECONDS = 60;
-const CODE_LENGTH = 6;
 
 export type AdminProfileCardProps = {
   fullName: string;
@@ -52,6 +50,14 @@ export type AdminProfileCardProps = {
    * rather than edit it. Staff set their own.
    */
   allowIdEdit?: boolean;
+  /**
+   * Program Chairman: lets them change the program they chair, within their own college. Everything
+   * that follows a chairman's program (plotting, the INS "Reviewed & Certified by" line, dashboards)
+   * moves with it. Omit for roles without a program.
+   */
+  programScope?: { programId: string | null; collegeId: string | null };
+  /** "sevenDigits": a Student ID — digits only, exactly 7, as at registration. */
+  idInputMode?: "free" | "sevenDigits";
 };
 
 /**
@@ -72,108 +78,42 @@ export function AdminProfileCard({
   showEditProfile = true,
   idLabel = "Employee ID",
   allowIdEdit = true,
+  programScope,
+  idInputMode = "free",
 }: AdminProfileCardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const toast = useActionToast();
   const [nameDraft, setNameDraft] = useState(fullName);
   const [employeeIdDraft, setEmployeeIdDraft] = useState(storedEmployeeId ?? "");
+  const [programDraft, setProgramDraft] = useState(programScope?.programId ?? "");
+  const [programOptions, setProgramOptions] = useState<{ id: string; code: string; name: string }[]>([]);
 
-  /**
-   * The email is changed on its own, not with Save.
-   *
-   * It is the sign-in identity, so it only moves once a code sent to the NEW address comes back --
-   * typing it into the form and pressing Save would let anyone with a borrowed session point the
-   * account at their own inbox.
-   */
-  const [emailStage, setEmailStage] = useState<"idle" | "entry" | "code">("idle");
-  const [emailDraft, setEmailDraft] = useState("");
-  const [pendingEmail, setPendingEmail] = useState("");
-  const [emailCode, setEmailCode] = useState("");
-  const [emailBusy, setEmailBusy] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [lastSentAt, setLastSentAt] = useState(0);
-  const [cooldown, setCooldown] = useState(0);
-
+  // The chairman's own college's programs, loaded only when the editor opens.
   useEffect(() => {
-    if (!lastSentAt) return;
-    const tick = () => {
-      const left = Math.max(0, Math.ceil((lastSentAt + RESEND_COOLDOWN_SECONDS * 1000 - Date.now()) / 1000));
-      setCooldown(left);
-      return left;
+    if (!editing || !programScope) return;
+    let alive = true;
+    catalogApi
+      .programs()
+      .then((r) => {
+        if (!alive) return;
+        const list = (r.programs ?? [])
+          .filter((p) => !programScope.collegeId || p.collegeId === programScope.collegeId)
+          .sort((a, b) => a.code.localeCompare(b.code));
+        setProgramOptions(list);
+      })
+      .catch(() => alive && setProgramOptions([]));
+    return () => {
+      alive = false;
     };
-    if (tick() === 0) return;
-    const id = window.setInterval(() => {
-      if (tick() === 0) window.clearInterval(id);
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [lastSentAt]);
-
-  function resetEmailFlow() {
-    setEmailStage("idle");
-    setEmailDraft("");
-    setEmailCode("");
-    setPendingEmail("");
-    setEmailError(null);
-  }
-
-  async function sendEmailCode() {
-    const next = emailDraft.trim().toLowerCase();
-    if (!next) {
-      setEmailError("Enter the new email address.");
-      return;
-    }
-    setEmailBusy(true);
-    setEmailError(null);
-    try {
-      const res = await profileApi.requestEmailChange(next);
-      setPendingEmail(res.email);
-      setEmailStage("code");
-      setEmailCode("");
-      setLastSentAt(Date.now());
-    } catch (e) {
-      setEmailError(e instanceof ApiClientError ? e.message : "Could not send the code.");
-    } finally {
-      setEmailBusy(false);
-    }
-  }
-
-  async function confirmEmailCode() {
-    const code = emailCode.trim();
-    if (code.length !== CODE_LENGTH) {
-      setEmailError(`Enter the ${CODE_LENGTH}-digit code.`);
-      return;
-    }
-    setEmailBusy(true);
-    setEmailError(null);
-    try {
-      const res = await profileApi.verifyEmailChange(code);
-      resetEmailFlow();
-      toast.ok("Email changed", `You now sign in with ${res.email}.`);
-      router.refresh();
-    } catch (e) {
-      setEmailError(e instanceof ApiClientError ? e.message : "Could not confirm the code.");
-    } finally {
-      setEmailBusy(false);
-    }
-  }
-
-  async function cancelEmailChange() {
-    setEmailBusy(true);
-    try {
-      await profileApi.cancelEmailChange();
-    } catch {
-      // Nothing pending server-side is fine -- the point is to leave this form.
-    } finally {
-      setEmailBusy(false);
-      resetEmailFlow();
-    }
-  }
+  }, [editing, programScope]);
 
   const idLine = employeeId?.trim() || "—";
 
   const baseRows: Array<[string, string]> = [
+    ["Full name", fullName?.trim() || "—"],
     [idLabel, idLine],
     ["Role", roleLabel],
     ["College / Department", collegeLine],
@@ -187,12 +127,12 @@ export function AdminProfileCard({
   function startEdit() {
     setNameDraft(fullName);
     setEmployeeIdDraft(storedEmployeeId ?? "");
+    setProgramDraft(programScope?.programId ?? "");
     setEditing(true);
   }
 
   function cancelEdit() {
     setEditing(false);
-    resetEmailFlow();
   }
 
   async function save() {
@@ -201,14 +141,26 @@ export function AdminProfileCard({
       toast.refuse("Enter your full name");
       return;
     }
+    if (allowIdEdit && idInputMode === "sevenDigits" && !/^\d{7}$/.test(employeeIdDraft.trim())) {
+      toast.refuse(`${idLabel} must be exactly 7 digits`);
+      return;
+    }
+    const programChanged = Boolean(programScope && programDraft && programDraft !== (programScope.programId ?? ""));
     setSaving(true);
     try {
-      await profileApi.updateDetails(
+      await profileApi.updateDetails({
+        name,
         // A read-only number is never sent, so a stale draft cannot overwrite it.
-        allowIdEdit ? { name, employeeId: employeeIdDraft.trim() || null } : { name },
-      );
+        ...(allowIdEdit ? { employeeId: employeeIdDraft.trim() || null } : {}),
+        ...(programChanged ? { chairmanProgramId: programDraft } : {}),
+      });
       setEditing(false);
-      toast.ok("Profile saved");
+      if (programChanged) {
+        const code = programOptions.find((p) => p.id === programDraft)?.code ?? "the new program";
+        toast.ok("Profile updated successfully", `You are now the Program Chairman of ${code}.`);
+      } else {
+        toast.ok("Profile updated successfully");
+      }
       // The page is server-rendered from /api/auth/me, so re-fetch it rather than
       // patching local state — the sidebar reads the same name.
       router.refresh();
@@ -253,11 +205,20 @@ export function AdminProfileCard({
                 <Input
                   id="profile-employee-id"
                   value={employeeIdDraft}
-                  onChange={(e) => setEmployeeIdDraft(e.target.value)}
-                  placeholder="Leave blank if you have none"
+                  onChange={(e) =>
+                    setEmployeeIdDraft(
+                      idInputMode === "sevenDigits" ? e.target.value.replace(/\D/g, "").slice(0, 7) : e.target.value,
+                    )
+                  }
+                  placeholder={idInputMode === "sevenDigits" ? "7 digits, e.g. 2310456" : "Leave blank if you have none"}
+                  inputMode={idInputMode === "sevenDigits" ? "numeric" : undefined}
+                  maxLength={idInputMode === "sevenDigits" ? 7 : undefined}
                   disabled={saving}
                   autoComplete="off"
                 />
+                {idInputMode === "sevenDigits" ? (
+                  <p className="text-[11px] text-gray-500">Exactly 7 digits, as on your registration.</p>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-1">
@@ -270,98 +231,39 @@ export function AdminProfileCard({
             )}
           </div>
 
-          {/* Email moves on its own, only once a code sent to the new address comes back. */}
-          <div className="rounded-lg border border-gray-200 p-4 bg-gray-50/50 space-y-3">
-            <div>
-              <div className="text-[12px] text-gray-500">Email</div>
-              <div className="font-semibold mt-1 text-gray-900 break-words">{email}</div>
+          {programScope ? (
+            <div className="space-y-1">
+              <label className="block text-[12px] font-semibold text-black/75" htmlFor="profile-program-scope">
+                Program scope
+              </label>
+              <select
+                id="profile-program-scope"
+                className="h-10 w-full max-w-md rounded-md border border-gray-300 bg-white px-3 text-sm"
+                value={programDraft}
+                onChange={(e) => setProgramDraft(e.target.value)}
+                disabled={saving || programOptions.length === 0}
+              >
+                {programOptions.length === 0 ? <option value={programDraft}>Loading programs…</option> : null}
+                {programOptions.length > 0 && !programDraft ? <option value="">Choose a program…</option> : null}
+                {programOptions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code} — {p.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-500">
+                The program you chair. Changing it moves your plotting, dashboards and your name on the INS
+                forms (“Reviewed &amp; Certified by”) to the new program. Only programs in your college that
+                have no chairman yet can be chosen.
+              </p>
             </div>
+          ) : null}
 
-            {emailStage === "idle" ? (
-              <Button type="button" variant="outline" className="bg-white" onClick={() => setEmailStage("entry")}>
-                Change email
-              </Button>
-            ) : null}
-
-            {emailStage === "entry" ? (
-              <div className="space-y-2">
-                <label className="block text-[12px] font-semibold text-black/75" htmlFor="profile-new-email">
-                  New email address
-                </label>
-                <Input
-                  id="profile-new-email"
-                  type="email"
-                  value={emailDraft}
-                  onChange={(e) => setEmailDraft(e.target.value)}
-                  placeholder="you@gmail.com"
-                  disabled={emailBusy}
-                  autoComplete="email"
-                />
-                <p className="text-[11px] text-black/55">
-                  We will send a {CODE_LENGTH}-digit code there. Your email only changes once you enter it.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    className="bg-[#780301] hover:bg-[#5a0201] text-white"
-                    disabled={emailBusy}
-                    onClick={() => void sendEmailCode()}
-                  >
-                    {emailBusy ? "Sending…" : "Send code"}
-                  </Button>
-                  <Button type="button" variant="ghost" disabled={emailBusy} onClick={resetEmailFlow}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            {emailStage === "code" ? (
-              <div className="space-y-2">
-                <label className="block text-[12px] font-semibold text-black/75" htmlFor="profile-email-code">
-                  Code sent to {pendingEmail}
-                </label>
-                <Input
-                  id="profile-email-code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={CODE_LENGTH}
-                  value={emailCode}
-                  onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="000000"
-                  className="tracking-[0.4em]"
-                  disabled={emailBusy}
-                />
-                <p className="text-[11px] text-black/55">
-                  Check that inbox, including spam. We also told {email} that this was requested.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    className="bg-[#780301] hover:bg-[#5a0201] text-white"
-                    disabled={emailBusy || emailCode.length !== CODE_LENGTH}
-                    onClick={() => void confirmEmailCode()}
-                  >
-                    {emailBusy ? "Confirming…" : "Confirm new email"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="bg-white"
-                    disabled={emailBusy || cooldown > 0}
-                    onClick={() => void sendEmailCode()}
-                  >
-                    {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
-                  </Button>
-                  <Button type="button" variant="ghost" disabled={emailBusy} onClick={() => void cancelEmailChange()}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            {emailError ? <p className="text-[12px] text-[#780301]">{emailError}</p> : null}
-          </div>
+          {/*
+            Email moves on its own, only once a code sent to the new address comes back: it is the
+            sign-in identity, so Save never changes it. Shared with the instructor profile page.
+          */}
+          <EmailChangeSection email={email} />
 
           {/*
             Role and college decide what this account can reach, so they are not editable from your
@@ -420,8 +322,11 @@ export function AdminProfileCard({
                 </Button>
               ) : null}
               {showChangePassword ? (
-                <Button variant="outline" className="bg-white" type="button" disabled>
-                  Change Password
+                // The shared change-password page (every role); Cancel brings them back here.
+                <Button variant="outline" className="bg-white" asChild>
+                  <Link href={`/account/change-password?next=${encodeURIComponent(pathname || "/")}`}>
+                    Change Password
+                  </Link>
                 </Button>
               ) : null}
             </div>

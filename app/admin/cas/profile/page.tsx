@@ -17,7 +17,9 @@ export default async function CasAdminProfilePage() {
         </div>
         <AdminProfileCard
           fullName={profile.name ?? ""}
-          employeeId={profile.id.slice(0, 8).toUpperCase()}
+          employeeId={profile.employeeId?.trim() || profile.id.slice(0, 8).toUpperCase()}
+          storedEmployeeId={profile.employeeId ?? ""}
+          editable
           roleLabel={adminRoleLabel(profile.role)}
           collegeLine={collegeDisplayName(profile.collegeId ?? null)}
           email={profile.email}

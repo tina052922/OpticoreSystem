@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/alerts/useActionToast";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import type { ScheduleLoadJustification } from "@/types/db";
@@ -21,6 +22,7 @@ export function FacultyLoadJustificationRecord({
   /** Lets the page refresh anything that showed the cleared text. */
   onCleared?: () => void;
 }) {
+  const toast = useActionToast();
   const semester = useSemesterFilterOptional();
   const periodId = semester?.selectedPeriodId ?? "";
   const [rows, setRows] = useState<ScheduleLoadJustification[]>([]);
@@ -42,6 +44,7 @@ export function FacultyLoadJustificationRecord({
       });
       setRows((prev) => prev.filter((r) => r.id !== id));
       setConfirmingId(null);
+      toast.ok("Justification cleared successfully", "A new one will be asked for on the next breach.");
       onCleared?.();
     } catch (err) {
       setClearError(err instanceof Error ? err.message : "Failed to clear the justification.");

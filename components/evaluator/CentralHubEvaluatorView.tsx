@@ -1,5 +1,7 @@
 "use client";
 
+import { isGecInstructorUser } from "@/lib/faculty/faculty-category";
+import { filterInstructorsForProgramPlot, sortDepartmentThenGec } from "@/lib/evaluator/instructor-scope";
 import { accessRequestsApi, apiFetch, authApi, catalogApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
 import { userErrorDetail } from "@/lib/ui/user-message";
 import Link from "next/link";
@@ -553,13 +555,18 @@ export function CentralHubEvaluatorView({
     return dedupeLegacyItLabsForCampusNavigation(rooms);
   }, [rooms]);
 
+  /**
+   * The class's own department faculty plus every GEC instructor (campus-wide) — the same rule as
+   * the Subject Scheduler's Plot window. Whoever already teaches the class stays listed.
+   */
   const instructorsForEdit = useMemo(() => {
-    if (!editCollegeId) return users.filter((u) => isPlottableFacultyUser(u));
-    return users.filter(
-      (u) =>
-        u.collegeId === editCollegeId && isPlottableFacultyUser(u),
-    );
-  }, [users, editCollegeId]);
+    const plottable = users.filter((u) => isPlottableFacultyUser(u));
+    if (!editCollegeId) return plottable;
+    const programId = editEntry ? sectionById.get(editEntry.sectionId)?.programId ?? null : null;
+    const keep = new Set(editEntry?.instructorId ? [editEntry.instructorId] : []);
+    const inScope = plottable.filter((u) => u.collegeId === editCollegeId || isGecInstructorUser(u) || keep.has(u.id));
+    return sortDepartmentThenGec(filterInstructorsForProgramPlot(inScope, programId, keep), programId);
+  }, [users, editCollegeId, editEntry, sectionById]);
 
   const collegeNameById = useMemo(() => {
     const m = new Map<string, string>();

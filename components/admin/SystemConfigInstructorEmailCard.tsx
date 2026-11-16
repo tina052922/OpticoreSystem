@@ -131,7 +131,7 @@ export function SystemConfigInstructorEmailCard() {
       setSaved(policy);
       notifySystemConfigurationSaved("instructorEmailPolicy");
       toast.ok(
-        "Sign-up rule saved",
+        "Sign-up email rule updated successfully",
         `Instructor sign-up now accepts ${instructorEmailDomainHint(policy)}.`,
       );
     } catch (e) {

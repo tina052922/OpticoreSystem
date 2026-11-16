@@ -33,6 +33,8 @@ export function LoginClient() {
   const [notice] = useState(() => params.get("notice"));
   const passwordChanged = notice === "password_changed";
   const signedOut = notice === "signed_out";
+  /** Sent here by SessionGuard: another tab signed this browser out. */
+  const signedOutElsewhere = notice === "signed_out_elsewhere";
   useEffect(() => {
     if (!notice) return;
     const url = new URL(window.location.href);
@@ -84,10 +86,14 @@ export function LoginClient() {
       document.cookie = "last_visited_path=; path=/; max-age=0";
 
       const home = getDefaultHomeForRole(user.role);
-      const target =
-        nextParam &&
-        nextParam.length > 0 &&
-        pathAllowedForRole(user.role, nextParam)
+      // An account someone else created (Faculty Profile, College Admin / Chairman accounts) must
+      // finish setup first: confirm the email with an emailed code, then choose a password.
+      const needsSetup = Boolean(user.firstLoginStep && user.firstLoginStep !== "done");
+      const target = needsSetup
+        ? "/account/change-password?first=1"
+        : nextParam &&
+            nextParam.length > 0 &&
+            pathAllowedForRole(user.role, nextParam)
           ? nextParam
           : home;
 
@@ -140,8 +146,19 @@ export function LoginClient() {
           role="status"
           className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
         >
-          <p className="font-semibold">Your password has been updated.</p>
+          <p className="font-semibold">Password changed successfully.</p>
           <p className="mt-0.5 text-emerald-900/80">Please sign in with your new password to continue.</p>
+        </div>
+      ) : null}
+      {signedOutElsewhere ? (
+        <div
+          role="status"
+          className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          <p className="font-semibold">You were signed out.</p>
+          <p className="mt-0.5 text-amber-950/80">
+            This browser was signed out in another tab. Sign in again to continue.
+          </p>
         </div>
       ) : null}
       {signedOut ? (

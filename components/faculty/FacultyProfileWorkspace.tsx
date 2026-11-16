@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +9,12 @@ import { facultyProfileApi, userAdminApi, apiFetch } from "@/lib/api/client";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import type { FacultyProfile, Program, ScheduleLoadJustification, Section, User } from "@/types/db";
 import {
+  FACULTY_CATEGORY_BOTH,
   FACULTY_CATEGORY_GEC,
+  FACULTY_CATEGORY_OPTIONS,
   FACULTY_CATEGORY_PROGRAM,
+  facultyCategoryBadge,
+  facultyCategoryRequiresDepartment,
   isGecInstructorUser,
   parseFacultyCategory,
   type FacultyCategory,
@@ -228,6 +233,15 @@ export function FacultyProfileWorkspace({
 
   const [rows, setRows] = useState<ListRow[]>([]);
   const [facultyListSearch, setFacultyListSearch] = useState("");
+  /** The New / Edit faculty card — Edit in the list scrolls here (it sits below the list now). */
+  const formCardRef = useRef<HTMLDivElement | null>(null);
+  /** Shown beside the Add / Save button for a few seconds after a save. */
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!savedNotice) return;
+    const t = window.setTimeout(() => setSavedNotice(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [savedNotice]);
   // HR Form 23B column filters; they narrow the list on screen and therefore the Excel export too.
   const [statusFilter, setStatusFilter] = useState("");
   const [sexFilter, setSexFilter] = useState("");
@@ -670,7 +684,7 @@ export function FacultyProfileWorkspace({
     }
     setSavingRowId(null);
 
-    toast.ok("Faculty details updated");
+    toast.ok("Faculty details updated successfully");
     dispatchInsCatalogReload();
     void loadFaculty();
   }
@@ -754,7 +768,15 @@ export function FacultyProfileWorkspace({
       eligibility: eligibility.trim() || null,
     };
 
-    const isGec = facultyCategory === FACULTY_CATEGORY_GEC;
+    // Program and "both" instructors must name a department; for a GEC instructor it is optional.
+    const departmentForSave = (chairmanProgramId || departmentProgramId).trim();
+    if (facultyCategoryRequiresDepartment(facultyCategory) && !departmentForSave) {
+      toast.refuse(
+        "Choose the program (department)",
+        "Program and “both” instructors belong to a department. Only a GEC instructor may leave it blank.",
+      );
+      return;
+    }
 
     setSaving(true);
     if (editingUserId) {
@@ -770,8 +792,8 @@ export function FacultyProfileWorkspace({
         await userAdminApi.update(editingUserId, {
           name: nameTrim,
           employeeId: employeeId.trim() || null,
-          // A GEC instructor is not tied to one department.
-          chairmanProgramId: isGec ? null : departmentProgramId.trim() || null,
+          // Kept for GEC instructors too: one drawn from a program also shows on that program's list.
+          chairmanProgramId: departmentProgramId.trim() || null,
           facultyCategory,
         });
         const row = rows.find((r) => r.user.id === editingUserId);
@@ -790,7 +812,8 @@ export function FacultyProfileWorkspace({
         return;
       }
       setSaving(false);
-      toast.ok(`${nameTrim} updated`);
+      toast.ok("Faculty updated successfully", nameTrim);
+      setSavedNotice(`${nameTrim} updated.`);
       resetFacultyForm();
       dispatchInsCatalogReload();
       void loadFaculty();
@@ -812,7 +835,7 @@ export function FacultyProfileWorkspace({
         role: "instructor",
         collegeId,
         employeeId: employeeId.trim() || null,
-        chairmanProgramId: isGec ? null : chairmanProgramId || departmentProgramId.trim() || null,
+        chairmanProgramId: departmentForSave || null,
         facultyCategory,
         instructorValidation: "active",
       });
@@ -854,7 +877,8 @@ export function FacultyProfileWorkspace({
     }
 
     setSaving(false);
-    toast.ok(`${nameTrim} added`, "They are now in the faculty list.");
+    toast.ok("Faculty added successfully", `${nameTrim} is now in the Faculty List.`);
+    setSavedNotice(`${nameTrim} added — now in the Faculty List above.`);
     resetFacultyForm();
     dispatchInsCatalogReload();
     void loadFaculty();
@@ -899,14 +923,15 @@ export function FacultyProfileWorkspace({
     setExperience(row.profile?.experience ?? "");
     setEligibility(row.profile?.eligibility ?? "");
     setDepartmentProgramId(row.user.chairmanProgramId ?? chairmanProgramId ?? "");
-    // On the GEC page every row is a GEC instructor and editing one must not change that.
+    // On the GEC page every row teaches GEC (GEC or both) and editing must not make it program-only.
     setFacultyCategory(
-      gecFacultyFilter ? FACULTY_CATEGORY_GEC : parseFacultyCategory(row.user.facultyCategory),
+      gecFacultyFilter && !isGecInstructorUser(row.user) ? FACULTY_CATEGORY_GEC : parseFacultyCategory(row.user.facultyCategory),
     );
     setStatus(normalizeFacultyProfileStatus(row.profile?.status));
     setDesignation(row.profile?.designation ?? "");
     setAdvisorySectionIds(advisorySectionIdsOf(row.profile));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // The form is below the list: bring it into view (the page is its own scroll box).
+    window.setTimeout(() => scrollIntoAppView(formCardRef.current), 0);
   }
 
   /**
@@ -926,7 +951,7 @@ export function FacultyProfileWorkspace({
 
   function afterFacultyDeleted(userId: string) {
     if (editingUserId === userId) resetFacultyForm();
-    toast.ok("Faculty deleted");
+    toast.ok("Faculty deleted successfully");
     dispatchInsCatalogReload();
     void loadFaculty();
   }
@@ -954,7 +979,7 @@ export function FacultyProfileWorkspace({
         { academicYear, scopeLabel: exportScopeLabel },
       );
       toast.ok(
-        `Exported ${filteredRows.length} faculty`,
+        `Exported ${filteredRows.length} faculty successfully`,
         "Saved as an Excel file in HR Form 23B layout.",
       );
     } catch (err) {
@@ -1032,10 +1057,10 @@ export function FacultyProfileWorkspace({
     () =>
       advisorySectionsForInstructor(
         sections,
-        facultyCategory === FACULTY_CATEGORY_GEC ? null : departmentProgramId,
+        departmentProgramId || null,
         advisorySectionIds,
       ),
-    [sections, facultyCategory, departmentProgramId, advisorySectionIds],
+    [sections, departmentProgramId, advisorySectionIds],
   );
 
   const formAdvisoryHolders = useMemo(
@@ -1094,23 +1119,6 @@ export function FacultyProfileWorkspace({
           ))}
         </div>
 
-        {tab === "profile" ? (
-          <div className="flex flex-wrap gap-2">
-            {editingUserId ? (
-              <Button type="button" variant="outline" disabled={saving} onClick={() => resetFacultyForm()}>
-                Cancel edit
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              className="bg-[#ff990a] text-white hover:bg-[#e68a09]"
-              disabled={saving || !collegeId}
-              onClick={() => void onAddFaculty()}
-            >
-              {saving ? "Saving…" : editingUserId ? "Save faculty" : "+ Add Faculty"}
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       {tab === "profile" || tab === "designation" ? (
@@ -1172,395 +1180,10 @@ export function FacultyProfileWorkspace({
         </div>
       ) : null}
 
+      {/* Faculty List first, right under the search, so a search shows results without scrolling. */}
       {tab === "profile" ? (
-        <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-6">
-          {campusWide && collegeId ? (
-            <p className="text-[13px] text-black/70 bg-black/[0.03] border border-black/10 rounded-lg px-3 py-2 mb-4">
-              Searching <strong>all colleges</strong>. A faculty added here is created under{" "}
-              <strong>{writeCollegeLabel?.trim() || "the default college"}</strong> — pick a college above to
-              enroll into a different one.
-            </p>
-          ) : campusWide ? (
-            <p className="text-[13px] text-black/70 bg-black/[0.03] border border-black/10 rounded-lg px-3 py-2 mb-4">
-              Listing faculty across <strong>all colleges</strong>. Pick one college above to add or edit a profile — a
-              new faculty has to be created under a single college.
-            </p>
-          ) : !collegeId ? (
-            <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-              Set college scope using the bar above (campus pages) or open this page as Chairman / College Admin with a
-              linked college.
-            </p>
-          ) : null}
-
-          <div className="mb-3">
-            <div className="text-[16px] font-semibold">{editingUserId ? "Edit faculty" : "New faculty"}</div>
-            <p className="text-[11px] text-black/55">
-              Fields follow CTU HR Form 23B — Faculty Profile as to their Educational Qualification (June 2012, Rev. 0).
-            </p>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Employee ID</div>
-              <Input
-                placeholder="Required; must match self-registration"
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                disabled={!collegeId}
-              />
-            </div>
-            {editingUserId ? (
-              <div className="space-y-1 lg:col-span-2">
-                <div className="text-sm font-medium">Sign-in</div>
-                <div className="rounded-lg border border-black/15 bg-black/[0.02] p-3 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-[12px] font-semibold text-black/75" htmlFor="faculty-login-email">
-                        Email
-                      </label>
-                      <Input
-                        id="faculty-login-email"
-                        type="email"
-                        placeholder="Not set — no sign-in yet"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        autoComplete="off"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[12px] font-semibold text-black/75" htmlFor="faculty-temp-password">
-                        New temporary password
-                      </label>
-                      <PasswordInput
-                        id="faculty-temp-password"
-                        placeholder="Leave blank to generate one"
-                        value={tempPassword}
-                        onChange={(e) => setTempPassword(e.target.value)}
-                        autoComplete="new-password"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                    {accountStateChips.map((chip) => (
-                      <span
-                        key={chip.label}
-                        className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide ${chip.tone}`}
-                      >
-                        {chip.label}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/*
-                    Not "show password" — there is nothing to show. The stored value is a hash, so
-                    the only honest offer is a new one.
-                  */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-9 text-[12px] font-semibold"
-                      disabled={issuingAccount || !loginEmail.trim()}
-                      onClick={() => void issueAccountForEditing()}
-                    >
-                      {issuingAccount
-                        ? "Working…"
-                        : hasSignIn
-                          ? "Issue new temporary password"
-                          : "Create sign-in"}
-                    </Button>
-                    <span className="text-[11px] leading-snug text-black/50">
-                      The current password cannot be shown — it is stored only as a hash. Issuing a
-                      new one replaces it and asks them to set their own at next sign-in.
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-            {!editingUserId ? (
-              <>
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">
-                    Email for sign-in <span className="font-normal text-black/45">(optional)</span>
-                  </div>
-                  <Input
-                    type="email"
-                    placeholder="prof@ctu.edu.ph"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    disabled={!collegeId}
-                    autoComplete="off"
-                  />
-                  <p className="text-[11px] text-black/50 leading-snug">
-                    Leave blank to record the faculty without a login. With an address, they must
-                    confirm it by emailed code the first time they sign in.
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Temporary password</div>
-                  <PasswordInput
-                    placeholder="Leave blank to generate one"
-                    value={tempPassword}
-                    onChange={(e) => setTempPassword(e.target.value)}
-                    disabled={!collegeId || !loginEmail.trim()}
-                    autoComplete="new-password"
-                  />
-                  <p className="text-[11px] text-black/50 leading-snug">
-                    Shown once after saving. They are asked to replace it at first sign-in.
-                  </p>
-                </div>
-              </>
-            ) : null}
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Last Name</div>
-              <Input placeholder="Dela Cruz" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={!collegeId} />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">First Name</div>
-              <Input placeholder="Juan" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={!collegeId} />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Middle Name</div>
-              <Input placeholder="Miguel" value={middleName} onChange={(e) => setMiddleName(e.target.value)} disabled={!collegeId} />
-              <p className="text-[11px] text-black/50">
-                Stored as <strong>{composedFullName || "—"}</strong> for INS documents.
-              </p>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Academic Rank</div>
-              <Input
-                list={ACADEMIC_RANK_SUGGESTIONS_ID}
-                placeholder="Instructor I"
-                value={academicRank}
-                onChange={(e) => setAcademicRank(e.target.value)}
-                disabled={!collegeId}
-              />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Sex</div>
-              <select
-                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
-                value={sex}
-                onChange={(e) => setSex(normalizeFacultySex(e.target.value))}
-                disabled={!collegeId}
-              >
-                <option value="">—</option>
-                <option value="M">M</option>
-                <option value="F">F</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Date of Birth</div>
-              <Input
-                type="date"
-                max={latestDateOfBirth()}
-                value={dateOfBirth}
-                onChange={(e) => setDateOfBirth(e.target.value)}
-                disabled={!collegeId}
-              />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Age</div>
-              <Input
-                readOnly
-                tabIndex={-1}
-                className="bg-black/[0.04] text-black/70"
-                placeholder="—"
-                value={ageFromBirthDate != null ? String(ageFromBirthDate) : ""}
-                disabled={!collegeId}
-              />
-              <p className="text-[11px] text-black/50">Computed from the date of birth.</p>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Educational Qualification</div>
-              <Input
-                placeholder="MS Information Technology"
-                value={educationalQualification}
-                onChange={(e) => setEducationalQualification(e.target.value)}
-                disabled={!collegeId}
-              />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Experience</div>
-              <Input
-                placeholder="8 years teaching, 3 years industry"
-                value={experience}
-                onChange={(e) => setExperience(e.target.value)}
-                disabled={!collegeId}
-              />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Eligibility</div>
-              <Input
-                placeholder="CSC Professional / LET / PRC licence"
-                value={eligibility}
-                onChange={(e) => setEligibility(e.target.value)}
-                disabled={!collegeId}
-              />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Instructor category</div>
-              <select
-                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
-                value={facultyCategory}
-                onChange={(e) => setFacultyCategory(parseFacultyCategory(e.target.value))}
-                disabled={!collegeId || gecFacultyFilter}
-              >
-                <option value={FACULTY_CATEGORY_PROGRAM}>Program / department instructor</option>
-                <option value={FACULTY_CATEGORY_GEC}>GEC instructor</option>
-              </select>
-              <p className="text-[11px] text-black/50 leading-relaxed">
-                {gecFacultyFilter
-                  ? "Fixed here — everyone enrolled from this page is a GEC instructor. Change it from the College Admin or Chairman Faculty Profile."
-                  : facultyCategory === FACULTY_CATEGORY_GEC
-                    ? "Teaches GEC subjects across departments; the GEC Chairman plots their load."
-                    : "Belongs to one department, plotted by that Program Chairman."}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Program (department)</div>
-              <select
-                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
-                value={facultyCategory === FACULTY_CATEGORY_GEC ? "" : departmentProgramId}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setDepartmentProgramId(next);
-                  // Advisory follows the department: drop sections that belong to another program.
-                  if (next) {
-                    const inProgram = new Set(sections.filter((sec) => sec.programId === next).map((sec) => sec.id));
-                    setAdvisorySectionIds((prev) => prev.filter((id) => inProgram.has(id)));
-                  }
-                }}
-                disabled={
-                  !collegeId ||
-                  facultyCategory === FACULTY_CATEGORY_GEC ||
-                  Boolean(chairmanProgramId)
-                }
-              >
-                <option value="">— Unassigned —</option>
-                {programs.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} — {p.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-black/50 leading-relaxed">
-                {facultyCategory === FACULTY_CATEGORY_GEC
-                  ? "Not applicable — GEC instructors are college-scoped."
-                  : chairmanProgramId
-                    ? "Locked to your department."
-                    : "Which department this instructor belongs to. Used for Faculty Profile scope and plotting."}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Status</div>
-              <select
-                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
-                value={status}
-                onChange={(e) => setStatus(normalizeFacultyProfileStatus(e.target.value))}
-                disabled={!collegeId}
-              >
-                <option value={FACULTY_EMPLOYMENT_RESIDENT}>{FACULTY_EMPLOYMENT_RESIDENT}</option>
-                <option value={FACULTY_EMPLOYMENT_NON_RESIDENT}>{FACULTY_EMPLOYMENT_NON_RESIDENT}</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Administrative Designation</div>
-              <Input
-                list={DESIGNATION_SUGGESTIONS_ID}
-                placeholder="Regular Faculty (no designation)"
-                value={designation}
-                onChange={(e) => setDesignation(e.target.value)}
-                disabled={!collegeId}
-              />
-              {(() => {
-                const matched = getDesignationPolicyByLabel(designation);
-                const pol = matched ?? DESIGNATION_POLICIES.find((d) => d.key === "Regular Faculty")!;
-                const custom = Boolean(designation.trim()) && !matched;
-                return (
-                  <div className="text-[11px] text-black/55 leading-relaxed">
-                    Teaching load: <strong>{pol.hoursPerWeekMin}–{pol.hoursPerWeekMax} hrs/week</strong>
-                    {" · "}
-                    Rate/hour (educational qualification):{" "}
-                    <strong>{ratePerHourForForm != null ? `₱${ratePerHourForForm}` : "—"}</strong>
-                    {custom ? (
-                      <>
-                        <br />
-                        Custom designation — no Merit System cap matches this text, so the standard load applies.
-                      </>
-                    ) : null}
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="space-y-1 lg:col-span-2">
-              <div className="text-sm font-medium">Advisory (Assigned Sections)</div>
-              <div className="max-h-40 overflow-auto rounded-md border border-black/25 bg-white p-2">
-                {formAdvisorySections.length === 0 ? (
-                  <p className="text-[11px] text-black/45 px-1 py-2">
-                    {departmentProgramId && facultyCategory !== FACULTY_CATEGORY_GEC
-                      ? "No sections in this department yet."
-                      : "No sections in scope yet."}
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                    {formAdvisorySections.map((sec) => {
-                      const checked = advisorySectionIds.includes(sec.id);
-                      const holder = formAdvisoryHolders.get(sec.id);
-                      const assignable = canAssignAdvisorySection(sec.id, {
-                        holders: formAdvisoryHolders,
-                        alreadySelected: checked,
-                      });
-                      return (
-                        <label
-                          key={sec.id}
-                          title={assignable ? undefined : advisoryTakenLabel(holder)}
-                          className={`flex items-center gap-2 text-[12px] px-1 py-1 rounded ${
-                            assignable
-                              ? "hover:bg-black/[0.03] cursor-pointer"
-                              : "cursor-not-allowed text-black/35"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="accent-[#ff990a]"
-                            checked={checked}
-                            disabled={!collegeId || !assignable}
-                            onChange={(e) =>
-                              setAdvisorySectionIds((prev) =>
-                                e.target.checked
-                                  ? [...prev, sec.id]
-                                  : prev.filter((id) => id !== sec.id),
-                              )
-                            }
-                          />
-                          {/* Struck through rather than hidden: the section still exists, it is just spoken for. */}
-                          <span className={assignable ? "" : "line-through decoration-black/30"}>{sec.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <p className="text-[11px] text-black/50 leading-relaxed">
-                A faculty may advise more than one section — tick every section they handle. A section
-                already advised by someone else is struck through; free it from their profile first.
-                {advisorySectionIds.length > 0 ? ` Selected: ${advisorySectionIds.length}.` : ""}
-              </p>
-            </div>
-          </div>
-
-          {editingUserId ? (
-            <div className="mt-6">
-              <FacultyLoadJustificationRecord
-                facultyUserId={editingUserId}
-                collegeId={collegeId}
-                onCleared={() => loadJustifications()}
-              />
-            </div>
-          ) : null}
-
-          <div className="mt-8 space-y-3">
+        <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-4 sm:p-5">
+          <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div>
                 <div className="text-[16px] font-semibold">Faculty List {loadingList ? "· Loading…" : ""}</div>
@@ -1595,7 +1218,7 @@ export function FacultyProfileWorkspace({
               while you scroll sideways. Without those two, reading row 6 column 14 means losing
               track of both which row and which column you are in.
             */}
-            <div className="max-h-[70vh] overflow-auto rounded-xl border border-black/10">
+            <div className="max-h-[55vh] overflow-auto rounded-xl border border-black/10">
               <table className="w-full min-w-[1500px] border-collapse text-left">
                 <thead className="sticky top-0 z-20">
                   <tr className="bg-[#ff990a] text-white text-[11px] uppercase tracking-wide">
@@ -1665,7 +1288,7 @@ export function FacultyProfileWorkspace({
                     // Only this instructor's own program's sections (GEC / unplaced: all in scope).
                     const rowAdvisorySections = advisorySectionsForInstructor(
                       sections,
-                      parseFacultyCategory(user.facultyCategory) === FACULTY_CATEGORY_GEC ? null : user.chairmanProgramId,
+                      user.chairmanProgramId ?? null,
                       draft.advisorySectionIds,
                     );
                       const dirty =
@@ -1845,13 +1468,17 @@ export function FacultyProfileWorkspace({
                             )}
                           </td>
                           <td className="px-3 py-2.5">
-                            {isGecInstructorUser(user) ? (
-                              <span className="inline-flex items-center rounded-md bg-[#ff990a]/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#8a5200]">
-                                GEC instructor
-                              </span>
-                            ) : (
-                              departmentLabelFor({ user, profile })
-                            )}
+                            {/* Department (when they have one) plus a GEC badge for anyone who teaches GEC. */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {user.chairmanProgramId || !isGecInstructorUser(user) ? (
+                                <span>{departmentLabelFor({ user, profile })}</span>
+                              ) : null}
+                              {isGecInstructorUser(user) ? (
+                                <span className="inline-flex items-center rounded-md bg-[#ff990a]/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#8a5200]">
+                                  {facultyCategoryBadge(user.facultyCategory)}
+                                </span>
+                              ) : null}
+                            </div>
                           </td>
                           {enableFacultyListEdit ? (
                             <td className={`sticky right-0 z-10 ${rowBg} px-3 py-2.5 shadow-[-2px_0_0_rgba(0,0,0,0.05)]`}>
@@ -1900,6 +1527,431 @@ export function FacultyProfileWorkspace({
         </div>
       ) : null}
 
+      {tab === "profile" ? (
+        <div ref={formCardRef} className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 scroll-mt-4">
+          {campusWide && collegeId ? (
+            <p className="text-[13px] text-black/70 bg-black/[0.03] border border-black/10 rounded-lg px-3 py-2 mb-4">
+              Searching <strong>all colleges</strong>. A faculty added here is created under{" "}
+              <strong>{writeCollegeLabel?.trim() || "the default college"}</strong> — pick a college above to
+              enroll into a different one.
+            </p>
+          ) : campusWide ? (
+            <p className="text-[13px] text-black/70 bg-black/[0.03] border border-black/10 rounded-lg px-3 py-2 mb-4">
+              Listing faculty across <strong>all colleges</strong>. Pick one college above to add or edit a profile — a
+              new faculty has to be created under a single college.
+            </p>
+          ) : !collegeId ? (
+            <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+              Set college scope using the bar above (campus pages) or open this page as Chairman / College Admin with a
+              linked college.
+            </p>
+          ) : null}
+
+          <div className="mb-3">
+            <div className="text-[16px] font-semibold">{editingUserId ? "Edit faculty" : "New faculty"}</div>
+            <p className="text-[11px] text-black/55">
+              Fields follow CTU HR Form 23B — Faculty Profile as to their Educational Qualification (June 2012, Rev. 0).
+            </p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-3 mb-2">
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Employee ID</div>
+              <Input
+                placeholder="Required; must match self-registration"
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                disabled={!collegeId}
+              />
+            </div>
+            {editingUserId ? (
+              <div className="space-y-1 lg:col-span-2">
+                <div className="text-sm font-medium">Sign-in</div>
+                <div className="rounded-lg border border-black/15 bg-black/[0.02] p-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-[12px] font-semibold text-black/75" htmlFor="faculty-login-email">
+                        Email
+                      </label>
+                      <Input
+                        id="faculty-login-email"
+                        type="email"
+                        placeholder="Not set — no sign-in yet"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[12px] font-semibold text-black/75" htmlFor="faculty-temp-password">
+                        New temporary password
+                      </label>
+                      <PasswordInput
+                        id="faculty-temp-password"
+                        placeholder="Leave blank to generate one"
+                        value={tempPassword}
+                        onChange={(e) => setTempPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    {accountStateChips.map((chip) => (
+                      <span
+                        key={chip.label}
+                        className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide ${chip.tone}`}
+                      >
+                        {chip.label}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/*
+                    Not "show password" — there is nothing to show. The stored value is a hash, so
+                    the only honest offer is a new one.
+                  */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 text-[12px] font-semibold"
+                      disabled={issuingAccount || !loginEmail.trim()}
+                      onClick={() => void issueAccountForEditing()}
+                    >
+                      {issuingAccount
+                        ? "Working…"
+                        : hasSignIn
+                          ? "Issue new temporary password"
+                          : "Create sign-in"}
+                    </Button>
+                    <span className="text-[11px] leading-snug text-black/50">
+                      The current password cannot be shown — it is stored only as a hash. Issuing a
+                      new one replaces it and asks them to set their own at next sign-in.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {!editingUserId ? (
+              <>
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">
+                    Email for sign-in <span className="font-normal text-black/45">(optional)</span>
+                  </div>
+                  <Input
+                    type="email"
+                    placeholder="prof@ctu.edu.ph"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    disabled={!collegeId}
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-black/50 leading-snug">
+                    Leave blank to record the faculty without a sign-in. With an address, OptiCore makes a
+                    sign-in and shows you a temporary password. When the faculty signs in with it, a 6-digit
+                    code is emailed to this address; they enter it, then choose their own password.
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Temporary password</div>
+                  <PasswordInput
+                    placeholder="Leave blank to generate one"
+                    value={tempPassword}
+                    onChange={(e) => setTempPassword(e.target.value)}
+                    disabled={!collegeId || !loginEmail.trim()}
+                    autoComplete="new-password"
+                  />
+                  <p className="text-[11px] text-black/50 leading-snug">
+                    Shown once after saving. They are asked to replace it at first sign-in.
+                  </p>
+                </div>
+              </>
+            ) : null}
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Last Name</div>
+              <Input placeholder="Dela Cruz" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={!collegeId} />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">First Name</div>
+              <Input placeholder="Juan" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={!collegeId} />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Middle Name</div>
+              <Input placeholder="Miguel" value={middleName} onChange={(e) => setMiddleName(e.target.value)} disabled={!collegeId} />
+              <p className="text-[11px] text-black/50">
+                Stored as <strong>{composedFullName || "—"}</strong> for INS documents.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Academic Rank</div>
+              <Input
+                list={ACADEMIC_RANK_SUGGESTIONS_ID}
+                placeholder="Instructor I"
+                value={academicRank}
+                onChange={(e) => setAcademicRank(e.target.value)}
+                disabled={!collegeId}
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Sex</div>
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={sex}
+                onChange={(e) => setSex(normalizeFacultySex(e.target.value))}
+                disabled={!collegeId}
+              >
+                <option value="">—</option>
+                <option value="M">M</option>
+                <option value="F">F</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Date of Birth</div>
+              <Input
+                type="date"
+                max={latestDateOfBirth()}
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                disabled={!collegeId}
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Age</div>
+              <Input
+                readOnly
+                tabIndex={-1}
+                className="bg-black/[0.04] text-black/70"
+                placeholder="—"
+                value={ageFromBirthDate != null ? String(ageFromBirthDate) : ""}
+                disabled={!collegeId}
+              />
+              <p className="text-[11px] text-black/50">Computed from the date of birth.</p>
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Educational Qualification</div>
+              <Input
+                placeholder="MS Information Technology"
+                value={educationalQualification}
+                onChange={(e) => setEducationalQualification(e.target.value)}
+                disabled={!collegeId}
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Experience</div>
+              <Input
+                placeholder="8 years teaching, 3 years industry"
+                value={experience}
+                onChange={(e) => setExperience(e.target.value)}
+                disabled={!collegeId}
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Eligibility</div>
+              <Input
+                placeholder="CSC Professional / LET / PRC licence"
+                value={eligibility}
+                onChange={(e) => setEligibility(e.target.value)}
+                disabled={!collegeId}
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Instructor category</div>
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={facultyCategory}
+                onChange={(e) => setFacultyCategory(parseFacultyCategory(e.target.value))}
+                disabled={!collegeId}
+              >
+                {FACULTY_CATEGORY_OPTIONS.filter(
+                  // The GEC Chairman's roster is everyone who teaches GEC, so program-only is not offered there.
+                  (o) => !gecFacultyFilter || o.value !== FACULTY_CATEGORY_PROGRAM,
+                ).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-black/50 leading-relaxed">
+                {facultyCategory === FACULTY_CATEGORY_GEC
+                  ? "Teaches GEC subjects across departments. Set a program below if they belong to one."
+                  : facultyCategory === FACULTY_CATEGORY_BOTH
+                    ? "Teaches both: listed under their program and on the GEC Chairman's list, marked GEC."
+                    : "Belongs to one department, plotted by that Program Chairman."}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Program (department)</div>
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={departmentProgramId}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setDepartmentProgramId(next);
+                  // Advisory follows the department: drop sections that belong to another program.
+                  if (next) {
+                    const inProgram = new Set(sections.filter((sec) => sec.programId === next).map((sec) => sec.id));
+                    setAdvisorySectionIds((prev) => prev.filter((id) => inProgram.has(id)));
+                  }
+                }}
+                disabled={!collegeId || Boolean(chairmanProgramId)}
+              >
+                <option value="">
+                  {facultyCategory === FACULTY_CATEGORY_GEC ? "— None (GEC only) —" : "— Choose a program —"}
+                </option>
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code} — {p.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-black/50 leading-relaxed">
+                {chairmanProgramId
+                  ? "Locked to your department."
+                  : facultyCategory === FACULTY_CATEGORY_GEC
+                    ? "Optional — set it when this GEC instructor belongs to a program; they then also appear on that program's list."
+                    : "Required. Which department this instructor belongs to — used for Faculty Profile scope and plotting."}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Status</div>
+              <select
+                className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                value={status}
+                onChange={(e) => setStatus(normalizeFacultyProfileStatus(e.target.value))}
+                disabled={!collegeId}
+              >
+                <option value={FACULTY_EMPLOYMENT_RESIDENT}>{FACULTY_EMPLOYMENT_RESIDENT}</option>
+                <option value={FACULTY_EMPLOYMENT_NON_RESIDENT}>{FACULTY_EMPLOYMENT_NON_RESIDENT}</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Administrative Designation</div>
+              <Input
+                list={DESIGNATION_SUGGESTIONS_ID}
+                placeholder="Regular Faculty (no designation)"
+                value={designation}
+                onChange={(e) => setDesignation(e.target.value)}
+                disabled={!collegeId}
+              />
+              {(() => {
+                const matched = getDesignationPolicyByLabel(designation);
+                const pol = matched ?? DESIGNATION_POLICIES.find((d) => d.key === "Regular Faculty")!;
+                const custom = Boolean(designation.trim()) && !matched;
+                return (
+                  <div className="text-[11px] text-black/55 leading-relaxed">
+                    Teaching load: <strong>{pol.hoursPerWeekMin}–{pol.hoursPerWeekMax} hrs/week</strong>
+                    {" · "}
+                    Rate/hour (educational qualification):{" "}
+                    <strong>{ratePerHourForForm != null ? `₱${ratePerHourForForm}` : "—"}</strong>
+                    {custom ? (
+                      <>
+                        <br />
+                        Custom designation — no Merit System cap matches this text, so the standard load applies.
+                      </>
+                    ) : null}
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="lg:col-span-2 flex flex-col gap-4 lg:flex-row lg:items-end">
+            <div className="w-full space-y-1 lg:max-w-xl">
+              <div className="text-sm font-medium">Advisory (Assigned Sections)</div>
+              <div className="max-h-32 overflow-auto rounded-md border border-black/25 bg-white p-2">
+                {formAdvisorySections.length === 0 ? (
+                  <p className="text-[11px] text-black/45 px-1 py-2">
+                    {departmentProgramId && facultyCategory !== FACULTY_CATEGORY_GEC
+                      ? "No sections in this department yet."
+                      : "No sections in scope yet."}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                    {formAdvisorySections.map((sec) => {
+                      const checked = advisorySectionIds.includes(sec.id);
+                      const holder = formAdvisoryHolders.get(sec.id);
+                      const assignable = canAssignAdvisorySection(sec.id, {
+                        holders: formAdvisoryHolders,
+                        alreadySelected: checked,
+                      });
+                      return (
+                        <label
+                          key={sec.id}
+                          title={assignable ? undefined : advisoryTakenLabel(holder)}
+                          className={`flex items-center gap-2 text-[12px] px-1 py-1 rounded ${
+                            assignable
+                              ? "hover:bg-black/[0.03] cursor-pointer"
+                              : "cursor-not-allowed text-black/35"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-[#ff990a]"
+                            checked={checked}
+                            disabled={!collegeId || !assignable}
+                            onChange={(e) =>
+                              setAdvisorySectionIds((prev) =>
+                                e.target.checked
+                                  ? [...prev, sec.id]
+                                  : prev.filter((id) => id !== sec.id),
+                              )
+                            }
+                          />
+                          {/* Struck through rather than hidden: the section still exists, it is just spoken for. */}
+                          <span className={assignable ? "" : "line-through decoration-black/30"}>{sec.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-black/50 leading-relaxed">
+                A faculty may advise more than one section — tick every section they handle. A section
+                already advised by someone else is struck through; free it from their profile first.
+                {advisorySectionIds.length > 0 ? ` Selected: ${advisorySectionIds.length}.` : ""}
+              </p>
+            </div>
+
+            {/* Beside Advisory, so adding does not mean scrolling back to the top. */}
+            <div className="flex flex-col gap-2 lg:pb-6">
+              <div className="flex flex-wrap gap-2">
+                {editingUserId ? (
+                  <Button type="button" variant="outline" disabled={saving} onClick={() => resetFacultyForm()}>
+                    Cancel edit
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  className="bg-[#ff990a] text-white hover:bg-[#e68a09]"
+                  disabled={saving || !collegeId}
+                  onClick={() => void onAddFaculty()}
+                >
+                  {saving ? "Saving…" : editingUserId ? "Save faculty" : "+ Add Faculty"}
+                </Button>
+              </div>
+              {savedNotice ? (
+                <p
+                  role="status"
+                  className="max-w-xs rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-medium text-emerald-900"
+                >
+                  ✓ {savedNotice}
+                </p>
+              ) : null}
+            </div>
+            </div>
+          </div>
+
+          {editingUserId ? (
+            <div className="mt-6">
+              <FacultyLoadJustificationRecord
+                facultyUserId={editingUserId}
+                collegeId={collegeId}
+                onCleared={() => loadJustifications()}
+              />
+            </div>
+          ) : null}
+
+        </div>
+      ) : null}
+
       {issuedAccount ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
           <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
@@ -1928,10 +1980,15 @@ export function FacultyProfileWorkspace({
                   {issuedAccount.password}
                 </div>
               </div>
-              <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900">
-                At their first sign-in they must confirm this email address with a code sent to it,
-                then choose their own password.
-              </p>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900">
+                <p className="font-semibold">What happens next</p>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                  <li>Give the faculty this email and temporary password.</li>
+                  <li>They sign in at OptiCore with them.</li>
+                  <li>A 6-digit code is emailed to this address — they enter it to confirm it.</li>
+                  <li>They choose their own password, then sign in with it.</li>
+                </ol>
+              </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-black/10 px-5 py-3">
               <Button
@@ -2039,7 +2096,7 @@ ${issuedAccount.password}`)
                     // Only this instructor's own program's sections (GEC / unplaced: all in scope).
                     const rowAdvisorySections = advisorySectionsForInstructor(
                       sections,
-                      parseFacultyCategory(user.facultyCategory) === FACULTY_CATEGORY_GEC ? null : user.chairmanProgramId,
+                      user.chairmanProgramId ?? null,
                       draft.advisorySectionIds,
                     );
                     // Students column sums every section the faculty advises.

@@ -72,6 +72,8 @@ export interface Section {
   name: string;
   yearLevel: number;
   studentCount: number;
+  /** Day Program ("day") or Evening Program ("night") section — the scheduler follows it. */
+  programMode?: "day" | "night" | null;
 }
 
 export interface User {
@@ -93,7 +95,7 @@ export interface User {
    * `gec` = GEC instructor (college-scoped; chairmanProgramId null).
    * `program` / missing = department faculty.
    */
-  facultyCategory?: "program" | "gec" | null;
+  facultyCategory?: "program" | "gec" | "both" | null;
   /** Public URL for INS / formal forms (uploaded in Profile). */
   signatureImageUrl?: string | null;
   /** Public URL for header / profile avatar. */
@@ -158,7 +160,6 @@ export interface Subject {
   /** major | minor | gec | elective | nstp | pe (migration 016); null until set. */
   category?: string | null;
   /** Curriculum prerequisite line (mirrors catalog tables). */
-  prerequisiteNote?: string | null;
 }
 
 export interface Room {

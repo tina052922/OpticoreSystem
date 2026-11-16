@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/alerts/useActionToast";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { doiApi, systemConfigApi, ApiClientError } from "@/lib/api/client";
@@ -12,6 +13,7 @@ const ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
  * Stored in `CampusInsSettings` (not per college).
  */
 export function DoiCampusDirectorSignatureCard() {
+  const toast = useActionToast();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -37,6 +39,7 @@ export function DoiCampusDirectorSignatureCard() {
       const data = await doiApi.uploadCampusDirectorSignature(file);
       setPreviewUrl(data.url?.trim() || null);
       dispatchInsCatalogReload();
+      toast.ok("Campus Director signature uploaded successfully", "It will print on the INS forms.");
     } catch (e) {
       setErr(e instanceof ApiClientError ? e.message : "Upload failed");
     } finally {
@@ -51,6 +54,7 @@ export function DoiCampusDirectorSignatureCard() {
       await doiApi.clearCampusDirectorSignature();
       setPreviewUrl(null);
       dispatchInsCatalogReload();
+      toast.ok("Campus Director signature removed");
     } catch (e) {
       setErr(e instanceof ApiClientError ? e.message : "Could not clear");
     } finally {

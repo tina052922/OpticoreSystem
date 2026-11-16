@@ -32,7 +32,6 @@ export default async function DoiProfilePage() {
           email={profile.email}
           subheading={`${adminRoleLabel(profile.role)} • ${collegeDisplayName(profile.collegeId ?? null)}`}
           editable
-          showChangePassword={false}
         />
       </div>
     </div>

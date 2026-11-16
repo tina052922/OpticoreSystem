@@ -18,6 +18,8 @@ import { CTU_LOGO_PNG } from "@/lib/branding";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { authApi } from "@/lib/api/client";
 import { LogoutConfirmDialog } from "@/components/account/LogoutConfirmDialog";
+import { SessionGuard } from "@/components/auth/SessionGuard";
+import { FlashToastOnLoad } from "@/components/alerts/FlashToastOnLoad";
 import { cn } from "@/components/ui/utils";
 import { SemesterFilterProvider } from "@/contexts/SemesterFilterContext";
 import { ProgramModeProvider } from "@/contexts/ProgramModeContext";
@@ -269,6 +271,9 @@ export function PortalShell({
           {children}
         </main>
       </div>
+      {/* One account per browser: follows sign-ins / sign-outs made in other tabs. */}
+      <SessionGuard />
+      <FlashToastOnLoad />
       <LogoutConfirmDialog
         open={logoutOpen}
         onCancel={() => setLogoutOpen(false)}

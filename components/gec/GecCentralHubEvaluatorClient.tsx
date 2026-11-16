@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
+import { SectionProgramBanner, sectionProgramMode } from "@/components/scheduling/SectionProgramBanner";
 import { EVALUATOR_TAB_LABELS } from "@/lib/evaluator/evaluator-tabs";
 import { buildScheduleEvaluatorTableRows } from "@/lib/evaluator/schedule-evaluator-table";
 import {
@@ -38,7 +38,7 @@ import type {
   User,
 } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
-import { isGecInstructorUser } from "@/lib/faculty/faculty-category";
+import { facultyCategoryBadge, isGecInstructorUser } from "@/lib/faculty/faculty-category";
 import { filterInstructorsForGec, instructorIdsOnRowsInScope } from "@/lib/evaluator/instructor-scope";
 import { EvaluatorScheduleOverviewTable } from "@/components/evaluator/EvaluatorScheduleOverviewTable";
 import { BsitProspectusSummaryTable } from "@/components/gec/BsitProspectusSummaryTable";
@@ -133,7 +133,7 @@ export function GecCentralHubEvaluatorClient() {
   const toast = useOpticoreToast();
   const systemConfig = useSystemConfigurationOptional();
   const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
-  const { programMode } = useProgramMode();
+  const { programMode, setProgramMode } = useProgramMode();
   const slotsForMode = evaluatorTimeSlots(programMode);
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const router = useRouter();
@@ -348,6 +348,17 @@ export function GecCentralHubEvaluatorClient() {
     return m;
   }, [sections]);
 
+  /** GEC follows the chosen section's program too (Programs & Sections) — no Day / Night toggle. */
+  const gecSectionMode = useMemo(
+    () => sectionProgramMode(sectionIdFilter ? sectionById.get(sectionIdFilter) : null),
+    [sectionById, sectionIdFilter],
+  );
+  useEffect(() => {
+    if (!sectionIdFilter) return;
+    if (gecSectionMode !== programMode) setProgramMode(gecSectionMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionIdFilter, gecSectionMode]);
+
   const programById = useMemo(() => {
     const m = new Map<string, Program>();
     programs.forEach((p) => m.set(p.id, p));
@@ -489,6 +500,8 @@ export function GecCentralHubEvaluatorClient() {
   /** Autosave (Supabase draft upsert) — debounced and lightweight. */
   useEffect(() => {
     if (!canEditVacant || !academicPeriodId || !collegeParam) return;
+    // Wait until the scheduler is on the chosen section's program (Day / Evening).
+    if (sectionIdFilter && gecSectionMode !== programMode) return;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
@@ -537,6 +550,8 @@ export function GecCentralHubEvaluatorClient() {
     pendingNewEntryIds,
     toast,
     programMode,
+    sectionIdFilter,
+    gecSectionMode,
   ]);
 
   /** Connection restore: flush autosave once immediately (don’t wait for the 9s debounce). */
@@ -735,7 +750,7 @@ export function GecCentralHubEvaluatorClient() {
     const base = usersToInstructorPlotOptions(pool, facultyProfileByUserId).map((opt) => {
       const u = pool.find((row) => row.id === opt.id);
       if (!u || !isGecInstructorUser(u)) return opt;
-      return { ...opt, fullName: `${opt.fullName} (GEC)` };
+      return { ...opt, fullName: `${opt.fullName} (${facultyCategoryBadge(u.facultyCategory)})` };
     });
     return mergeLegacyRowInstructorsIntoPlotOptions(
       base,
@@ -895,6 +910,10 @@ export function GecCentralHubEvaluatorClient() {
   }, [searchParams, loading, conflictIds]);
 
   async function saveVacantEdits(opts?: { skipJustificationPrompt?: boolean }) {
+    if (sectionIdFilter && gecSectionMode !== programMode) {
+      toast.error("Switching program", "One moment — the scheduler is switching to this section's program.");
+      return;
+    }
     if (!canEditVacant || !collegeParam || !academicPeriodId) return;
     setSaveBusy(true);
     try {
@@ -1091,7 +1110,7 @@ export function GecCentralHubEvaluatorClient() {
       const needsReason = needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH;
       if (needsReason) setJustModalOpen(true);
       toast.success(
-        `Saved ${toSave.length} vacant GEC slot${toSave.length === 1 ? "" : "s"}`,
+        `${toSave.length} GEC slot${toSave.length === 1 ? "" : "s"} saved successfully`,
         needsReason ? "One instructor is over their load — add a reason for DOI." : null,
       );
       runConflictCheck();
@@ -1142,7 +1161,7 @@ export function GecCentralHubEvaluatorClient() {
     try {
       await apiFetch(`/api/catalog/schedule-entries/${entryId}`, { method: "DELETE" });
       dispatchInsCatalogReload();
-      toast.success("Schedule removed");
+      toast.success("Schedule removed successfully");
     } catch (e: unknown) {
       pendingDeletedIdsRef.current.delete(entryId);
       const msg = userErrorDetail(e, "Failed to remove schedule");
@@ -1577,19 +1596,20 @@ export function GecCentralHubEvaluatorClient() {
               {sectionsForCollegeFiltered.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
+                  {sectionProgramMode(s) === "night" ? " — Evening" : ""}
                 </option>
               ))}
             </select>
           </label>
-          <div className="pb-0.5">
-            <ProgramModeToggle size="sm" />
-          </div>
           {!sectionIdFilter ? (
             <div className="ml-auto flex flex-col items-end gap-0.5 text-[10px] text-black/55 min-w-[200px] pb-0.5">
               <span className="text-black/55">Select a section to open the INS weekly grid workspace.</span>
             </div>
           ) : null}
         </div>
+        {sectionIdFilter ? (
+          <SectionProgramBanner mode={gecSectionMode} sectionName={sectionById.get(sectionIdFilter)?.name} />
+        ) : null}
 
         {loading ? (
           <p className="text-sm text-black/55 py-8">Loading…</p>

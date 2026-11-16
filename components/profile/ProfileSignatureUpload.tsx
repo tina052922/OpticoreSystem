@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/alerts/useActionToast";
 import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiClientError, profileApi } from "@/lib/api/client";
@@ -19,6 +20,7 @@ export type ProfileSignatureUploadProps = {
  * bucket and persists the public URL on `User.signatureImageUrl`.
  */
 export function ProfileSignatureUpload({ initialUrl, onUploaded }: ProfileSignatureUploadProps) {
+  const toast = useActionToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState<string | null>(initialUrl?.trim() || null);
   const [busy, setBusy] = useState(false);
@@ -43,6 +45,7 @@ export function ProfileSignatureUpload({ initialUrl, onUploaded }: ProfileSignat
       try {
         const { url: publicUrl } = await profileApi.uploadSignature(file);
         syncUrl(publicUrl ?? null);
+        toast.ok("Signature uploaded successfully", "It will appear on the INS forms you sign.");
       } catch (e) {
         setErr(
           e instanceof ApiClientError
@@ -55,6 +58,7 @@ export function ProfileSignatureUpload({ initialUrl, onUploaded }: ProfileSignat
         setBusy(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [syncUrl],
   );
 
@@ -64,12 +68,13 @@ export function ProfileSignatureUpload({ initialUrl, onUploaded }: ProfileSignat
     try {
       await profileApi.clearSignature();
       syncUrl(null);
+      toast.ok("Signature removed");
     } catch (e) {
       setErr(e instanceof ApiClientError ? e.message : "Could not clear");
     } finally {
       setBusy(false);
     }
-  }, [syncUrl]);
+  }, [syncUrl, toast]);
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 md:p-5 max-w-[900px]">

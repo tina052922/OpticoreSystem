@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
+import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import { useActionToast } from "@/components/alerts/useActionToast";
 import {
   campusAccountFileName,
   resolveImportRows,
+  type CampusAccountImportTarget,
   type CampusAccountRole,
 } from "@/lib/admin/campus-account-sheet";
 import {
@@ -80,12 +82,31 @@ export function CampusAccountsWorkspace() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  /**
+   * "Register" / "Edit" in the list fill the form at the top of the page. On a long list that form
+   * is off-screen, so the click looked like it did nothing — bring the form into view, put the cursor
+   * in Full name, and flash the card.
+   */
+  const formRef = useRef<HTMLDivElement | null>(null);
+  const [formFlash, setFormFlash] = useState(false);
+  function revealForm() {
+    scrollIntoAppView(formRef.current);
+    setFormFlash(true);
+    // By id: the shared Input does not forward refs on React 18.
+    window.setTimeout(() => document.getElementById("campus-account-full-name")?.focus({ preventScroll: true }), 350);
+    window.setTimeout(() => setFormFlash(false), 1600);
+  }
 
   // ── import ──────────────────────────────────────────────────────────────
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [importPassword, setImportPassword] = useState("");
   const [importing, setImporting] = useState(false);
   const [importReport, setImportReport] = useState<string[] | null>(null);
+  /** Rows read from the chosen file, shown for review before anything is created. */
+  const [importPreview, setImportPreview] = useState<{ fileName: string; rows: CampusAccountImportTarget[] } | null>(
+    null,
+  );
+  const [importHelpOpen, setImportHelpOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -167,11 +188,13 @@ export function CampusAccountsWorkspace() {
     setFullName(post.holder.name ?? "");
     setEmail(post.holder.email ?? "");
     setPassword("");
+    revealForm();
   }
 
   function startCreate(post: Post) {
     resetForm();
     setAssignmentId(post.id);
+    revealForm();
   }
 
   async function onSave() {
@@ -217,12 +240,12 @@ export function CampusAccountsWorkspace() {
           // An empty password on edit means "leave the current one alone".
           password: password.trim() || undefined,
         });
-        toast.ok(`${saveLabel} updated`);
+        toast.ok(`${saveLabel} account updated successfully`);
         toast.caution(warning, "Saved with a limitation");
       } else {
         await campusAccountsApi.create(payload);
         toast.ok(
-          `${saveLabel} registered`,
+          `${saveLabel} account created successfully`,
           "They will be asked to change this password at first sign-in.",
         );
       }
@@ -251,7 +274,7 @@ export function CampusAccountsWorkspace() {
 
   async function afterDeleted(pending: { id: string; name: string; postCode: string }) {
     if (editingId === pending.id) resetForm();
-    toast.ok(`${pending.name} removed`, `${pending.postCode} has no holder now.`);
+    toast.ok(`${pending.name}'s account removed successfully`, `${pending.postCode} has no holder now.`);
     await load();
   }
 
@@ -274,7 +297,7 @@ export function CampusAccountsWorkspace() {
       }));
       await downloadCampusAccountWorkbook(role, rows);
       toast.ok(
-        `Exported ${rows.length} row${rows.length === 1 ? "" : "s"}`,
+        `Exported ${rows.length} row${rows.length === 1 ? "" : "s"} successfully`,
         `Saved as ${campusAccountFileName(role)}.`,
       );
     } catch (e) {
@@ -282,9 +305,33 @@ export function CampusAccountsWorkspace() {
     }
   }
 
+  /** Step 1: read the file and show every row's status. Nothing is created yet. */
   async function onImportFile(file: File) {
     setImportReport(null);
+    setImportPreview(null);
+    setImporting(true);
+    try {
+      const sheetRows = await readCampusAccountWorkbook(file);
+      const holders = new Map(
+        posts.filter((p) => p.holder).map((p) => [p.id, (p.holder?.email ?? "").toLowerCase()] as [string, string]),
+      );
+      const rows = resolveImportRows(sheetRows, role, { colleges, programs }, holders);
+      if (rows.length === 0) {
+        toast.refuse("The file has no rows", "Fill in Full name and Email on the first sheet, then import it.");
+        return;
+      }
+      setImportPreview({ fileName: file.name, rows });
+    } catch (e) {
+      toast.fail(e, "Could not read that file", "campus accounts: import");
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
+  /** Step 2: register the rows marked ready, all with the one temporary password. */
+  async function confirmImport() {
+    if (!importPreview) return;
     if (importPassword.trim().length < MIN_PASSWORD_LENGTH) {
       toast.refuse(
         "Set a temporary password first",
@@ -292,21 +339,12 @@ export function CampusAccountsWorkspace() {
       );
       return;
     }
-
     setImporting(true);
+    const report: string[] = [];
+    let created = 0;
     try {
-      const sheetRows = await readCampusAccountWorkbook(file);
-      const taken = new Set(posts.filter((p) => p.holder).map((p) => p.id));
-      const resolved = resolveImportRows(sheetRows, role, { colleges, programs }, taken);
-
-      const report: string[] = [];
-      let created = 0;
-
-      for (const target of resolved) {
-        if (target.error) {
-          report.push(`Row ${target.row.rowNumber} (${target.row.assignmentCode || "—"}): ${target.error}`);
-          continue;
-        }
+      for (const target of importPreview.rows) {
+        if (target.status !== "ready") continue;
         try {
           await campusAccountsApi.create({
             role,
@@ -322,11 +360,11 @@ export function CampusAccountsWorkspace() {
           report.push(`Row ${target.row.rowNumber} (${target.row.assignmentCode}): ${message}`);
         }
       }
-
       setImportReport(report);
+      setImportPreview(null);
       if (created > 0) {
         toast.ok(
-          `Registered ${created} ${ROLE_LABEL[role]}${created === 1 ? "" : "s"}`,
+          `${created} ${ROLE_LABEL[role]} account${created === 1 ? "" : "s"} created successfully`,
           "Each will be asked to change the temporary password at first sign-in.",
         );
       }
@@ -335,11 +373,8 @@ export function CampusAccountsWorkspace() {
       }
       setImportPassword("");
       await load();
-    } catch (e) {
-      toast.fail(e, "Could not read that file", "campus accounts: import");
     } finally {
       setImporting(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -362,6 +397,7 @@ export function CampusAccountsWorkspace() {
               setRole(r);
               resetForm();
               setImportReport(null);
+              setImportPreview(null);
             }}
             className={`h-10 px-4 rounded-[15px] font-bold text-[14px] ${
               role === r ? "bg-[#780301] text-white" : "bg-white text-black border border-black/10"
@@ -376,7 +412,12 @@ export function CampusAccountsWorkspace() {
       </div>
 
       {/* ── Register / edit ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-4">
+      <div
+        ref={formRef}
+        className={`bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-4 scroll-mt-4 transition-shadow duration-500 ${
+          formFlash ? "ring-2 ring-[#ff990a] ring-offset-2" : ""
+        }`}
+      >
         <div className="text-[16px] font-semibold">
           {editingId ? `Edit ${ROLE_LABEL[role]}` : `Register ${ROLE_LABEL[role]}`}
         </div>
@@ -408,7 +449,12 @@ export function CampusAccountsWorkspace() {
 
           <label className="space-y-1">
             <span className="text-[12px] font-semibold text-black/75">Full name</span>
-            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={saving} />
+            <Input
+              id="campus-account-full-name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={saving}
+            />
           </label>
 
           <label className="space-y-1">
@@ -461,26 +507,66 @@ export function CampusAccountsWorkspace() {
         <div>
           <div className="text-[16px] font-semibold">Import / export</div>
           <p className="text-[12px] text-black/55 mt-0.5">
-            Export gives every {assignmentLabel.toLowerCase()} with its current holder — fill in the blanks
-            and import it back. Passwords are never written to the file: set one temporary password here and
-            each imported holder changes it at first sign-in.
+            Register many {ROLE_LABEL[role]}s at once: <strong>Export</strong> gives a ready template, fill in the
+            names and emails, then <strong>Import</strong> it back. You review every row before anything is created.
           </p>
+          <button
+            type="button"
+            className="mt-1 text-[12px] font-semibold text-[#780301] underline-offset-2 hover:underline"
+            onClick={() => setImportHelpOpen((v) => !v)}
+            aria-expanded={importHelpOpen}
+          >
+            {importHelpOpen ? "Hide the file format" : "What format does the file need?"}
+          </button>
+          {importHelpOpen ? (
+            <div className="mt-2 space-y-2 rounded-lg border border-black/10 bg-black/[0.02] p-3 text-[12px] text-black/75">
+              <ol className="list-decimal space-y-1 pl-4">
+                <li>
+                  Click <strong>Export to Excel</strong>. The file lists every {assignmentLabel.toLowerCase()} — it is
+                  the template. (It also has a <em>How to fill</em> sheet and a <em>Codes</em> sheet.)
+                </li>
+                <li>
+                  On the first sheet, type the <strong>Full name</strong> and <strong>Email</strong> for each{" "}
+                  {assignmentLabel.toLowerCase()} that needs an account. Leave the others blank — blank rows are skipped.
+                </li>
+                <li>Save it as <strong>.xlsx</strong>, click <strong>Import from Excel</strong> and check the preview.</li>
+                <li>Enter one temporary password and click <strong>Create</strong>. Each person changes it at first sign-in.</li>
+              </ol>
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-black/10 text-black/55">
+                    <th className="py-1 pr-2 font-semibold">Column</th>
+                    <th className="py-1 pr-2 font-semibold">What to put</th>
+                    <th className="py-1 font-semibold">Example</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-black/5">
+                    <td className="py-1 pr-2 font-semibold">Assignment code</td>
+                    <td className="py-1 pr-2">The {role === "college_admin" ? "college" : "department"} code (already filled in by Export)</td>
+                    <td className="py-1">{role === "college_admin" ? "COTE" : "BSIT"}</td>
+                  </tr>
+                  <tr className="border-b border-black/5">
+                    <td className="py-1 pr-2 font-semibold">Full name</td>
+                    <td className="py-1 pr-2">As it should appear in OptiCore and on the INS forms</td>
+                    <td className="py-1">Juan S. Dela Cruz</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1 pr-2 font-semibold">Email</td>
+                    <td className="py-1 pr-2">The address they sign in with (one account per email)</td>
+                    <td className="py-1">juan.delacruz@ctu.edu.ph</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="text-black/55">
+                Passwords are never put in the file. A row whose {assignmentLabel.toLowerCase()} already has a holder can
+                stay as exported; to replace a holder, remove them on this page first.
+              </p>
+            </div>
+          ) : null}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end">
-          <div className="space-y-1">
-            <label className="block text-[12px] font-semibold text-black/75" htmlFor="campus-account-import-password">
-              Temporary password for imported accounts
-            </label>
-            <PasswordInput
-              id="campus-account-import-password"
-              value={importPassword}
-              onChange={(e) => setImportPassword(e.target.value)}
-              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
-              disabled={importing}
-              autoComplete="new-password"
-            />
-          </div>
+        <div className="flex flex-wrap gap-3">
           <Button type="button" variant="outline" disabled={importing} onClick={() => void onExport()}>
             Export to Excel
           </Button>
@@ -490,7 +576,7 @@ export function CampusAccountsWorkspace() {
             disabled={importing}
             onClick={() => fileRef.current?.click()}
           >
-            {importing ? "Importing…" : "Import from Excel"}
+            {importing && !importPreview ? "Reading…" : "Import from Excel"}
           </Button>
         </div>
 
@@ -505,10 +591,23 @@ export function CampusAccountsWorkspace() {
           }}
         />
 
+        {importPreview ? (
+          <ImportPreview
+            preview={importPreview}
+            password={importPassword}
+            onPasswordChange={setImportPassword}
+            minPasswordLength={MIN_PASSWORD_LENGTH}
+            busy={importing}
+            roleLabel={ROLE_LABEL[role]}
+            onCancel={() => setImportPreview(null)}
+            onConfirm={() => void confirmImport()}
+          />
+        ) : null}
+
         {importReport && importReport.length > 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
             <p className="text-[12px] font-semibold text-amber-950">
-              {importReport.length} row{importReport.length === 1 ? "" : "s"} skipped
+              {importReport.length} row{importReport.length === 1 ? "" : "s"} could not be created
             </p>
             <ul className="mt-1 space-y-0.5 text-[12px] text-amber-950/90 list-disc pl-4">
               {importReport.map((line) => (
@@ -535,7 +634,8 @@ export function CampusAccountsWorkspace() {
             {loading ? "Loading…" : `No ${assignmentLabel.toLowerCase()}s on file.`}
           </p>
         ) : (
-          <ul className="divide-y divide-black/10">
+          // Capped height: a campus has dozens of departments, and the list should not stretch the page.
+          <ul className="max-h-[480px] overflow-y-auto overscroll-contain divide-y divide-black/10">
             {posts.map((post) => (
               <li key={post.id} className="px-4 py-3 flex flex-wrap items-center gap-3">
                 <div className="min-w-0">
@@ -590,6 +690,132 @@ export function CampusAccountsWorkspace() {
         />
       ) : null}
 
+    </div>
+  );
+}
+
+const STATUS_STYLE: Record<CampusAccountImportTarget["status"], { label: string; cls: string }> = {
+  ready: { label: "Will be created", cls: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+  unchanged: { label: "Already registered", cls: "bg-black/[0.03] text-black/60 border-black/10" },
+  empty: { label: "Not filled in — skipped", cls: "bg-black/[0.03] text-black/45 border-black/10" },
+  error: { label: "Needs fixing", cls: "bg-red-50 text-red-800 border-red-200" },
+};
+
+/** Every row of the chosen file with what will happen to it; Create registers only the ready ones. */
+function ImportPreview({
+  preview,
+  password,
+  onPasswordChange,
+  minPasswordLength,
+  busy,
+  roleLabel,
+  onCancel,
+  onConfirm,
+}: {
+  preview: { fileName: string; rows: CampusAccountImportTarget[] };
+  password: string;
+  onPasswordChange: (v: string) => void;
+  minPasswordLength: number;
+  busy: boolean;
+  roleLabel: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [showSkipped, setShowSkipped] = useState(false);
+  const count = (s: CampusAccountImportTarget["status"]) => preview.rows.filter((r) => r.status === s).length;
+  const ready = count("ready");
+  const errors = count("error");
+  const visible = preview.rows.filter((r) => showSkipped || r.status === "ready" || r.status === "error");
+
+  return (
+    <div className="space-y-3 rounded-lg border border-[#780301]/20 bg-[#fdf6f5] p-4">
+      <div>
+        <div className="text-[14px] font-semibold">Preview — {preview.fileName}</div>
+        <p className="mt-0.5 text-[12px] text-black/65">
+          <strong className="text-emerald-800">{ready} to create</strong>
+          {errors > 0 ? <> · <strong className="text-red-800">{errors} to fix</strong></> : null}
+          {" · "}
+          {count("unchanged")} already registered · {count("empty")} not filled in
+        </p>
+      </div>
+
+      <div className="max-h-80 overflow-y-auto rounded-md border border-black/10 bg-white">
+        <table className="w-full border-collapse text-left text-[12px]">
+          <thead className="sticky top-0 bg-white">
+            <tr className="border-b border-black/10 text-black/55">
+              <th className="px-2 py-1.5 font-semibold">Row</th>
+              <th className="px-2 py-1.5 font-semibold">Code</th>
+              <th className="px-2 py-1.5 font-semibold">Full name</th>
+              <th className="px-2 py-1.5 font-semibold">Email</th>
+              <th className="px-2 py-1.5 font-semibold">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-2 py-4 text-center text-black/50">
+                  No rows to create. Fill in Full name and Email for the posts that need an account.
+                </td>
+              </tr>
+            ) : (
+              visible.map((t) => (
+                <tr key={t.row.rowNumber} className="border-b border-black/5 align-top">
+                  <td className="px-2 py-1.5 tabular-nums text-black/55">{t.row.rowNumber}</td>
+                  <td className="px-2 py-1.5 font-semibold">{t.row.assignmentCode || "—"}</td>
+                  <td className="px-2 py-1.5">{t.row.fullName || "—"}</td>
+                  <td className="px-2 py-1.5 break-all">{t.row.email || "—"}</td>
+                  <td className="px-2 py-1.5">
+                    <span className={`inline-block rounded border px-1.5 py-0.5 font-semibold ${STATUS_STYLE[t.status].cls}`}>
+                      {STATUS_STYLE[t.status].label}
+                    </span>
+                    {t.error ? <div className="mt-0.5 text-red-800">{t.error}</div> : null}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        className="text-[12px] font-semibold text-black/60 underline-offset-2 hover:underline"
+        onClick={() => setShowSkipped((v) => !v)}
+      >
+        {showSkipped ? "Hide skipped rows" : "Show skipped rows too"}
+      </button>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+        <div className="space-y-1">
+          <label className="block text-[12px] font-semibold text-black/75" htmlFor="campus-account-import-password">
+            Temporary password for the new accounts
+          </label>
+          <PasswordInput
+            id="campus-account-import-password"
+            value={password}
+            onChange={(e) => onPasswordChange(e.target.value)}
+            placeholder={`At least ${minPasswordLength} characters`}
+            disabled={busy}
+            autoComplete="new-password"
+          />
+        </div>
+        <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          className="bg-[#780301] hover:bg-[#5a0201] text-white"
+          disabled={busy || ready === 0 || password.trim().length < minPasswordLength}
+          onClick={onConfirm}
+        >
+          {busy ? "Creating…" : `Create ${ready} ${roleLabel}${ready === 1 ? "" : "s"}`}
+        </Button>
+      </div>
+      {errors > 0 ? (
+        <p className="text-[11px] text-black/55">
+          Rows that need fixing are not created. Fix them in the file and import it again — rows already created will
+          then show as “Already registered”.
+        </p>
+      ) : null}
     </div>
   );
 }

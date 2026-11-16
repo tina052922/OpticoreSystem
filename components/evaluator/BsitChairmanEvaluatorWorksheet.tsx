@@ -11,9 +11,10 @@ import {
   offeringEnrollmentIndex,
 } from "@/lib/scheduling/offering-enrollment";
 import {
-  filterInstructorsExcludingGec,
-  filterInstructorsForDepartment,
+  filterInstructorsForProgramPlot,
+  sortDepartmentThenGec,
 } from "@/lib/evaluator/instructor-scope";
+import { facultyCategoryBadge, isGecInstructorUser } from "@/lib/faculty/faculty-category";
 import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { coveredFacultyIds, justificationLoadSnapshot } from "@/lib/scheduling/justification-coverage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -86,7 +87,7 @@ import { encodeDayForStorage, evaluatorWeekdaysForMode, filterByProgramMode, isE
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
 import { termIsDoiPublished, DOI_SCHEDULE_LOCKED_MESSAGE } from "@/lib/scheduling/term-doi-lock";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
-import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
+import { SectionProgramBanner, sectionProgramMode } from "@/components/scheduling/SectionProgramBanner";
 import { readEvaluatorBackupSnapshot, writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
@@ -387,7 +388,7 @@ export function BsitChairmanEvaluatorWorksheet({
   const toast = useOpticoreToast();
   const searchParams = useSearchParams();
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
-  const { programMode } = useProgramMode();
+  const { programMode, setProgramMode } = useProgramMode();
   const slotsForMode = evaluatorTimeSlots(programMode);
   const systemConfig = useSystemConfigurationOptional();
   const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
@@ -697,10 +698,11 @@ export function BsitChairmanEvaluatorWorksheet({
       setDoiScheduleLocked(Boolean(bundle.doiScheduleLocked));
 
       const allUsers = (bundle.users ?? []) as User[];
+      // The college's faculty, plus GEC instructors from anywhere: they are campus-wide.
       const collegeFac = allUsers.filter(
         (u) =>
           isPlottableFacultyUser(u) &&
-          (!chairmanCollegeId || u.collegeId === chairmanCollegeId),
+          (!chairmanCollegeId || u.collegeId === chairmanCollegeId || isGecInstructorUser(u)),
       );
       const instrIds = [...new Set(entries.map((e) => e.instructorId).filter(Boolean))] as string[];
       /**
@@ -710,20 +712,12 @@ export function BsitChairmanEvaluatorWorksheet({
        */
       const lockedDepartmentId =
         collegeWidePrograms || campusWidePrograms ? null : chairmanProgramId;
-      let campusFac = filterInstructorsForDepartment(
-        collegeFac,
-        lockedDepartmentId,
-        new Set(instrIds),
-      );
       /*
-       * College Admin plots their departments, not general education.
-       *
-       * A GEC instructor here would let two people schedule the same person — the GEC Chairman plots
-       * them campus-wide. DOI keeps the full list, since they work across every post.
+       * A Program Chairman sees their own department's faculty plus every GEC instructor (their
+       * sections take general education subjects too) — never a sibling department's faculty.
+       * College Admin and DOI work across departments, so `lockedDepartmentId` is blank for them.
        */
-      if (collegeWidePrograms && !campusWidePrograms) {
-        campusFac = filterInstructorsExcludingGec(campusFac, new Set(instrIds));
-      }
+      const campusFac = filterInstructorsForProgramPlot(collegeFac, lockedDepartmentId, new Set(instrIds));
       const rowFac = allUsers.filter(
         (u) => instrIds.includes(u.id) && isFacultyStaffRole(u.role),
       );
@@ -910,13 +904,12 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [facultyProfiles]);
 
   /**
-   * Who the Plot schedule window offers: the selected program's own faculty only, for every role.
-   *
-   * A Program Chairman was already limited to their department, but College Admin and DOI got the
-   * whole college — picking BIT Garments still listed BSIT and GEC instructors. Now the department
-   * chosen in the scheduler decides it (`User.chairmanProgramId`); GEC instructors stay with the GEC
-   * Chairman. Instructors already on this program's own (non-GEC) classes are kept so those rows
-   * stay readable. `dbInstructors` keeps the wider list for names on existing cells.
+   * Who the Plot schedule window offers, for every role (Program Chairman, College Admin, DOI): the
+   * selected program's own faculty (`User.chairmanProgramId`) plus every GEC instructor, since the
+   * program's sections take general education subjects too. Sibling departments' faculty are not
+   * offered. (The GEC Chairman's scheduler is the reverse: GEC instructors only.) Instructors already
+   * on this program's own (non-GEC) classes are kept so those rows stay readable. `dbInstructors`
+   * keeps the wider list for names on existing cells.
    */
   const plotRowInstructorIds = useMemo(
     () =>
@@ -928,8 +921,13 @@ export function BsitChairmanEvaluatorWorksheet({
 
   const instructorPlotOptions = useMemo((): InstructorPlotOption[] => {
     const keep = new Set(plotRowInstructorIds);
-    const programFaculty = filterInstructorsForDepartment(dbInstructors, programId, keep);
-    const base = usersToInstructorPlotOptions(programFaculty, facultyProfileByUserId);
+    // This program's faculty first, then every GEC instructor (marked "(GEC)").
+    const programFaculty = sortDepartmentThenGec(filterInstructorsForProgramPlot(dbInstructors, programId, keep), programId);
+    const base = usersToInstructorPlotOptions(programFaculty, facultyProfileByUserId).map((opt) => {
+      const u = programFaculty.find((row) => row.id === opt.id);
+      const badge = u && isGecInstructorUser(u) ? facultyCategoryBadge(u.facultyCategory) : "";
+      return badge ? { ...opt, fullName: `${opt.fullName} (${badge})` } : opt;
+    });
     return mergeLegacyRowInstructorsIntoPlotOptions(base, programFaculty, plotRowInstructorIds, facultyProfileByUserId);
   }, [dbInstructors, programId, plotRowInstructorIds, facultyProfileByUserId]);
 
@@ -966,6 +964,21 @@ export function BsitChairmanEvaluatorWorksheet({
     programSections.forEach((s) => m.set(s.id, s.name));
     return m;
   }, [programSections]);
+
+  /**
+   * The section decides Day vs Evening (Programs & Sections) — no toggle to forget. Choosing a section
+   * switches the scheduler to its program, so its grid, conflicts and saves stay in that program only.
+   */
+  const selectedSectionMode = useMemo(
+    () => sectionProgramMode(programSections.find((s) => s.id === selectedSectionId)),
+    [programSections, selectedSectionId],
+  );
+  useEffect(() => {
+    if (!selectedSectionId) return;
+    if (selectedSectionMode !== programMode) setProgramMode(selectedSectionMode);
+    // Follow the section only; `programMode` is what this sets.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSectionId, selectedSectionMode]);
 
   /**
    * Prospectus summary: year level from section name (BSIT-3A → 3). `undefined` = no section; `null` = unparseable.
@@ -2275,6 +2288,14 @@ export function BsitChairmanEvaluatorWorksheet({
   const performSchedulePersist = useCallback(
     async (source: "autosave" | "manual") => {
       if (viewOnly) return;
+      // Never save a section's classes under the other program: wait until the scheduler has
+      // switched to the section's Day / Evening program (autosave retries on its own).
+      if (selectedSectionId && selectedSectionMode !== programMode) {
+        if (source === "manual") {
+          toast.error("Switching program", "One moment — the scheduler is switching to this section's program.");
+        }
+        return;
+      }
       if (schedulePublished) {
         if (source === "manual") {
           toast.error("Schedule locked", DOI_SCHEDULE_LOCKED_MESSAGE);
@@ -2583,7 +2604,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, selectedSectionId, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, schedulePublished, subjects],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, selectedSectionId, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, schedulePublished, subjects, selectedSectionId, selectedSectionMode],
   );
 
   /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */
@@ -2673,14 +2694,17 @@ export function BsitChairmanEvaluatorWorksheet({
           onChange={(e) => setSelectedSectionId(e.target.value)}
         >
           <option value="">Select section</option>
-          {Array.from(sectionNameById.entries()).map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
+          {programSections.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+              {sectionProgramMode(s) === "night" ? " — Evening" : ""}
             </option>
           ))}
         </select>
-        <ProgramModeToggle size="sm" />
       </div>
+      {selectedSectionId ? (
+        <SectionProgramBanner mode={selectedSectionMode} sectionName={sectionNameById.get(selectedSectionId)} />
+      ) : null}
 
       <ChairmanProgramProspectusSummaryTable
         programCode={programCodeForSummary}

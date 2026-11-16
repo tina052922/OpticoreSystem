@@ -28,8 +28,12 @@ import {
   FACULTY_EMPLOYMENT_RESIDENT,
 } from "@/lib/faculty/employment-status";
 import {
+  FACULTY_CATEGORY_BOTH,
   FACULTY_CATEGORY_GEC,
+  FACULTY_CATEGORY_OPTIONS,
   FACULTY_CATEGORY_PROGRAM,
+  facultyCategoryRequiresDepartment,
+  parseFacultyCategory,
   type FacultyCategory,
 } from "@/lib/faculty/faculty-category";
 import { useActionToast } from "@/components/alerts/useActionToast";
@@ -187,7 +191,7 @@ export function InstructorRegisterClient() {
       toast.refuse("Choose your college", "Pick the college you teach in.");
       return;
     }
-    if (facultyCategory === FACULTY_CATEGORY_PROGRAM && !programId) {
+    if (facultyCategoryRequiresDepartment(facultyCategory) && !programId) {
       toast.refuse(
         "Choose your department",
         "Your Program Chairman reviews the registration, so they need to know which one.",
@@ -203,8 +207,8 @@ export function InstructorRegisterClient() {
         password,
         collegeId,
         facultyCategory,
-        programId:
-          facultyCategory === FACULTY_CATEGORY_GEC ? null : programId,
+        // Optional for a GEC instructor (some are drawn from a program); required otherwise.
+        programId: programId || null,
         employeeId: employeeId.trim(),
         ...profilePayload(),
       });
@@ -271,7 +275,8 @@ export function InstructorRegisterClient() {
               </svg>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-black">Awaiting approval</h1>
+          <h1 className="text-2xl font-bold text-black">Registration submitted successfully</h1>
+          <p className="-mt-3 text-sm font-semibold text-amber-800">Awaiting approval</p>
           <p className="text-base text-black/80">
             {success ??
               "Your registration is awaiting approval from your department chairman."}
@@ -424,7 +429,7 @@ export function InstructorRegisterClient() {
               </div>
               <div>
                 <label htmlFor="ins-employee-id" className={labelClass}>
-                  Employee ID
+                  Employee ID <span className="text-[#780301]">*</span>
                 </label>
                 <Input
                   id="ins-employee-id"
@@ -432,13 +437,14 @@ export function InstructorRegisterClient() {
                   value={employeeId}
                   onChange={(e) => setEmployeeId(e.target.value)}
                   required
+                  aria-required="true"
                   autoComplete="off"
                   className={fieldClass}
                   aria-describedby="ins-employee-id-hint"
                 />
-                <p id="ins-employee-id-hint" className="mt-1 text-xs text-black/55">
-                  Required. Helps your reviewer find you; they confirm it when
-                  approving your account.
+                <p id="ins-employee-id-hint" className="mt-1 text-xs text-black/60">
+                  <strong className="font-semibold text-black/80">Required.</strong> Enter your CTU employee / staff ID
+                  exactly as issued — your reviewer confirms it when approving your account.
                 </p>
               </div>
               <div>
@@ -448,24 +454,22 @@ export function InstructorRegisterClient() {
                 <select
                   id="ins-category"
                   value={facultyCategory}
-                  onChange={(e) => {
-                    const next =
-                      e.target.value === FACULTY_CATEGORY_GEC
-                        ? FACULTY_CATEGORY_GEC
-                        : FACULTY_CATEGORY_PROGRAM;
-                    setFacultyCategory(next);
-                    if (next === FACULTY_CATEGORY_GEC) setProgramId("");
-                  }}
+                  onChange={(e) => setFacultyCategory(parseFacultyCategory(e.target.value))}
                   className={fieldClass}
                   required
                 >
-                  <option value={FACULTY_CATEGORY_PROGRAM}>Program / department instructor</option>
-                  <option value={FACULTY_CATEGORY_GEC}>GEC instructor</option>
+                  {FACULTY_CATEGORY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
                 <p className="mt-1 text-xs text-black/55">
                   {facultyCategory === FACULTY_CATEGORY_GEC
-                    ? "GEC instructors belong to the college and may teach across departments."
-                    : "Your home department’s Program Chairman reviews this registration."}
+                    ? "You teach general education across departments. Choose a home department below if you belong to one."
+                    : facultyCategory === FACULTY_CATEGORY_BOTH
+                      ? "You teach your program's subjects and GEC subjects. Choose your home department below."
+                      : "Your home department’s Program Chairman reviews this registration."}
                 </p>
               </div>
               <div>
@@ -491,10 +495,10 @@ export function InstructorRegisterClient() {
                   ))}
                 </select>
               </div>
-              {facultyCategory === FACULTY_CATEGORY_PROGRAM ? (
+              {(
                 <div>
                   <label htmlFor="ins-program" className={labelClass}>
-                    Home department
+                    Home department{facultyCategory === FACULTY_CATEGORY_GEC ? " (optional)" : ""}
                   </label>
                   <select
                     id="ins-program"
@@ -502,9 +506,15 @@ export function InstructorRegisterClient() {
                     onChange={(e) => setProgramId(e.target.value)}
                     disabled={!collegeId}
                     className={fieldClass}
-                    required
+                    required={facultyCategoryRequiresDepartment(facultyCategory)}
                   >
-                    <option value="">{collegeId ? "Select department…" : "Select college first…"}</option>
+                    <option value="">
+                      {!collegeId
+                        ? "Select college first…"
+                        : facultyCategory === FACULTY_CATEGORY_GEC
+                          ? "None — GEC only"
+                          : "Select department…"}
+                    </option>
                     {programsForCollege.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.code} — {p.name}
@@ -512,7 +522,7 @@ export function InstructorRegisterClient() {
                     ))}
                   </select>
                 </div>
-              ) : null}
+              )}
             </fieldset>
 
             <fieldset className="space-y-3 border-0 p-0">

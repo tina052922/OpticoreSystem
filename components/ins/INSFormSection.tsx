@@ -2,16 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Eye, MoreHorizontal, Share2 } from "lucide-react";
+import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
-import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { insScopeLockedCollegeId } from "@/lib/ins/ins-scope-lock";
 import { OpticoreInsForm5B } from "@/components/ins/ins-layout/OpticoreInsDocuments";
@@ -20,7 +12,7 @@ import { resolveInsSignatureSlots } from "@/lib/ins/ins-signature-slots";
 import { buildInsSectionView, emptyInsSectionSchedule } from "@/lib/ins/build-ins-section-view";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
-import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
+import { insTabHref } from "@/components/ins/InsEntityGroupingStrip";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { INS5BDocument } from "@/components/pdf/forms/INS5BDocument";
@@ -28,7 +20,7 @@ import { sectionScheduleToPdfGrid, signatureSlotsToPdf } from "@/lib/ins/ins-pdf
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding";
-import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
+import { sectionProgramMode } from "@/components/scheduling/SectionProgramBanner";
 import type { INS5BProps } from "@/components/pdf/types/insTypes";
 import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@/lib/ins/schedule-visibility";
 import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
@@ -90,7 +82,7 @@ export function INSFormSection({
   initialSectionId = null,
   printOnLoad = false,
 }: INSFormSectionProps) {
-  const { programMode } = useProgramMode();
+  const { programMode, setProgramMode } = useProgramMode();
   const branding = useCampusBranding();
   const effectiveCollegeId = chairmanCollegeId ?? viewerCollegeId ?? null;
   /*
@@ -133,20 +125,21 @@ export function INSFormSection({
   const sectionInnerActive = useInsInnerTabIsActive(insBasePath, "section");
   const roomInnerActive = useInsInnerTabIsActive(insBasePath, "room");
 
+  /**
+   * Nothing is pre-selected: the user types a section into the search box. Only a link that names
+   * one (`initialSectionId`) opens on it — once, so clearing the box afterwards stays cleared.
+   */
   const [selectedSectionId, setSelectedSectionId] = useState("");
-
-  /** Stable primitive — `sectionOptions` is a new array each render and must not be a hook dependency. */
-  const firstSectionId = catalog.sectionOptions[0]?.id ?? "";
+  const appliedInitialSectionRef = useRef(false);
+  const initialSectionKnown = Boolean(
+    initialSectionId?.trim() && catalog.sectionOptions.some((s) => s.id === initialSectionId.trim()),
+  );
 
   useEffect(() => {
-    const initial = initialSectionId?.trim();
-    if (initial && catalog.sectionOptions.some((s) => s.id === initial)) {
-      setSelectedSectionId(initial);
-      return;
-    }
-    if (selectedSectionId) return;
-    if (firstSectionId) setSelectedSectionId(firstSectionId);
-  }, [selectedSectionId, firstSectionId, initialSectionId, catalog.sectionOptions]);
+    if (appliedInitialSectionRef.current || !initialSectionKnown || !initialSectionId) return;
+    appliedInitialSectionRef.current = true;
+    setSelectedSectionId(initialSectionId.trim());
+  }, [initialSectionKnown, initialSectionId]);
 
   const printOnLoadDoneRef = useRef(false);
   useEffect(() => {
@@ -193,6 +186,14 @@ export function INSFormSection({
   const displayCourses = courses;
   const displayAssignment = useLiveData ? selectedSectionName : "BSIT 2A (demo)";
   const selectedSection = selectedSectionId ? catalog.sectionById.get(selectedSectionId) : undefined;
+
+  /** A section's form is its own program's (Programs & Sections): Day or Evening, no toggle. */
+  const selectedSectionMode = sectionProgramMode(selectedSection);
+  useEffect(() => {
+    if (!selectedSectionId || !selectedSection) return;
+    if (selectedSectionMode !== programMode) setProgramMode(selectedSectionMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSectionId, selectedSectionMode, Boolean(selectedSection)]);
   const selectedProgram = selectedSection ? catalog.programById.get(selectedSection.programId) : undefined;
   const formMajor =
     chairmanProgramName?.trim() || selectedProgram?.name || "";
@@ -307,37 +308,6 @@ export function INSFormSection({
     catalog.insConflictingEntryIds,
   ]);
 
-  async function onShare() {
-    try {
-      if (campusWide || !effectiveCollegeId || !catalog.academicPeriodId) {
-        await shareInsView("section");
-        alert(
-          campusWide
-            ? "Shared notice (campus-wide: no single-college bundle attached)."
-            : "Shared notice. Set a college scope to attach the full INS + Evaluator schedule bundle.",
-        );
-        return;
-      }
-      const termScoped = catalog.insResourceEntries.filter((e) => e.academicPeriodId === catalog.academicPeriodId);
-      const bundle = buildWorkflowScheduleBundle({
-        academicPeriodId: catalog.academicPeriodId,
-        collegeId: effectiveCollegeId,
-        programId: effectiveProgramId,
-        programCode: chairmanProgramCode,
-        insShareView: "section",
-        termScopedEntries: termScoped,
-        insContext: { selectedSectionId: selectedSectionId || undefined },
-        subjectIdByCode: catalog.subjectIdByCode,
-      });
-      await shareInsWorkflowBundle(bundle);
-      alert(
-        `Shared to College Admin with ${bundle.scheduleEntries.length} linked schedule row(s) (INS + Evaluator drafts).`,
-      );
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Share failed");
-    }
-  }
-
   function handleDownload() {
     if (!pdfSignaturesReady) return;
     setPdfPreviewOpen(true);
@@ -400,7 +370,17 @@ export function INSFormSection({
         <div className="max-w-[1200px] mx-auto space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-bold text-gray-800 mb-0">INS Form</h2>
-            <ProgramModeToggle size="sm" />
+            {selectedSection ? (
+              <span
+                className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold ${
+                  selectedSectionMode === "night"
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-800"
+                    : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+              >
+                {selectedSectionMode === "night" ? "🌙 Evening Program section" : "☀ Day Program section"}
+              </span>
+            ) : null}
           </div>
           <p className="text-gray-600 text-sm">Program by Section (5B).</p>
         </div>
@@ -431,16 +411,6 @@ export function INSFormSection({
           </div>
         ) : null}
 
-        {useLiveData && insBasePath ? (
-          <div className="no-print">
-            <InsEntityGroupingStrip
-              insBasePath={insBasePath}
-              facultyCount={catalog.instructorOptions.length}
-              sectionCount={catalog.sectionOptions.length}
-              roomCount={catalog.roomOptions.length}
-            />
-          </div>
-        ) : null}
 
         {useLiveData && catalog.error ? (
           <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">{catalog.error}</p>
@@ -486,7 +456,7 @@ export function INSFormSection({
           {useLiveData ? (
             <InsScheduleEntitySearch
               label="Section"
-              placeholder="Type section name (e.g. BSIT-1A)"
+              placeholder="Type to search a section (e.g. BSIT-1A)"
               options={catalog.sectionOptions}
               selectedId={selectedSectionId}
               onSelectedIdChange={setSelectedSectionId}
@@ -535,45 +505,6 @@ export function INSFormSection({
                   Run Conflict Check
                 </Button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="bg-white" aria-label="More actions">
-                      <MoreHorizontal className="w-5 h-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
-                      <Download className="w-4 h-4" />
-                      Download / Save as PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => void onShare()}>
-                      <Share2 className="w-4 h-4" />
-                      Share INS Form
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
-                      <Eye className="w-4 h-4 mr-2" />
-                      Preview PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href={
-                          insBasePath.includes("/college")
-                            ? "/admin/college/evaluator"
-                            : insBasePath.includes("/cas")
-                              ? "/admin/cas/evaluator"
-                              : insBasePath.includes("/gec")
-                                ? "/admin/gec/evaluator"
-                                : insBasePath.includes("/doi")
-                                  ? "/doi/evaluator"
-                                  : "/chairman/evaluator"
-                        }
-                        className="cursor-pointer"
-                      >
-                        Open Evaluator
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
 
                 <Button
                   variant="outline"

@@ -52,6 +52,8 @@ export function AcademicStructureWorkspace({
   const [savingYears, setSavingYears] = useState(false);
 
   const [sectionName, setSectionName] = useState("");
+  /** Day Program or Evening Program — the Subject Scheduler follows the section's choice. */
+  const [sectionMode, setSectionMode] = useState<"day" | "night">("day");
   const [savingSection, setSavingSection] = useState(false);
 
   const [editingCollegeId, setEditingCollegeId] = useState<string | null>(null);
@@ -149,8 +151,8 @@ export function AcademicStructureWorkspace({
   }, [selectedProgramId, yearLevels, selectedYearLevel]);
 
   /** A toast already fades on its own, so the old 3.5s timer is gone with the banner. */
-  function flashOk(msg: string) {
-    toast.ok(msg);
+  function flashOk(title: string, detail?: string) {
+    toast.ok(title, detail);
   }
 
   async function handleCreateCollege() {
@@ -166,7 +168,7 @@ export function AcademicStructureWorkspace({
       await load();
       setSelectedCollegeId(college.id);
       setSelectedProgramId(null);
-      flashOk(`College ${college.code} added`);
+      flashOk("College added successfully", college.code);
     } catch (e) {
       toast.fail(e, "Could not add the college", "academic structure: add college");
     } finally {
@@ -179,7 +181,7 @@ export function AcademicStructureWorkspace({
       await academicStructureApi.updateCollege(college.id, { code, name });
       setEditingCollegeId(null);
       await load();
-      flashOk("College updated");
+      flashOk("College updated successfully");
     } catch (e) {
       toast.fail(e, "Could not update the college", "academic structure: update college");
     }
@@ -203,7 +205,7 @@ export function AcademicStructureWorkspace({
       setSelectedProgramId(null);
     }
     await load();
-    flashOk(`${pending.noun} deleted`);
+    flashOk(`${pending.noun} deleted successfully`);
   }
 
   async function handleCreateProgram() {
@@ -222,7 +224,7 @@ export function AcademicStructureWorkspace({
       setProgramYears("4");
       await load();
       setSelectedProgramId(res.program.id);
-      flashOk(`Program ${res.program.code} added`);
+      flashOk("Program added successfully", res.program.code);
     } catch (e) {
       toast.fail(e, "Could not add the program", "academic structure: add program");
     } finally {
@@ -235,7 +237,7 @@ export function AcademicStructureWorkspace({
       await academicStructureApi.updateProgram(program.id, { code, name });
       setEditingProgramId(null);
       await load();
-      flashOk("Program updated");
+      flashOk("Program updated successfully");
     } catch (e) {
       toast.fail(e, "Could not update the program", "academic structure: update program");
     }
@@ -249,7 +251,7 @@ export function AcademicStructureWorkspace({
       const res = await academicStructureApi.updateProgram(selectedProgram.id, { yearCount });
       toast.caution(res.warning, "Saved with a limitation");
       await load();
-      flashOk(`Years set to ${yearCount}`);
+      flashOk("Year levels updated successfully", `Now ${yearCount} year${yearCount === 1 ? "" : "s"}.`);
     } catch (e) {
       toast.fail(e, "Could not change the number of years", "academic structure: set years");
     } finally {
@@ -265,10 +267,11 @@ export function AcademicStructureWorkspace({
         programId: selectedProgramId,
         name: sectionName.trim(),
         yearLevel: selectedYearLevel,
+        programMode: sectionMode,
       });
       setSectionName("");
       await load();
-      flashOk("Section added");
+      flashOk("Section added successfully", sectionMode === "night" ? "Evening Program section." : "Day Program section.");
     } catch (e) {
       toast.fail(e, "Could not add the section", "academic structure: add section");
     } finally {
@@ -276,12 +279,22 @@ export function AcademicStructureWorkspace({
     }
   }
 
-  async function handleSaveSectionEdit(section: Section, name: string, yearLevel: number) {
+  async function handleSaveSectionEdit(
+    section: Section,
+    name: string,
+    yearLevel: number,
+    programMode: "day" | "night",
+  ) {
     try {
-      await academicStructureApi.updateSection(section.id, { name, yearLevel });
+      await academicStructureApi.updateSection(section.id, {
+        name,
+        yearLevel,
+        // Only sent when it changes, so editing a name works before migration 031 too.
+        ...(programMode !== (section.programMode ?? "day") ? { programMode } : {}),
+      });
       setEditingSectionId(null);
       await load();
-      flashOk("Section updated");
+      flashOk("Section updated successfully");
     } catch (e) {
       toast.fail(e, "Could not update the section", "academic structure: update section");
     }
@@ -592,6 +605,17 @@ export function AcademicStructureWorkspace({
                   placeholder={`${selectedProgram.code}-${selectedYearLevel}A`}
                 />
               </label>
+              <label className="text-xs text-black/70">
+                Program
+                <select
+                  className="mt-1 block h-10 rounded-md border border-gray-300 bg-white px-2 text-sm"
+                  value={sectionMode}
+                  onChange={(e) => setSectionMode(e.target.value === "night" ? "night" : "day")}
+                >
+                  <option value="day">Day Program</option>
+                  <option value="night">Evening Program</option>
+                </select>
+              </label>
               <Button
                 type="button"
                 className="bg-[#780301] hover:bg-[#5a0201] text-white"
@@ -615,12 +639,13 @@ export function AcademicStructureWorkspace({
                           section={s}
                           maxYear={programYearCount(selectedProgram)}
                           onCancel={() => setEditingSectionId(null)}
-                          onSave={(name, yearLevel) => void handleSaveSectionEdit(s, name, yearLevel)}
+                          onSave={(name, yearLevel, mode) => void handleSaveSectionEdit(s, name, yearLevel, mode)}
                         />
                       ) : (
                         <>
-                          <div className="flex-1 min-w-[120px]">
+                          <div className="flex-1 min-w-[120px] flex items-center gap-2">
                             <span className="font-medium text-black">{s.name}</span>
+                            <SectionModeBadge mode={s.programMode} />
                           </div>
                           <Button
                             type="button"
@@ -717,10 +742,11 @@ function SectionEditRow({
   section: Section;
   maxYear: number;
   onCancel: () => void;
-  onSave: (name: string, yearLevel: number) => void;
+  onSave: (name: string, yearLevel: number, programMode: "day" | "night") => void;
 }) {
   const [name, setName] = useState(section.name);
   const [yearLevel, setYearLevel] = useState(String(section.yearLevel ?? 1));
+  const [mode, setMode] = useState<"day" | "night">(section.programMode === "night" ? "night" : "day");
   return (
     <div className="flex flex-wrap gap-2 items-center w-full">
       <Input className="flex-1 min-w-[120px]" value={name} onChange={(e) => setName(e.target.value)} />
@@ -735,11 +761,20 @@ function SectionEditRow({
           </option>
         ))}
       </select>
+      <select
+        className="h-10 rounded-md border border-gray-300 bg-white px-2 text-sm"
+        value={mode}
+        onChange={(e) => setMode(e.target.value === "night" ? "night" : "day")}
+        aria-label="Program"
+      >
+        <option value="day">Day Program</option>
+        <option value="night">Evening Program</option>
+      </select>
       <Button
         type="button"
         size="sm"
         onClick={() =>
-          onSave(name.trim(), Math.min(maxYear, Math.max(1, parseInt(yearLevel, 10) || 1)))
+          onSave(name.trim(), Math.min(maxYear, Math.max(1, parseInt(yearLevel, 10) || 1)), mode)
         }
       >
         Save
@@ -748,5 +783,19 @@ function SectionEditRow({
         Cancel
       </Button>
     </div>
+  );
+}
+
+/** "Evening" / "Day" tag next to a section name. */
+function SectionModeBadge({ mode }: { mode?: "day" | "night" | null }) {
+  const evening = mode === "night";
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+        evening ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-amber-200 bg-amber-50 text-amber-800"
+      }`}
+    >
+      {evening ? "🌙 Evening Program" : "☀ Day Program"}
+    </span>
   );
 }

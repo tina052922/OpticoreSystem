@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cellText,
   campusAccountFileName,
   mapSheetHeaders,
   parseSheetRows,
@@ -95,7 +96,8 @@ describe("resolveImportRows", () => {
 
   it("explains a code that matches nothing", () => {
     const [miss] = resolveImportRows(rows(["NOPE", "Ana", "ana@ctu.edu.ph"]), "college_admin", SCOPE);
-    expect(miss.error).toBe('No college with code "NOPE".');
+    expect(miss.status).toBe("error");
+    expect(miss.error).toBe('No college with code "NOPE". See the Codes sheet.');
   });
 
   it("reports missing names and malformed emails", () => {
@@ -104,18 +106,32 @@ describe("resolveImportRows", () => {
       "college_admin",
       SCOPE,
     );
-    expect(noName.error).toBe("No full name.");
-    expect(badEmail.error).toBe("Email is missing or malformed.");
+    expect(noName.error).toBe("Full name is empty.");
+    expect(badEmail.error).toBe("Email is empty or not a valid address.");
   });
 
-  it("refuses a post that already has a holder", () => {
-    const [taken] = resolveImportRows(
-      rows(["COTE", "Ana", "ana@ctu.edu.ph"]),
+  it("treats an exported row left as it was as already registered, not a clash", () => {
+    const holders = new Map([["col-tech-eng", "vilia@ctu.edu.ph"]]);
+    const [same, other] = resolveImportRows(
+      rows(["COTE", "Vilia", "vilia@ctu.edu.ph"], ["COTE", "Ana", "ana@ctu.edu.ph"]),
       "college_admin",
       SCOPE,
-      new Set(["col-tech-eng"]),
+      holders,
     );
-    expect(taken.error).toBe("That post already has a holder.");
+    expect(same.status).toBe("unchanged");
+    expect(other.status).toBe("error");
+    expect(other.error).toMatch(/already has a holder \(vilia@ctu.edu.ph\)/);
+  });
+
+  it("skips posts left blank instead of reporting them", () => {
+    const [blank, ready] = resolveImportRows(
+      rows(["COTE", "", ""], ["CAFE", "Ana", "ana@ctu.edu.ph"]),
+      "college_admin",
+      SCOPE,
+    );
+    expect(blank.status).toBe("empty");
+    expect(blank.error).toBeNull();
+    expect(ready.status).toBe("ready");
   });
 
   it("catches a post or an email listed twice in one sheet", () => {
@@ -125,7 +141,7 @@ describe("resolveImportRows", () => {
       SCOPE,
     );
     expect(resolved[0].error).toBeNull();
-    expect(resolved[1].error).toBe("The sheet lists this post twice.");
+    expect(resolved[1].error).toBe("The sheet lists COTE twice.");
     expect(resolved[2].error).toBe("The sheet lists this email twice.");
   });
 
@@ -144,5 +160,40 @@ describe("campusAccountFileName", () => {
     const asOf = new Date(2026, 8, 30);
     expect(campusAccountFileName("college_admin", asOf)).toBe("college-admins_2026-09-30.xlsx");
     expect(campusAccountFileName("chairman_admin", asOf)).toBe("chairmen_2026-09-30.xlsx");
+  });
+});
+
+describe("cellText — what Excel actually stores", () => {
+  it("reads a typed email that Excel turned into a link", () => {
+    expect(cellText({ text: "Ana@ctu.edu.ph", hyperlink: "mailto:Ana@ctu.edu.ph" })).toBe("Ana@ctu.edu.ph");
+    expect(cellText({ hyperlink: "mailto:ana@ctu.edu.ph" })).toBe("ana@ctu.edu.ph");
+  });
+  it("reads rich text, formulas and plain values", () => {
+    expect(cellText({ richText: [{ text: "Juan " }, { text: "Dela Cruz" }] })).toBe("Juan Dela Cruz");
+    expect(cellText({ formula: "A1", result: "COTE" })).toBe("COTE");
+    expect(cellText(42)).toBe("42");
+    expect(cellText(null)).toBe("");
+  });
+  it("imports a hyperlinked email row end to end", () => {
+    const [row] = parseSheetRows(
+      ["Assignment code", "College", "Full name", "Email"],
+      [["COTE", "College of Technology", "Ana", { text: "Ana@ctu.edu.ph", hyperlink: "mailto:Ana@ctu.edu.ph" }]],
+    );
+    expect(row.email).toBe("ana@ctu.edu.ph");
+    expect(resolveImportRows([row], "college_admin", SCOPE)[0].status).toBe("ready");
+  });
+  it("ignores a note row under the table and uses real row numbers", () => {
+    const parsed = parseSheetRows(
+      ["Assignment code", "Full name", "Email"],
+      [["COTE", "Ana", "ana@ctu.edu.ph"], ["Fill in Full name and Email…"]],
+      2,
+      [2, 9],
+    );
+    const resolved = resolveImportRows(parsed, "college_admin", SCOPE);
+    expect(resolved.map((r) => r.status)).toEqual(["ready", "empty"]);
+    expect(parsed[1].rowNumber).toBe(9);
+  });
+  it("explains a sheet whose header row is wrong", () => {
+    expect(() => parseSheetRows(["Name", "Mail"], [])).toThrow(/Assignment code/);
   });
 });

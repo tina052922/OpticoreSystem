@@ -29,8 +29,8 @@ export default async function CollegeAdminProfilePage() {
           collegeLine={collegeDisplayName(profile.collegeId ?? null)}
           email={profile.email}
           subheading={`${adminRoleLabel(profile.role)} • ${collegeDisplayName(profile.collegeId ?? null)}`}
-          showEditProfile={false}
-          showChangePassword={false}
+          storedEmployeeId={profile.employeeId ?? ""}
+          editable
         />
       </div>
     </div>

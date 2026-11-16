@@ -141,6 +141,7 @@ export const GEC_CHAIRMAN_NAV: AdminNavEntry[] = [
     ],
   },
   { label: "Faculty Profile", href: "/admin/gec/faculty-profile", icon: "UserCircle" },
+  { label: INSTRUCTOR_MANAGEMENT_NAV_LABEL, href: "/admin/gec/pending-instructors", icon: "UserPlus" },
   { label: "Subject Codes", href: "/admin/gec/subject-codes", icon: "Layers" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
@@ -159,6 +160,8 @@ export const INSTRUCTOR_NAV: AdminNavEntry[] = [
 export const STUDENT_PORTAL_NAV: AdminNavItem[] = [
   { label: "Dashboard", href: "/student", icon: "LayoutDashboard" },
   { label: "My schedule", href: "/student/schedule", icon: "CalendarPlus" },
+  /** By room (Form 5C). The student's own section (5B) is My schedule. */
+  { label: LOAD_GENERATOR_NAV_LABEL, href: "/student/ins", icon: "BookOpen" },
   { label: "Profile", href: "/student/profile", icon: "UserCircle" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];

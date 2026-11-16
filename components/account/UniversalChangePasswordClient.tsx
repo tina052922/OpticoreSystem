@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useActionToast } from "@/components/alerts/useActionToast";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -41,9 +43,13 @@ function homeForRole(role: UserRole | null): string {
  * email, role, and whether they're in first-time setup.
  */
 export function UniversalChangePasswordClient() {
+  /** `?next=/…/profile` from the profile pages: Cancel goes back there (same-site paths only). */
+  const nextParam = useSearchParams()?.get("next") ?? "";
+  const safeNext = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "";
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
+  const cancelHref = safeNext || homeForRole(role);
   const [firstTime, setFirstTime] = useState(false);
   /**
    * Whether the address still has to be proved.
@@ -57,6 +63,9 @@ export function UniversalChangePasswordClient() {
   const [codeSent, setCodeSent] = useState(false);
   const [codeBusy, setCodeBusy] = useState(false);
   const [codeNote, setCodeNote] = useState<string | null>(null);
+  /** The code is emailed once, automatically, when the confirm step opens. */
+  const autoSentRef = useRef(false);
+  const toast = useActionToast();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -117,13 +126,20 @@ export function UniversalChangePasswordClient() {
         return;
       }
       setCodeSent(true);
-      setCodeNote(`Code sent to ${res.email ?? "your email"}.`);
+      setCodeNote(`We emailed a 6-digit code to ${res.email ?? "your email"}. Check your inbox (and spam), then enter it below.`);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Could not send the code.");
     } finally {
       setCodeBusy(false);
     }
   }
+
+  // Step 1 opens with the code already on its way — nobody has to find an "Email me a code" button.
+  useEffect(() => {
+    if (loading || !needsEmailCheck || autoSentRef.current) return;
+    autoSentRef.current = true;
+    void sendCode();
+  }, [loading, needsEmailCheck]);
 
   async function confirmCode() {
     setCodeBusy(true);
@@ -132,6 +148,7 @@ export function UniversalChangePasswordClient() {
       await authMutationsApi.verifyFirstLoginCode(code.trim());
       setNeedsEmailCheck(false);
       setCodeNote(null);
+      toast.ok("Email confirmed successfully", "Now choose your own password.");
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Could not confirm that code.");
     } finally {
@@ -196,7 +213,7 @@ export function UniversalChangePasswordClient() {
             <CheckCircle2 className="h-8 w-8" aria-hidden />
           </span>
           <h2 id="pw-updated-title" className="mt-4 text-xl font-bold text-gray-900">
-            Password updated successfully
+            Password changed successfully
           </h2>
           <p id="pw-updated-body" className="mt-2 text-sm leading-relaxed text-black/70">
             Your password has been changed. For your security, you will be signed out and asked to sign in again
@@ -238,13 +255,38 @@ export function UniversalChangePasswordClient() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-lg mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Change password</h1>
-        <p className="text-sm text-black/65 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900">
+          {firstTime || needsEmailCheck ? "Set up your account" : "Change password"}
+        </h1>
+        {firstTime || needsEmailCheck ? (
+          // The two first-time steps, so the person knows where they are and what comes next.
+          <ol className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+            {[
+              { n: 1, label: "Confirm your email", active: needsEmailCheck, done: !needsEmailCheck },
+              { n: 2, label: "Set your password", active: !needsEmailCheck, done: false },
+            ].map((s) => (
+              <li
+                key={s.n}
+                className={`rounded-lg border px-3 py-2 ${
+                  s.active
+                    ? "border-[#FF990A] bg-[#FF990A]/10 font-semibold text-black"
+                    : s.done
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : "border-black/10 bg-white text-black/50"
+                }`}
+              >
+                {s.done ? "✓ " : `Step ${s.n} of 2 · `}
+                {s.label}
+              </li>
+            ))}
+          </ol>
+        ) : null}
+        <p className="text-sm text-black/65 mt-2">
           {needsEmailCheck
-            ? "First, confirm your email address. Your account was set up by an administrator, so we check the address reaches you before you choose a password."
+            ? "Your account was created by an administrator. We emailed a 6-digit code to the address below — enter it to prove the address is yours."
             : firstTime
-              ? "First-time setup: choose your new password. You will not need to enter your temporary password again."
-              : "Choose a strong password you have not used elsewhere. You stay signed in on this device after saving."}
+              ? "Choose your own password. You will not need the temporary password again."
+              : "Choose a strong password you have not used elsewhere."}
         </p>
       </div>
 
@@ -354,7 +396,7 @@ export function UniversalChangePasswordClient() {
           {saving ? "Saving…" : "Update password"}
         </Button>
         <p className="text-center text-xs text-black/50">
-          <Link href={homeForRole(role)} className="text-[#780301] hover:underline">
+          <Link href={cancelHref} className="text-[#780301] hover:underline">
             Cancel
           </Link>
         </p>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { GraduationCap, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api/client";
+import { setFlashToast } from "@/lib/ui/flash-toast";
 
 type Enrolment = {
   programId: string | null;
@@ -48,27 +49,69 @@ function useStudentEnrolment() {
   return { enrolment, setEnrolment, loaded };
 }
 
-/** Year + section pickers for the student's own program; the section list follows the year. */
+type CatalogCollege = { id: string; code: string; name: string };
+type CatalogProgram = { id: string; code: string; name: string; collegeId: string; yearCount?: number | null };
+type CatalogSection = { id: string; name: string; programId: string; yearLevel: number };
+
+/**
+ * Year + section pickers; the section list follows the year. With `allowProgramChange` (the profile
+ * card) the program can change too — the same choices as registration — and the college follows it.
+ */
 function SectionPicker({
   enrolment,
   onSaved,
   onCancel,
   saveLabel = "Save",
+  allowProgramChange = false,
 }: {
   enrolment: Enrolment;
   onSaved: (next: Enrolment) => void;
   onCancel?: () => void;
   saveLabel?: string;
+  allowProgramChange?: boolean;
 }) {
+  const [programId, setProgramId] = useState<string>(enrolment.programId ?? "");
   const [year, setYear] = useState<number>(enrolment.yearLevel ?? 1);
   const [sectionId, setSectionId] = useState<string>(enrolment.sectionId ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<{
+    colleges: CatalogCollege[];
+    programs: CatalogProgram[];
+    sections: CatalogSection[];
+  } | null>(null);
 
-  const years = useMemo(() => Array.from({ length: Math.max(1, enrolment.yearCount) }, (_, i) => i + 1), [enrolment.yearCount]);
+  // Same public lists registration uses, loaded only when the program can change.
+  useEffect(() => {
+    if (!allowProgramChange) return;
+    let alive = true;
+    const opts = { method: "GET" as const, retryOn401: false };
+    Promise.all([
+      apiFetch<{ colleges: CatalogCollege[] }>("/api/catalog/public/colleges", opts),
+      apiFetch<{ programs: CatalogProgram[] }>("/api/catalog/public/programs", opts),
+      apiFetch<{ sections: CatalogSection[] }>("/api/catalog/public/sections", opts),
+    ])
+      .then(([c, p, sec]) => {
+        if (alive) setCatalog({ colleges: c.colleges ?? [], programs: p.programs ?? [], sections: sec.sections ?? [] });
+      })
+      .catch(() => alive && setCatalog({ colleges: [], programs: [], sections: [] }));
+    return () => {
+      alive = false;
+    };
+  }, [allowProgramChange]);
+
+  const ownProgram = !programId || programId === enrolment.programId;
+  const chosenProgram = catalog?.programs.find((p) => p.id === programId);
+  const yearCount = ownProgram ? enrolment.yearCount : Number(chosenProgram?.yearCount) || 4;
+  const programSections = useMemo(
+    () => (ownProgram ? enrolment.sections : (catalog?.sections ?? []).filter((x) => x.programId === programId)),
+    [ownProgram, enrolment.sections, catalog, programId],
+  );
+
+  const years = useMemo(() => Array.from({ length: Math.max(1, yearCount) }, (_, i) => i + 1), [yearCount]);
   const sectionsForYear = useMemo(
-    () => enrolment.sections.filter((s) => s.yearLevel === year),
-    [enrolment.sections, year],
+    () => programSections.filter((s) => s.yearLevel === year),
+    [programSections, year],
   );
 
   async function save() {
@@ -79,7 +122,10 @@ function SectionPicker({
     setSaving(true);
     setError(null);
     try {
-      const r = await apiFetch<{ enrolment: Enrolment }>(ENDPOINT, { method: "PUT", body: { sectionId } });
+      const r = await apiFetch<{ enrolment: Enrolment }>(ENDPOINT, {
+        method: "PUT",
+        body: allowProgramChange && programId ? { sectionId, programId } : { sectionId },
+      });
       onSaved(r.enrolment);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Could not save. Please try again.");
@@ -90,6 +136,40 @@ function SectionPicker({
 
   return (
     <div className="space-y-3">
+      {allowProgramChange ? (
+        <div>
+          <label htmlFor="stu-program" className="text-[12px] font-semibold text-black/70">
+            Program
+          </label>
+          <select
+            id="stu-program"
+            className={`${fieldClass} mt-1`}
+            value={programId}
+            disabled={!catalog}
+            onChange={(e) => {
+              setProgramId(e.target.value);
+              setYear(1);
+              setSectionId("");
+            }}
+          >
+            {!catalog ? <option value={programId}>{enrolment.programName ?? "Loading programs…"}</option> : null}
+            {(catalog?.colleges ?? []).map((c) => {
+              const list = (catalog?.programs ?? []).filter((p) => p.collegeId === c.id);
+              if (list.length === 0) return null;
+              return (
+                <optgroup key={c.id} label={`${c.code} — ${c.name}`}>
+                  {list.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code} — {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+          <p className="mt-1 text-[11px] text-black/50">Your college follows the program you choose.</p>
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label htmlFor="stu-year" className="text-[12px] font-semibold text-black/70">
@@ -103,7 +183,7 @@ function SectionPicker({
               const y = Number(e.target.value);
               setYear(y);
               // A section from another year cannot stay picked.
-              setSectionId((cur) => (enrolment.sections.some((s) => s.id === cur && s.yearLevel === y) ? cur : ""));
+              setSectionId((cur) => (programSections.some((s) => s.id === cur && s.yearLevel === y) ? cur : ""));
             }}
           >
             {years.map((y) => (
@@ -308,9 +388,9 @@ export function StudentEnrolmentCard() {
     <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-gray-500">Section this semester</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-gray-500">Program and section</h2>
           <p className="mt-0.5 text-[12px] text-black/55">
-            {enrolment.currentPeriod?.name ?? "Current semester"} — update it when you move to a new section.
+            {enrolment.currentPeriod?.name ?? "Current semester"} — update it when you move to a new section or shift program.
           </p>
         </div>
         {!editing ? (
@@ -325,11 +405,16 @@ export function StudentEnrolmentCard() {
         <div className="mt-4">
           <SectionPicker
             enrolment={enrolment}
+            allowProgramChange
             onCancel={() => setEditing(false)}
             onSaved={(next) => {
               setEnrolment(next);
               setEditing(false);
-              setMsg("Section updated. Your schedule now follows the new section.");
+              setMsg("Enrolment updated successfully. Your schedule now follows the new section.");
+              setFlashToast({
+                title: "Enrolment updated successfully",
+                detail: `You are now in ${next.sectionName ?? "your new section"}. Your schedule follows it.`,
+              });
               // Full reload: the schedule is fetched client-side for the old section.
     window.location.reload();
             }}

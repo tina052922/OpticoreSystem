@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/alerts/useActionToast";
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export type ProfileAvatarUploadProps = {
  * browser-side Supabase client involvement.
  */
 export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUploadProps) {
+  const toast = useActionToast();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState<string | null>(initialUrl?.trim() || null);
@@ -46,6 +48,7 @@ export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUpl
         const { url: publicUrl } = await profileApi.uploadAvatar(file);
         syncUrl(publicUrl ?? null);
         router.refresh();
+        toast.ok("Profile photo updated successfully");
       } catch (e) {
         setErr(
           e instanceof ApiClientError
@@ -58,6 +61,7 @@ export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUpl
         setBusy(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [router, syncUrl],
   );
 
@@ -68,6 +72,7 @@ export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUpl
       await profileApi.clearAvatar();
       syncUrl(null);
       router.refresh();
+      toast.ok("Profile photo removed");
     } catch (e) {
       setErr(
         e instanceof ApiClientError ? e.message : "Could not clear",
@@ -75,7 +80,7 @@ export function ProfileAvatarUpload({ initialUrl, onUploaded }: ProfileAvatarUpl
     } finally {
       setBusy(false);
     }
-  }, [router, syncUrl]);
+  }, [router, syncUrl, toast]);
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 md:p-5 max-w-[900px]">

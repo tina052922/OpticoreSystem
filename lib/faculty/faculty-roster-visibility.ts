@@ -37,16 +37,12 @@ export function isAwaitingFacultyApproval(user: { instructorValidation?: string 
 /**
  * Who a given admin sees on the Faculty Profile roster.
  *
- * Three audiences, three answers:
- *
- *  • **GEC Chairman** (`gecOnly`) — the GEC instructors, and only those. General education is taught
- *    across every department, so the roster is defined by the instructor's category rather than by
- *    a department. Anyone enrolled from that page is recorded as one.
- *  • **Program Chairman** (`lockedProgramId`) — their own department. GEC instructors are excluded
- *    even if their home department matches, because their load belongs to the GEC Chairman.
- *  • **College Admin** (`excludeGec`) — their college's department instructors. GEC instructors are
- *    left out for the same reason they are for a Chairman: their load belongs to the GEC Chairman,
- *    who plots it across every college.
+ *  • **GEC Chairman** (`gecOnly`) — everyone who teaches general education: GEC instructors and
+ *    "both" instructors, from any department. Program-only instructors are not shown.
+ *  • **Program Chairman** (`lockedProgramId`) — everyone whose home department is theirs, whatever
+ *    the category: a GEC or "both" instructor who belongs to BSIT is on BSIT's roster (marked GEC).
+ *  • **College Admin** (`excludeGec`) — their college's department faculty. A GEC instructor with NO
+ *    department is left out (the GEC Chairman keeps them); one with a department is shown.
  *  • **DOI** (none of the three) — everyone on the roster in scope.
  *
  * `isFacultyRosterUser` still decides who is faculty at all; this narrows that list to the viewer.
@@ -57,15 +53,15 @@ export function isFacultyVisibleToRosterViewer(
 ): boolean {
   if (!isFacultyRosterUser(user)) return false;
 
-  const isGec = isGecFacultyCategory(user.facultyCategory);
-  if (viewer.gecOnly) return isGec;
-  if (viewer.excludeGec && isGec) return false;
+  const teachesGec = isGecFacultyCategory(user.facultyCategory);
+  const home = (user.chairmanProgramId ?? "").trim();
+  if (viewer.gecOnly) return teachesGec;
+  if (viewer.excludeGec && teachesGec && !home) return false;
 
   const locked = (viewer.lockedProgramId ?? "").trim();
   if (!locked) return true;
-  if (isGec) return false;
-
-  const home = (user.chairmanProgramId ?? "").trim();
-  // No department recorded: left visible, so a half-filled profile is not stranded.
-  return !home || home === locked;
+  if (home) return home === locked;
+  // No department recorded: a GEC instructor belongs to no department; anyone else stays visible so
+  // a half-filled profile is not stranded.
+  return !teachesGec;
 }

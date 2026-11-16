@@ -4,23 +4,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { INS_HIGHLIGHT_URL_PARAM, INS_INSTRUCTOR_URL_PARAM } from "@/lib/ins/load-generator-href";
-import { Download, Eye, MoreHorizontal, Share2 } from "lucide-react";
+import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { shareInsView, shareInsWorkflowBundle } from "@/lib/share-ins";
-import { buildWorkflowScheduleBundle } from "@/lib/workflow-schedule-bundle";
 import { CampusScopeFilters } from "@/components/campus/CampusScopeFilters";
 import { insScopeLockedCollegeId } from "@/lib/ins/ins-scope-lock";
 import { OpticoreInsForm5A } from "@/components/ins/ins-layout/OpticoreInsDocuments";
 import { InsScheduleEntitySearch } from "@/components/ins/InsScheduleEntitySearch";
 import { useInsLiveSchedule } from "@/hooks/use-ins-live-schedule";
 import { InsPublishedBanner } from "@/components/ins/InsPublishedBanner";
-import { InsEntityGroupingStrip, insTabHref } from "@/components/ins/InsEntityGroupingStrip";
+import { insTabHref } from "@/components/ins/InsEntityGroupingStrip";
 import { useInsInnerTabIsActive } from "@/hooks/use-ins-inner-tab-active";
 import { DoiInsFormalApprovalPanel } from "@/components/doi/DoiInsFormalApprovalPanel";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
@@ -96,7 +88,8 @@ export function INSFormFaculty({
   campusWide = false,
   doiFormalApprovalPanel = false,
   hideInnerInsTabs = false,
-  hideGroupingStrip = false,
+  // No longer shown: the "By faculty / section / room" strip was removed (the tabs cover it).
+  hideGroupingStrip: _hideGroupingStrip = false,
 }: INSFormFacultyProps) {
   const { programMode } = useProgramMode();
   const branding = useCampusBranding();
@@ -198,42 +191,6 @@ export function INSFormFaculty({
     ...insPdfBrandingProps(branding),
   }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, pdfSignatureSlots, programMode, branding]);
 
-  async function onShare() {
-    try {
-      if (campusWide || !effectiveCollegeId || !live.academicPeriodId) {
-        await shareInsView("faculty");
-        alert(
-          campusWide
-            ? "Shared notice to College Admin (campus-wide: no single-college bundle attached)."
-            : "Shared notice. Set a college scope to attach the full INS + Evaluator schedule bundle.",
-        );
-        return;
-      }
-      const termScoped = live.insResourceEntries.filter((e) => e.academicPeriodId === live.academicPeriodId);
-      const bundle = buildWorkflowScheduleBundle({
-        academicPeriodId: live.academicPeriodId,
-        collegeId: effectiveCollegeId,
-        programId: effectiveProgramId,
-        programCode: chairmanProgramCode,
-        insShareView: "faculty",
-        termScopedEntries: termScoped,
-        insContext: { selectedFacultyId: live.selectedInstructorId || undefined },
-        subjectIdByCode: live.subjectIdByCode,
-      });
-      await shareInsWorkflowBundle(bundle);
-      alert(
-        `Shared to College Admin with ${bundle.scheduleEntries.length} linked schedule row(s) (INS + Evaluator drafts).`,
-      );
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Share failed");
-    }
-  }
-
-  function handleDownload() {
-    if (!pdfSignaturesReady) return;
-    setPdfPreviewOpen(true);
-  }
-
   async function runInsConflict() {
     if (!useLiveData) {
       alert("Set a college scope to run conflict checks on live data.");
@@ -319,15 +276,6 @@ export function INSFormFaculty({
             </div>
           ) : null}
 
-          {useLiveData && insBasePath && !hideGroupingStrip && (!lockedInstructorId || hideInnerInsTabs) ? (
-            <InsEntityGroupingStrip
-              insBasePath={insBasePath}
-              facultyCount={live.instructorOptions.length}
-              sectionCount={live.sectionOptions.length}
-              roomCount={live.roomOptions.length}
-            />
-          ) : null}
-
           {useLiveData && live.error ? (
             <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 no-print">
               {live.error}
@@ -389,7 +337,7 @@ export function INSFormFaculty({
                     <>
                       <InsScheduleEntitySearch
                         label="Faculty / instructor"
-                        placeholder="Type name — schedule updates when one match"
+                        placeholder="Type to search an instructor"
                         options={live.instructorOptions}
                         selectedId={live.selectedInstructorId}
                         onSelectedIdChange={live.setSelectedInstructorId}
@@ -442,47 +390,6 @@ export function INSFormFaculty({
                     Run Conflict Check
                   </Button>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="bg-white" aria-label="More actions">
-                        <MoreHorizontal className="w-5 h-5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-52">
-                      <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
-                        <Download className="w-4 h-4" />
-                        Download / Save as PDF
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => void onShare()}>
-                        <Share2 className="w-4 h-4" />
-                        Share INS Form
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleDownload} disabled={!pdfSignaturesReady}>
-                        <Eye className="w-4 h-4 mr-2" />
-                        Preview PDF
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link
-                          href={
-                            insBasePath.includes("/college")
-                              ? "/admin/college/evaluator"
-                              : insBasePath.includes("/cas")
-                                ? "/admin/cas/evaluator"
-                                : insBasePath.includes("/gec")
-                                  ? "/admin/gec/evaluator"
-                                  : insBasePath.includes("/doi")
-                                    ? "/doi/evaluator"
-                                    : insBasePath.startsWith("/faculty/ins")
-                                      ? "/faculty"
-                                      : "/chairman/evaluator"
-                          }
-                          className="cursor-pointer"
-                        >
-                          {insBasePath.startsWith("/faculty/ins") ? "Faculty home" : "Open Evaluator"}
-                        </Link>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
 
                   <Button
                   variant="outline"
