@@ -57,7 +57,6 @@ import {
   facultyMatchesProgramScope,
   sectionsInAdvisoryScope,
   advisorySectionsForInstructor,
-  advisoryIdsWithinProgram,
   sectionOutsideProgram,
 } from "@/lib/faculty/faculty-program-scope";
 import {
@@ -283,12 +282,7 @@ export function FacultyProfileWorkspace({
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   /** The faculty whose delete dialog is open, with the name to confirm against. */
   const [pendingFacultyDelete, setPendingFacultyDelete] = useState<{ id: string; name: string } | null>(null);
-  /**
-   * The sign-in the admin is giving this faculty.
-   *
-   * Optional: a faculty can still be recorded with no account, which is what every existing row is.
-   * Leaving the password blank has the server generate one.
-   */
+  /** Sign-in credentials required for each newly added faculty member. */
   const [loginEmail, setLoginEmail] = useState("");
   const [tempPassword, setTempPassword] = useState("");
   /** Shown once, after create. The password cannot be read back afterwards. */
@@ -681,9 +675,15 @@ export function FacultyProfileWorkspace({
     const name = row.profile?.fullName ?? row.user.name;
     const statusVal = normalizeFacultyProfileStatus(draft.status);
     const designationVal = draft.designation.trim() || null;
-    // A BSIT instructor keeps BSIT advisory only; a leftover from another program is dropped.
+    const allowedAdvisoryIds = new Set(
+      advisorySectionsForInstructor(
+        sections,
+        row.user.chairmanProgramId ?? null,
+        isGecInstructorUser(row.user),
+      ).map((section) => section.id),
+    );
     const advisoryFields = advisoryWriteFields(
-      advisoryIdsWithinProgram(sections, row.user.chairmanProgramId, draft.advisorySectionIds),
+      draft.advisorySectionIds.filter((id) => allowedAdvisoryIds.has(id)),
     );
     const ratePerHourVal = row.profile
       ? computeRatePerHour(row.profile, hourlyRateOverrides, ratePerHourByDesignation)
@@ -766,6 +766,23 @@ export function FacultyProfileWorkspace({
   async function onAddFaculty() {
     if (!collegeId) {
       toast.refuse("Choose a college first", "Use the scope bar above, or sign in as Chairman.");
+      return;
+    }
+
+    if (!editingUserId) {
+      if (!looksLikeEmailAddress(loginEmail)) {
+        toast.refuse("Enter a valid email address", "Faculty sign-in requires an email address.");
+        return;
+      }
+      if (tempPassword.trim().length < 8) {
+        toast.refuse("Enter a temporary password", "Use at least 8 characters.");
+        return;
+      }
+    } else if (!hasSignIn && loginEmail.trim()) {
+      toast.refuse("Create the sign-in first", "Use the Create sign-in button to set an email for this faculty member.");
+      return;
+    } else if (hasSignIn && !looksLikeEmailAddress(loginEmail)) {
+      toast.refuse("Enter a valid email address", "The faculty sign-in email cannot be blank.");
       return;
     }
 
@@ -878,23 +895,43 @@ export function FacultyProfileWorkspace({
         toast.fail(err, "Could not save the email", "faculty: change email");
         return;
       }
+      const row = rows.find((r) => r.user.id === editingUserId);
       const profilePayload = {
         fullName: nameTrim,
         ...hrFormFields,
-        ...advisoryWriteFields(advisoryIdsWithinProgram(sections, departmentProgramId, advisorySectionIds)),
+        ...advisoryWriteFields(
+          advisorySectionIds.filter((id) =>
+            formAdvisorySections.some((section) => section.id === id),
+          ),
+        ),
         status: normalizeFacultyProfileStatus(status),
         designation: designation.trim() || null,
         ratePerHour: ratePerHourForForm,
       };
       try {
+        const targetSections = new Set(
+          advisorySectionsForInstructor(
+            sections,
+            departmentProgramId || null,
+            facultyCategory !== FACULTY_CATEGORY_PROGRAM,
+          ).map((section) => section.id),
+        );
+        const existingAdvisories = advisorySectionIdsOf(row?.profile);
+        const scopeChangeWouldInvalidateAdvisory = existingAdvisories.some(
+          (id) => !targetSections.has(id),
+        );
+        if (row?.profile && scopeChangeWouldInvalidateAdvisory) {
+          await facultyProfileApi.update(row.profile.id, advisoryWriteFields([]));
+        }
+        // A chairman's account is managed under College Admins & Chairmen.
         if (!editingChairman) await userAdminApi.update(editingUserId, {
           name: nameTrim,
           employeeId: employeeId.trim() || null,
           // Kept for GEC instructors too: one drawn from a program also shows on that program's list.
           chairmanProgramId: departmentProgramId.trim() || null,
           facultyCategory,
+          ...(hasSignIn ? { email: loginEmail.trim() } : {}),
         });
-        const row = rows.find((r) => r.user.id === editingUserId);
         if (row?.profile) {
           await facultyProfileApi.update(row.profile.id, profilePayload);
         } else {
@@ -918,7 +955,7 @@ export function FacultyProfileWorkspace({
       return;
     }
 
-    const id = crypto.randomUUID();
+    let id = crypto.randomUUID();
 
     try {
       const created = await userAdminApi.create({
@@ -940,6 +977,9 @@ export function FacultyProfileWorkspace({
       if (created.account) {
         setIssuedAccount({ ...created.account, name: nameTrim });
       }
+      const createdUserId =
+        typeof created.user.id === "string" && created.user.id.trim() ? created.user.id : id;
+      id = createdUserId;
     } catch (err: unknown) {
       setSaving(false);
       const msg = err instanceof Error ? err.message : "";
@@ -957,7 +997,10 @@ export function FacultyProfileWorkspace({
         userId: id,
         fullName: nameTrim,
         ...hrFormFields,
-        ...advisoryWriteFields(advisoryIdsWithinProgram(sections, departmentProgramId, advisorySectionIds)),
+        // Same rule as the picker: program faculty keep their own program's sections only.
+        ...advisoryWriteFields(
+          advisorySectionIds.filter((id) => formAdvisorySections.some((section) => section.id === id)),
+        ),
         status: normalizeFacultyProfileStatus(status),
         designation: designation.trim() || null,
         ratePerHour: ratePerHourForForm,
@@ -1170,15 +1213,15 @@ export function FacultyProfileWorkspace({
   );
 
   /** Sections taken by someone other than the faculty open in the form above. */
-  /** Advisory choices in the form: the selected department's sections only (GEC / none: all in scope). */
+  /** Program faculty stay within their department; GEC and both-category faculty may cross programs. */
   const formAdvisorySections = useMemo(
     () =>
       advisorySectionsForInstructor(
         sections,
         departmentProgramId || null,
-        advisorySectionIds,
+        facultyCategory !== FACULTY_CATEGORY_PROGRAM,
       ),
-    [sections, departmentProgramId, advisorySectionIds],
+    [sections, departmentProgramId, facultyCategory],
   );
 
   const formAdvisoryHolders = useMemo(
@@ -1413,11 +1456,11 @@ export function FacultyProfileWorkspace({
                       const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
                         excludeUserId: user.id,
                       });
-                    // Only this instructor's own program's sections (GEC / unplaced: all in scope).
+                    // Program faculty are limited to their home department; GEC / both may cross programs.
                     const rowAdvisorySections = advisorySectionsForInstructor(
                       sections,
                       user.chairmanProgramId ?? null,
-                      draft.advisorySectionIds,
+                      isGecInstructorUser(user),
                     );
                       const dirty =
                         enableFacultyListEdit && facultyRowIsDirty(draft, storedDraftForRow({ user, profile }));
@@ -1539,7 +1582,9 @@ export function FacultyProfileWorkspace({
                                     rowAdvisorySections.map((sec) => {
                                       const picked = draft.advisorySectionIds.includes(sec.id);
                                       const holder = rowHolders.get(sec.id);
-                                      const foreign = sectionOutsideProgram(sec, user.chairmanProgramId);
+                                      // GEC / both may advise any program; only program faculty are held to their own.
+                                      const foreign =
+                                        !isGecInstructorUser(user) && sectionOutsideProgram(sec, user.chairmanProgramId);
                                       const assignable =
                                         !(foreign && !picked) &&
                                         canAssignAdvisorySection(sec.id, {
@@ -2034,7 +2079,19 @@ export function FacultyProfileWorkspace({
               <select
                 className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
                 value={facultyCategory}
-                onChange={(e) => setFacultyCategory(parseFacultyCategory(e.target.value))}
+                onChange={(e) => {
+                  const nextCategory = parseFacultyCategory(e.target.value);
+                  setFacultyCategory(nextCategory);
+                  if (nextCategory === FACULTY_CATEGORY_PROGRAM) {
+                    const homeProgram = departmentProgramId.trim();
+                    const inProgram = new Set(
+                      sections
+                        .filter((section) => section.programId === homeProgram)
+                        .map((section) => section.id),
+                    );
+                    setAdvisorySectionIds((prev) => prev.filter((id) => inProgram.has(id)));
+                  }
+                }}
                 disabled={!collegeId}
               >
                 {FACULTY_CATEGORY_OPTIONS.filter(
@@ -2063,7 +2120,7 @@ export function FacultyProfileWorkspace({
                   const next = e.target.value;
                   setDepartmentProgramId(next);
                   // Advisory follows the department: drop sections that belong to another program.
-                  if (next) {
+                  if (next && facultyCategory === FACULTY_CATEGORY_PROGRAM) {
                     const inProgram = new Set(sections.filter((sec) => sec.programId === next).map((sec) => sec.id));
                     setAdvisorySectionIds((prev) => prev.filter((id) => inProgram.has(id)));
                   }
@@ -2134,7 +2191,7 @@ export function FacultyProfileWorkspace({
               <div className="max-h-32 overflow-auto rounded-md border border-black/25 bg-white p-2">
                 {formAdvisorySections.length === 0 ? (
                   <p className="text-[11px] text-black/45 px-1 py-2">
-                    {departmentProgramId && facultyCategory !== FACULTY_CATEGORY_GEC
+                    {departmentProgramId && facultyCategory === FACULTY_CATEGORY_PROGRAM
                       ? "No sections in this department yet."
                       : "No sections in scope yet."}
                   </p>
@@ -2143,7 +2200,8 @@ export function FacultyProfileWorkspace({
                     {formAdvisorySections.map((sec) => {
                       const checked = advisorySectionIds.includes(sec.id);
                       const holder = formAdvisoryHolders.get(sec.id);
-                      const foreign = sectionOutsideProgram(sec, departmentProgramId);
+                      const foreign =
+                        facultyCategory === FACULTY_CATEGORY_PROGRAM && sectionOutsideProgram(sec, departmentProgramId);
                       const assignable =
                         !(foreign && !checked) &&
                         canAssignAdvisorySection(sec.id, {
@@ -2374,11 +2432,11 @@ ${issuedAccount.password}`)
                     const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
                       excludeUserId: user.id,
                     });
-                    // Only this instructor's own program's sections (GEC / unplaced: all in scope).
+                    // Program faculty are limited to their home department; GEC / both may cross programs.
                     const rowAdvisorySections = advisorySectionsForInstructor(
                       sections,
                       user.chairmanProgramId ?? null,
-                      draft.advisorySectionIds,
+                      isGecInstructorUser(user),
                     );
                     // Students column sums every section the faculty advises.
                     const advisedSections = sections.filter((sec) => draft.advisorySectionIds.includes(sec.id));
@@ -2399,7 +2457,9 @@ ${issuedAccount.password}`)
                                     rowAdvisorySections.map((sec) => {
                                       const picked = draft.advisorySectionIds.includes(sec.id);
                                       const holder = rowHolders.get(sec.id);
-                                      const foreign = sectionOutsideProgram(sec, user.chairmanProgramId);
+                                      // GEC / both may advise any program; only program faculty are held to their own.
+                                      const foreign =
+                                        !isGecInstructorUser(user) && sectionOutsideProgram(sec, user.chairmanProgramId);
                                       const assignable =
                                         !(foreign && !picked) &&
                                         canAssignAdvisorySection(sec.id, {

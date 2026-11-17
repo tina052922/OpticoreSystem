@@ -131,14 +131,14 @@ export function buildInsSignatureSlots(args: {
     lineTitle,
     lineSubtitle,
     signerName: u?.name ?? "—",
-    imageUrl: imageOverride ?? u?.signatureImageUrl?.trim() ?? null,
+    imageUrl: imageOverride !== undefined ? imageOverride : u?.signatureImageUrl?.trim() ?? null,
     // Preserved so printed lines that must reflect the account name
     // (e.g. Program Chairman on 'Prepared by') can bypass any editor
     // display overrides applied later by mergeInsSignerDisplay.
     accountName: u?.name?.trim() || null,
   });
 
-  const doiImg = firstUrl(doiSignatureImageUrl, doi?.signatureImageUrl);
+  const doiImg = firstUrl(doiSignatureImageUrl);
   const preparedImg = firstUrl(
     college?.collegeAdminSignatureImageUrl,
     collegeAdmin?.signatureImageUrl,

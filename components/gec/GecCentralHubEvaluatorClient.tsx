@@ -169,6 +169,9 @@ export function GecCentralHubEvaluatorClient() {
   const [saveBusy, setSaveBusy] = useState(false);
   const [justModalOpen, setJustModalOpen] = useState(false);
   const [justificationText, setJustificationText] = useState("");
+  const [loadJustifications, setLoadJustifications] = useState<RecordedJustification[]>([]);
+  const [loadJustificationsLoading, setLoadJustificationsLoading] = useState(false);
+  const [loadJustificationsError, setLoadJustificationsError] = useState<string | null>(null);
   const [conflictIds, setConflictIds] = useState<Set<string>>(new Set());
   const [conflictSummary, setConflictSummary] = useState<string[]>([]);
   const [focusPlotEntryId, setFocusPlotEntryId] = useState<string | null>(null);
@@ -448,6 +451,42 @@ export function GecCentralHubEvaluatorClient() {
     if (!isCampusWide) return collegeParam || null;
     return plotCollegeId;
   }, [isCampusWide, collegeParam, plotCollegeId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!academicPeriodId) {
+      setLoadJustifications([]);
+      setLoadJustificationsError(null);
+      setLoadJustificationsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoadJustificationsLoading(true);
+    setLoadJustificationsError(null);
+    const params = new URLSearchParams({ academicPeriodId });
+    void apiFetch<{ justifications: RecordedJustification[] }>(
+      `/api/catalog/schedule-load-justifications?${params.toString()}`,
+      { method: "GET", forceRefresh: true },
+    )
+      .then((result) => {
+        if (!cancelled) setLoadJustifications(result.justifications ?? []);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadJustificationsError(
+            userErrorDetail(error, "Could not check existing load justifications."),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadJustificationsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [academicPeriodId]);
 
   const termPublishLocked = useMemo(
     () =>
@@ -913,7 +952,7 @@ export function GecCentralHubEvaluatorClient() {
     });
   }, [searchParams, loading, conflictIds]);
 
-  async function saveVacantEdits(opts?: { skipJustificationPrompt?: boolean }) {
+  async function saveVacantEdits() {
     if (sectionIdFilter && gecSectionMode !== programMode) {
       toast.error("Switching program", "One moment — the scheduler is switching to this section's program.");
       return;
@@ -1037,38 +1076,41 @@ export function GecCentralHubEvaluatorClient() {
           .map((e) => (e.instructorId ?? "").trim())
           .filter((id) => id && id !== GEC_VACANT_INSTRUCTOR_USER_ID),
       );
-      /*
-       * Asked once per faculty per term: anyone with a reason already on record (from any college)
-       * is not prompted again, however much more is plotted.
-       */
-      let recordedJustifications: RecordedJustification[] = [];
-      try {
-        const data = await apiFetch<{ justifications: RecordedJustification[] }>(
-          `/api/catalog/schedule-load-justifications?academicPeriodId=${encodeURIComponent(academicPeriodId)}`,
-          { method: "GET" },
-        );
-        recordedJustifications = data.justifications ?? [];
-      } catch {}
-      const alreadyJustified = coveredFacultyIds(
-        recordedJustifications,
-        policy.rows.map((r) => ({
-          instructorId: r.instructorId,
-          weeklyTotalContactHours: r.weeklyTotalContactHours,
-          preparations: r.preparations,
+      const coveredIds = coveredFacultyIds(
+        loadJustifications,
+        policy.rows.map((row) => ({
+          instructorId: row.instructorId,
+          weeklyTotalContactHours: row.weeklyTotalContactHours,
+          preparations: row.preparations,
         })),
         academicPeriodId,
       );
-      const stillUnjustified = new Set([...touchedInstructorIds].filter((id) => !alreadyJustified.has(id)));
-      const needsJust = loadJustificationRequiredForSave(policy.rows, stillUnjustified);
-      if (needsJust && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) {
+      const uncoveredRows = policy.rows.filter((row) => !coveredIds.has(row.instructorId));
+      const needsJust = loadJustificationRequiredForSave(uncoveredRows, touchedInstructorIds);
+      if (needsJust && (loadJustificationsLoading || loadJustificationsError)) {
+        toast.error(
+          "Could not verify existing justifications",
+          loadJustificationsError ?? "Wait for the current term's justification records to finish loading, then try again.",
+        );
+        return;
+      }
+      const needsReason =
+        needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH;
+      const submittedJustifications: RecordedJustification[] = [];
+
+      await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
+
+      if (needsJust && !needsReason) {
         const { user } = await authApi.me();
         if (!user) {
           toast.error("Failed to save. Please try again.", "Not signed in.");
           return;
         }
-        // Only the faculty this save touches who have no reason on record yet.
         const violators = policy.rows.filter(
-          (r) => rowNeedsTeachingLoadJustification(r) && stillUnjustified.has(r.instructorId),
+          (row) =>
+            touchedInstructorIds.has(row.instructorId) &&
+            rowNeedsTeachingLoadJustification(row) &&
+            !coveredIds.has(row.instructorId),
         );
         const snapRows = violators.map(
           (r) =>
@@ -1076,7 +1118,9 @@ export function GecCentralHubEvaluatorClient() {
         );
         const t = justificationText.trim();
         for (const v of violators) {
-          await apiFetch("/api/catalog/schedule-load-justifications", {
+          const result = await apiFetch<{ justification: RecordedJustification }>(
+            "/api/catalog/schedule-load-justifications",
+            {
             method: "POST",
             body: {
               academicPeriodId,
@@ -1099,14 +1143,28 @@ export function GecCentralHubEvaluatorClient() {
                 }),
               },
             },
-          });
+            },
+          );
+          submittedJustifications.push(result.justification);
         }
+        setLoadJustifications((previous) => [
+          ...submittedJustifications,
+          ...previous.filter(
+            (record) =>
+              !submittedJustifications.some(
+                (submitted) =>
+                  submitted.academicPeriodId === record.academicPeriodId &&
+                  submitted.facultyUserId === record.facultyUserId,
+              ),
+          ),
+        ]);
+        setJustificationText("");
       }
 
-      await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
-      if (needsJust && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) setJustificationText("");
-      setEdits({});
-      setExtraEntries([]);
+      if (!needsReason) {
+        setEdits({});
+        setExtraEntries([]);
+      }
       const secForAudit = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;
       const auditRows = toSave.map((r) => {
         const sub = subjectById.get(r.subjectId);
@@ -1137,7 +1195,6 @@ export function GecCentralHubEvaluatorClient() {
       /** Second pulse after local state matches DB so any listener that batched with the first event still picks up the same commit. */
       dispatchInsCatalogReload();
       router.refresh();
-      const needsReason = needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH;
       if (needsReason) setJustModalOpen(true);
       toast.success(
         `${toSave.length} GEC slot${toSave.length === 1 ? "" : "s"} saved successfully`,
@@ -1574,6 +1631,15 @@ export function GecCentralHubEvaluatorClient() {
             edits are paused until DOI unpublishes / unlocks.
           </div>
         ) : null}
+        {loadJustificationsError ? (
+          <div
+            className="rounded-xl border border-amber-300 bg-amber-50/90 px-4 py-3 text-[13px] text-amber-950 leading-relaxed"
+            role="alert"
+          >
+            Existing load justifications could not be checked. Saves that trigger the load limit are paused until this
+            can be verified. {loadJustificationsError}
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <label className="block min-w-[200px]">
@@ -1841,7 +1907,7 @@ export function GecCentralHubEvaluatorClient() {
       onCancel={() => setJustModalOpen(false)}
       onSave={async () => {
         setJustModalOpen(false);
-        await saveVacantEdits({ skipJustificationPrompt: true });
+        await saveVacantEdits();
       }}
     />
     </>

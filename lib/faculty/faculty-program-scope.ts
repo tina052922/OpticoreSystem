@@ -62,22 +62,20 @@ export function sectionsInAdvisoryScope<T extends { programId: string }>(
 }
 
 /**
- * Sections one instructor's Advisory picker offers: only their own program's sections.
- *
- * An instructor registered under BSIT should not be offered BSIE sections to advise. A section
- * already assigned from another program stays listed only so it can be unticked (see
- * {@link sectionOutsideProgram}); it is also dropped on save by {@link advisoryIdsWithinProgram}.
- * With no program (a GEC instructor, or one not yet placed) every section in scope is offered.
+ * Sections one instructor's Advisory picker offers. Program faculty are limited to their home
+ * program (a BSIT instructor is not offered BSIE sections); GEC and both-category faculty may
+ * advise across programs. A leftover from another program is dropped on save
+ * ({@link advisoryIdsWithinProgram}).
  */
 export function advisorySectionsForInstructor<T extends { id: string; programId: string }>(
   sections: readonly T[],
   instructorProgramId: string | null | undefined,
-  selectedIds: readonly string[] = [],
+  allowsCrossProgram: boolean = false,
 ): T[] {
+  if (allowsCrossProgram) return [...sections];
   const programId = (instructorProgramId ?? "").trim();
-  if (!programId) return [...sections];
-  const picked = new Set(selectedIds);
-  return sections.filter((s) => (s.programId ?? "").trim() === programId || picked.has(s.id));
+  if (!programId) return [];
+  return sections.filter((s) => (s.programId ?? "").trim() === programId);
 }
 
 /** True when the section belongs to a program other than the instructor's (never for no program). */

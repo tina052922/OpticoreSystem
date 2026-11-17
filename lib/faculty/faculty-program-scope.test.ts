@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  advisorySectionsForInstructor,
   advisoryProgramFilter,
   facultyMatchesProgramScope,
   sectionsInAdvisoryScope,
@@ -120,5 +121,24 @@ describe("sectionsInAdvisoryScope", () => {
 
   it("returns a copy rather than the original array", () => {
     expect(sectionsInAdvisoryScope(all, null)).not.toBe(all);
+  });
+});
+
+describe("advisorySectionsForInstructor", () => {
+  const all = [
+    { id: "sec-bsit-1a", programId: "prog-bsit" },
+    { id: "sec-auto-1a", programId: "prog-bit-auto" },
+  ];
+
+  it("only offers sections from the instructor's home program", () => {
+    expect(advisorySectionsForInstructor(all, "prog-bsit").map((s) => s.id)).toEqual(["sec-bsit-1a"]);
+  });
+
+  it("does not offer sections to an unassigned program instructor", () => {
+    expect(advisorySectionsForInstructor(all, null)).toEqual([]);
+  });
+
+  it("allows explicit GEC / both-category cross-program advisory", () => {
+    expect(advisorySectionsForInstructor(all, "prog-bsit", true)).toEqual(all);
   });
 });
