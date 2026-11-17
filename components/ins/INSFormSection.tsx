@@ -24,6 +24,7 @@ import { sectionProgramMode } from "@/components/scheduling/SectionProgramBanner
 import type { INS5BProps } from "@/components/pdf/types/insTypes";
 import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@/lib/ins/schedule-visibility";
 import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
+import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -131,15 +132,35 @@ export function INSFormSection({
    */
   const [selectedSectionId, setSelectedSectionId] = useState("");
   const appliedInitialSectionRef = useRef(false);
-  const initialSectionKnown = Boolean(
-    initialSectionId?.trim() && catalog.sectionOptions.some((s) => s.id === initialSectionId.trim()),
-  );
+  const initialSection = initialSectionId?.trim()
+    ? catalog.sectionById.get(initialSectionId.trim())
+    : undefined;
 
   useEffect(() => {
-    if (appliedInitialSectionRef.current || !initialSectionKnown || !initialSectionId) return;
+    if (appliedInitialSectionRef.current || !initialSectionId || catalog.loading || !initialSection) return;
+    const mode = sectionProgramMode(initialSection);
+    if (mode !== programMode) {
+      setProgramMode(mode);
+      return;
+    }
+    if (!catalog.sectionOptions.some((section) => section.id === initialSection.id)) return;
     appliedInitialSectionRef.current = true;
     setSelectedSectionId(initialSectionId.trim());
-  }, [initialSectionKnown, initialSectionId]);
+  }, [
+    catalog.loading,
+    catalog.sectionById,
+    catalog.sectionOptions,
+    initialSection,
+    initialSectionId,
+    programMode,
+    setProgramMode,
+  ]);
+
+  useEffect(() => {
+    if (selectedSectionId && !catalog.sectionOptions.some((section) => section.id === selectedSectionId)) {
+      setSelectedSectionId("");
+    }
+  }, [catalog.sectionOptions, selectedSectionId]);
 
   const printOnLoadDoneRef = useRef(false);
   useEffect(() => {
@@ -187,13 +208,8 @@ export function INSFormSection({
   const displayAssignment = useLiveData ? selectedSectionName : "BSIT 2A (demo)";
   const selectedSection = selectedSectionId ? catalog.sectionById.get(selectedSectionId) : undefined;
 
-  /** A section's form is its own program's (Programs & Sections): Day or Evening, no toggle. */
+  /** The selected section's configured mode, shown beside the viewer's Day / Evening filter. */
   const selectedSectionMode = sectionProgramMode(selectedSection);
-  useEffect(() => {
-    if (!selectedSectionId || !selectedSection) return;
-    if (selectedSectionMode !== programMode) setProgramMode(selectedSectionMode);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSectionId, selectedSectionMode, Boolean(selectedSection)]);
   const selectedProgram = selectedSection ? catalog.programById.get(selectedSection.programId) : undefined;
   const formMajor =
     chairmanProgramName?.trim() || selectedProgram?.name || "";
@@ -370,6 +386,7 @@ export function INSFormSection({
         <div className="max-w-[1200px] mx-auto space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-bold text-gray-800 mb-0">INS Form</h2>
+            <ProgramModeToggle size="sm" />
             {selectedSection ? (
               <span
                 className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold ${

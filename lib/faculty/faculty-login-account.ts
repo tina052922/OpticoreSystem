@@ -20,3 +20,9 @@ export function hasFacultySignIn(email: string | null | undefined): boolean {
   const text = String(email ?? "").trim();
   return Boolean(text) && !isPlaceholderFacultyEmail(text);
 }
+
+/** Deliberately loose; the emailed code is what proves the address works. */
+export function looksLikeEmailAddress(value: string | null | undefined): boolean {
+  const text = String(value ?? "").trim();
+  return /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(text) && text.length <= 254;
+}

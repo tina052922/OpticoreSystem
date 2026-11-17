@@ -46,7 +46,11 @@ import {
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import { PasswordInput } from "@/components/ui/password-input";
 import type { IssuedFacultyAccount } from "@/lib/api/client";
-import { hasFacultySignIn, isPlaceholderFacultyEmail } from "@/lib/faculty/faculty-login-account";
+import {
+  hasFacultySignIn,
+  isPlaceholderFacultyEmail,
+  looksLikeEmailAddress,
+} from "@/lib/faculty/faculty-login-account";
 import {
   advisoryProgramFilter,
   facultyMatchesProgramScope,
@@ -256,12 +260,7 @@ export function FacultyProfileWorkspace({
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   /** The faculty whose delete dialog is open, with the name to confirm against. */
   const [pendingFacultyDelete, setPendingFacultyDelete] = useState<{ id: string; name: string } | null>(null);
-  /**
-   * The sign-in the admin is giving this faculty.
-   *
-   * Optional: a faculty can still be recorded with no account, which is what every existing row is.
-   * Leaving the password blank has the server generate one.
-   */
+  /** Sign-in credentials required for each newly added faculty member. */
   const [loginEmail, setLoginEmail] = useState("");
   const [tempPassword, setTempPassword] = useState("");
   /** Shown once, after create. The password cannot be read back afterwards. */
@@ -650,7 +649,16 @@ export function FacultyProfileWorkspace({
     const name = row.profile?.fullName ?? row.user.name;
     const statusVal = normalizeFacultyProfileStatus(draft.status);
     const designationVal = draft.designation.trim() || null;
-    const advisoryFields = advisoryWriteFields(draft.advisorySectionIds);
+    const allowedAdvisoryIds = new Set(
+      advisorySectionsForInstructor(
+        sections,
+        row.user.chairmanProgramId ?? null,
+        isGecInstructorUser(row.user),
+      ).map((section) => section.id),
+    );
+    const advisoryFields = advisoryWriteFields(
+      draft.advisorySectionIds.filter((id) => allowedAdvisoryIds.has(id)),
+    );
     const ratePerHourVal = row.profile
       ? computeRatePerHour(row.profile, hourlyRateOverrides, ratePerHourByDesignation)
       : null;
@@ -687,10 +695,6 @@ export function FacultyProfileWorkspace({
     toast.ok("Faculty details updated successfully");
     dispatchInsCatalogReload();
     void loadFaculty();
-  }
-
-  function placeholderEmailForPendingUser(userId: string) {
-    return `pending.${userId}@opticore.local`.toLowerCase();
   }
 
   async function assertNoDuplicateFaculty() {
@@ -739,6 +743,23 @@ export function FacultyProfileWorkspace({
       return;
     }
 
+    if (!editingUserId) {
+      if (!looksLikeEmailAddress(loginEmail)) {
+        toast.refuse("Enter a valid email address", "Faculty sign-in requires an email address.");
+        return;
+      }
+      if (tempPassword.trim().length < 8) {
+        toast.refuse("Enter a temporary password", "Use at least 8 characters.");
+        return;
+      }
+    } else if (!hasSignIn && loginEmail.trim()) {
+      toast.refuse("Create the sign-in first", "Use the Create sign-in button to set an email for this faculty member.");
+      return;
+    } else if (hasSignIn && !looksLikeEmailAddress(loginEmail)) {
+      toast.refuse("Enter a valid email address", "The faculty sign-in email cannot be blank.");
+      return;
+    }
+
     const dupMsg = await assertNoDuplicateFaculty();
     if (dupMsg) {
       toast.refuse("That faculty is already on file", dupMsg);
@@ -780,23 +801,42 @@ export function FacultyProfileWorkspace({
 
     setSaving(true);
     if (editingUserId) {
+      const row = rows.find((r) => r.user.id === editingUserId);
       const profilePayload = {
         fullName: nameTrim,
         ...hrFormFields,
-        ...advisoryWriteFields(advisorySectionIds),
+        ...advisoryWriteFields(
+          advisorySectionIds.filter((id) =>
+            formAdvisorySections.some((section) => section.id === id),
+          ),
+        ),
         status: normalizeFacultyProfileStatus(status),
         designation: designation.trim() || null,
         ratePerHour: ratePerHourForForm,
       };
       try {
+        const targetSections = new Set(
+          advisorySectionsForInstructor(
+            sections,
+            departmentProgramId || null,
+            facultyCategory !== FACULTY_CATEGORY_PROGRAM,
+          ).map((section) => section.id),
+        );
+        const existingAdvisories = advisorySectionIdsOf(row?.profile);
+        const scopeChangeWouldInvalidateAdvisory = existingAdvisories.some(
+          (id) => !targetSections.has(id),
+        );
+        if (row?.profile && scopeChangeWouldInvalidateAdvisory) {
+          await facultyProfileApi.update(row.profile.id, advisoryWriteFields([]));
+        }
         await userAdminApi.update(editingUserId, {
           name: nameTrim,
           employeeId: employeeId.trim() || null,
           // Kept for GEC instructors too: one drawn from a program also shows on that program's list.
           chairmanProgramId: departmentProgramId.trim() || null,
           facultyCategory,
+          ...(hasSignIn ? { email: loginEmail.trim() } : {}),
         });
-        const row = rows.find((r) => r.user.id === editingUserId);
         if (row?.profile) {
           await facultyProfileApi.update(row.profile.id, profilePayload);
         } else {
@@ -820,17 +860,13 @@ export function FacultyProfileWorkspace({
       return;
     }
 
-    const id = crypto.randomUUID();
+    let id = crypto.randomUUID();
 
     try {
       const created = await userAdminApi.create({
         id,
-        /**
-         * A real address makes a sign-in; the placeholder keeps the old behaviour of a record with
-         * no account. The server decides which, and owns the Auth user either way.
-         */
-        email: loginEmail.trim() || placeholderEmailForPendingUser(id),
-        temporaryPassword: loginEmail.trim() ? tempPassword.trim() || null : null,
+        email: loginEmail.trim(),
+        temporaryPassword: tempPassword.trim(),
         name: nameTrim,
         role: "instructor",
         collegeId,
@@ -842,6 +878,9 @@ export function FacultyProfileWorkspace({
       if (created.account) {
         setIssuedAccount({ ...created.account, name: nameTrim });
       }
+      const createdUserId =
+        typeof created.user.id === "string" && created.user.id.trim() ? created.user.id : id;
+      id = createdUserId;
     } catch (err: unknown) {
       setSaving(false);
       const msg = err instanceof Error ? err.message : "";
@@ -1052,15 +1091,15 @@ export function FacultyProfileWorkspace({
   );
 
   /** Sections taken by someone other than the faculty open in the form above. */
-  /** Advisory choices in the form: the selected department's sections only (GEC / none: all in scope). */
+  /** Program faculty stay within their department; GEC and both-category faculty may cross programs. */
   const formAdvisorySections = useMemo(
     () =>
       advisorySectionsForInstructor(
         sections,
         departmentProgramId || null,
-        advisorySectionIds,
+        facultyCategory !== FACULTY_CATEGORY_PROGRAM,
       ),
-    [sections, departmentProgramId, advisorySectionIds],
+    [sections, departmentProgramId, facultyCategory],
   );
 
   const formAdvisoryHolders = useMemo(
@@ -1285,11 +1324,11 @@ export function FacultyProfileWorkspace({
                       const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
                         excludeUserId: user.id,
                       });
-                    // Only this instructor's own program's sections (GEC / unplaced: all in scope).
+                    // Program faculty are limited to their home department; GEC / both may cross programs.
                     const rowAdvisorySections = advisorySectionsForInstructor(
                       sections,
                       user.chairmanProgramId ?? null,
-                      draft.advisorySectionIds,
+                      isGecInstructorUser(user),
                     );
                       const dirty =
                         enableFacultyListEdit && facultyRowIsDirty(draft, storedDraftForRow({ user, profile }));
@@ -1636,7 +1675,7 @@ export function FacultyProfileWorkspace({
               <>
                 <div className="space-y-1">
                   <div className="text-sm font-medium">
-                    Email for sign-in <span className="font-normal text-black/45">(optional)</span>
+                    Email for sign-in <span className="font-normal text-black/45">(required)</span>
                   </div>
                   <Input
                     type="email"
@@ -1644,25 +1683,29 @@ export function FacultyProfileWorkspace({
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     disabled={!collegeId}
+                    required={!editingUserId}
                     autoComplete="off"
                   />
                   <p className="text-[11px] text-black/50 leading-snug">
-                    Leave blank to record the faculty without a sign-in. With an address, OptiCore makes a
-                    sign-in and shows you a temporary password. When the faculty signs in with it, a 6-digit
-                    code is emailed to this address; they enter it, then choose their own password.
+                    OptiCore creates the sign-in and emails a verification code to this address after the
+                    faculty's first sign-in.
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-sm font-medium">Temporary password</div>
+                  <div className="text-sm font-medium">
+                    Temporary password <span className="font-normal text-black/45">(required)</span>
+                  </div>
                   <PasswordInput
-                    placeholder="Leave blank to generate one"
+                    placeholder="At least 8 characters"
                     value={tempPassword}
                     onChange={(e) => setTempPassword(e.target.value)}
                     disabled={!collegeId || !loginEmail.trim()}
+                    required={!editingUserId}
+                    minLength={8}
                     autoComplete="new-password"
                   />
                   <p className="text-[11px] text-black/50 leading-snug">
-                    Shown once after saving. They are asked to replace it at first sign-in.
+                    Shown once after saving. The faculty must replace it at first sign-in.
                   </p>
                 </div>
               </>
@@ -1759,7 +1802,19 @@ export function FacultyProfileWorkspace({
               <select
                 className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
                 value={facultyCategory}
-                onChange={(e) => setFacultyCategory(parseFacultyCategory(e.target.value))}
+                onChange={(e) => {
+                  const nextCategory = parseFacultyCategory(e.target.value);
+                  setFacultyCategory(nextCategory);
+                  if (nextCategory === FACULTY_CATEGORY_PROGRAM) {
+                    const homeProgram = departmentProgramId.trim();
+                    const inProgram = new Set(
+                      sections
+                        .filter((section) => section.programId === homeProgram)
+                        .map((section) => section.id),
+                    );
+                    setAdvisorySectionIds((prev) => prev.filter((id) => inProgram.has(id)));
+                  }
+                }}
                 disabled={!collegeId}
               >
                 {FACULTY_CATEGORY_OPTIONS.filter(
@@ -1788,7 +1843,7 @@ export function FacultyProfileWorkspace({
                   const next = e.target.value;
                   setDepartmentProgramId(next);
                   // Advisory follows the department: drop sections that belong to another program.
-                  if (next) {
+                  if (next && facultyCategory === FACULTY_CATEGORY_PROGRAM) {
                     const inProgram = new Set(sections.filter((sec) => sec.programId === next).map((sec) => sec.id));
                     setAdvisorySectionIds((prev) => prev.filter((id) => inProgram.has(id)));
                   }
@@ -1859,7 +1914,7 @@ export function FacultyProfileWorkspace({
               <div className="max-h-32 overflow-auto rounded-md border border-black/25 bg-white p-2">
                 {formAdvisorySections.length === 0 ? (
                   <p className="text-[11px] text-black/45 px-1 py-2">
-                    {departmentProgramId && facultyCategory !== FACULTY_CATEGORY_GEC
+                    {departmentProgramId && facultyCategory === FACULTY_CATEGORY_PROGRAM
                       ? "No sections in this department yet."
                       : "No sections in scope yet."}
                   </p>
@@ -2093,11 +2148,11 @@ ${issuedAccount.password}`)
                     const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
                       excludeUserId: user.id,
                     });
-                    // Only this instructor's own program's sections (GEC / unplaced: all in scope).
+                    // Program faculty are limited to their home department; GEC / both may cross programs.
                     const rowAdvisorySections = advisorySectionsForInstructor(
                       sections,
                       user.chairmanProgramId ?? null,
-                      draft.advisorySectionIds,
+                      isGecInstructorUser(user),
                     );
                     // Students column sums every section the faculty advises.
                     const advisedSections = sections.filter((sec) => draft.advisorySectionIds.includes(sec.id));
