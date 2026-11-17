@@ -321,7 +321,7 @@ export function TeachingLoadSummaryDocument({
         {headerBanner !== null ? (
           <Image src={headerBanner || DEFAULT_INS_HEADER_BANNER} style={s.banner} />
         ) : null}
-        <Text style={s.collegeTitle}>{collegeName}</Text>
+        {collegeName.trim() ? <Text style={s.collegeTitle}>{collegeName}</Text> : null}
         <Text style={s.formTitle}>Summary of Teaching Load</Text>
         <Text style={s.meta}>{semesterLabel}</Text>
         {groups.length === 0 ? (

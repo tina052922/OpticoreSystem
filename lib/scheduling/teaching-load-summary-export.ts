@@ -79,8 +79,10 @@ export async function buildTeachingLoadSummaryWorkbook(args: {
     if (height) ws.getRow(r).height = height;
     r += 1;
   };
-  titleLine(args.collegeName.toUpperCase(), true, 13, 20);
-  r += 1;
+  if (args.collegeName.trim()) {
+    titleLine(args.collegeName.toUpperCase(), true, 13, 20);
+    r += 1;
+  }
   titleLine("Summary of Teaching Load", true, 18, 28);
   titleLine(args.semesterLabel, true, 11, 18);
   r += 1;

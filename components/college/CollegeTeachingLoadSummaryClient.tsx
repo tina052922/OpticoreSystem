@@ -297,16 +297,21 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
     };
   }, [signatories]);
 
+  // "2nd Semester, AY 2026-2027" already names the year: add it only when the name does not.
   const semesterLabel = selectedPeriod
-    ? `${selectedPeriod.name}${selectedPeriod.academicYear ? ` · ${selectedPeriod.academicYear}` : ""}`
+    ? selectedPeriod.academicYear && !selectedPeriod.name.includes(selectedPeriod.academicYear)
+      ? `${selectedPeriod.name} · ${selectedPeriod.academicYear}`
+      : selectedPeriod.name
     : "Selected term";
+  /** College line in the header; none for "All colleges" (each department heading names its college). */
+  const headerCollegeName = campusWide && !pickedCollegeId ? "" : documentCollegeName;
   const pdfFilename = `Summary-of-Teaching-Load-${documentCollegeName.replace(/\s+/g, "-")}.pdf`;
   const [exportingExcel, setExportingExcel] = useState(false);
   async function exportExcel() {
     setExportingExcel(true);
     try {
       await downloadTeachingLoadSummaryWorkbook({
-        collegeName: documentCollegeName,
+        collegeName: headerCollegeName,
         semesterLabel,
         groups: visibleGroups,
         signatories: embeddedSignatories ?? signatories,
@@ -356,7 +361,9 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
               alt="Cebu Technological University – Argao Campus"
               className="mx-auto h-auto w-full max-w-[640px]"
             />
-            <div className="mt-3 text-[16px] font-bold uppercase">{documentCollegeName}</div>
+            {headerCollegeName ? (
+              <div className="mt-3 text-[16px] font-bold uppercase">{headerCollegeName}</div>
+            ) : null}
             <div className="mt-4 text-[24px] font-extrabold">Summary of Teaching Load</div>
             <div className="text-[14px] font-bold">{semesterLabel}</div>
           </div>
@@ -444,7 +451,7 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
         filename={pdfFilename}
         document={
           <TeachingLoadSummaryDocument
-            collegeName={documentCollegeName}
+            collegeName={headerCollegeName}
             semesterLabel={semesterLabel}
             groups={visibleGroups}
             signatories={embeddedSignatories ?? signatories}
