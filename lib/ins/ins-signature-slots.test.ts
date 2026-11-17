@@ -57,7 +57,7 @@ describe("buildInsSignatureSlots", () => {
     );
   });
 
-  it("falls back to Profile signatures when System Configuration has none", () => {
+  it("does not fall back to the DOI Profile signature when System Configuration has none", () => {
     const slots = buildInsSignatureSlots({
       college: { ...college, collegeAdminSignatureImageUrl: null },
       programId: null,
@@ -65,9 +65,7 @@ describe("buildInsSignatureSlots", () => {
       userById,
       scheduleApproved: true,
     });
-    expect(slots?.find((s) => s.key === "approved")?.imageUrl).toBe(
-      "https://cdn.example/doi-profile.png",
-    );
+    expect(slots?.find((s) => s.key === "approved")?.imageUrl).toBeNull();
     expect(slots?.find((s) => s.key === "prepared")?.imageUrl).toBe(
       "https://cdn.example/ca-profile.png",
     );
