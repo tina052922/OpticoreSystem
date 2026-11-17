@@ -290,13 +290,16 @@ export function SystemConfigBrandingCard() {
             <span className="font-normal text-black/50">Landing page copyright line (year is added automatically).</span>
           </label>
           <label className="space-y-1 text-xs font-medium text-black/70">
-            INS print footer (optional)
+            INS form footer
             <Input
               value={insFooterText}
               maxLength={BRANDING_LIMITS.insFooterText}
-              placeholder="Leave blank to keep official paper forms unchanged"
+              placeholder={footerText.trim() || DEFAULT_CAMPUS_BRANDING.footerText}
               onChange={(e) => setInsFooterText(e.target.value)}
             />
+            <span className="font-normal text-black/50">
+              Shown at the bottom of every INS form (with page numbers on PDFs). Blank uses the site footer.
+            </span>
           </label>
         </div>
         <Button type="submit" disabled={busy} className="bg-[#780301] hover:bg-[#5a0201] text-white">

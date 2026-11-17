@@ -17,6 +17,7 @@ import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import type { Program, Section } from "@/types/db";
 import { buildPortalStudentIns5B } from "@/lib/portal/build-portal-ins-forms";
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
+import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
 
 type StudentPayload = {
   rows: ScheduleRowView[];
@@ -24,6 +25,8 @@ type StudentPayload = {
   program: Program | null;
   /** Faculty Profile advisory for the student's section; empty when none is set. */
   adviser?: string;
+  /** True before DOI publishes the term: the server sends no classes yet. */
+  notPublished?: boolean;
 };
 
 async function fetchStudentTermData(
@@ -153,7 +156,9 @@ export function StudentScheduleTermClient() {
         </Button>
       </div>
 
-      {rows.length === 0 ? (
+      {data?.notPublished ? (
+        <ScheduleNotPublishedNotice />
+      ) : rows.length === 0 ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-950 px-4 py-3 text-sm">
           No schedule entries are published for your section this term. Contact your program office if this is
           unexpected.

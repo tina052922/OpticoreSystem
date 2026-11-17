@@ -46,6 +46,7 @@ import type {
 } from "@/types/db";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { advisorySectionIdsOf } from "@/lib/faculty/advisory-sections";
+import { isPlaceholderInstructorId } from "@/lib/scheduling/placeholder-instructor";
 
 /** Merge catalog rows by primary key (later arrays win) — links term `ScheduleEntry` to cross-college Section/Subject. */
 function mergeRowsById<T extends { id: string }>(primary: T[], ...extras: T[][]): T[] {
@@ -590,7 +591,7 @@ export function useInsCatalog(args: {
   const instructorOptions: InsInstructorOption[] = useMemo(() => {
     const ids = new Set<string>();
     for (const e of scopedEntries) {
-      if (e.instructorId) ids.add(e.instructorId);
+      if (e.instructorId && !isPlaceholderInstructorId(e.instructorId)) ids.add(e.instructorId);
     }
     const list: InsInstructorOption[] = [];
     for (const id of ids) {

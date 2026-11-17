@@ -20,6 +20,8 @@ export type RosterUser = Pick<User, "role"> & {
  * A rejected registration is not faculty and stays out.
  */
 export function isFacultyRosterUser(user: RosterUser): boolean {
+  // Program and GEC Chairmen teach and are listed with their department's faculty.
+  if (user.role === "chairman_admin" || user.role === "gec_chairman") return true;
   if (user.role !== "instructor") return false;
   return normalizeInstructorValidation(user.instructorValidation) !== "rejected";
 }
@@ -53,7 +55,7 @@ export function isFacultyVisibleToRosterViewer(
 ): boolean {
   if (!isFacultyRosterUser(user)) return false;
 
-  const teachesGec = isGecFacultyCategory(user.facultyCategory);
+  const teachesGec = isGecFacultyCategory(user.facultyCategory) || user.role === "gec_chairman";
   const home = (user.chairmanProgramId ?? "").trim();
   if (viewer.gecOnly) return teachesGec;
   if (viewer.excludeGec && teachesGec && !home) return false;

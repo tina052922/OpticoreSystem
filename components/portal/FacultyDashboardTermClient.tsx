@@ -12,8 +12,11 @@ import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import { formatTimeRange12h } from "@/lib/time/format-12h";
 import { SYSTEM_CONFIG_RELOAD_EVENT } from "@/lib/system-configuration/system-config-reload";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
+import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
 
 type FacultyPayload = {
+  /** True before DOI publishes the term: the server sends no classes yet. */
+  notPublished?: boolean;
   rows: ScheduleRowView[];
   sectionIds: string[];
   advisorySectionId?: string | null;
@@ -270,7 +273,9 @@ export function FacultyDashboardTermClient({ profileName, surface = "campus-inte
           ) : data ? (
             <p className="text-xs text-black/45 mb-3">No advisory section on your faculty profile for this account.</p>
           ) : null}
-          {rows.length === 0 ? (
+          {data?.notPublished ? (
+            <ScheduleNotPublishedNotice />
+          ) : rows.length === 0 ? (
             <p className="text-sm text-black/55">No assignments for this term in the repository.</p>
           ) : (
             <ul className="divide-y divide-black/10 rounded-lg border border-black/10 max-h-[320px] overflow-y-auto">

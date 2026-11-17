@@ -2,7 +2,11 @@
 
 import { apiFetch, authApi, catalogApi, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
 import { userErrorDetail } from "@/lib/ui/user-message";
-import { justificationLoadSnapshot } from "@/lib/scheduling/justification-coverage";
+import {
+  coveredFacultyIds,
+  justificationLoadSnapshot,
+  type RecordedJustification,
+} from "@/lib/scheduling/justification-coverage";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1033,14 +1037,39 @@ export function GecCentralHubEvaluatorClient() {
           .map((e) => (e.instructorId ?? "").trim())
           .filter((id) => id && id !== GEC_VACANT_INSTRUCTOR_USER_ID),
       );
-      const needsJust = loadJustificationRequiredForSave(policy.rows, touchedInstructorIds);
+      /*
+       * Asked once per faculty per term: anyone with a reason already on record (from any college)
+       * is not prompted again, however much more is plotted.
+       */
+      let recordedJustifications: RecordedJustification[] = [];
+      try {
+        const data = await apiFetch<{ justifications: RecordedJustification[] }>(
+          `/api/catalog/schedule-load-justifications?academicPeriodId=${encodeURIComponent(academicPeriodId)}`,
+          { method: "GET" },
+        );
+        recordedJustifications = data.justifications ?? [];
+      } catch {}
+      const alreadyJustified = coveredFacultyIds(
+        recordedJustifications,
+        policy.rows.map((r) => ({
+          instructorId: r.instructorId,
+          weeklyTotalContactHours: r.weeklyTotalContactHours,
+          preparations: r.preparations,
+        })),
+        academicPeriodId,
+      );
+      const stillUnjustified = new Set([...touchedInstructorIds].filter((id) => !alreadyJustified.has(id)));
+      const needsJust = loadJustificationRequiredForSave(policy.rows, stillUnjustified);
       if (needsJust && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) {
         const { user } = await authApi.me();
         if (!user) {
           toast.error("Failed to save. Please try again.", "Not signed in.");
           return;
         }
-        const violators = policy.rows.filter((r) => rowNeedsTeachingLoadJustification(r));
+        // Only the faculty this save touches who have no reason on record yet.
+        const violators = policy.rows.filter(
+          (r) => rowNeedsTeachingLoadJustification(r) && stillUnjustified.has(r.instructorId),
+        );
         const snapRows = violators.map(
           (r) =>
             `${r.instructorName}: ${r.weeklyTotalContactHours.toFixed(1)} hrs/wk · ${r.preparations} preps — ${r.violations.map((v) => v.code).join(", ")}`,
@@ -1075,6 +1104,7 @@ export function GecCentralHubEvaluatorClient() {
       }
 
       await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
+      if (needsJust && justificationText.trim().length >= JUSTIFICATION_MIN_LENGTH) setJustificationText("");
       setEdits({});
       setExtraEntries([]);
       const secForAudit = sectionIdFilter ? sectionById.get(sectionIdFilter) : undefined;

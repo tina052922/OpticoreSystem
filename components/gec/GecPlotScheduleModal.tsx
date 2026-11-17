@@ -437,7 +437,7 @@ export function GecPlotScheduleModal({
               disabled={readOnly}
               onChange={(e) => onDraftChange({ ...draft, instructorId: e.target.value })}
             >
-              <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>— Vacant (TBD) —</option>
+              <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>Prof X (TBA) — no instructor yet</option>
               {instructorPlotOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>
                   {formatInstructorPlotOptionLabel(opt)}

@@ -25,6 +25,8 @@ import { insPdfBrandingProps } from "@/lib/system-configuration/campus-branding"
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import { isFacultyInsPortal } from "@/lib/ins/schedule-visibility";
 import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
+import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
+import { appointmentStatusLabel } from "@/lib/faculty/appointment-status";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -174,7 +176,10 @@ export function INSFormFaculty({
   const pdfData = useMemo((): INS5AProps => ({
     facultyName: displayFacultyName,
     semesterLabel: (useLiveData ? live.periodLabel : undefined) ?? "____ Semester, AY ____",
-    statusOfAppointment: null,
+    // From Faculty Profile → Status of Appointment.
+    statusOfAppointment:
+      ((useLiveData ? appointmentStatusLabel(live.facultyCredentials?.appointmentStatus) : "") ||
+        null) as INS5AProps["statusOfAppointment"],
     credentials: useLiveData && live.facultyCredentials ? {
       bachelors: live.facultyCredentials.bachelors,
       masters: live.facultyCredentials.master,
@@ -226,6 +231,9 @@ export function INSFormFaculty({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       <div className="no-print">
+        {facultyPortalIns && !live.loading && live.academicPeriodId && !live.termPublishLocked ? (
+          <ScheduleNotPublishedNotice className="mb-4 max-w-[1200px] mx-auto" />
+        ) : null}
         {!lockedInstructorId && !campusWide ? (
           <div className="mb-6 max-w-[1200px] mx-auto">
             <CampusScopeFilters

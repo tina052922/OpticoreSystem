@@ -15,6 +15,15 @@ export function isPlaceholderFacultyEmail(email: string | null | undefined): boo
   return /^pending\.[^@]+@opticore\.local$/i.test(String(email ?? "").trim());
 }
 
+/** Mirrors the server: temporary passwords are at least this long. */
+export const MIN_ACCOUNT_PASSWORD_LENGTH = 8;
+
+/** Deliberately loose (same as the server); the emailed code is what proves the address works. */
+export function looksLikeEmailAddress(value: string | null | undefined): boolean {
+  const text = String(value ?? "").trim();
+  return /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(text) && text.length <= 254;
+}
+
 /** True when this faculty can actually sign in. */
 export function hasFacultySignIn(email: string | null | undefined): boolean {
   const text = String(email ?? "").trim();

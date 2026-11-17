@@ -70,8 +70,12 @@ export function maxPlotDurationSlots(p: ProspectusSubjectRow): number {
   if (fromHours > 0) return clampConsecutiveHours(fromHours);
   const fromUnits = weeklyContactHoursFromUnits(p.lecUnits, p.labUnits);
   if (fromUnits > 0) return clampConsecutiveHours(fromUnits);
-  return 1;
+  // No hours on record: do not hold the meeting to one hour — allow up to the consecutive limit.
+  return MAX_CONSECUTIVE_PLOT_SLOTS;
 }
+
+/** Longest single meeting the scheduler allows, in hours. */
+export const MAX_PLOT_MEETING_HOURS = MAX_CONSECUTIVE_PLOT_SLOTS;
 
 /** Hours actually plotted for a meeting (not clamped to prospectus). Used for over-limit totals. */
 export function plottedDurationHours(durationSlots?: number | null): number {
@@ -85,12 +89,17 @@ export type PlotDurationRow = { durationSlots?: number };
  * Slots spanned by one plot row. Defaults to **1 hour** so chairmen can split lec/lab
  * contact across multiple non-contiguous meetings for the same subject code.
  */
-export function plotRowDurationSlots(p: ProspectusSubjectRow | undefined, row?: PlotDurationRow): number {
-  if (!p) return 1;
-  const max = maxPlotDurationSlots(p);
+export function plotRowDurationSlots(_p: ProspectusSubjectRow | undefined, row?: PlotDurationRow): number {
+  /*
+   * The duration the scheduler typed is the duration. It used to be re-capped here from the
+   * built-in prospectus — which only some programs have, and whose hours can differ from Subject
+   * Codes — so another program's 1.5 or 4 hour class was cut to one hour on the grid, in the save
+   * and on the INS forms, although the plot window had accepted it. The plot window already caps a
+   * meeting at the subject's hours from Subject Codes.
+   */
   const requested = row?.durationSlots;
-  if (requested != null && Number.isFinite(requested)) {
-    return Math.min(max, Math.max(PLOT_STEP_HOURS, quantizePlotHours(requested)));
+  if (requested != null && Number.isFinite(Number(requested)) && Number(requested) > 0) {
+    return clampConsecutiveHours(Number(requested));
   }
   return 1;
 }
@@ -124,7 +133,7 @@ export function maxPlotDurationSlotsForSubject(
   if (fromUnits > 0) return clampConsecutiveHours(fromUnits);
   const row = prospectusRowForProgram(programCode, subject.code);
   if (row) return maxPlotDurationSlots(row);
-  return 1;
+  return MAX_CONSECUTIVE_PLOT_SLOTS;
 }
 
 /** Default 1 slot per meeting so GEC / chairman can split contact across rows. */

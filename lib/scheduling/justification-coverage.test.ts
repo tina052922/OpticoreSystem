@@ -34,41 +34,27 @@ describe("justifiedNumbersOf", () => {
 });
 
 describe("justificationCoversLoad", () => {
-  it("covers the same load it was recorded for", () => {
+  it("covers the load it was recorded for", () => {
     expect(justificationCoversLoad(recorded, { weeklyTotalContactHours: 21, preparations: 4 })).toBe(true);
   });
 
-  it("covers a load that shrank", () => {
-    expect(justificationCoversLoad(recorded, { weeklyTotalContactHours: 12, preparations: 3 })).toBe(true);
+  it("keeps covering when more is plotted later in the term (asked once only)", () => {
+    expect(justificationCoversLoad(recorded, { weeklyTotalContactHours: 27, preparations: 6 })).toBe(true);
   });
 
-  it("does NOT cover more preparations than were justified", () => {
-    expect(justificationCoversLoad(recorded, { weeklyTotalContactHours: 21, preparations: 5 })).toBe(false);
-  });
-
-  it("does NOT cover more hours than were justified", () => {
-    expect(justificationCoversLoad(recorded, { weeklyTotalContactHours: 26, preparations: 4 })).toBe(false);
-  });
-
-  it("tolerates the rounding of stored hours", () => {
-    expect(justificationCoversLoad(recorded, { weeklyTotalContactHours: 21.005, preparations: 4 })).toBe(
-      true,
-    );
-  });
-
-  it("does not cover when nothing was recorded to compare against", () => {
+  it("covers old records without stored numbers", () => {
     expect(
       justificationCoversLoad(
-        { ...recorded, violationsSnapshot: { summary: "legacy" } },
-        { weeklyTotalContactHours: 21, preparations: 4 },
+        { justification: "Reason", violationsSnapshot: { summary: "text only" } },
+        { weeklyTotalContactHours: 21, preparations: 5 },
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("ignores an empty justification", () => {
-    expect(
-      justificationCoversLoad({ ...recorded, justification: "   " }, { weeklyTotalContactHours: 1, preparations: 1 }),
-    ).toBe(false);
+  it("does not cover an empty justification", () => {
+    expect(justificationCoversLoad({ justification: "  " }, { weeklyTotalContactHours: 1, preparations: 1 })).toBe(
+      false,
+    );
   });
 });
 
@@ -79,9 +65,9 @@ describe("coveredFacultyIds", () => {
     expect([...coveredFacultyIds([recorded], [load], "ap-1")]).toEqual(["u1"]);
   });
 
-  it("re-prompts after the load is cleared and re-plotted past the recorded preps", () => {
+  it("does not re-prompt when more is plotted after the justification (once per term)", () => {
     const rePlotted = { ...load, preparations: 5 };
-    expect([...coveredFacultyIds([recorded], [rePlotted], "ap-1")]).toEqual([]);
+    expect([...coveredFacultyIds([recorded], [rePlotted], "ap-1")]).toEqual(["u1"]);
   });
 
   it("ignores records from another term", () => {

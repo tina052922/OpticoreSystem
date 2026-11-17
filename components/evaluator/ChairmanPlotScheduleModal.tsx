@@ -24,6 +24,7 @@ import {
   PLOT_STEP_HOURS,
   clampPlotStartSlotIndex,
   maxPlotDurationSlots,
+  MAX_PLOT_MEETING_HOURS,
   quantizePlotHours,
   plotRowDurationSlots,
   plotRowsForHours,
@@ -282,7 +283,8 @@ export function ChairmanPlotScheduleModal({
   );
   const durationSource = draft.subjectCode ? rowForCode(draft.subjectCode) : undefined;
   const dur = plotRowDurationSlots(durationSource, draft);
-  const maxDur = durationSource ? maxPlotDurationSlots(durationSource) : Math.max(1, draft.durationSlots ?? 1);
+  // A subject with no hours on record is not held to one hour.
+  const maxDur = durationSource ? maxPlotDurationSlots(durationSource) : MAX_PLOT_MEETING_HOURS;
   const additionalHours = Math.max(dur, totalPlotMeetingHours(meetings, maxDur));
   const timeLine = useMemo(() => {
     const resolved = resolvePlotMeetings(meetings, {

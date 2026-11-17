@@ -158,6 +158,7 @@ export function useInsLiveSchedule(args: {
       major: [facultyProfile.major1, facultyProfile.major2, facultyProfile.major3].filter(Boolean).join(" · ") || null,
       minor: [facultyProfile.minor1, facultyProfile.minor2, facultyProfile.minor3].filter(Boolean).join(" · ") || null,
       specialTraining: facultyProfile.specialTraining,
+      appointmentStatus: facultyProfile.appointmentStatus ?? null,
     };
   }, [facultyProfile]);
 

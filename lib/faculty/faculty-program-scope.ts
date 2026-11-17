@@ -65,9 +65,9 @@ export function sectionsInAdvisoryScope<T extends { programId: string }>(
  * Sections one instructor's Advisory picker offers: only their own program's sections.
  *
  * An instructor registered under BSIT should not be offered BSIE sections to advise. A section
- * already assigned stays listed even if it belongs elsewhere, so an old assignment can still be
- * seen and unticked. With no program (a GEC instructor, or one not yet placed) every section in
- * scope is offered, as before.
+ * already assigned from another program stays listed only so it can be unticked (see
+ * {@link sectionOutsideProgram}); it is also dropped on save by {@link advisoryIdsWithinProgram}.
+ * With no program (a GEC instructor, or one not yet placed) every section in scope is offered.
  */
 export function advisorySectionsForInstructor<T extends { id: string; programId: string }>(
   sections: readonly T[],
@@ -78,4 +78,31 @@ export function advisorySectionsForInstructor<T extends { id: string; programId:
   if (!programId) return [...sections];
   const picked = new Set(selectedIds);
   return sections.filter((s) => (s.programId ?? "").trim() === programId || picked.has(s.id));
+}
+
+/** True when the section belongs to a program other than the instructor's (never for no program). */
+export function sectionOutsideProgram(
+  section: { programId: string },
+  instructorProgramId: string | null | undefined,
+): boolean {
+  const programId = (instructorProgramId ?? "").trim();
+  if (!programId) return false;
+  return (section.programId ?? "").trim() !== programId;
+}
+
+/**
+ * The advisory ids an instructor may keep: their own program's sections only. A BSIT instructor
+ * advising a BSIE section was possible before, so saving drops any such leftover. Ids not in
+ * `sections` are kept (the server checks them).
+ */
+export function advisoryIdsWithinProgram(
+  sections: readonly { id: string; programId: string }[],
+  instructorProgramId: string | null | undefined,
+  ids: readonly string[],
+): string[] {
+  const byId = new Map(sections.map((s) => [s.id, s]));
+  return ids.filter((id) => {
+    const sec = byId.get(id);
+    return !sec || !sectionOutsideProgram(sec, instructorProgramId);
+  });
 }

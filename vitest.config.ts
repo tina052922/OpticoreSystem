@@ -10,6 +10,10 @@ export default defineConfig({
       "@": path.resolve(__dirname, "."),
     },
   },
+  // tsconfig keeps JSX for Next ("preserve"); tests that render components (e.g. a PDF) need it compiled.
+  oxc: {
+    jsx: { runtime: "automatic" },
+  },
   test: {
     environment: "node",
     include: ["**/*.test.ts"],

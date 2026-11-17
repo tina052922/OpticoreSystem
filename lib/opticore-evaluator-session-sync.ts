@@ -14,6 +14,8 @@ export type BsitEvaluatorPlotRowSnapshot = {
   instructorId: string;
   roomId: string;
   startSlotIndex: number;
+  /** Meeting length in hours (1.5, 4, …). Missing on old snapshots: treated as 1 hour. */
+  durationSlots?: number;
   day: string;
   programMode?: "day" | "night";
 };

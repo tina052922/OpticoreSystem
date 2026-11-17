@@ -7,7 +7,6 @@ import {
 } from "@/lib/evaluator/plot-duration";
 import {
   normalizeProspectusCode,
-  prospectusByCode,
 } from "@/lib/chairman/bsit-prospectus";
 import {
   DAY_PLOT_SLOTS,
@@ -81,10 +80,10 @@ function rowTimeBounds(
   startTime: string;
   endTime: string;
 } | null {
-  const p = row.subjectCode ? prospectusByCode(row.subjectCode) : undefined;
-  if (!p) return null;
+  // Any program's subject, at the length that was plotted (not only BSIT prospectus rows at 1 hour).
+  if (!row.subjectCode) return null;
   const slots = slotsForPlotRow(row, snapMode);
-  const dur = plotRowDurationSlots(p);
+  const dur = plotRowDurationSlots(undefined, row);
   const startIdx = clampPlotStartSlotIndex(row.startSlotIndex, dur, slots);
   // Rows, not hours: on the half-hour grid a 1.5 hour class covers three of them.
   if (startIdx < 0 || startIdx + plotRowsForHours(dur, plotSlotHours(slots)) > slots.length) return null;

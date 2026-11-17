@@ -46,12 +46,19 @@ import {
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import { PasswordInput } from "@/components/ui/password-input";
 import type { IssuedFacultyAccount } from "@/lib/api/client";
-import { hasFacultySignIn, isPlaceholderFacultyEmail } from "@/lib/faculty/faculty-login-account";
+import {
+  hasFacultySignIn,
+  isPlaceholderFacultyEmail,
+  looksLikeEmailAddress,
+  MIN_ACCOUNT_PASSWORD_LENGTH,
+} from "@/lib/faculty/faculty-login-account";
 import {
   advisoryProgramFilter,
   facultyMatchesProgramScope,
   sectionsInAdvisoryScope,
   advisorySectionsForInstructor,
+  advisoryIdsWithinProgram,
+  sectionOutsideProgram,
 } from "@/lib/faculty/faculty-program-scope";
 import {
   facultyScopeCollegeParam,
@@ -82,6 +89,13 @@ import {
 import { FacultyLoadJustificationRecord } from "@/components/faculty/FacultyLoadJustificationRecord";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
 import { useActionToast } from "@/components/alerts/useActionToast";
+import { isPlaceholderInstructorId } from "@/lib/scheduling/placeholder-instructor";
+import {
+  APPOINTMENT_STATUS_OPTIONS,
+  appointmentStatusLabel,
+  normalizeAppointmentStatus,
+  type AppointmentStatus,
+} from "@/lib/faculty/appointment-status";
 
 /**
  * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
@@ -134,6 +148,8 @@ export type FacultyProfileWorkspaceProps = {
 
 type ListRow = {
   user: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory"> & {
+    /** instructor, or a Program / GEC Chairman (listed with their department, account managed elsewhere). */
+    role?: string | null;
     instructorValidation?: string | null;
     /** Account state, so editing can say whether this faculty can sign in. */
     email?: string | null;
@@ -159,7 +175,7 @@ const ACADEMIC_RANK_SUGGESTIONS_ID = "faculty-academic-rank-suggestions";
  * Faculty list columns: the twelve HR Form 23B cells (No. … Eligibility) plus Employee ID,
  * Designation, Advisory, Justification and Program. Save/Actions add two more when editing.
  */
-const FACULTY_LIST_COLUMNS = 17;
+const FACULTY_LIST_COLUMNS = 27;
 
 export function FacultyProfileWorkspace({
   chairmanCollegeId = null,
@@ -220,6 +236,17 @@ export function FacultyProfileWorkspace({
     FACULTY_EMPLOYMENT_RESIDENT,
   );
   const [designation, setDesignation] = useState("");
+  /** INS Form 5A details (shown on INS by faculty). */
+  const [appointmentStatus, setAppointmentStatus] = useState<AppointmentStatus | "">("");
+  const [bsDegree, setBsDegree] = useState("");
+  const [major, setMajor] = useState("");
+  const [msDegree, setMsDegree] = useState("");
+  const [minor, setMinor] = useState("");
+  const [doctoralDegree, setDoctoralDegree] = useState("");
+  const [specialTraining, setSpecialTraining] = useState("");
+  const [production, setProduction] = useState("");
+  const [extension, setExtension] = useState("");
+  const [research, setResearch] = useState("");
   const [advisorySectionIds, setAdvisorySectionIds] = useState<string[]>([]);
   /** Department the instructor belongs to (`User.chairmanProgramId`). Locked for a Program Chairman. */
   const [departmentProgramId, setDepartmentProgramId] = useState("");
@@ -376,7 +403,8 @@ export function FacultyProfileWorkspace({
      * but campus-wide has no college narrowing it, and without this the page would pull every
      * student on campus just to throw them away.
      */
-    const userQuery = new URLSearchParams({ role: "instructor" });
+    // Chairmen teach too: every Program / GEC Chairman is on their department's faculty list.
+    const userQuery = new URLSearchParams({ role: "instructor,chairman_admin,gec_chairman" });
     if (scopeParam) userQuery.set("collegeId", scopeParam);
     setLoadingList(true);
 
@@ -445,6 +473,7 @@ export function FacultyProfileWorkspace({
         // Roster, not schedule: a self-registration awaiting approval still has a profile to
         // review. `isPlottableFacultyUser` stays the rule wherever a faculty is put on a plot.
         .filter((u) =>
+          !isPlaceholderInstructorId(u.id) &&
           isFacultyVisibleToRosterViewer(u, {
             gecOnly: gecFacultyFilter,
             excludeGec: excludeGecFaculty,
@@ -455,6 +484,7 @@ export function FacultyProfileWorkspace({
           id: u.id,
           name: u.name,
           employeeId: u.employeeId,
+          role: u.role ?? null,
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
           instructorValidation: u.instructorValidation ?? null,
@@ -525,6 +555,7 @@ export function FacultyProfileWorkspace({
           id: u.id,
           name: u.name,
           employeeId: u.employeeId,
+          role: u.role ?? null,
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
           instructorValidation: u.instructorValidation ?? null,
@@ -650,7 +681,10 @@ export function FacultyProfileWorkspace({
     const name = row.profile?.fullName ?? row.user.name;
     const statusVal = normalizeFacultyProfileStatus(draft.status);
     const designationVal = draft.designation.trim() || null;
-    const advisoryFields = advisoryWriteFields(draft.advisorySectionIds);
+    // A BSIT instructor keeps BSIT advisory only; a leftover from another program is dropped.
+    const advisoryFields = advisoryWriteFields(
+      advisoryIdsWithinProgram(sections, row.user.chairmanProgramId, draft.advisorySectionIds),
+    );
     const ratePerHourVal = row.profile
       ? computeRatePerHour(row.profile, hourlyRateOverrides, ratePerHourByDesignation)
       : null;
@@ -687,10 +721,6 @@ export function FacultyProfileWorkspace({
     toast.ok("Faculty details updated successfully");
     dispatchInsCatalogReload();
     void loadFaculty();
-  }
-
-  function placeholderEmailForPendingUser(userId: string) {
-    return `pending.${userId}@opticore.local`.toLowerCase();
   }
 
   async function assertNoDuplicateFaculty() {
@@ -766,6 +796,17 @@ export function FacultyProfileWorkspace({
       educationalQualification: educationalQualification.trim() || null,
       experience: experience.trim() || null,
       eligibility: eligibility.trim() || null,
+      // INS Form 5A details.
+      appointmentStatus: appointmentStatus || null,
+      bsDegree: bsDegree.trim() || null,
+      major1: major.trim() || null,
+      msDegree: msDegree.trim() || null,
+      minor1: minor.trim() || null,
+      doctoralDegree: doctoralDegree.trim() || null,
+      specialTraining: specialTraining.trim() || null,
+      production: production.trim() || null,
+      extension: extension.trim() || null,
+      research: research.trim() || null,
     };
 
     // Program and "both" instructors must name a department; for a GEC instructor it is optional.
@@ -778,18 +819,75 @@ export function FacultyProfileWorkspace({
       return;
     }
 
+    /**
+     * Sign-in email. Required: the first sign-in emails a 6-digit code to it. A new faculty also needs
+     * a temporary password; editing changes the address only (the password stays).
+     */
+    const emailTrim = loginEmail.trim().toLowerCase();
+    const editingRowNow = editingUserId ? rows.find((r) => r.user.id === editingUserId) : undefined;
+    /** A chairman's sign-in and account are managed under College Admins & Chairmen; here, the profile only. */
+    const editingChairman =
+      editingRowNow?.user.role === "chairman_admin" || editingRowNow?.user.role === "gec_chairman";
+    const storedEmail = editingRowNow && hasFacultySignIn(editingRowNow.user.email)
+      ? String(editingRowNow.user.email ?? "").trim().toLowerCase()
+      : "";
+    if (!emailTrim && !editingChairman) {
+      toast.refuse("Enter the email address", "The faculty signs in with it, and the confirmation code is sent there.");
+      document.getElementById("faculty-login-email")?.focus();
+      return;
+    }
+    if (!editingChairman && !looksLikeEmailAddress(emailTrim)) {
+      toast.refuse("Check the email address", "That does not look like an email address.");
+      document.getElementById("faculty-login-email")?.focus();
+      return;
+    }
+    const needsNewSignIn = !editingChairman && (!editingUserId || !storedEmail);
+    if (needsNewSignIn && tempPassword.trim().length < MIN_ACCOUNT_PASSWORD_LENGTH) {
+      toast.refuse(
+        "Enter a temporary password",
+        `At least ${MIN_ACCOUNT_PASSWORD_LENGTH} characters. The faculty replaces it at first sign-in.`,
+      );
+      document.getElementById("faculty-temp-password")?.focus();
+      return;
+    }
+
     setSaving(true);
     if (editingUserId) {
+      /*
+        Email first: if the address is taken or invalid, nothing else is half-saved. A faculty with
+        a sign-in gets the address corrected (password unchanged); one without gets a sign-in made.
+      */
+      let emailNote = "";
+      try {
+        if (editingChairman) {
+          // Nothing: the chairman's account is not edited from Faculty Profile.
+        } else if (!storedEmail) {
+          const res = await userAdminApi.issueAccount(editingUserId, {
+            email: emailTrim,
+            temporaryPassword: tempPassword.trim(),
+          });
+          setIssuedAccount({ ...res.account, name: composedFullName || emailTrim });
+          setTempPassword("");
+          emailNote = " Sign-in created.";
+        } else if (emailTrim !== storedEmail) {
+          await userAdminApi.changeEmail(editingUserId, emailTrim);
+          emailNote = ` Email changed to ${emailTrim}; the confirmation code now goes there.`;
+        }
+      } catch (err) {
+        setSaving(false);
+        toast.fail(err, "Could not save the email", "faculty: change email");
+        return;
+      }
       const profilePayload = {
         fullName: nameTrim,
         ...hrFormFields,
-        ...advisoryWriteFields(advisorySectionIds),
+        ...advisoryWriteFields(advisoryIdsWithinProgram(sections, departmentProgramId, advisorySectionIds)),
         status: normalizeFacultyProfileStatus(status),
         designation: designation.trim() || null,
         ratePerHour: ratePerHourForForm,
       };
       try {
-        await userAdminApi.update(editingUserId, {
+        if (!editingChairman) await userAdminApi.update(editingUserId, {
           name: nameTrim,
           employeeId: employeeId.trim() || null,
           // Kept for GEC instructors too: one drawn from a program also shows on that program's list.
@@ -812,8 +910,8 @@ export function FacultyProfileWorkspace({
         return;
       }
       setSaving(false);
-      toast.ok("Faculty updated successfully", nameTrim);
-      setSavedNotice(`${nameTrim} updated.`);
+      toast.ok("Faculty updated successfully", `${nameTrim}.${emailNote}`);
+      setSavedNotice(`${nameTrim} updated.${emailNote}`);
       resetFacultyForm();
       dispatchInsCatalogReload();
       void loadFaculty();
@@ -829,8 +927,8 @@ export function FacultyProfileWorkspace({
          * A real address makes a sign-in; the placeholder keeps the old behaviour of a record with
          * no account. The server decides which, and owns the Auth user either way.
          */
-        email: loginEmail.trim() || placeholderEmailForPendingUser(id),
-        temporaryPassword: loginEmail.trim() ? tempPassword.trim() || null : null,
+        email: emailTrim,
+        temporaryPassword: tempPassword.trim(),
         name: nameTrim,
         role: "instructor",
         collegeId,
@@ -859,7 +957,7 @@ export function FacultyProfileWorkspace({
         userId: id,
         fullName: nameTrim,
         ...hrFormFields,
-        ...advisoryWriteFields(advisorySectionIds),
+        ...advisoryWriteFields(advisoryIdsWithinProgram(sections, departmentProgramId, advisorySectionIds)),
         status: normalizeFacultyProfileStatus(status),
         designation: designation.trim() || null,
         ratePerHour: ratePerHourForForm,
@@ -902,6 +1000,16 @@ export function FacultyProfileWorkspace({
     setFacultyCategory(gecFacultyFilter ? FACULTY_CATEGORY_GEC : FACULTY_CATEGORY_PROGRAM);
     setStatus(FACULTY_EMPLOYMENT_RESIDENT);
     setDesignation("");
+    setAppointmentStatus("");
+    setBsDegree("");
+    setMajor("");
+    setMsDegree("");
+    setMinor("");
+    setDoctoralDegree("");
+    setSpecialTraining("");
+    setProduction("");
+    setExtension("");
+    setResearch("");
     setAdvisorySectionIds([]);
   }
 
@@ -929,6 +1037,16 @@ export function FacultyProfileWorkspace({
     );
     setStatus(normalizeFacultyProfileStatus(row.profile?.status));
     setDesignation(row.profile?.designation ?? "");
+    setAppointmentStatus(normalizeAppointmentStatus(row.profile?.appointmentStatus));
+    setBsDegree(row.profile?.bsDegree ?? "");
+    setMajor(row.profile?.major1 ?? "");
+    setMsDegree(row.profile?.msDegree ?? "");
+    setMinor(row.profile?.minor1 ?? "");
+    setDoctoralDegree(row.profile?.doctoralDegree ?? "");
+    setSpecialTraining(row.profile?.specialTraining ?? "");
+    setProduction(row.profile?.production ?? "");
+    setExtension(row.profile?.extension ?? "");
+    setResearch(row.profile?.research ?? "");
     setAdvisorySectionIds(advisorySectionIdsOf(row.profile));
     // The form is below the list: bring it into view (the page is its own scroll box).
     window.setTimeout(() => scrollIntoAppView(formCardRef.current), 0);
@@ -1241,6 +1359,16 @@ export function FacultyProfileWorkspace({
                     <th className="px-3 py-2.5 font-semibold min-w-[170px]">Advisory</th>
                     <th className="px-3 py-2.5 font-semibold min-w-[180px]">Justification</th>
                     <th className="px-3 py-2.5 font-semibold min-w-[110px]">Program</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Status of Appointment</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Bachelor's Degree</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Major</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Master's Degree</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Minor</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Doctorate Degree</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Special Training</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Production</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Extension</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[140px]">Research</th>
                     {enableFacultyListEdit ? (
                       <th className="sticky right-0 z-30 bg-[#ff990a] px-3 py-2.5 font-semibold min-w-[170px] shadow-[-2px_0_0_rgba(0,0,0,0.08)]">
                         Actions
@@ -1411,10 +1539,13 @@ export function FacultyProfileWorkspace({
                                     rowAdvisorySections.map((sec) => {
                                       const picked = draft.advisorySectionIds.includes(sec.id);
                                       const holder = rowHolders.get(sec.id);
-                                      const assignable = canAssignAdvisorySection(sec.id, {
-                                        holders: rowHolders,
-                                        alreadySelected: picked,
-                                      });
+                                      const foreign = sectionOutsideProgram(sec, user.chairmanProgramId);
+                                      const assignable =
+                                        !(foreign && !picked) &&
+                                        canAssignAdvisorySection(sec.id, {
+                                          holders: rowHolders,
+                                          alreadySelected: picked,
+                                        });
                                       return (
                                       <label
                                         key={sec.id}
@@ -1445,6 +1576,11 @@ export function FacultyProfileWorkspace({
                                         <span className={assignable ? "" : "line-through decoration-black/30"}>
                                           {sec.name}
                                         </span>
+                                        {foreign ? (
+                                          <span className="text-[10px] font-semibold text-red-700">
+                                            Other program — untick to remove
+                                          </span>
+                                        ) : null}
                                       </label>
                                       );
                                     })
@@ -1478,7 +1614,62 @@ export function FacultyProfileWorkspace({
                                   {facultyCategoryBadge(user.facultyCategory)}
                                 </span>
                               ) : null}
+                              {user.role === "chairman_admin" || user.role === "gec_chairman" ? (
+                                <span className="inline-flex items-center rounded-md bg-[#780301]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#780301]">
+                                  Chairman
+                                </span>
+                              ) : null}
                             </div>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={appointmentStatusLabel(profile?.appointmentStatus) ?? ""}>
+                              {appointmentStatusLabel(profile?.appointmentStatus) || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.bsDegree ?? ""}>
+                              {profile?.bsDegree || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.major1 ?? ""}>
+                              {profile?.major1 || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.msDegree ?? ""}>
+                              {profile?.msDegree || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.minor1 ?? ""}>
+                              {profile?.minor1 || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.doctoralDegree ?? ""}>
+                              {profile?.doctoralDegree || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.specialTraining ?? ""}>
+                              {profile?.specialTraining || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.production ?? ""}>
+                              {profile?.production || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.extension ?? ""}>
+                              {profile?.extension || <span className="text-black/30">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[200px]">
+                            <span className="block truncate" title={profile?.research ?? ""}>
+                              {profile?.research || <span className="text-black/30">—</span>}
+                            </span>
                           </td>
                           {enableFacultyListEdit ? (
                             <td className={`sticky right-0 z-10 ${rowBg} px-3 py-2.5 shadow-[-2px_0_0_rgba(0,0,0,0.05)]`}>
@@ -1504,15 +1695,18 @@ export function FacultyProfileWorkspace({
                                 >
                                   Edit
                                 </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 px-2.5 text-[11px] text-red-800 border-red-200 hover:bg-red-50"
-                                  onClick={() => askDeleteFaculty({ user, profile })}
-                                >
-                                  Delete
-                                </Button>
+                                {/* A chairman's account is managed under College Admins & Chairmen, not here. */}
+                                {user.role !== "chairman_admin" && user.role !== "gec_chairman" ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-2.5 text-[11px] text-red-800 border-red-200 hover:bg-red-50"
+                                    onClick={() => askDeleteFaculty({ user, profile })}
+                                  >
+                                    Delete
+                                  </Button>
+                                ) : null}
                               </div>
                             </td>
                           ) : null}
@@ -1570,12 +1764,13 @@ export function FacultyProfileWorkspace({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="block text-[12px] font-semibold text-black/75" htmlFor="faculty-login-email">
-                        Email
+                        Email <span className="text-red-600">*</span>
                       </label>
                       <Input
                         id="faculty-login-email"
                         type="email"
-                        placeholder="Not set — no sign-in yet"
+                        placeholder="prof@ctu.edu.ph"
+                        required
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
                         autoComplete="off"
@@ -1583,11 +1778,13 @@ export function FacultyProfileWorkspace({
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[12px] font-semibold text-black/75" htmlFor="faculty-temp-password">
-                        New temporary password
+                        {hasSignIn ? "New temporary password" : (
+                          <>Temporary password <span className="text-red-600">*</span></>
+                        )}
                       </label>
                       <PasswordInput
                         id="faculty-temp-password"
-                        placeholder="Leave blank to generate one"
+                        placeholder={hasSignIn ? "Only to reset — leave blank to generate" : `At least ${MIN_ACCOUNT_PASSWORD_LENGTH} characters`}
                         value={tempPassword}
                         onChange={(e) => setTempPassword(e.target.value)}
                         autoComplete="new-password"
@@ -1595,6 +1792,11 @@ export function FacultyProfileWorkspace({
                     </div>
                   </div>
 
+                  <p className="text-[11px] leading-snug text-black/55">
+                    {hasSignIn
+                      ? "Mistyped email? Correct it here and press Update — the password stays the same and the confirmation code goes to the new address."
+                      : "No sign-in yet. Enter the email and a temporary password, then press Update."}
+                  </p>
                   <div className="flex flex-wrap items-center gap-2 text-[11px]">
                     {accountStateChips.map((chip) => (
                       <span
@@ -1615,7 +1817,11 @@ export function FacultyProfileWorkspace({
                       type="button"
                       variant="outline"
                       className="h-9 text-[12px] font-semibold"
-                      disabled={issuingAccount || !loginEmail.trim()}
+                      disabled={
+                        issuingAccount ||
+                        !loginEmail.trim() ||
+                        (!hasSignIn && tempPassword.trim().length < MIN_ACCOUNT_PASSWORD_LENGTH)
+                      }
                       onClick={() => void issueAccountForEditing()}
                     >
                       {issuingAccount
@@ -1635,10 +1841,12 @@ export function FacultyProfileWorkspace({
             {!editingUserId ? (
               <>
                 <div className="space-y-1">
-                  <div className="text-sm font-medium">
-                    Email for sign-in <span className="font-normal text-black/45">(optional)</span>
-                  </div>
+                  <label className="text-sm font-medium" htmlFor="faculty-login-email">
+                    Email for sign-in <span className="text-red-600">*</span>
+                  </label>
                   <Input
+                    id="faculty-login-email"
+                    required
                     type="email"
                     placeholder="prof@ctu.edu.ph"
                     value={loginEmail}
@@ -1647,22 +1855,26 @@ export function FacultyProfileWorkspace({
                     autoComplete="off"
                   />
                   <p className="text-[11px] text-black/50 leading-snug">
-                    Leave blank to record the faculty without a sign-in. With an address, OptiCore makes a
-                    sign-in and shows you a temporary password. When the faculty signs in with it, a 6-digit
-                    code is emailed to this address; they enter it, then choose their own password.
+                    Required. When the faculty first signs in, a 6-digit code is emailed to this address;
+                    they enter it, then choose their own password. Check it carefully — it can be corrected
+                    later from Edit.
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-sm font-medium">Temporary password</div>
+                  <label className="text-sm font-medium" htmlFor="faculty-temp-password">
+                    Temporary password <span className="text-red-600">*</span>
+                  </label>
                   <PasswordInput
-                    placeholder="Leave blank to generate one"
+                    id="faculty-temp-password"
+                    required
+                    placeholder={`At least ${MIN_ACCOUNT_PASSWORD_LENGTH} characters`}
                     value={tempPassword}
                     onChange={(e) => setTempPassword(e.target.value)}
-                    disabled={!collegeId || !loginEmail.trim()}
+                    disabled={!collegeId}
                     autoComplete="new-password"
                   />
                   <p className="text-[11px] text-black/50 leading-snug">
-                    Shown once after saving. They are asked to replace it at first sign-in.
+                    Required. Give it to the faculty; they replace it at first sign-in.
                   </p>
                 </div>
               </>
@@ -1753,6 +1965,69 @@ export function FacultyProfileWorkspace({
                 onChange={(e) => setEligibility(e.target.value)}
                 disabled={!collegeId}
               />
+            </div>
+            {/* What INS Form 5A (by faculty) prints, kept on the profile so the form fills itself. */}
+            <div className="lg:col-span-2 rounded-lg border border-black/10 bg-black/[0.02] p-3 space-y-3">
+              <div className="text-sm font-semibold text-black/80">INS Form 5A details</div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Status of Appointment</div>
+                <div className="flex flex-wrap gap-4">
+                  {APPOINTMENT_STATUS_OPTIONS.map((o) => (
+                    <label key={o.code} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="accent-[#ff990a]"
+                        checked={appointmentStatus === o.code}
+                        disabled={!collegeId}
+                        onChange={(e) => setAppointmentStatus(e.target.checked ? o.code : "")}
+                      />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Bachelor's Degree</div>
+                <Input placeholder="BS Information Technology" value={bsDegree} onChange={(e) => setBsDegree(e.target.value)} disabled={!collegeId} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Major</div>
+                <Input placeholder="Major" value={major} onChange={(e) => setMajor(e.target.value)} disabled={!collegeId} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Master's Degree</div>
+                <Input placeholder="MS in Information Technology" value={msDegree} onChange={(e) => setMsDegree(e.target.value)} disabled={!collegeId} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Minor</div>
+                <Input placeholder="Minor" value={minor} onChange={(e) => setMinor(e.target.value)} disabled={!collegeId} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Doctorate Degree</div>
+                <Input placeholder="PhD / EdD / DIT" value={doctoralDegree} onChange={(e) => setDoctoralDegree(e.target.value)} disabled={!collegeId} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Special Training</div>
+                <Input placeholder="Trainings / certifications" value={specialTraining} onChange={(e) => setSpecialTraining(e.target.value)} disabled={!collegeId} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Production</div>
+                <Input placeholder="Production work" value={production} onChange={(e) => setProduction(e.target.value)} disabled={!collegeId} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Extension</div>
+                <Input placeholder="Extension projects" value={extension} onChange={(e) => setExtension(e.target.value)} disabled={!collegeId} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Research</div>
+                <Input placeholder="Research projects" value={research} onChange={(e) => setResearch(e.target.value)} disabled={!collegeId} />
+              </div>
+              </div>
+              <p className="text-[11px] text-black/50">
+                Administrative Designation is the Designation field. These print on INS Form 5A and are
+                included in the faculty list and the Excel export.
+              </p>
             </div>
             <div className="space-y-1">
               <div className="text-sm font-medium">Instructor category</div>
@@ -1868,10 +2143,13 @@ export function FacultyProfileWorkspace({
                     {formAdvisorySections.map((sec) => {
                       const checked = advisorySectionIds.includes(sec.id);
                       const holder = formAdvisoryHolders.get(sec.id);
-                      const assignable = canAssignAdvisorySection(sec.id, {
-                        holders: formAdvisoryHolders,
-                        alreadySelected: checked,
-                      });
+                      const foreign = sectionOutsideProgram(sec, departmentProgramId);
+                      const assignable =
+                        !(foreign && !checked) &&
+                        canAssignAdvisorySection(sec.id, {
+                          holders: formAdvisoryHolders,
+                          alreadySelected: checked,
+                        });
                       return (
                         <label
                           key={sec.id}
@@ -1897,6 +2175,9 @@ export function FacultyProfileWorkspace({
                           />
                           {/* Struck through rather than hidden: the section still exists, it is just spoken for. */}
                           <span className={assignable ? "" : "line-through decoration-black/30"}>{sec.name}</span>
+                          {foreign ? (
+                            <span className="text-[10px] font-semibold text-red-700">Other program — untick</span>
+                          ) : null}
                         </label>
                       );
                     })}
@@ -2118,10 +2399,13 @@ ${issuedAccount.password}`)
                                     rowAdvisorySections.map((sec) => {
                                       const picked = draft.advisorySectionIds.includes(sec.id);
                                       const holder = rowHolders.get(sec.id);
-                                      const assignable = canAssignAdvisorySection(sec.id, {
-                                        holders: rowHolders,
-                                        alreadySelected: picked,
-                                      });
+                                      const foreign = sectionOutsideProgram(sec, user.chairmanProgramId);
+                                      const assignable =
+                                        !(foreign && !picked) &&
+                                        canAssignAdvisorySection(sec.id, {
+                                          holders: rowHolders,
+                                          alreadySelected: picked,
+                                        });
                                       return (
                                       <label
                                         key={sec.id}
@@ -2152,6 +2436,11 @@ ${issuedAccount.password}`)
                                         <span className={assignable ? "" : "line-through decoration-black/30"}>
                                           {sec.name}
                                         </span>
+                                        {foreign ? (
+                                          <span className="text-[10px] font-semibold text-red-700">
+                                            Other program — untick to remove
+                                          </span>
+                                        ) : null}
                                       </label>
                                       );
                                     })

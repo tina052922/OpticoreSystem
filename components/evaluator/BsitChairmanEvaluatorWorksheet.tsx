@@ -148,6 +148,11 @@ import {
   subjectHoursOverLimitMessage,
 } from "@/lib/scheduling/subject-semester-hours";
 import { buildingNamesForPlotting, sortedRoomsInBuildingNamed } from "@/lib/evaluator/building-options";
+import {
+  isPlaceholderInstructorId,
+  PLACEHOLDER_INSTRUCTOR_ID,
+  PLACEHOLDER_INSTRUCTOR_LABEL,
+} from "@/lib/scheduling/placeholder-instructor";
 
 export type { PlotRow } from "@/lib/evaluator/chairman-plot-row";
 
@@ -545,7 +550,9 @@ export function BsitChairmanEvaluatorWorksheet({
     void (async () => {
       try {
         const data = await apiFetch<{ justifications: ScheduleLoadJustification[] }>(
-          `/api/catalog/schedule-load-justifications?academicPeriodId=${academicPeriodId}&collegeId=${chairmanCollegeId}`,
+          // The whole term, every college: a faculty justified by the GEC Chairman (or another
+          // college) is not asked again here.
+          `/api/catalog/schedule-load-justifications?academicPeriodId=${academicPeriodId}`,
           { method: "GET" },
         );
         if (!cancelled) {
@@ -928,7 +935,22 @@ export function BsitChairmanEvaluatorWorksheet({
       const badge = u && isGecInstructorUser(u) ? facultyCategoryBadge(u.facultyCategory) : "";
       return badge ? { ...opt, fullName: `${opt.fullName} (${badge})` } : opt;
     });
-    return mergeLegacyRowInstructorsIntoPlotOptions(base, programFaculty, plotRowInstructorIds, facultyProfileByUserId);
+    const merged = mergeLegacyRowInstructorsIntoPlotOptions(
+      base,
+      programFaculty,
+      plotRowInstructorIds,
+      facultyProfileByUserId,
+    ).filter((o) => !isPlaceholderInstructorId(o.id));
+    // Prof X (TBA) first: plot a subject now, name the instructor once hired.
+    return [
+      {
+        id: PLACEHOLDER_INSTRUCTOR_ID,
+        employeeId: "",
+        fullName: `${PLACEHOLDER_INSTRUCTOR_LABEL} — no instructor yet`,
+        sortKey: "",
+      },
+      ...merged,
+    ];
   }, [dbInstructors, programId, plotRowInstructorIds, facultyProfileByUserId]);
 
   /** Week preview / conflict UI: full name (Faculty Profile when set). */
@@ -937,6 +959,7 @@ export function BsitChairmanEvaluatorWorksheet({
     for (const u of dbInstructors) {
       m.set(u.id, formatUserInstructorLabel(u, facultyProfileByUserId.get(u.id)));
     }
+    m.set(PLACEHOLDER_INSTRUCTOR_ID, PLACEHOLDER_INSTRUCTOR_LABEL);
     return m;
   }, [dbInstructors, facultyProfileByUserId]);
 
@@ -2222,6 +2245,7 @@ export function BsitChairmanEvaluatorWorksheet({
         instructorId: r.instructorId,
         roomId: r.roomId,
         startSlotIndex: r.startSlotIndex,
+        durationSlots: r.durationSlots,
         day: r.day,
         programMode,
       })),

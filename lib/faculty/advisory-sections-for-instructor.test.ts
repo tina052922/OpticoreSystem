@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { advisorySectionsForInstructor } from "./faculty-program-scope";
+import {
+  advisoryIdsWithinProgram,
+  advisorySectionsForInstructor,
+  sectionOutsideProgram,
+} from "./faculty-program-scope";
 
 const sections = [
   { id: "it2a", programId: "bsit" },
@@ -20,5 +24,15 @@ describe("advisorySectionsForInstructor", () => {
   });
   it("offers every section when the instructor has no program", () => {
     expect(advisorySectionsForInstructor(sections, null)).toHaveLength(3);
+  });
+  it("flags another program's section", () => {
+    expect(sectionOutsideProgram({ programId: "bsie" }, "bsit")).toBe(true);
+    expect(sectionOutsideProgram({ programId: "bsit" }, "bsit")).toBe(false);
+    expect(sectionOutsideProgram({ programId: "bsie" }, null)).toBe(false);
+  });
+  it("drops another program's advisory on save", () => {
+    expect(advisoryIdsWithinProgram(sections, "bsit", ["it2a", "ie2a"])).toEqual(["it2a"]);
+    expect(advisoryIdsWithinProgram(sections, null, ["it2a", "ie2a"])).toEqual(["it2a", "ie2a"]);
+    expect(advisoryIdsWithinProgram(sections, "bsit", ["gone"])).toEqual(["gone"]);
   });
 });

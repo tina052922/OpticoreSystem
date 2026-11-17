@@ -1,7 +1,12 @@
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
-import { INSHeader } from "../shared/INSHeader";
+/* react-pdf <Image> has no alt prop. */
+/* eslint-disable jsx-a11y/alt-text */
+import { Image } from "@react-pdf/renderer";
+import { DEFAULT_INS_HEADER_BANNER, DEFAULT_REPORT_FOOTER_BANNER } from "@/lib/system-configuration/campus-branding";
+import { TEACHING_LOAD_SUBHEADS } from "@/lib/scheduling/teaching-load-header-colors";
 import { INSBrandedFooter } from "../shared/INSBrandedFooter";
 import type { TeachingLoadCategoryGroup, TeachingLoadSummaryRow } from "@/lib/scheduling/teaching-load-summary";
+import type { TeachingLoadSignatories, TeachingLoadSigner } from "@/lib/scheduling/teaching-load-signatories";
 
 const MAROON = "#780301";
 
@@ -16,23 +21,23 @@ const s = StyleSheet.create({
   },
   collegeTitle: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 11,
+    fontSize: 12,
     textAlign: "center",
     textTransform: "uppercase",
-    marginTop: 4,
+    marginTop: 6,
   },
   formTitle: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 10,
+    fontSize: 16,
     textAlign: "center",
-    marginTop: 2,
+    marginTop: 10,
   },
   meta: {
-    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 9.5,
     textAlign: "center",
     marginTop: 2,
     marginBottom: 8,
-    color: "#374151",
   },
   categoryTitle: {
     fontFamily: "Helvetica-Bold",
@@ -49,7 +54,12 @@ const s = StyleSheet.create({
   },
   theadRow: {
     flexDirection: "row",
-    backgroundColor: MAROON,
+    backgroundColor: "#ffffff",
+  },
+  banner: {
+    width: 420,
+    alignSelf: "center",
+    objectFit: "contain",
   },
   tr: {
     flexDirection: "row",
@@ -60,7 +70,7 @@ const s = StyleSheet.create({
     backgroundColor: "#f8fafc",
   },
   th: {
-    color: "#fff",
+    color: "#000",
     fontFamily: "Helvetica-Bold",
     fontSize: 6.4,
     padding: 3,
@@ -85,18 +95,40 @@ function fmt(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
+/**
+ * Column widths (landscape A4), laid out like the college's sheet:
+ * No. · Name of Faculty · Administrative Designation · Other Responsibilities ·
+ * DAY (Preps, Units/Week, Hours/Week) · EVENING (same) · Subjects Handled · Justification.
+ */
 const COLS = {
-  no: "6%",
-  name: "18%",
-  desig: "12%",
-  n: "8%",
-  subjects: "18%",
-  just: "14%",
+  no: "4%",
+  name: "12%",
+  desig: "10%",
+  other: "11%",
+  n: "5%",
+  total: "5%",
+  subjects: "14%",
+  just: "9%",
 } as const;
+/** Width of a three-column DAY / EVENING group. */
+const GROUP = "15%";
 
-function HeadCell({ width, children, center }: { width: string; children: string; center?: boolean }) {
+function HeadCell({
+  width,
+  children,
+  center,
+  bg,
+}: {
+  width: string;
+  children: string;
+  center?: boolean;
+  /** PREPS / UNITS / HOURS cells are coloured, as on the college's sheet. */
+  bg?: string;
+}) {
   return (
-    <Text style={[s.th, { width, textAlign: center ? "center" : "left" }]}>{children}</Text>
+    <Text style={[s.th, { width, textAlign: center ? "center" : "left" }, bg ? { backgroundColor: bg } : {}]}>
+      {children}
+    </Text>
   );
 }
 
@@ -137,50 +169,74 @@ function FacultyRow({ row, index, alt }: { row: TeachingLoadSummaryRow; index: n
       </Cell>
       <Cell width={COLS.name}>{row.facultyName}</Cell>
       <Cell width={COLS.desig}>{row.administrativeDesignation ?? ""}</Cell>
-      <Cell width={COLS.n} center>
-        {String(row.day.preps)}
-      </Cell>
-      <Cell width={COLS.n} center>
-        {fmt(row.day.hoursPerWeek)}
-      </Cell>
-      <Cell width={COLS.n} center>
-        {String(row.evening.preps)}
-      </Cell>
-      <Cell width={COLS.n} center>
-        {fmt(row.evening.hoursPerWeek)}
-      </Cell>
+      <Cell width={COLS.other}>{row.otherResponsibilities ?? ""}</Cell>
+      <Cell width={COLS.n} center>{String(row.day.preps)}</Cell>
+      <Cell width={COLS.n} center>{fmt(row.day.unitsPerWeek)}</Cell>
+      <Cell width={COLS.n} center>{fmt(row.day.hoursPerWeek)}</Cell>
+      <Cell width={COLS.n} center>{String(row.evening.preps)}</Cell>
+      <Cell width={COLS.n} center>{fmt(row.evening.unitsPerWeek)}</Cell>
+      <Cell width={COLS.n} center>{fmt(row.evening.hoursPerWeek)}</Cell>
+      <Cell width={COLS.total} center>{String(row.totalPreps)}</Cell>
+      <Cell width={COLS.total} center>{fmt(row.totalHoursPerWeek)}</Cell>
       <SubjectsCell width={COLS.subjects} text={row.subjectsHandled} />
       <Cell width={COLS.just}>{row.justification ?? ""}</Cell>
     </View>
   );
 }
 
-function CategoryTable({ group }: { group: TeachingLoadCategoryGroup }) {
+/** Two-row header: DAY / EVENING over Preps · Units/Week · Hours/Week. */
+function TableHead() {
+  const tall = { justifyContent: "center" as const };
+  return (
+    <View style={s.theadRow}>
+      <View style={[{ width: COLS.no }, tall]}>
+        <HeadCell width="100%" center>No.</HeadCell>
+      </View>
+      <View style={[{ width: COLS.name }, tall]}>
+        <HeadCell width="100%">Name of Faculty</HeadCell>
+      </View>
+      <View style={[{ width: COLS.desig }, tall]}>
+        <HeadCell width="100%">Administrative Designation</HeadCell>
+      </View>
+      <View style={[{ width: COLS.other }, tall]}>
+        <HeadCell width="100%">
+          Other Responsibilities (GAA-Funded Research &amp; Extension Projects, and Thesis Advisorship)
+        </HeadCell>
+      </View>
+      {(["DAY", "EVENING"] as const).map((label) => (
+        <View key={label} style={{ width: GROUP }}>
+          <HeadCell width="100%" center>{label}</HeadCell>
+          <View style={{ flexDirection: "row", borderTopWidth: 0.4, borderTopColor: "#000" }}>
+            {TEACHING_LOAD_SUBHEADS.map((h, i) => (
+              <HeadCell key={h.key} width={i === 0 ? "33.34%" : "33.33%"} center bg={h.color}>
+                {h.label}
+              </HeadCell>
+            ))}
+          </View>
+        </View>
+      ))}
+      <View style={[{ width: COLS.total }, tall]}>
+        <HeadCell width="100%" center>TOTAL PREPS/ WEEK</HeadCell>
+      </View>
+      <View style={[{ width: COLS.total }, tall]}>
+        <HeadCell width="100%" center>TOTAL HOURS/ WEEK</HeadCell>
+      </View>
+      <View style={[{ width: COLS.subjects }, tall]}>
+        <HeadCell width="100%">Subjects Handled</HeadCell>
+      </View>
+      <View style={[{ width: COLS.just }, tall]}>
+        <HeadCell width="100%">Justification (Applicable if it violates the rule.)</HeadCell>
+      </View>
+    </View>
+  );
+}
+
+function CategoryTable({ group }: { group: TeachingLoadCategoryGroup & { heading?: string } }) {
   return (
     <View>
-      <Text style={s.categoryTitle}>{group.categoryLabel}</Text>
+      <Text style={s.categoryTitle}>{group.heading || group.categoryLabel}</Text>
       <View style={s.table}>
-        <View style={s.theadRow}>
-          <HeadCell width={COLS.no} center>
-            No.
-          </HeadCell>
-          <HeadCell width={COLS.name}>Name</HeadCell>
-          <HeadCell width={COLS.desig}>Designation</HeadCell>
-          <HeadCell width={COLS.n} center>
-            Day Preps
-          </HeadCell>
-          <HeadCell width={COLS.n} center>
-            Day Hrs/Wk
-          </HeadCell>
-          <HeadCell width={COLS.n} center>
-            Eve Preps
-          </HeadCell>
-          <HeadCell width={COLS.n} center>
-            Eve Hrs/Wk
-          </HeadCell>
-          <HeadCell width={COLS.subjects}>Subjects Handled</HeadCell>
-          <HeadCell width={COLS.just}>Justification</HeadCell>
-        </View>
+        <TableHead />
         {group.rows.length === 0 ? (
           <View style={s.tr}>
             <Text style={[s.empty, { width: "100%" }]}>No plotted teaching load for this department in the selected term.</Text>
@@ -195,12 +251,57 @@ function CategoryTable({ group }: { group: TeachingLoadCategoryGroup }) {
   );
 }
 
+function SignerBox({ signer }: { signer: TeachingLoadSigner }) {
+  return (
+    <View style={{ alignItems: "center", width: 200, marginTop: 4 }}>
+      {/* E-signature over the name, as signed on paper. */}
+      <View style={{ height: 28, justifyContent: "flex-end", alignItems: "center" }}>
+        {signer.imageUrl ? <Image src={signer.imageUrl} style={{ height: 30, maxWidth: 120, objectFit: "contain" }} /> : null}
+      </View>
+      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8, textTransform: "uppercase", textDecoration: "underline" }}>
+        {signer.name}
+      </Text>
+      <Text style={{ fontSize: 7.5, color: "#111111" }}>{signer.title}</Text>
+    </View>
+  );
+}
+
+/** Prepared by · Noted by · Recommending Approval · Approved by — laid out as on the college's sheet. */
+function SignatureBlock({ signatories }: { signatories: TeachingLoadSignatories }) {
+  const label = { fontSize: 8, color: "#111111" };
+  const lines: [string, TeachingLoadSigner][] = [
+    ["Noted By:", signatories.notedBy],
+    ["Recommending Approval:", signatories.recommendingApproval],
+    ["Approved by:", signatories.approvedBy],
+  ];
+  return (
+    <View wrap={false} style={{ marginTop: 16 }}>
+      <Text style={label}>Prepared by:</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-around" }}>
+        {signatories.preparedBy.map((p, i) => (
+          <SignerBox key={`${p.title}-${i}`} signer={p} />
+        ))}
+      </View>
+      {lines.map(([text, signer]) => (
+        <View key={text} style={{ flexDirection: "row", alignItems: "flex-start", marginTop: 10 }}>
+          <Text style={[label, { width: "38%", textAlign: "right", paddingRight: 8, paddingTop: 4 }]}>{text}</Text>
+          <SignerBox signer={signer} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export type TeachingLoadSummaryDocumentProps = {
   collegeName: string;
   semesterLabel: string;
-  groups: TeachingLoadCategoryGroup[];
+  groups: (TeachingLoadCategoryGroup & { heading?: string })[];
   headerBanner?: string | null;
   insFooterText?: string;
+  /** Signature block. */
+  signatories?: TeachingLoadSignatories | null;
+  /** Rankings strip at the foot; defaults to the campus one, `null` leaves it out. */
+  footerBanner?: string | null;
 };
 
 export function TeachingLoadSummaryDocument({
@@ -209,27 +310,32 @@ export function TeachingLoadSummaryDocument({
   groups,
   headerBanner,
   insFooterText,
+  signatories,
+  footerBanner,
 }: TeachingLoadSummaryDocumentProps) {
+  const footerSrc = footerBanner === undefined ? DEFAULT_REPORT_FOOTER_BANNER : footerBanner;
   return (
     <Document>
-      <Page size="A4" orientation="portrait" style={s.page}>
-        <INSHeader
-          formCode="Summary of Teaching Load"
-          formTitle="Summary of Teaching Load"
-          semesterLabel={semesterLabel}
-          programMode="both"
-          headerBanner={headerBanner}
-          // An in-house summary, not a CTU-issued form: no form code, issue date or revision.
-          showFormMeta={false}
-        />
+      <Page size="A4" orientation="landscape" style={s.page}>
+        {/* Letterhead, college, title, semester — as on the college's sheet. */}
+        {headerBanner !== null ? (
+          <Image src={headerBanner || DEFAULT_INS_HEADER_BANNER} style={s.banner} />
+        ) : null}
         <Text style={s.collegeTitle}>{collegeName}</Text>
         <Text style={s.formTitle}>Summary of Teaching Load</Text>
-        <Text style={s.meta}>{semesterLabel} · Day and Evening columns are independent</Text>
+        <Text style={s.meta}>{semesterLabel}</Text>
         {groups.length === 0 ? (
           <Text style={s.empty}>No departments found for this college.</Text>
         ) : (
           groups.map((g) => <CategoryTable key={g.programId} group={g} />)
         )}
+        {signatories ? <SignatureBlock signatories={signatories} /> : null}
+        {/* Rankings / certifications strip, as at the foot of the college's sheet. */}
+        {footerSrc ? (
+          <View wrap={false} style={{ marginTop: 14, alignItems: "center" }}>
+            <Image src={footerSrc} style={{ width: 380, objectFit: "contain" }} />
+          </View>
+        ) : null}
         <INSBrandedFooter text={insFooterText} />
       </Page>
     </Document>

@@ -4,6 +4,9 @@ export const CTU_LOGO_PNG = "/ctulogo.png";
 /** Official INS letterhead (seal + wordmark) in `web/public`. */
 export const DEFAULT_INS_HEADER_BANNER = "/images/logos/ctu-header-with-logo.png";
 
+/** University rankings / certifications strip printed at the foot of the Summary of Teaching Load. */
+export const DEFAULT_REPORT_FOOTER_BANNER = "/images/logos/ctu-footer-rankings.png";
+
 export const DEFAULT_CAMPUS_BRANDING = {
   headerTitle: "OptiCore",
   headerSubtitle: "Campus Intelligence System – CTU Argao",
@@ -27,7 +30,7 @@ export type CampusBrandingConfig = {
   headerSubtitle?: string | null;
   universityName?: string | null;
   footerText?: string | null;
-  /** Optional extra line on printed INS PDFs. Empty keeps the paper form unchanged. */
+  /** Footer line on INS forms. Empty uses the campus footer (`footerText`). */
   insFooterText?: string | null;
 };
 
@@ -126,6 +129,7 @@ export function insPdfBrandingProps(branding: ResolvedCampusBranding): {
 } {
   return {
     headerBanner: branding.insHeaderBannerUrl,
-    insFooterText: branding.insFooterText,
+    // Every INS form carries a footer: the INS footer if set, else the campus footer.
+    insFooterText: branding.insFooterText.trim() || branding.footerText,
   };
 }

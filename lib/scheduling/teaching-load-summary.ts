@@ -3,6 +3,7 @@ import { filterByProgramMode, hydrateScheduleEntries, resolveProgramMode } from 
 import { slotDurationHours } from "@/lib/scheduling/time";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { subjectPrepKey } from "@/lib/scheduling/prep-key";
+import { PLACEHOLDER_INSTRUCTOR_ID } from "@/lib/scheduling/placeholder-instructor";
 
 export type TeachingLoadModeSlice = {
   preps: number;
@@ -21,13 +22,14 @@ export type TeachingLoadSummaryRow = {
   day: TeachingLoadModeSlice;
   evening: TeachingLoadModeSlice;
   /**
-   * Display helper for the single Subjects Handled column.
-   * Day and Evening lists stay separate (`Day: …` / `Eve: …`) — never a merged prep count.
+   * The Subjects Handled column: Day and Evening combined, each subject code listed once.
+   * Preps, units and hours still stay separate per mode (`day` / `evening`).
    */
   subjectsHandled: string;
   justification: string | null;
-  /** Arithmetic sum of Day + Evening columns for the printed form — not a merged policy total. */
+  /** Total Preps per Week: unique subject codes in Subjects Handled (Day + Evening combined). */
   totalPreps: number;
+  /** Total Hours per Week: Day hours/week + Evening hours/week. */
   totalHoursPerWeek: number;
   /** Home program (`User.chairmanProgramId`) when it belongs to this college. */
   homeProgramId: string | null;
@@ -43,6 +45,9 @@ export type TeachingLoadProgramRef = {
 export type TeachingLoadCategoryGroup = {
   programId: string;
   categoryLabel: string;
+  /** Program code / full name, for the printed "A. BACHELOR OF SCIENCE IN …" heading. */
+  programCode?: string;
+  programName?: string;
   rows: TeachingLoadSummaryRow[];
 };
 
@@ -193,6 +198,8 @@ export function buildTeachingLoadSummary(args: {
   for (const e of collegeEntries) {
     if (e.instructorId) instructorIds.add(e.instructorId);
   }
+  // Prof X (TBA) holds unassigned classes; it is not anyone's teaching load.
+  instructorIds.delete(PLACEHOLDER_INSTRUCTOR_ID);
 
   const userById = new Map(args.users.map((u) => [u.id, u]));
   const rows: TeachingLoadSummaryRow[] = [];
@@ -214,9 +221,11 @@ export function buildTeachingLoadSummary(args: {
       otherResponsibilities: otherResponsibilitiesFromProfile(profile),
       day,
       evening,
-      subjectsHandled: formatModeSeparatedSubjects(day.subjectsHandled, evening.subjectsHandled),
+      // One list for the faculty: Day + Evening combined by unique subject code (CC121 in both → once).
+      subjectsHandled: subjectCodesForEntries([...dayEntries, ...eveningEntries], subjectById),
       justification: latestJustificationText(args.justifications, instructorId, args.academicPeriodId),
-      totalPreps: day.preps + evening.preps,
+      // Unique subjects across Day + Evening — the count of codes in Subjects Handled.
+      totalPreps: metricsForEntries([...dayEntries, ...eveningEntries], subjectById).preps,
       totalHoursPerWeek: Math.round((day.hoursPerWeek + evening.hoursPerWeek) * 100) / 100,
       homeProgramId,
     });
@@ -247,6 +256,8 @@ export function buildTeachingLoadSummaryByCategory(
     return {
       programId: program.id,
       categoryLabel: categoryLabelForProgram(program),
+      programCode: (program.code ?? "").trim(),
+      programName: (program.name ?? "").trim(),
       rows,
     };
   });

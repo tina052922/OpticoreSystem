@@ -20,6 +20,7 @@ import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { apiFetch } from "@/lib/api/client";
 import type { College, FacultyProfile, Room, ScheduleEntry, Section, Subject, User } from "@/types/db";
+import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
 
 type RoomRow = { id: string; code: string; displayName?: string | null; building?: string | null };
 
@@ -41,6 +42,7 @@ type RoomPayload = {
     published: boolean;
   };
   noSection?: boolean;
+  notPublished?: boolean;
 };
 
 const ENDPOINT = "/api/portal/student-room-schedule";
@@ -65,6 +67,7 @@ export function StudentRoomInsClient() {
   const [pdfOpen, setPdfOpen] = useState(false);
 
   const [noSection, setNoSection] = useState(false);
+  const [notPublished, setNotPublished] = useState(false);
 
   // The rooms the student's own section uses in the selected term.
   useEffect(() => {
@@ -76,6 +79,7 @@ export function StudentRoomInsClient() {
         if (!alive) return;
         setRooms(r.rooms ?? []);
         setNoSection(Boolean(r.noSection));
+        setNotPublished(Boolean(r.notPublished));
       })
       .catch((e: unknown) => alive && setErr(e instanceof Error ? e.message : "Could not load rooms."));
     return () => {
@@ -220,7 +224,9 @@ export function StudentRoomInsClient() {
 
       {err ? <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{err}</div> : null}
 
-      {!roomId ? (
+      {notPublished ? (
+        <ScheduleNotPublishedNotice />
+      ) : !roomId ? (
         <div className="rounded-lg border border-dashed border-black/15 bg-white px-4 py-10 text-center text-sm text-black/50">
           {noSection
             ? "No section is on file for you yet — set it under Profile to see your rooms."

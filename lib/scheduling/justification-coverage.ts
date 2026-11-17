@@ -1,19 +1,14 @@
 /**
- * Does a recorded justification still cover a faculty's current load?
+ * Does a recorded justification cover a faculty's load?
  *
- * A justification used to count for the whole term: once a row existed for an instructor, the
- * Evaluator never asked again. Clearing that faculty's plots and re-plotting them up to the prep
- * limit then produced only a notice, with no prompt — the breach was new but the old record silenced
- * it. Coverage is therefore compared against the numbers that were recorded: a load that grew past
- * what was justified needs a fresh justification.
+ * Once per faculty per term. When a faculty first goes over the preparation (or hours) limit, the
+ * scheduler asks for a justification; after it is recorded it is never asked for again that term,
+ * whatever is plotted next. Comparing against the recorded numbers made every further class re-open
+ * the prompt, so the same reason had to be typed over and over.
  *
- * The recorded numbers live in `violationsSnapshot`. Rows written before this check exist without
- * them; those are treated as NOT covering, so the next breach is justified once more and the new
- * record carries the numbers.
+ * DOI can clear a record (Summary of Teaching Load); the next breach then asks again. The numbers in
+ * `violationsSnapshot` are still stored, for the record and for DOI to read.
  */
-
-/** Tolerance for the stored hours, which are rounded to two decimals on the way in. */
-const HOURS_EPSILON = 0.01;
 
 export type RecordedJustification = {
   academicPeriodId?: string | null;
@@ -55,15 +50,10 @@ export function justifiedNumbersOf(justification: RecordedJustification): Justif
 /** True when this record already accounts for the load the faculty carries now. */
 export function justificationCoversLoad(
   justification: RecordedJustification,
-  load: Pick<CurrentLoad, "weeklyTotalContactHours" | "preparations">,
+  // Kept for callers; the load no longer matters once a reason is on record for the term.
+  _load?: Pick<CurrentLoad, "weeklyTotalContactHours" | "preparations">,
 ): boolean {
-  if (!(justification.justification ?? "").trim()) return false;
-  const { hours, preparations } = justifiedNumbersOf(justification);
-  // Nothing recorded to compare against — ask again so the new record carries the numbers.
-  if (hours == null && preparations == null) return false;
-  if (preparations != null && load.preparations > preparations) return false;
-  if (hours != null && load.weeklyTotalContactHours > hours + HOURS_EPSILON) return false;
-  return true;
+  return Boolean((justification.justification ?? "").trim());
 }
 
 /**

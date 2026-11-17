@@ -21,6 +21,13 @@ import {
   suggestSubjectCategory,
   type SubjectCategoryRow,
 } from "@/lib/subjects/subject-category";
+import {
+  normalizeSubjectArea,
+  SUBJECT_AREA_OPTIONS,
+  subjectAreaLabel,
+  subjectAreaShortLabel,
+  type SubjectArea,
+} from "@/lib/subjects/subject-area";
 import { ManageSubjectCategoriesModal } from "@/components/subjects/ManageSubjectCategoriesModal";
 import { useActionToast } from "@/components/alerts/useActionToast";
 import {
@@ -187,6 +194,8 @@ export function SubjectCodesWorkspace({
   const [category, setCategory] = useState("");
   /** Once the category is chosen by hand, typing a code must not change it back. */
   const [categoryTouched, setCategoryTouched] = useState(false);
+  /** PE, Psychology, or Natural Science and Mathematics (migration 032). */
+  const [subjectArea, setSubjectArea] = useState<SubjectArea | "">("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
@@ -332,7 +341,8 @@ export function SubjectCodesWorkspace({
         s.code.toLowerCase().includes(q) ||
         (s.title && s.title.toLowerCase().includes(q)) ||
         (programCodeById[s.programId] ?? "").toLowerCase().includes(q) ||
-        subjectCategoryLabel(s.category, categoryOptions, "").toLowerCase().includes(q),
+        subjectCategoryLabel(s.category, categoryOptions, "").toLowerCase().includes(q) ||
+        subjectAreaLabel(s.subjectArea, "").toLowerCase().includes(q),
     );
   }, [
     categoryOptions,
@@ -380,6 +390,7 @@ export function SubjectCodesWorkspace({
     setSemester("");
     setCategory("");
     setCategoryTouched(false);
+    setSubjectArea("");
     if (campusWide) setFormProgramId("");
   }
 
@@ -400,6 +411,7 @@ export function SubjectCodesWorkspace({
     setSemester(String(normalizeSubjectSemester(s.semester) ?? ""));
     setCategory(normalizeSubjectCategory(s.category, categoryOptions));
     setCategoryTouched(true);
+    setSubjectArea(normalizeSubjectArea(s.subjectArea));
     if (campusWide) setFormProgramId(s.programId ?? "");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -457,6 +469,7 @@ export function SubjectCodesWorkspace({
       yearLevel: Math.min(6, Math.max(1, parseInt(yearLevel, 10) || 1)),
       semester: normalizeSubjectSemester(semester),
       category: normalizeSubjectCategory(category, categoryOptions) || null,
+      subjectArea: subjectArea || null,
     };
     try {
       if (editingId) {
@@ -624,6 +637,26 @@ export function SubjectCodesWorkspace({
             </select>
           </div>
           <div className="space-y-1">
+            <label className="text-sm font-medium" htmlFor="subject-area">
+              Subject area
+            </label>
+            <select
+              id="subject-area"
+              className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
+              value={subjectArea}
+              onChange={(e) => setSubjectArea(normalizeSubjectArea(e.target.value))}
+              disabled={!programId}
+              title="Which discipline this subject belongs to"
+            >
+              <option value="">— Not set —</option>
+              {SUBJECT_AREA_OPTIONS.map((o) => (
+                <option key={o.code} value={o.code}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
             <div className="text-sm font-medium">Year level</div>
             <select
               className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
@@ -720,6 +753,7 @@ export function SubjectCodesWorkspace({
                 <th className="border border-black/10 px-2 py-1 text-left">Yr</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Sem</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Category</th>
+                <th className="border border-black/10 px-2 py-1 text-left">Area</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Subject Code</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Descriptive Title</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Units</th>
@@ -735,13 +769,13 @@ export function SubjectCodesWorkspace({
             <tbody className="text-[11.5px] leading-tight">
               {!scopedProgramId && !campusWide ? (
                 <tr>
-                  <td colSpan={campusWide ? 11 : 10} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={campusWide ? 12 : 11} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     Select a program to load subjects for that program.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={campusWide ? 11 : 10} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={campusWide ? 12 : 11} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     {dbSubjects.length === 0
                       ? "No subjects in the database for this program yet."
                       : semesterFilter === "all"
@@ -755,7 +789,7 @@ export function SubjectCodesWorkspace({
                 dbSubjectsByYear.flatMap((group) => [
                   <tr key={`yr-db-${group.yearLevel}`} className="bg-black/[0.04]">
                     <td
-                      colSpan={campusWide ? 11 : 10}
+                      colSpan={campusWide ? 12 : 11}
                       className="border border-black/10 px-2 py-1 text-[11px] font-bold text-black/80"
                     >
                       {group.label}
@@ -766,6 +800,9 @@ export function SubjectCodesWorkspace({
                       <td className="border border-black/10 px-2 py-1 tabular-nums">{s.yearLevel}</td>
                       <td className="border border-black/10 px-2 py-1">{subjectSemesterLabel(s.semester)}</td>
                       <td className="border border-black/10 px-2 py-1">{subjectCategoryLabel(s.category, categoryOptions)}</td>
+                      <td className="border border-black/10 px-2 py-1" title={subjectAreaLabel(s.subjectArea, "")}>
+                        {subjectAreaShortLabel(s.subjectArea)}
+                      </td>
                       <td className="border border-black/10 px-2 py-1 font-semibold">{s.code}</td>
                       <td className="border border-black/10 px-2 py-1">{s.title}</td>
                       <td className="border border-black/10 px-2 py-1">

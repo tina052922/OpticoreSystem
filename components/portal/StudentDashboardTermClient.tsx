@@ -11,11 +11,14 @@ import { useProgramMode } from "@/contexts/ProgramModeContext";
 import type { ScheduleRowView } from "@/lib/server/dashboard-data";
 import type { Program, Section } from "@/types/db";
 import type { ProgramMode } from "@/lib/scheduling/program-mode";
+import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
 
 type StudentPayload = {
   rows: ScheduleRowView[];
   section: Section | null;
   program: Program | null;
+  /** True before DOI publishes the term: the server sends no classes yet. */
+  notPublished?: boolean;
 };
 
 async function fetchStudentTermData(
@@ -105,7 +108,9 @@ export function StudentDashboardTermClient({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <DashboardCard title="My schedule (selected semester)">
-            {rows.length === 0 ? (
+            {data?.notPublished ? (
+              <ScheduleNotPublishedNotice />
+            ) : rows.length === 0 ? (
               <p className="text-sm text-black/55">
                 No class meetings for your section in this term. If you just enrolled, ask the registrar to link your
                 profile to a section.

@@ -33,9 +33,15 @@ describe("isFacultyRosterUser", () => {
     expect(isFacultyRosterUser(instructor(" Rejected "))).toBe(false);
   });
 
-  it("does not put admin accounts on the faculty roster", () => {
-    for (const role of ["chairman_admin", "gec_chairman", "college_admin", "doi_admin", "student"] as const) {
+  it("does not put non-teaching admin accounts on the faculty roster", () => {
+    for (const role of ["college_admin", "doi_admin", "student"] as const) {
       expect(isFacultyRosterUser({ role, instructorValidation: "active" })).toBe(false);
+    }
+  });
+
+  it("lists Program and GEC Chairmen with their department's faculty", () => {
+    for (const role of ["chairman_admin", "gec_chairman"] as const) {
+      expect(isFacultyRosterUser({ role, instructorValidation: null })).toBe(true);
     }
   });
 });

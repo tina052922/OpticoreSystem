@@ -106,6 +106,31 @@ export const ins = StyleSheet.create({
     textAlign: "center",
   },
 
+  /** INS footer: campus line left, page number right, a hairline above. */
+  pageFooterBar: {
+    position: "absolute",
+    bottom: 10,
+    left: 30,
+    right: 30,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 0.5,
+    borderTopColor: GRAY_600,
+    paddingTop: 2,
+  },
+  pageFooterText: {
+    fontSize: 6.5,
+    color: GRAY_600,
+    flexGrow: 1,
+    flexShrink: 1,
+    paddingRight: 8,
+  },
+  pageFooterPage: {
+    fontSize: 6.5,
+    color: GRAY_600,
+  },
+
   /** Title block, centered now that the flanking logos are gone. */
   formTitleRow: {
     flexDirection: "row",

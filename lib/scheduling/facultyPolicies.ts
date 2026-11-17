@@ -7,6 +7,7 @@ import { subjectLecLabHours } from "@/lib/subjects/contact-hours";
 import { subjectPrepKey } from "./prep-key";
 import { slotDurationHours } from "@/lib/scheduling/time";
 import { filterByProgramMode, type ProgramMode } from "@/lib/scheduling/program-mode";
+import { isPlaceholderInstructorId } from "@/lib/scheduling/placeholder-instructor";
 
 export { slotDurationHours } from "@/lib/scheduling/time";
 
@@ -214,6 +215,8 @@ export function evaluateFacultyLoadsForCollege(
   >();
 
   for (const e of scopedEntries) {
+    // Prof X (TBA) is a placeholder, not a faculty: no load, no prep limit, no justification.
+    if (isPlaceholderInstructorId(e.instructorId)) continue;
     const sub = subjectsById.get(e.subjectId);
     const dur = slotDurationHours(e.startTime, e.endTime);
     const { lec, lab } = lectureLabSplitHours(sub, dur);

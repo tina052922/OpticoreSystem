@@ -186,6 +186,7 @@ export const DOI_ADMIN_NAV: AdminNavEntry[] = [
       { label: SUBJECT_SCHEDULER_NAV_LABEL, href: "/doi/evaluator?hub=1", icon: "ClipboardList" },
       { label: LOAD_GENERATOR_NAV_LABEL, href: "/doi/ins?tab=faculty", icon: "BookOpen" },
       { label: LOADING_POLICY_NAV_LABEL, href: "/doi/reviews", icon: "Scale" },
+      { label: "Summary of Teaching Load", href: "/doi/teaching-load-summary", icon: "CalendarPlus" },
     ],
   },
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },

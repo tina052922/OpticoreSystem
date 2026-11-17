@@ -402,7 +402,7 @@ export function GecSectionPlottingTable({
                           onChange={(ev) => patchEdit(e.id, { instructorId: ev.target.value })}
                           aria-label="Instructor"
                         >
-                          <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>— Vacant (TBD) —</option>
+                          <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>Prof X (TBA) — no instructor yet</option>
                           {instructorPlotOptions.map((opt) => (
                             <option key={opt.id} value={opt.id}>
                               {formatInstructorPlotOptionLabel(opt)}

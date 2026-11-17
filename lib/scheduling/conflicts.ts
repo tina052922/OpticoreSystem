@@ -2,6 +2,7 @@ import type { ScheduleEntry } from "@/types/db";
 import type { ConflictHit, ScheduleBlock } from "./types";
 import { resolveProgramMode, stripNightDayPrefix, type ProgramMode } from "./program-mode";
 import { roomsAreSamePhysicalSpace } from "@/lib/campus/campus-navigation-room-dedupe";
+import { isPlaceholderInstructorId } from "@/lib/scheduling/placeholder-instructor";
 
 /** Parse HH:MM or HH:MM:SS with optional AM/PM into minutes from midnight. */
 export function toMinutes(t: string): number {
@@ -94,7 +95,7 @@ export function detectConflictsForEntry(
     if (!intervalsOverlap(candidate.day, candidate.startTime, candidate.endTime, o.day, o.startTime, o.endTime))
       continue;
 
-    if (o.instructorId === candidate.instructorId) {
+    if (o.instructorId === candidate.instructorId && !isPlaceholderInstructorId(candidate.instructorId)) {
       hits.push({
         type: "faculty",
         message: "Instructor is already scheduled at this time/day.",
@@ -153,7 +154,8 @@ export function detectConflictsSparse(
     if (
       candidate.instructorId &&
       o.instructorId &&
-      candidate.instructorId === o.instructorId
+      candidate.instructorId === o.instructorId &&
+      !isPlaceholderInstructorId(candidate.instructorId)
     ) {
       hits.push({
         type: "faculty",
@@ -236,7 +238,8 @@ export function scheduleEntryToSparseBlock(e: ScheduleEntry): SparseScheduleBloc
     day,
     startTime,
     endTime,
-    instructorId: e.instructorId?.trim() ? e.instructorId : null,
+    // Prof X (TBA) is "nobody yet": it never makes an instructor conflict.
+    instructorId: e.instructorId?.trim() && !isPlaceholderInstructorId(e.instructorId) ? e.instructorId : null,
     sectionId: e.sectionId?.trim() ? e.sectionId : null,
     roomId: e.roomId?.trim() ? e.roomId : null,
     programMode: resolveProgramMode(e),
@@ -251,7 +254,7 @@ export function scheduleBlockToSparseBlock(b: ScheduleBlock): SparseScheduleBloc
     day: normalizeDayForConflict(b.day),
     startTime: hhmmForConflict(b.startTime),
     endTime: hhmmForConflict(b.endTime),
-    instructorId: b.instructorId?.trim() ? b.instructorId : null,
+    instructorId: b.instructorId?.trim() && !isPlaceholderInstructorId(b.instructorId) ? b.instructorId : null,
     sectionId: b.sectionId?.trim() ? b.sectionId : null,
     roomId: b.roomId?.trim() ? b.roomId : null,
     programMode: resolveProgramMode(b),

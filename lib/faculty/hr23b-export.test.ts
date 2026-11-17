@@ -65,6 +65,52 @@ describe("hr23bSheetRow", () => {
       educationalQualification: "MS Information Technology",
       experience: "8 years teaching",
       eligibility: "CSC Professional",
+      appointmentStatus: "",
+      bachelors: "",
+      major: "",
+      masters: "",
+      minor: "",
+      doctorate: "",
+      specialTraining: "",
+      designation: "",
+      production: "",
+      extension: "",
+      research: "",
+    });
+  });
+
+  it("adds the INS Form 5A details after the 23B cells", () => {
+    const r = hr23bSheetRow(
+      {
+        ...row,
+        profile: profile({
+          appointmentStatus: "permanent",
+          bsDegree: "BSIT",
+          major1: "Networking",
+          msDegree: "MSIT",
+          minor1: "Math",
+          doctoralDegree: "DIT",
+          specialTraining: "CCNA",
+          designation: "Chair, BSIT",
+          production: "P",
+          extension: "E",
+          research: "R",
+        }),
+      },
+      asOf,
+    );
+    expect(r).toMatchObject({
+      appointmentStatus: "Permanent",
+      bachelors: "BSIT",
+      major: "Networking",
+      masters: "MSIT",
+      minor: "Math",
+      doctorate: "DIT",
+      specialTraining: "CCNA",
+      designation: "Chair, BSIT",
+      production: "P",
+      extension: "E",
+      research: "R",
     });
   });
 

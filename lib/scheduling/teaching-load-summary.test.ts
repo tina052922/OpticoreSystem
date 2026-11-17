@@ -129,7 +129,7 @@ describe("buildTeachingLoadSummary", () => {
     expect(rows[0].evening.unitsPerWeek).toBe(3);
     expect(rows[0].evening.subjectsHandled).toBe("IT 201");
     expect(rows[0].totalHoursPerWeek).toBeCloseTo(5, 5);
-    expect(rows[0].subjectsHandled).toBe("Day: IT 101\nEve: IT 201");
+    expect(rows[0].subjectsHandled).toBe("IT 101, IT 201");
     expect(rows[0].justification).toMatch(/Fourth prep/);
     expect(rows[0].administrativeDesignation).toBe("Program Chair");
     expect(rows[0].otherResponsibilities).toBe("Research load");
@@ -179,8 +179,10 @@ describe("buildTeachingLoadSummary", () => {
     expect(rows[0].evening.hoursPerWeek).toBeCloseTo(2, 5);
     expect(rows[0].day.subjectsHandled).toBe("IT 101");
     expect(rows[0].evening.subjectsHandled).toBe("IT 101");
-    expect(rows[0].totalPreps).toBe(2);
-    expect(rows[0].subjectsHandled).toBe("Day: IT 101\nEve: IT 101");
+    // Total Preps counts unique subjects: IT 101 in Day and Evening is one prep.
+    expect(rows[0].totalPreps).toBe(1);
+    // Same code in Day and Evening is listed once.
+    expect(rows[0].subjectsHandled).toBe("IT 101");
   });
 
   it("counts Night:: legacy rows as Evening and uses plotted durations", () => {
@@ -225,7 +227,7 @@ describe("buildTeachingLoadSummary", () => {
     expect(rows[0].evening.preps).toBe(1);
     expect(rows[0].evening.hoursPerWeek).toBeCloseTo(3, 5);
     expect(rows[0].evening.subjectsHandled).toBe("IT 201");
-    expect(rows[0].subjectsHandled).toBe("Eve: IT 201");
+    expect(rows[0].subjectsHandled).toBe("IT 201");
   });
 
   it("counts distinct subjects as preps, not meeting count", () => {
@@ -366,7 +368,7 @@ describe("subjectsHandled display", () => {
     });
     expect(rows[0].day.preps).toBe(1);
     expect(rows[0].day.subjectsHandled).toBe("CC-112");
-    expect(rows[0].subjectsHandled).toBe("Day: CC-112");
+    expect(rows[0].subjectsHandled).toBe("CC-112");
   });
 });
 

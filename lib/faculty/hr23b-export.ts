@@ -12,6 +12,7 @@
 import type { FacultyProfile, User } from "@/types/db";
 import { normalizeFacultyProfileStatus } from "@/lib/faculty/employment-status";
 import { computeAge, facultyNamePartsFrom, normalizeFacultySex, toDateInputValue } from "@/lib/faculty/hr-form-23b";
+import { appointmentStatusLabel } from "@/lib/faculty/appointment-status";
 
 export type Hr23bExportRow = {
   user: Pick<User, "id" | "name" | "employeeId">;
@@ -31,12 +32,24 @@ export type Hr23bSheetRow = {
   educationalQualification: string;
   experience: string;
   eligibility: string;
+  // INS Form 5A details (Faculty Profile).
+  appointmentStatus: string;
+  bachelors: string;
+  major: string;
+  masters: string;
+  minor: string;
+  doctorate: string;
+  specialTraining: string;
+  designation: string;
+  production: string;
+  extension: string;
+  research: string;
 };
 
 /** Blank rows kept below the data so a short list still prints as the 25-line form. */
 export const HR23B_MIN_PRINTED_ROWS = 25;
 
-const COLUMN_WIDTHS = [5, 18, 16, 16, 18, 14, 6, 15, 6, 30, 22, 20];
+const COLUMN_WIDTHS = [5, 18, 16, 16, 18, 14, 6, 15, 6, 30, 22, 20, 16, 22, 16, 22, 16, 20, 22, 20, 18, 18, 18];
 
 function text(v: string | null | undefined): string {
   return (v ?? "").trim();
@@ -63,6 +76,17 @@ export function hr23bSheetRow(row: Hr23bExportRow, asOf: Date = new Date()): Hr2
     educationalQualification: text(profile?.educationalQualification),
     experience: text(profile?.experience),
     eligibility: text(profile?.eligibility),
+    appointmentStatus: appointmentStatusLabel(profile?.appointmentStatus),
+    bachelors: text(profile?.bsDegree),
+    major: [profile?.major1, profile?.major2, profile?.major3].map(text).filter(Boolean).join(", "),
+    masters: text(profile?.msDegree),
+    minor: [profile?.minor1, profile?.minor2, profile?.minor3].map(text).filter(Boolean).join(", "),
+    doctorate: text(profile?.doctoralDegree),
+    specialTraining: text(profile?.specialTraining),
+    designation: text(profile?.designation),
+    production: text(profile?.production),
+    extension: text(profile?.extension),
+    research: text(profile?.research),
   };
 }
 
@@ -171,6 +195,18 @@ export async function buildHr23bWorkbook(
     ["J", "EDUCATIONAL QUALIFICATION"],
     ["K", "EXPERIENCE"],
     ["L", "ELIGIBILITY"],
+    // INS Form 5A details, after the HR Form 23B columns.
+    ["M", "STATUS OF APPOINTMENT"],
+    ["N", "BACHELOR'S DEGREE"],
+    ["O", "MAJOR"],
+    ["P", "MASTER'S DEGREE"],
+    ["Q", "MINOR"],
+    ["R", "DOCTORATE DEGREE"],
+    ["S", "SPECIAL TRAINING"],
+    ["T", "ADMINISTRATIVE DESIGNATION"],
+    ["U", "PRODUCTION"],
+    ["V", "EXTENSION"],
+    ["W", "RESEARCH"],
   ];
   for (const [col, label] of spannedHeaders) {
     ws.mergeCells(`${col}${HEADER_TOP}:${col}${HEADER_BOTTOM}`);
@@ -215,6 +251,22 @@ export async function buildHr23bWorkbook(
       row.getCell(10).value = r.educationalQualification;
       row.getCell(11).value = r.experience;
       row.getCell(12).value = r.eligibility;
+      const insDetails = [
+        r.appointmentStatus,
+        r.bachelors,
+        r.major,
+        r.masters,
+        r.minor,
+        r.doctorate,
+        r.specialTraining,
+        r.designation,
+        r.production,
+        r.extension,
+        r.research,
+      ];
+      insDetails.forEach((v, k) => {
+        row.getCell(13 + k).value = v;
+      });
     }
 
     for (let col = 1; col <= COLUMN_WIDTHS.length; col += 1) {

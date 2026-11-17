@@ -1800,6 +1800,13 @@ export const userAdminApi = {
    *
    * The existing password is never returned — Supabase keeps only a hash. This replaces it.
    */
+  /** Corrects a faculty's sign-in email; the password stays as it is. */
+  changeEmail(id: string, email: string) {
+    return apiFetch<{ ok: true; email: string; changed: boolean }>(`/api/catalog/users/${id}/email`, {
+      method: "PUT",
+      body: { email },
+    });
+  },
   issueAccount(id: string, input: { email?: string; temporaryPassword?: string | null }) {
     return apiFetch<{ ok: true; account: IssuedFacultyAccount }>(
       `/api/catalog/users/${id}/account`,

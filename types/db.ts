@@ -139,6 +139,8 @@ export interface FacultyProfile {
   extension: string | null;
   production: string | null;
   specialTraining: string | null;
+  /** INS Form 5A Status of Appointment (migration 034): permanent | temporary | cos. */
+  appointmentStatus?: string | null;
   status: string | null;
   designation: string | null;
   ratePerHour: number | null;
@@ -159,6 +161,8 @@ export interface Subject {
   semester?: number | null;
   /** major | minor | gec | elective | nstp | pe (migration 016); null until set. */
   category?: string | null;
+  /** Discipline area (migration 032): pe | psychology | nsm; null until set. */
+  subjectArea?: string | null;
   /** Curriculum prerequisite line (mirrors catalog tables). */
 }
 

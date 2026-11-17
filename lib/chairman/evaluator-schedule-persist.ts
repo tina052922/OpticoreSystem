@@ -1,7 +1,6 @@
 import { evaluatorTimeSlots, type BsitEvaluatorWeekday } from "@/lib/chairman/bsit-evaluator-constants";
 import {
   normalizeProspectusCode,
-  prospectusByCode,
 } from "@/lib/chairman/bsit-prospectus";
 import {
   clampPlotStartSlotIndex,
@@ -60,9 +59,8 @@ export function plotRowsToScheduleEntries(args: {
 
   for (const row of rows) {
     if (!row.sectionId || !row.subjectCode || !row.instructorId || !row.roomId) continue;
-    const p = prospectusByCode(row.subjectCode);
-    if (!p) continue;
-    const dur = plotRowDurationSlots(p, row);
+    // Every program's subjects, not only those in the built-in BSIT prospectus.
+    const dur = plotRowDurationSlots(undefined, row);
     /*
      * The stored times come from start + duration, not from the last covered row's `endTime`: a 1.5
      * hour meeting ends at :30, which no hourly row's end can express.
@@ -109,8 +107,6 @@ export function scheduleEntriesToPlotRows(args: {
     if (!slots.length) continue;
     const sub = args.subjectById.get(e.subjectId);
     if (!sub?.code) continue;
-    const p = prospectusByCode(sub.code);
-    if (!p) continue;
     const startH = hhmm(e.startTime);
     const startIdx = slots.findIndex((s) => s.startTime === startH);
     if (startIdx < 0) continue;

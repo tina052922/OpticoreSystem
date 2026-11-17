@@ -24,6 +24,7 @@ import { sectionProgramMode } from "@/components/scheduling/SectionProgramBanner
 import type { INS5BProps } from "@/components/pdf/types/insTypes";
 import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@/lib/ins/schedule-visibility";
 import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
+import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -348,6 +349,9 @@ export function INSFormSection({
   return (
     <div className="p-4 sm:p-6 bg-[#F8F8F8] min-h-full">
       <div className="no-print">
+        {readOnlyPortal && !catalog.loading && !catalog.termPublishLocked ? (
+          <ScheduleNotPublishedNotice className="mb-4 max-w-[1200px] mx-auto" />
+        ) : null}
         {/*
           Not in the faculty or student portal. Those views are scoped to the signed-in person, so a
           College / Program picker offering "All colleges (campus-wide)" both contradicts that and

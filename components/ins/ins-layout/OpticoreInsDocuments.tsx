@@ -18,6 +18,7 @@ import { programModeLabel } from "@/lib/scheduling/program-mode";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { OpticoreInsNightScheduleTable } from "./OpticoreInsNightScheduleTable";
+import { appointmentStatusLabel } from "@/lib/faculty/appointment-status";
 
 /** INS Form 5A draft placeholders — keys match the printed-line resolver. */
 const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
@@ -180,13 +181,18 @@ function InsUnderlineInput({
   );
 }
 
+/**
+ * Footer on every INS form, on screen and in print: the INS footer from System Configuration,
+ * else the campus footer.
+ */
 function InsPrintFooter() {
-  const { insFooterText } = useCampusBranding();
-  if (!insFooterText.trim()) return null;
+  const { insFooterText, footerText } = useCampusBranding();
+  const line = insFooterText.trim() || footerText.trim();
+  if (!line) return null;
   return (
-    <p className="hidden print:block text-center text-[6.5pt] text-neutral-600 pt-1">
-      {insFooterText}
-    </p>
+    <div className="mt-4 border-t border-neutral-400 pt-1 text-center text-[11px] text-neutral-600 print:mt-2 print:text-[6.5pt]">
+      {line}
+    </div>
   );
 }
 
@@ -412,6 +418,8 @@ export type OpticoreInsForm5AProps = {
     major?: string | null;
     minor?: string | null;
     specialTraining?: string | null;
+    /** permanent | temporary | cos — ticks the Status of Appointment box. */
+    appointmentStatus?: string | null;
   } | null;
   /** Populated from schedule totals + Faculty Profile when live data is available. */
   facultyFormSummary?: InsFacultyFormSummary | null;
@@ -469,9 +477,12 @@ export function OpticoreInsForm5A({
             ] as const
           ).map((label) => (
             <label key={label} className="flex items-center gap-2 text-sm print:text-[6.5pt]">
+              {/* Ticked from Faculty Profile → Status of Appointment. */}
               <input
                 type="checkbox"
                 disabled={readOnly}
+                defaultChecked={appointmentStatusLabel(facultyCredentials?.appointmentStatus) === label}
+                key={`${label}-${facultyCredentials?.appointmentStatus ?? ""}`}
                 className="rounded border-neutral-500"
               />{" "}
               {label}
