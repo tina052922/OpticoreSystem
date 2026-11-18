@@ -40,7 +40,6 @@ export function BuildingsRoomsWithScope({
               ? "Search a department in your college"
               : "Search a college or department — code or name"
           }
-          helpText="Pre-fills the college or department for new buildings. Every building and room on campus is listed below either way."
           withinCollegeId={lockedCollegeId}
           className="max-w-xl"
         />

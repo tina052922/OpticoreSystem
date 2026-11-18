@@ -163,7 +163,8 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
         return;
       }
       // The CAS Admin's summary also covers the General Subject instructors of each service area.
-      const areasPromise = !campusWide && user?.casAdmin
+      // DOI (campus-wide) too: the service areas are part of the campus summary.
+      const areasPromise = campusWide || user?.casAdmin
         ? serviceAreasApi.list().then((r) => r.areas ?? []).catch(() => [])
         : Promise.resolve([]);
       const [bundle, profileRes, collegesRes, areas] = await Promise.all([
@@ -241,8 +242,11 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
       })),
     );
     // CAS Admin: then one table per service area (HSS, NSM, PE and Sports, …).
+    // DOI: with "All colleges" or CAS picked (service areas sit under CAS); never under another college.
+    const pickedCode = (colleges.find((c) => c.id === pickedCollegeId)?.code ?? "").trim().toUpperCase();
+    const showAreas = !campusWide || !pickedCollegeId || pickedCode === "CAS";
     const areaGroups =
-      serviceAreas.length > 0
+      showAreas && serviceAreas.length > 0
         ? buildTeachingLoadSummaryByServiceArea({
             areas: serviceAreas,
             academicPeriodId: selectedPeriodId,
@@ -251,11 +255,16 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
             profiles,
             subjects,
             justifications,
-          }).map((g, i) => ({ ...g, heading: departmentHeading(g, departments.length + i) }))
+          }).map((g, i) =>
+            many
+              ? // Every college listed (lettering restarts per college): the areas are their own block.
+                { ...g, categoryLabel: `Service area — ${g.categoryLabel}`, heading: `SERVICE AREAS · ${departmentHeading(g, i)}` }
+              : { ...g, heading: departmentHeading(g, departments.length + i) },
+          )
         : [];
     // Service areas continue the lettering after the CAS departments (… D. HUMANITIES AND SOCIAL SCIENCES).
     return [...departments, ...areaGroups];
-  }, [collegeId, selectedPeriodId, campusWide, scopeColleges, entries, users, profiles, programs, sections, subjects, justifications, serviceAreas]);
+  }, [collegeId, selectedPeriodId, campusWide, scopeColleges, entries, users, profiles, programs, sections, subjects, justifications, serviceAreas, colleges, pickedCollegeId]);
 
   // A department picked under another college no longer applies.
   useEffect(() => {

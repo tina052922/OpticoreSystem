@@ -437,6 +437,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const setRows = programMode === "night" ? setNightRows : setDayRows;
   const [justificationText, setJustificationText] = useState("");
   const [loadJustifications, setLoadJustifications] = useState<ScheduleLoadJustification[]>([]);
+  /** Term whose justification records have loaded — no auto-prompt before we know who is covered. */
+  const [justificationsLoadedFor, setJustificationsLoadedFor] = useState<string | null>(null);
   const [justificationSaving, setJustificationSaving] = useState(false);
   const [justificationMsg, setJustificationMsg] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string>("");
@@ -558,6 +560,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (!cancelled) {
           const list = (data.justifications ?? []) as ScheduleLoadJustification[];
           setLoadJustifications(list);
+          setJustificationsLoadedFor(academicPeriodId);
           // The box starts empty on purpose. It used to be pre-filled with the newest record in the
           // term, so the next faculty to breach policy inherited someone else's wording — and the
           // "Save schedule" path silently recorded that text against them.
@@ -1686,6 +1689,39 @@ export function BsitChairmanEvaluatorWorksheet({
   );
 
   const showJustification = unjustifiedPolicyRows.length > 0;
+
+  /**
+   * Ask for the DOI justification as soon as a faculty goes over the limit — not only on Save.
+   * Plotting from the plot window never checked, so the modal could stay unseen. Each faculty is
+   * asked once per load (preps + hours); Cancel does not re-open it until their load changes.
+   */
+  const justificationPromptedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (viewOnly || schedulePublished || !academicPeriodId) return;
+    if (justificationsLoadedFor !== academicPeriodId) return;
+    if (policyJustificationModalOpen) return;
+    const fresh = unjustifiedPolicyRows.filter(
+      (r) =>
+        !justificationPromptedRef.current.has(
+          `${academicPeriodId}|${r.instructorId}|${r.preparations}|${r.weeklyTotalContactHours}`,
+        ),
+    );
+    if (fresh.length === 0) return;
+    for (const r of fresh) {
+      justificationPromptedRef.current.add(
+        `${academicPeriodId}|${r.instructorId}|${r.preparations}|${r.weeklyTotalContactHours}`,
+      );
+    }
+    setPolicyModalReason("save");
+    setPolicyJustificationModalOpen(true);
+  }, [
+    viewOnly,
+    schedulePublished,
+    academicPeriodId,
+    justificationsLoadedFor,
+    policyJustificationModalOpen,
+    unjustifiedPolicyRows,
+  ]);
 
   /** Names of the faculty this justification is for; the panel says so out loud. */
   const unjustifiedFacultyNames = useMemo(

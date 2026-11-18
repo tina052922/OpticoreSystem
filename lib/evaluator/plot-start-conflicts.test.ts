@@ -51,4 +51,17 @@ describe("plotStartConflicts", () => {
     });
     expect(msgs).toEqual([]);
   });
+
+  it("one line when the same class clashes for the section and the instructor", () => {
+    const msgs = plotStartConflicts({
+      meetings: [{ day: "Monday", startSlotIndex: idx("13:30"), durationSlots: 1 }],
+      base: { ...base, instructorId: "u-other" },
+      slots,
+      programMode: "day",
+      existingBlocks: plotted,
+      labelForEntry: label,
+    });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]).toContain("already plotted in this section and for this instructor.");
+  });
 });

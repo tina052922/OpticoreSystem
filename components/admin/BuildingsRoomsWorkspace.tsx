@@ -620,28 +620,9 @@ export function BuildingsRoomsWorkspace({
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-8 space-y-6 max-w-[1100px]">
-      <p className="text-[13px] text-black/65 leading-relaxed">
-        Every building and room on campus is listed here, the same for DOI and College Admin, and every one of
-        them can be picked when plotting. New buildings are saved under the college you choose — or one of its
-        departments, if you pick a department.
-        Mark a building as GEC-usable to flag it for GEC subjects. This is for scheduling only — it does not
-        affect Campus Navigation.
-      </p>
-
-      {!canEdit ? (
-        <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Pick a college (or one of its departments) below to add buildings — a building belongs to a college,
-          or optionally to one department. The lists below show every building and room on campus.
-        </p>
-      ) : null}
-
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-5">
         <div>
           <div className="text-[16px] font-semibold">Add building and rooms</div>
-          <p className="text-[12px] text-black/55 mt-0.5">
-            Create a building and, optionally, its rooms. For a room that is not in any building, use
-            <strong> + Add standalone room</strong> in the Standalone Rooms section.
-          </p>
         </div>
 
         <ScopeSearchPicker

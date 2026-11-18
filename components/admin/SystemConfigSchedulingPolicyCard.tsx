@@ -147,11 +147,6 @@ export function SystemConfigSchedulingPolicyCard() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-black/65 leading-relaxed">
-        These caps drive teaching-load checks, overload justification prompts, and Campus Intelligence
-        full/overloaded bands. Day and Evening programs are evaluated separately — hours are never
-        summed across modes for overload.
-      </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {FIELDS.map((f) => {
           const err = errors[f.key];

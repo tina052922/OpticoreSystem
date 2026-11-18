@@ -392,12 +392,6 @@ export function CampusAccountsWorkspace() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-8 space-y-6 max-w-[1100px]">
-      <p className="text-[13px] text-black/65 leading-relaxed">
-        One College Admin for each college and one Chairman for each department. CAS Service Chairs and
-        CAS Program Chairs are in the CAS Chairs tab. Registering an account creates its sign-in; the
-        holder is asked to change the password the first time they sign in.
-      </p>
-
       <div className="flex flex-wrap gap-2">
         {(["college_admin", "chairman_admin"] as const).map((r) => (
           <button
