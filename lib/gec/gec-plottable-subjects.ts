@@ -1,5 +1,6 @@
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { isServiceAreaSubject } from "@/lib/gec/gec-vacant";
+import { isGecEditableSubject } from "@/lib/subjects/gec-subject-scope";
 
 /**
  * Which GEC subjects the GEC Chairman may plot into a section.
@@ -83,4 +84,37 @@ export function gecPlottableSubjectIds<T extends GecPlottableSubject>(
   opts: Parameters<typeof gecSubjectsForSectionPlot<T>>[1],
 ): Set<string> {
   return new Set(gecSubjectsForSectionPlot(subjects, opts).map((s) => s.id));
+}
+
+/**
+ * The section's general subjects as the Summary of Subjects lists them: the section's own program's
+ * Subject Codes rows that are general (GEC / GEE / PE / NSTP / area-tagged — `isGecEditableSubject`),
+ * for the section's year level and the term's semester. One row per code.
+ *
+ * Empty when the program has none recorded; callers then fall back to `gecSubjectsForSectionPlot`.
+ */
+export function sectionSummaryGeneralSubjects<
+  T extends GecPlottableSubject & {
+    category?: string | null;
+    subjectArea?: string | null;
+    yearLevel?: number | null;
+    semester?: number | null;
+  },
+>(
+  subjects: readonly T[],
+  opts: { programId: string; yearLevel: number | null; semester: 1 | 2 | null },
+): T[] {
+  const byCode = new Map<string, T>();
+  for (const s of subjects) {
+    if ((s.programId ?? "") !== opts.programId) continue;
+    if (!isGecEditableSubject({ code: s.code, category: s.category ?? null, subjectArea: s.subjectArea ?? null })) continue;
+    const year = Number(s.yearLevel);
+    const sem = Number(s.semester);
+    if (!(year >= 1) || (sem !== 1 && sem !== 2)) continue;
+    if (opts.yearLevel != null && year !== opts.yearLevel) continue;
+    if (opts.semester != null && sem !== opts.semester) continue;
+    const key = normalizeProspectusCode(s.code);
+    if (!byCode.has(key)) byCode.set(key, s);
+  }
+  return [...byCode.values()].sort((a, b) => a.code.localeCompare(b.code));
 }

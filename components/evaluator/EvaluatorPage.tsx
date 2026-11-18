@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { NotifyGecReadyButton } from "@/components/college/NotifyGecReadyButton";
@@ -20,6 +21,8 @@ export type EvaluatorPageProps = {
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
+  /** Beside the page title (CAS Admin: CAS subjects ↔ general subjects). */
+  headerActions?: ReactNode;
 };
 
 function centralHubBasePath(variant: "college" | "cas" | "doi"): string {
@@ -38,6 +41,7 @@ export function EvaluatorPage({
   chairmanProgramId = null,
   chairmanProgramCode = null,
   chairmanProgramName = null,
+  headerActions = null,
 }: EvaluatorPageProps) {
   const searchParams = useSearchParams();
   const { selectedPeriodId, selectedPeriod } = useSemesterFilter();
@@ -92,7 +96,7 @@ export function EvaluatorPage({
 
   return (
     <div>
-      <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
+      <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} actions={headerActions} />
 
       <div className="px-4 md:px-8 pb-8">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">

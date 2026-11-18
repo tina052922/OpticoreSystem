@@ -6,11 +6,15 @@ import { TeachingLoadSummaryTable } from "@/components/college/TeachingLoadSumma
 import { TeachingLoadSummaryDocument } from "@/components/pdf/forms/TeachingLoadSummaryDocument";
 import { PDFPreviewModal } from "@/components/pdf/preview/PDFPreviewModal";
 import { Button } from "@/components/ui/button";
-import { apiFetch, authApi, catalogApi } from "@/lib/api/client";
+import { apiFetch, authApi, catalogApi, serviceAreasApi } from "@/lib/api/client";
 import { useSemesterFilter } from "@/contexts/SemesterFilterContext";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { hydrateScheduleEntries } from "@/lib/scheduling/program-mode";
-import { buildTeachingLoadSummaryByCategory } from "@/lib/scheduling/teaching-load-summary";
+import {
+  buildTeachingLoadSummaryByCategory,
+  buildTeachingLoadSummaryByServiceArea,
+  type TeachingLoadServiceArea,
+} from "@/lib/scheduling/teaching-load-summary";
 import {
   buildTeachingLoadSignatories,
   departmentHeading,
@@ -40,6 +44,8 @@ type BundlePayload = {
   sections: Section[];
   subjects: Subject[];
   justifications: ScheduleLoadJustification[];
+  /** CAS College Admin: the service areas, listed after the CAS departments. */
+  serviceAreas: TeachingLoadServiceArea[];
 };
 
 /**
@@ -66,6 +72,7 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [justifications, setJustifications] = useState<ScheduleLoadJustification[]>([]);
+  const [serviceAreas, setServiceAreas] = useState<TeachingLoadServiceArea[]>([]);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [categoryId, setCategoryId] = useState(ALL_CATEGORIES);
   const cacheRef = useRef<Map<string, BundlePayload>>(new Map());
@@ -116,6 +123,7 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
     setSections(payload.sections);
     setSubjects(payload.subjects);
     setJustifications(payload.justifications);
+    setServiceAreas(payload.serviceAreas);
   }, []);
 
   const load = useCallback(async (periodId: string | null) => {
@@ -146,6 +154,7 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
           sections: [],
           subjects: [],
           justifications: [],
+          serviceAreas: [],
         };
         if (cid) setCollegeId(cid);
         applyPayload(empty);
@@ -153,7 +162,11 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
         loadedKeyRef.current = key;
         return;
       }
-      const [bundle, profileRes, collegesRes] = await Promise.all([
+      // The CAS Admin's summary also covers the General Subject instructors of each service area.
+      const areasPromise = !campusWide && user?.casAdmin
+        ? serviceAreasApi.list().then((r) => r.areas ?? []).catch(() => [])
+        : Promise.resolve([]);
+      const [bundle, profileRes, collegesRes, areas] = await Promise.all([
         apiFetch<{
           entries?: ScheduleEntry[];
           users?: User[];
@@ -167,6 +180,7 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
         }),
         apiFetch<{ profiles: FacultyProfile[] }>("/api/catalog/faculty-profiles", { method: "GET" }),
         catalogApi.colleges().catch(() => ({ colleges: [] as { id: string; name?: string; code?: string }[] })),
+        areasPromise,
       ]);
       const college = (collegesRes.colleges as { id: string; name?: string; code?: string }[]).find((c) => c.id === cid);
       const payload: BundlePayload = {
@@ -180,6 +194,7 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
         subjects: bundle.subjects ?? [],
         justifications: bundle.justifications ?? [],
         profiles: profileRes.profiles ?? bundle.facultyProfiles ?? [],
+        serviceAreas: areas.map((a) => ({ id: a.id, code: a.code, name: a.name })),
       };
       cacheRef.current.set(key, payload);
       applyPayload(payload);
@@ -207,7 +222,7 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
   const groups = useMemo(() => {
     if (!collegeId || !selectedPeriodId) return [];
     const many = campusWide && scopeColleges.length > 1;
-    return scopeColleges.flatMap((c) =>
+    const departments = scopeColleges.flatMap((c) =>
       withDepartmentHeadings(buildTeachingLoadSummaryByCategory({
         collegeId: c.id,
         academicPeriodId: selectedPeriodId,
@@ -225,7 +240,22 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
         heading: many ? `${c.code || c.name || "College"} · ${g.heading}` : g.heading,
       })),
     );
-  }, [collegeId, selectedPeriodId, campusWide, scopeColleges, entries, users, profiles, programs, sections, subjects, justifications]);
+    // CAS Admin: then one table per service area (HSS, NSM, PE and Sports, …).
+    const areaGroups =
+      serviceAreas.length > 0
+        ? buildTeachingLoadSummaryByServiceArea({
+            areas: serviceAreas,
+            academicPeriodId: selectedPeriodId,
+            entries,
+            users,
+            profiles,
+            subjects,
+            justifications,
+          }).map((g, i) => ({ ...g, heading: departmentHeading(g, departments.length + i) }))
+        : [];
+    // Service areas continue the lettering after the CAS departments (… D. HUMANITIES AND SOCIAL SCIENCES).
+    return [...departments, ...areaGroups];
+  }, [collegeId, selectedPeriodId, campusWide, scopeColleges, entries, users, profiles, programs, sections, subjects, justifications, serviceAreas]);
 
   // A department picked under another college no longer applies.
   useEffect(() => {

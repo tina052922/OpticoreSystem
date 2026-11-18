@@ -213,7 +213,7 @@ export function GecPlotScheduleModal({
       weekdays: days,
     });
     if (!resolved.ok) {
-      return sub ? "Type a start time and choose at least one day" : "Select GEC subject, then type a start time";
+      return sub ? "Type a start time and choose at least one day" : "Select a general subject, then type a start time";
     }
     return resolved.meetings
       .map((m) => `${m.day} ${formatPlotTimeRange(m.startSlotIndex, m.durationSlots, slots)}`)
@@ -271,17 +271,6 @@ export function GecPlotScheduleModal({
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
   const incompleteFieldBare = `${fieldClass} ring-2 ring-red-500 border-red-400 bg-red-50/70`;
 
-  const subjectSearchOptions = useMemo<SearchSelectOption[]>(
-    () => [
-      ...availableSubjects.map((s) => ({ value: s.id, label: `${s.code} — ${s.title}` })),
-      ...addAnotherSlotSubjects.map((s) => ({
-        value: s.id,
-        label: `+ ${s.code} — ${s.title}`,
-        hint: "another time slot",
-      })),
-    ],
-    [availableSubjects, addAnotherSlotSubjects],
-  );
   const instructorSearchOptions = useMemo<SearchSelectOption[]>(
     () => [
       { value: GEC_VACANT_INSTRUCTOR_USER_ID, label: "Prof X (TBA) — no instructor yet" },
@@ -410,7 +399,7 @@ export function GecPlotScheduleModal({
         <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-black/10 bg-white bg-gradient-to-r from-[#e8f8f1] to-white px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
           <div>
             <h2 id="gec-plot-schedule-modal-title" className="text-lg font-bold text-[#780301]">
-              {readOnly ? "View schedule" : isNewPlot ? "Plot vacant GEC" : "Edit vacant GEC"}
+              {readOnly ? "View schedule" : isNewPlot ? "Plot general subject" : "Edit general subject"}
             </h2>
             <p className="text-[12px] text-black/55 mt-0.5">
               {anchorLabel}
@@ -442,7 +431,7 @@ export function GecPlotScheduleModal({
           ) : null}
           {readOnly ? (
             <p className="text-[12px] text-black/60 rounded-lg border border-black/10 bg-gray-50 px-3 py-2">
-              Major and assigned (non-vacant) rows are locked. Only <strong>vacant GEC</strong> slots (light green)
+              Major and assigned (non-vacant) rows are locked. Only <strong>vacant general-subject</strong> slots (light green)
               in this college / department can be plotted, edited, or removed.
             </p>
           ) : null}
@@ -472,21 +461,9 @@ export function GecPlotScheduleModal({
 
           <div>
             <label className={labelClass} htmlFor="gec-plot-subject">
-              GEC subject
+              General subject
             </label>
-            {searchable ? (
-              <SearchSelect
-                id="gec-plot-subject"
-                ariaLabel="GEC subject"
-                className="mt-1"
-                inputClassName={missingSubject && !readOnly ? incompleteFieldBare : fieldClass}
-                placeholder="Type a code or title (e.g. GEC-PC, PATHFit)…"
-                options={subjectSearchOptions}
-                value={draft.subjectId}
-                disabled={readOnly || gecSubjects.length === 0}
-                onChange={pickSubject}
-              />
-            ) : (
+            {/* A select, for everyone: the list is the Summary of Subjects for this section (short). */}
             <select
               id="gec-plot-subject"
               className={missingSubject && !readOnly ? incompleteField : `${fieldClass} mt-1`}
@@ -494,7 +471,7 @@ export function GecPlotScheduleModal({
               disabled={readOnly || gecSubjects.length === 0}
               onChange={(e) => pickSubject(e.target.value)}
             >
-              <option value="">Select GEC subject…</option>
+              <option value="">Select general subject…</option>
               {availableSubjects.length > 0 ? (
                 <optgroup label="Available">
                   {availableSubjects.map((s) => (
@@ -514,7 +491,6 @@ export function GecPlotScheduleModal({
                 </optgroup>
               ) : null}
             </select>
-            )}
             {pickedSummaryCode && pickedSubjectId && onApplyPickedSummary && !readOnly ? (
               <Button
                 type="button"

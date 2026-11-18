@@ -36,8 +36,8 @@ import {
   parseFacultyCategory,
   type FacultyCategory,
 } from "@/lib/faculty/faculty-category";
-import { useActionToast } from "@/components/alerts/useActionToast";
 import { serviceAreasApi, type ServiceArea } from "@/lib/api/client";
+import { useActionToast } from "@/components/alerts/useActionToast";
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = { id: string; code: string; name: string; collegeId: string };

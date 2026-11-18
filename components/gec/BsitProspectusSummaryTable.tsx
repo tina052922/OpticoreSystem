@@ -7,6 +7,49 @@ import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import { subjectWeeklyContactHours } from "@/lib/subjects/contact-hours";
 import { SubjectWeeklyHoursChip } from "@/components/evaluator/SubjectWeeklyHoursBanner";
+import { isGecEditableSubject } from "@/lib/subjects/gec-subject-scope";
+import type { ProspectusSubjectRow } from "@/lib/chairman/bsit-prospectus";
+
+/** A Subject Codes row of the section's program (the source of truth when it has general subjects). */
+export type SummaryCatalogSubject = {
+  code: string;
+  title: string;
+  lecUnits?: number | null;
+  lecHours?: number | null;
+  labUnits?: number | null;
+  labHours?: number | null;
+  yearLevel?: number | null;
+  semester?: number | null;
+  category?: string | null;
+  subjectArea?: string | null;
+};
+
+/** The program's general subjects (GEC / GEE / PE / NSTP / area-tagged) from Subject Codes. */
+function generalRowsFromCatalog(subjects: readonly SummaryCatalogSubject[]): ProspectusSubjectRow[] {
+  const out: ProspectusSubjectRow[] = [];
+  const seen = new Set<string>();
+  for (const s of subjects) {
+    if (!isGecEditableSubject({ code: s.code, category: s.category ?? null, subjectArea: s.subjectArea ?? null })) continue;
+    const sem = Number(s.semester);
+    const year = Number(s.yearLevel);
+    if (!(year >= 1) || (sem !== 1 && sem !== 2)) continue;
+    const key = `${normalizeProspectusCode(s.code)}|${year}|${sem}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      code: s.code,
+      title: s.title,
+      lecUnits: Number(s.lecUnits ?? 0),
+      lecHours: Number(s.lecHours ?? 0),
+      labUnits: Number(s.labUnits ?? 0),
+      labHours: Number(s.labHours ?? 0),
+      yearLevel: year,
+      semester: sem as 1 | 2,
+      category: s.category ?? null,
+    });
+  }
+  return out;
+}
 
 type Props = {
   /** Must match `Program.code` for the selected section (drives which static curriculum is shown). */
@@ -24,6 +67,11 @@ type Props = {
   /** When user picks a code, vacant-row subject dropdowns can prefill from this. */
   onSelectSubjectCode?: (code: string | null) => void;
   className?: string;
+  /**
+   * The section's program rows from Subject Codes. Their general subjects are used first; the
+   * built-in prospectus is only the fallback for a program with none recorded.
+   */
+  catalogSubjects?: readonly SummaryCatalogSubject[];
 };
 
 /**
@@ -40,11 +88,18 @@ export function BsitProspectusSummaryTable({
   plottedHoursBySubjectCode,
   onSelectSubjectCode,
   className = "",
+  catalogSubjects,
 }: Props) {
   const [activeCode, setActiveCode] = useState<string | null>(null);
 
+  const catalogRows = useMemo(() => generalRowsFromCatalog(catalogSubjects ?? []), [catalogSubjects]);
+  const fromCatalog = catalogRows.length > 0;
+  const hasSource = fromCatalog || hasProspectusForProgram(programCode);
+
   const groups = useMemo(() => {
-    const rows = getProspectusSubjectsForProgram(programCode).filter((r) => isGecCurriculumSubjectCode(r.code));
+    const rows = fromCatalog
+      ? catalogRows
+      : getProspectusSubjectsForProgram(programCode).filter((r) => isGecCurriculumSubjectCode(r.code));
     /** Use `!= null` so year level 0 would still filter — curriculum uses 1–4 only. */
     const filtered = rows.filter((r) => {
       if (yearLevel != null && r.yearLevel !== yearLevel) return false;
@@ -52,7 +107,7 @@ export function BsitProspectusSummaryTable({
       return true;
     });
     return groupProspectusByYearLevelOnly(filtered);
-  }, [programCode, yearLevel, semester]);
+  }, [programCode, yearLevel, semester, fromCatalog, catalogRows]);
 
   useEffect(() => {
     setActiveCode(null);
@@ -82,22 +137,24 @@ export function BsitProspectusSummaryTable({
   return (
     <div className={`${className}`}>
       <div className="px-2 py-2">
-        <div className="text-[12px] font-semibold text-[#780301]">Summary of Subjects (GEC)</div>
+        <div className="text-[12px] font-semibold text-[#780301]">Summary of Subjects</div>
         <div className="text-[11px] text-black/55">
           Program: <span className="font-medium text-black/70">{label}</span> · Scope: {scopeLabel}
         </div>
       </div>
       {!programCode.trim() ? (
         <p className="text-sm text-black/55 px-2 py-4">Select a section to load that program&apos;s prospectus.</p>
-      ) : !hasProspectusForProgram(programCode) ? (
+      ) : !hasSource ? (
         <div className="px-2 py-4 text-sm text-amber-950 bg-amber-50">
-          <p className="font-semibold">No static prospectus for program code &quot;{programCode}&quot;</p>
-         
+          <p className="font-semibold">No general subjects recorded for &quot;{programCode}&quot;</p>
+          <p className="text-[12px] mt-1">
+            Add its GEC / GEE / PE / NSTP subjects (with year level and semester) in Subject Codes.
+          </p>
         </div>
       ) : (
         <div className="px-2 pb-2">
           {groups.length === 0 ? (
-            <div className="text-[12px] text-black/55 py-4">No GEC subjects found for the selected scope.</div>
+            <div className="text-[12px] text-black/55 py-4">No general subjects found for the selected scope.</div>
           ) : null}
           {groups.map((g) => (
             <div key={String(g.yearLevel)} className="mb-2">

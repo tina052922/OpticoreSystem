@@ -4,6 +4,7 @@ import { slotDurationHours } from "@/lib/scheduling/time";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { subjectPrepKey } from "@/lib/scheduling/prep-key";
 import { PLACEHOLDER_INSTRUCTOR_ID } from "@/lib/scheduling/placeholder-instructor";
+import { isGecEditableSubject } from "@/lib/subjects/gec-subject-scope";
 
 export type TeachingLoadModeSlice = {
   preps: number;
@@ -50,6 +51,8 @@ export type TeachingLoadCategoryGroup = {
   /** Program code / full name, for the printed "A. BACHELOR OF SCIENCE IN …" heading. */
   programCode?: string;
   programName?: string;
+  /** Set on a service-area group (General Subject instructors under a Service Chair). */
+  serviceAreaId?: string;
   rows: TeachingLoadSummaryRow[];
 };
 
@@ -84,11 +87,16 @@ export function sortProgramsForTeachingLoad<T extends TeachingLoadProgramRef>(pr
   });
 }
 
+/** "N/A", "none", "-" … typed into a profile cell mean "nothing", not a responsibility to list. */
+const EMPTY_PROFILE_CELL = /^(n\/?a|none|nil|null|wala|-+|—|–|\.)$/i;
+
 export function otherResponsibilitiesFromProfile(profile: FacultyProfile | undefined | null): string {
   const parts = [profile?.research, profile?.extension, profile?.production, profile?.specialTraining]
     .map((s) => (s ?? "").trim())
-    .filter(Boolean);
-  return parts.length > 0 ? parts.join("; ") : "—";
+    .filter((s) => s && !EMPTY_PROFILE_CELL.test(s));
+  // The same text in two cells is listed once.
+  const unique = [...new Set(parts)];
+  return unique.length > 0 ? unique.join("; ") : "—";
 }
 
 export function subjectCodesForEntries(entries: ScheduleEntry[], subjectById: Map<string, Subject>): string {
@@ -261,6 +269,71 @@ export function buildTeachingLoadSummaryByCategory(
       categoryLabel: categoryLabelForProgram(program),
       programCode: (program.code ?? "").trim(),
       programName: (program.name ?? "").trim(),
+      rows,
+    };
+  });
+}
+
+export type TeachingLoadServiceArea = { id: string; code: string; name: string };
+
+/**
+ * One table per service area (Humanities and Social Sciences, Natural Sciences and Mathematics,
+ * PE and Sports, …): the General Subject / "both" instructors registered under it, with their
+ * general-subject load across every college. Day and Evening stay separate.
+ */
+export function buildTeachingLoadSummaryByServiceArea(args: {
+  areas: TeachingLoadServiceArea[];
+  academicPeriodId: string;
+  entries: ScheduleEntry[];
+  users: User[];
+  profiles: FacultyProfile[];
+  subjects: Subject[];
+  justifications: ScheduleLoadJustification[];
+}): TeachingLoadCategoryGroup[] {
+  const subjectById = new Map(args.subjects.map((s) => [s.id, s]));
+  const profileByUserId = new Map(args.profiles.map((p) => [p.userId, p]));
+  const termEntries = hydrateScheduleEntries(
+    args.entries.filter((e) => e.academicPeriodId === args.academicPeriodId),
+  ).filter((e) => {
+    const sub = subjectById.get(e.subjectId);
+    return Boolean(
+      sub && isGecEditableSubject({ code: sub.code, category: sub.category ?? null, subjectArea: sub.subjectArea ?? null }),
+    );
+  });
+
+  return args.areas.map((area) => {
+    const members = args.users.filter(
+      (u) => u.serviceAreaId === area.id && u.id !== PLACEHOLDER_INSTRUCTOR_ID && isPlottableFacultyUser(u),
+    );
+    const rows: TeachingLoadSummaryRow[] = members.map((user) => {
+      const mine = termEntries.filter((e) => e.instructorId === user.id);
+      const dayEntries = filterByProgramMode(mine, "day");
+      const eveningEntries = filterByProgramMode(mine, "night");
+      const day = metricsForEntries(dayEntries, subjectById);
+      const evening = metricsForEntries(eveningEntries, subjectById);
+      const profile = profileByUserId.get(user.id);
+      return {
+        instructorId: user.id,
+        facultyName: profile?.fullName?.trim() || user.name?.trim() || user.id,
+        facultyCategory: user.facultyCategory ?? null,
+        administrativeDesignation: profile?.designation?.trim() || null,
+        otherResponsibilities: otherResponsibilitiesFromProfile(profile),
+        day,
+        evening,
+        subjectsHandled: subjectCodesForEntries([...dayEntries, ...eveningEntries], subjectById),
+        justification: latestJustificationText(args.justifications, user.id, args.academicPeriodId),
+        totalPreps: metricsForEntries([...dayEntries, ...eveningEntries], subjectById).preps,
+        totalHoursPerWeek: Math.round((day.hoursPerWeek + evening.hoursPerWeek) * 100) / 100,
+        homeProgramId: null,
+      };
+    });
+    rows.sort((a, b) => a.facultyName.localeCompare(b.facultyName));
+    return {
+      programId: `area:${area.id}`,
+      categoryLabel: area.name,
+      programCode: area.code.toUpperCase(),
+      programName: area.name,
+      serviceAreaId: area.id,
       rows,
     };
   });

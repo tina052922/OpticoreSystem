@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api/client";
 import { DESIGNATION_POLICIES } from "@/lib/faculty/designation-system";
 import {
+  APPOINTMENT_STATUS_OPTIONS,
+  appointmentStatusLabel,
+  normalizeAppointmentStatus,
+} from "@/lib/faculty/appointment-status";
+import {
   ACADEMIC_RANK_SUGGESTIONS,
   DATE_OF_BIRTH_ERROR,
   composeFullName,
@@ -41,6 +46,17 @@ type SelfProfile = {
   educationalQualification: string | null;
   experience: string | null;
   eligibility: string | null;
+  // INS Form 5A details.
+  appointmentStatus?: string | null;
+  bsDegree?: string | null;
+  major1?: string | null;
+  msDegree?: string | null;
+  minor1?: string | null;
+  doctoralDegree?: string | null;
+  specialTraining?: string | null;
+  production?: string | null;
+  extension?: string | null;
+  research?: string | null;
 };
 
 type SelfAccount = {
@@ -71,9 +87,32 @@ type Draft = {
   educationalQualification: string;
   experience: string;
   eligibility: string;
+  appointmentStatus: string;
+  bsDegree: string;
+  major1: string;
+  msDegree: string;
+  minor1: string;
+  doctoralDegree: string;
+  specialTraining: string;
+  production: string;
+  extension: string;
+  research: string;
 };
 
 const ENDPOINT = "/api/portal/my-faculty-profile";
+
+/** INS Form 5A text cells, in the order Faculty Profile shows them. */
+const INS_5A_FIELDS = [
+  { key: "bsDegree", label: "Bachelor's Degree", placeholder: "BS Information Technology" },
+  { key: "major1", label: "Major", placeholder: "Major" },
+  { key: "msDegree", label: "Master's Degree", placeholder: "MS in Information Technology" },
+  { key: "minor1", label: "Minor", placeholder: "Minor" },
+  { key: "doctoralDegree", label: "Doctorate Degree", placeholder: "PhD / EdD / DIT" },
+  { key: "specialTraining", label: "Special Training", placeholder: "Trainings / certifications" },
+  { key: "production", label: "Production", placeholder: "Production work" },
+  { key: "extension", label: "Extension", placeholder: "Extension projects" },
+  { key: "research", label: "Research", placeholder: "Research projects" },
+] as const;
 
 const fieldClass =
   "h-10 w-full rounded-md border border-black/25 bg-white px-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -125,6 +164,16 @@ function draftFrom(profile: SelfProfile | null, account: SelfAccount | null): Dr
     educationalQualification: profile?.educationalQualification ?? "",
     experience: profile?.experience ?? "",
     eligibility: profile?.eligibility ?? "",
+    appointmentStatus: normalizeAppointmentStatus(profile?.appointmentStatus),
+    bsDegree: profile?.bsDegree ?? "",
+    major1: profile?.major1 ?? "",
+    msDegree: profile?.msDegree ?? "",
+    minor1: profile?.minor1 ?? "",
+    doctoralDegree: profile?.doctoralDegree ?? "",
+    specialTraining: profile?.specialTraining ?? "",
+    production: profile?.production ?? "",
+    extension: profile?.extension ?? "",
+    research: profile?.research ?? "",
   };
 }
 
@@ -227,6 +276,7 @@ export function FacultyOwnProfileDetails() {
           programId: draft.programId,
           dateOfBirth: draft.dateOfBirth || null,
           sex: draft.sex || null,
+          appointmentStatus: draft.appointmentStatus || null,
         },
         invalidates: ["/api/auth/me"],
       });
@@ -420,23 +470,22 @@ export function FacultyOwnProfileDetails() {
                   ) : null}
                 </select>
               </Field>
-              <Field id="self-designation" label="Designation">
-                <select
+              <Field id="self-designation" label="Administrative designation">
+                {/* Typeable, as in Faculty Profile: pick a suggestion or enter your own. */}
+                <Input
                   id="self-designation"
-                  className={fieldClass}
+                  list="self-designation-suggestions"
+                  placeholder="Regular Faculty (no designation)"
                   value={draft.designation}
                   onChange={(e) => patch({ designation: e.target.value })}
-                >
-                  <option value="">Regular faculty (no designation)</option>
+                />
+                <datalist id="self-designation-suggestions">
                   {DESIGNATION_POLICIES.filter((p) => p.key !== "Regular Faculty").map((p) => (
                     <option key={p.key} value={p.label}>
-                      {p.label}
+                      {p.hoursPerWeekMin}–{p.hoursPerWeekMax} hrs/wk
                     </option>
                   ))}
-                  {draft.designation && !DESIGNATION_POLICIES.some((p) => p.label === draft.designation) ? (
-                    <option value={draft.designation}>{draft.designation}</option>
-                  ) : null}
-                </select>
+                </datalist>
               </Field>
               <Field id="self-rank" label="Academic rank">
                 <Input
@@ -466,6 +515,39 @@ export function FacultyOwnProfileDetails() {
               <Field id="self-eligibility" label="Eligibility">
                 <Input id="self-eligibility" value={draft.eligibility} onChange={(e) => patch({ eligibility: e.target.value })} />
               </Field>
+            </div>
+          </fieldset>
+
+          {/* The same INS Form 5A cells the chairman edits in Faculty Profile; they print on INS Form 5A. */}
+          <fieldset className="space-y-3">
+            <legend className="text-xs font-bold uppercase tracking-wide text-[#780301]">INS Form 5A details</legend>
+            <div className="space-y-1">
+              <div className={labelClass}>Status of Appointment</div>
+              <div className="flex flex-wrap gap-4">
+                {APPOINTMENT_STATUS_OPTIONS.map((o) => (
+                  <label key={o.code} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="accent-[#ff990a]"
+                      checked={draft.appointmentStatus === o.code}
+                      onChange={(e) => patch({ appointmentStatus: e.target.checked ? o.code : "" })}
+                    />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {INS_5A_FIELDS.map((f) => (
+                <Field key={f.key} id={`self-${f.key}`} label={f.label}>
+                  <Input
+                    id={`self-${f.key}`}
+                    placeholder={f.placeholder}
+                    value={draft[f.key]}
+                    onChange={(e) => patch({ [f.key]: e.target.value } as Partial<Draft>)}
+                  />
+                </Field>
+              ))}
             </div>
           </fieldset>
 
@@ -511,6 +593,15 @@ export function FacultyOwnProfileDetails() {
               <Row label="Educational qualification" value={profile?.educationalQualification} />
               <Row label="Experience" value={profile?.experience} />
               <Row label="Eligibility" value={profile?.eligibility} />
+            </dl>
+          </div>
+          <div className="border-t border-black/10 pt-4">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-black/50">INS Form 5A details</h3>
+            <dl className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Row label="Status of Appointment" value={appointmentStatusLabel(profile?.appointmentStatus)} />
+              {INS_5A_FIELDS.map((f) => (
+                <Row key={f.key} label={f.label} value={profile?.[f.key]} />
+              ))}
             </dl>
           </div>
         </div>

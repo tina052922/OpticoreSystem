@@ -89,7 +89,7 @@ import { getProspectusSubjectsForProgram } from "@/lib/chairman/prospectus-regis
 import { parseGecYearLevelFromSectionName } from "@/lib/gec/gec-section-year-level";
 import { sectionHasGecSubjectsInScope } from "@/lib/gec/gec-section-scope";
 import { filterSubjectsBySemester, semesterFilterForPeriod } from "@/lib/subjects/subject-semester-filter";
-import { gecSubjectsForSectionPlot } from "@/lib/gec/gec-plottable-subjects";
+import { gecSubjectsForSectionPlot, sectionSummaryGeneralSubjects } from "@/lib/gec/gec-plottable-subjects";
 import {
   mergeLegacyRowInstructorsIntoPlotOptions,
   usersToInstructorPlotOptions,
@@ -139,9 +139,12 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  */
 export function GecCentralHubEvaluatorClient({
   casAdmin = false,
+  headerActions = null,
 }: {
   /** CAS College Admin: every general subject (no single service area). */
   casAdmin?: boolean;
+  /** Beside the page title (CAS Admin: CAS subjects ↔ general subjects). */
+  headerActions?: React.ReactNode;
 } = {}) {
   const toast = useOpticoreToast();
   const systemConfig = useSystemConfigurationOptional();
@@ -1314,14 +1317,17 @@ export function GecCentralHubEvaluatorClient({
     if (!sec) return;
     const prog = programById.get(sec.programId);
     const programCode = prog?.code ?? "";
-    const gecList = gecSubjectsForSectionPlot(subjects, {
-      sectionProgramId: sec.programId,
-      allowedProspectusCodes: casAdmin ? allowedProspectusCodes : null,
-    });
+    const gecList =
+      gecSubjectsForSection && gecSubjectsForSection.length > 0
+        ? gecSubjectsForSection
+        : gecSubjectsForSectionPlot(subjects, {
+            sectionProgramId: sec.programId,
+            allowedProspectusCodes: casAdmin ? allowedProspectusCodes : null,
+          });
     const firstSub = gecList[0];
     if (!firstSub) {
       // Only reachable when the catalog holds no GEC subject at all, for any program.
-      toast.error("No GEC subjects yet", "Add GEC or GEE subjects in Subject Codes first.");
+      toast.error("No general subjects yet", "Add GEC / GEE / PE / NSTP subjects in Subject Codes first.");
       return;
     }
     const dur = plotEntryDurationSlots(programCode, firstSub, 1);
@@ -1425,6 +1431,14 @@ export function GecCentralHubEvaluatorClient({
    */
   const gecSubjectsForSection = useMemo(() => {
     if (!selectedSection) return null;
+    // The same subjects the Summary of Subjects lists for this section (Subject Codes: its program's
+    // general subjects for this year and term). Older fallbacks below only when none are recorded.
+    const summary = sectionSummaryGeneralSubjects(subjects, {
+      programId: selectedSection.programId,
+      yearLevel: selectedYearLevel,
+      semester: prospectusSemesterForScope,
+    });
+    if (summary.length > 0) return summary;
     // Service Chairs know which general subjects they plot: offer every GEC / GEE / PE / NSTP subject
     // (one per code), not only the prospectus' list for this year and term.
     if (!casAdmin) {
@@ -1439,8 +1453,14 @@ export function GecCentralHubEvaluatorClient({
         allowedProspectusCodes,
       },
     );
-  }, [subjects, selectedSection, allowedProspectusCodes, selectedPeriod, casAdmin, serviceAreaCode]);
+  }, [subjects, selectedSection, allowedProspectusCodes, selectedPeriod, casAdmin, serviceAreaCode, selectedYearLevel, prospectusSemesterForScope]);
 
+
+  /** Subject Codes rows of the selected section's program — the summary's source of truth. */
+  const sectionProgramSubjects = useMemo(
+    () => (sectionProgram ? subjects.filter((s) => s.programId === sectionProgram.id) : []),
+    [subjects, sectionProgram],
+  );
 
   /** Current term → prospectus 1st/2nd sem; the same value the Section picker is scoped by. */
   const termProspectusSemesterForSummary = prospectusSemesterForScope;
@@ -1512,7 +1532,21 @@ export function GecCentralHubEvaluatorClient({
     return set;
   }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById, serviceAreaCode]);
 
-  const gecSubjectsForPlot = useMemo(() => gecSubjectsForSection ?? [], [gecSubjectsForSection]);
+  /**
+   * The plot list: the summary's subjects, plus any general subject already plotted on this section
+   * (so editing an older plot still shows its subject).
+   */
+  const gecSubjectsForPlot = useMemo(() => {
+    const base = gecSubjectsForSection ?? [];
+    const ids = new Set(base.map((s) => s.id));
+    const extra: Subject[] = [];
+    for (const id of gecPlottedSubjectIdsForSection) {
+      if (ids.has(id)) continue;
+      const sub = subjectById.get(id);
+      if (sub) extra.push(sub);
+    }
+    return extra.length ? [...base, ...extra] : base;
+  }, [gecSubjectsForSection, gecPlottedSubjectIdsForSection, subjectById]);
 
   const sparseCampusWideUniverse = useMemo(() => {
     if (!academicPeriodId) return [];
@@ -1572,7 +1606,7 @@ export function GecCentralHubEvaluatorClient({
   if (!collegeParam) {
     return (
       <div>
-        <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
+        <ChairmanPageHeader actions={headerActions} title={SUBJECT_SCHEDULER_NAV_LABEL} />
         <div className="px-4 md:px-8 pb-12 max-w-5xl mx-auto">
           <GecHubEvaluatorTabs collegeParam="" basePath={hubBasePath} />
           {loadError ? (
@@ -1637,7 +1671,7 @@ export function GecCentralHubEvaluatorClient({
   if (loadError) {
     return (
       <div>
-        <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
+        <ChairmanPageHeader actions={headerActions} title={SUBJECT_SCHEDULER_NAV_LABEL} />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath={hubBasePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← Back to {EVALUATOR_TAB_LABELS.colleges}
@@ -1651,7 +1685,7 @@ export function GecCentralHubEvaluatorClient({
   if (invalidCollege) {
     return (
       <div>
-        <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} subtitle="Invalid college selection." />
+        <ChairmanPageHeader actions={headerActions} title={SUBJECT_SCHEDULER_NAV_LABEL} subtitle="Invalid college selection." />
         <div className="px-4 md:px-8 pb-8">
           <HubCollegesNavLink basePath={hubBasePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← Back to {EVALUATOR_TAB_LABELS.colleges}
@@ -1665,6 +1699,7 @@ export function GecCentralHubEvaluatorClient({
     <>
     <div>
       <ChairmanPageHeader
+        actions={headerActions}
         title={SUBJECT_SCHEDULER_NAV_LABEL}
         subtitle="Plot vacant GEC slots in the selected college and department. Major subjects stay read-only."
       />
@@ -1830,6 +1865,7 @@ export function GecCentralHubEvaluatorClient({
                     key={`${sectionIdFilter}-${selectedYearLevel}-${termProspectusSemesterForSummary ?? "semx"}`}
                     programCode={sectionProgram?.code ?? ""}
                     programName={sectionProgram?.name}
+                    catalogSubjects={sectionProgramSubjects}
                     yearLevel={selectedYearLevel}
                     semester={termProspectusSemesterForSummary}
                     plottedSubjectCodes={gecPlottedSubjectCodesForSection}

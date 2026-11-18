@@ -1514,16 +1514,19 @@ export function BsitChairmanEvaluatorWorksheet({
       }
       setChairmanGaByIssueKey(gaMap);
 
+      // Conflict check results are toasts, not a line under the grid.
       if (ids.size === 0) {
-        setSaveScheduleMsg(scan.apiOk ? "No conflicts detected." : scan.apiError ?? "Conflict scan failed.");
+        if (scan.apiOk) toast.success("No conflicts detected", "The campus-wide check found no clashes.");
+        else toast.error("Conflict check failed", scan.apiError ?? "The conflict scan could not run.");
       } else if (!scan.apiOk) {
-        setSaveScheduleMsg(
+        toast.error(
+          `Conflicts found: ${ids.size} row(s)`,
           scan.apiError?.includes("SERVICE_ROLE")
-            ? `Conflicts found: ${ids.size} row(s) — on-screen scan (campus-wide API unavailable).`
-            : `Conflicts found: ${ids.size} row(s). Server scan failed: ${scan.apiError ?? "error"}`,
+            ? "On-screen scan only (campus-wide check unavailable)."
+            : `Server scan failed: ${scan.apiError ?? "error"}`,
         );
       } else {
-        setSaveScheduleMsg(`Conflicts found: ${ids.size} row(s).`);
+        toast.error(`Conflicts found: ${ids.size} row(s)`, "The conflicting rows are highlighted in red.");
       }
     } finally {
       setConflictDetailLoading(false);
@@ -1543,6 +1546,7 @@ export function BsitChairmanEvaluatorWorksheet({
     subjectIdByCode,
     userById,
     programCodeForSummary,
+    toast,
   ]);
 
   useEffect(() => {

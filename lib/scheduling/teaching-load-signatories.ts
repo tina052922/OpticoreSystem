@@ -63,14 +63,17 @@ export function buildTeachingLoadSignatories(args: {
   const preparedBy: TeachingLoadSigner[] = [];
   const seen = new Set<string>();
   for (const g of groups) {
-    const chair = users.find((u) => u.role === "chairman_admin" && u.chairmanProgramId === g.programId);
-    const code = g.programCode || g.categoryLabel;
+    // A service-area group (General Subject instructors) is prepared by that area's Service Chair.
+    const chair = g.serviceAreaId
+      ? users.find((u) => u.role === "gec_chairman" && u.serviceAreaId === g.serviceAreaId)
+      : users.find((u) => u.role === "chairman_admin" && u.chairmanProgramId === g.programId);
+    const code = g.serviceAreaId ? g.categoryLabel : g.programCode || g.categoryLabel;
     const key = chair?.id ?? `none:${g.programId}`;
     if (seen.has(key)) continue;
     seen.add(key);
     preparedBy.push({
       name: chair?.name?.trim() || BLANK,
-      title: `Chairperson, ${code}`,
+      title: g.serviceAreaId ? `Service Chair, ${code}` : `Chairperson, ${code}`,
       imageUrl: chair?.signatureImageUrl?.trim() || null,
     });
   }

@@ -415,12 +415,14 @@ export function GecInteractiveWeekGrid({
       const buildingValue =
         roomBuildingByEntryId[e.id] ?? (pickedRoom ? plotBuildingKeyForRoom(pickedRoom, buildingsCatalog) : "");
       setHighlightedCell(anchor);
+      const isNew = pendingNewEntryIds.has(e.id);
       setModal({
         entryId: e.id,
-        draft: { ...e },
+        // A new plot starts on "Select general subject…"; editing keeps the plotted subject.
+        draft: isNew ? { ...e, subjectId: "" } : { ...e },
         buildingValue,
         durationSlots: inferDurationSlotsFromTimes(e.startTime, e.endTime),
-        isNew: pendingNewEntryIds.has(e.id),
+        isNew,
         readOnly,
         anchor,
       });
