@@ -10,6 +10,7 @@ import { resolveInsSignatureSlots, type InsSignatureSlot } from "@/lib/ins/ins-s
 import { insInstructorDisplayName } from "@/lib/ins/ins-instructor-display";
 import { useInsCatalog } from "@/hooks/use-ins-catalog";
 import type { FacultyProfile } from "@/types/db";
+import { apiFetch } from "@/lib/api/client";
 
 export type { InsInstructorOption } from "@/hooks/use-ins-catalog";
 
@@ -51,6 +52,14 @@ export function useInsLiveSchedule(args: {
     [args.lockedInstructorId],
   );
 
+  /**
+   * The selected faculty's FULL profile — what INS Form 5A prints: Status of Appointment, degrees,
+   * major / minor, special training, Administrative Designation, production, extension, research.
+   *
+   * The INS bundle only carries names (and advisory ids), so the form used to be filled from that
+   * and every credential printed blank. The name is shown at once; the full row replaces it as soon
+   * as it loads, and again whenever the catalog reloads (a Faculty Profile save dispatches one).
+   */
   useEffect(() => {
     if (!selectedInstructorId) {
       setFacultyProfile(null);
@@ -58,11 +67,30 @@ export function useInsLiveSchedule(args: {
     }
     const fromCatalog = catalog.facultyProfileByUserId.get(selectedInstructorId);
     if (fromCatalog) {
-      setFacultyProfile({
-        userId: selectedInstructorId,
-        fullName: fromCatalog.fullName,
-      } as FacultyProfile);
+      setFacultyProfile((prev) =>
+        prev && prev.userId === selectedInstructorId && "bsDegree" in prev
+          ? prev
+          : ({ userId: selectedInstructorId, fullName: fromCatalog.fullName } as FacultyProfile),
+      );
+    } else {
+      setFacultyProfile(null);
     }
+    let alive = true;
+    void apiFetch<{ profiles: FacultyProfile[] }>(
+      `/api/catalog/faculty-profiles?ids=${encodeURIComponent(selectedInstructorId)}`,
+      { method: "GET", forceRefresh: true },
+    )
+      .then(({ profiles }) => {
+        if (!alive) return;
+        const full = (profiles ?? []).find((p) => p.userId === selectedInstructorId);
+        if (full) setFacultyProfile(full);
+      })
+      .catch(() => {
+        /* keep the name-only profile; the form still renders */
+      });
+    return () => {
+      alive = false;
+    };
   }, [selectedInstructorId, catalog.facultyProfileByUserId]);
 
   const resolvedCollegeAndProgram = useMemo(() => {

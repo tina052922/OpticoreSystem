@@ -1357,6 +1357,20 @@ export function BsitChairmanEvaluatorWorksheet({
     ],
   );
 
+  /** "CC-111 · BSIT 1A" for an entry id, from the worksheet or the term's saved schedule. */
+  const conflictSubjectLabel = useCallback(
+    (entryId: string): string | undefined => {
+      const local = rows.find((r) => r.id === entryId);
+      const entry = local ? undefined : allTermScheduleEntries.find((e) => e.id === entryId);
+      const code = local?.subjectCode || (entry ? subjectCodeById.get(entry.subjectId) : undefined);
+      const sectionId = local?.sectionId || entry?.sectionId;
+      const section = sectionId ? sectionNameById.get(sectionId) : undefined;
+      if (!code) return undefined;
+      return section ? `${code} · ${section}` : code;
+    },
+    [rows, allTermScheduleEntries, subjectCodeById, sectionNameById],
+  );
+
   const notifyRealtimeConflicts = useCallback(
     (row: PlotRow) => {
       const cf = conflictForRow(row);
@@ -2804,6 +2818,7 @@ export function BsitChairmanEvaluatorWorksheet({
         plottedEnrollment={plottedEnrollment}
         conflictForRow={conflictForRow}
         conflictDetailForRow={conflictDetailForRow}
+        conflictSubjectLabel={conflictSubjectLabel}
         campusScanConflictIds={campusScanConflictIds}
         overloadedInstructorIds={overloadedInstructorIds}
         instructorLoadById={instructorLoadById}

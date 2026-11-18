@@ -25,6 +25,13 @@ export function setActiveServiceAreaCode(code: string | null | undefined): void 
   activeServiceAreaCode = c || null;
 }
 
+/** PE / PATHFit / NSTP by code, or a general category. */
+function isGeneralCategoryOrCode(sub: { code: string; category?: string | null }): boolean {
+  const u = sub.code.trim().toUpperCase();
+  if (/^(PE\b|PE\s|PE-|PE\d|PATHFIT|NSTP)/.test(u)) return true;
+  return ["gec", "gee", "pe", "nstp"].includes(String(sub.category ?? "").trim().toLowerCase());
+}
+
 export function setAnyGeneralSubjectScope(on: boolean): void {
   anyGeneralSubjectScope = on;
 }
@@ -32,19 +39,19 @@ export function setAnyGeneralSubjectScope(on: boolean): void {
 /**
  * A general subject the current scheduler may plot. Mirrors the server
  * (`subjectBelongsToServiceArea`):
- *   • Service Chair (area set): subjects tagged with their area only — GEC-/GEE- codes too, once tagged;
+ *   • Service Chair (area set): every GEC-/GEE- subject, plus subjects tagged with their area;
  *   • CAS College Admin: any GEC-/GEE- code or area-tagged subject;
  *   • otherwise: GEC-/GEE- codes (the original rule).
  */
-export function isServiceAreaSubject(sub: { code: string; subjectArea?: string | null } | null | undefined): boolean {
+export function isServiceAreaSubject(
+  sub: { code: string; subjectArea?: string | null; category?: string | null } | null | undefined,
+): boolean {
   if (!sub) return false;
   const gecCode = isGecCurriculumSubjectCode(sub.code);
   const area = String(sub.subjectArea ?? "").trim().toLowerCase();
-  if (activeServiceAreaCode) {
-    if (area) return area === activeServiceAreaCode;
-    return activeServiceAreaCode === "gec" && gecCode;
-  }
-  if (anyGeneralSubjectScope) return gecCode || Boolean(area);
+  // Not strict: a Service Chair plots any general subject of a section (GEC-/GEE-, PE, NSTP, area-tagged).
+  if (activeServiceAreaCode) return gecCode || Boolean(area) || isGeneralCategoryOrCode(sub);
+  if (anyGeneralSubjectScope) return gecCode || Boolean(area) || isGeneralCategoryOrCode(sub);
   return gecCode;
 }
 

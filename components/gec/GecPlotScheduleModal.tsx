@@ -51,6 +51,8 @@ import {
   sortedRoomsInBuildingNamed,
 } from "@/lib/evaluator/building-options";
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
+import { plotStartConflicts } from "@/lib/evaluator/plot-start-conflicts";
+import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 
 const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -100,7 +102,13 @@ export type GecPlotScheduleModalProps = {
   onApply: (meetings: ResolvedPlotMeeting[]) => void;
   onRemove?: () => void;
   subjectHourBudget?: { required: number; alreadyPlotted: number } | null;
+  /** Classes already plotted this term, to stop a start that lands on one. */
+  existingBlocks?: SparseScheduleBlock[];
+  /** Subject code (and section) of an already-plotted entry, to name it in a clash message. */
+  labelForEntry?: (entryId: string) => string | undefined;
 };
+
+const EMPTY_BLOCKS: SparseScheduleBlock[] = [];
 
 export function GecPlotScheduleModal({
   open,
@@ -133,6 +141,8 @@ export function GecPlotScheduleModal({
   onApply,
   onRemove,
   subjectHourBudget = null,
+  existingBlocks = EMPTY_BLOCKS,
+  labelForEntry,
 }: GecPlotScheduleModalProps) {
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
   const days = weekdays ?? evaluatorWeekdays(programMode);
@@ -199,6 +209,27 @@ export function GecPlotScheduleModal({
       .map((m) => `${m.day} ${formatPlotTimeRange(m.startSlotIndex, m.durationSlots, slots)}`)
       .join(" · ");
   }, [meetings, slots, programMode, maxDur, days, sub]);
+
+  /** Each day's start + duration against classes already plotted, named in the message. */
+  const startConflicts = useMemo(() => {
+    if (readOnly) return [] as string[];
+    const resolved = resolvePlotMeetings(meetings, { slots, programMode, maxDur, weekdays: days });
+    if (!resolved.ok) return [] as string[];
+    return plotStartConflicts({
+      meetings: resolved.meetings,
+      base: {
+        id: draft.id,
+        academicPeriodId: draft.academicPeriodId,
+        sectionId: draft.sectionId,
+        instructorId: draft.instructorId,
+        roomId: draft.roomId,
+      },
+      slots,
+      programMode,
+      existingBlocks,
+      labelForEntry,
+    });
+  }, [meetings, slots, programMode, maxDur, days, draft.id, draft.academicPeriodId, draft.sectionId, draft.instructorId, draft.roomId, existingBlocks, labelForEntry, readOnly]);
   const roomsInB = buildingValue
     ? sortedRoomsInBuildingNamed(rooms, buildingValue, buildingsCatalog)
     : [];
@@ -281,6 +312,11 @@ export function GecPlotScheduleModal({
     });
     if (!resolved.ok) {
       setMeetingError(resolved.error);
+      return;
+    }
+    // Not saved while a day lands on a class that is already plotted.
+    if (startConflicts.length > 0) {
+      setMeetingError(startConflicts[0]!);
       return;
     }
     onApply(resolved.meetings);
@@ -521,7 +557,13 @@ export function GecPlotScheduleModal({
           />
 
           <p className="text-[12px] font-medium text-black/60 rounded-lg bg-emerald-500/8 border border-emerald-400/25 px-3 py-2">
-            Preview: <span className="text-black/85">{timeLine}</span>
+            Preview:{" "}
+            {/* One line per day: each meeting has its own start and duration. */}
+            {timeLine.split(" · ").map((line, i) => (
+              <span key={`${line}-${i}`} className={`${i > 0 ? "block pl-[3.6rem]" : ""} text-black/85`}>
+                {line}
+              </span>
+            ))}
             {sub && additionalHours > 0 ? (
               <span className="text-black/50">
                 {" "}
@@ -529,6 +571,13 @@ export function GecPlotScheduleModal({
               </span>
             ) : null}
           </p>
+          {startConflicts.length > 0 ? (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800 space-y-0.5">
+              {startConflicts.map((msg) => (
+                <p key={msg}>{msg}</p>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white px-5 py-4">

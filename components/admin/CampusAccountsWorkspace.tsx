@@ -7,6 +7,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import { CasChairsPanel } from "@/components/admin/CasChairsPanel";
+import { ChairAssignmentWorkspace } from "@/components/admin/ChairAssignmentWorkspace";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import { useActionToast } from "@/components/alerts/useActionToast";
 import {
@@ -69,6 +70,13 @@ export function CampusAccountsWorkspace() {
   const [role, setRole] = useState<CampusAccountRole>("college_admin");
   /** Third tab: CAS chairs (Service Chairs + CAS Program Chairs). */
   const [casTab, setCasTab] = useState(false);
+  /** Chairmen tab: account list (edit / remove) is folded under the assignments. */
+  const [chairAccountsOpen, setChairAccountsOpen] = useState(false);
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "chairmen") setRole("chairman_admin");
+    else if (tab === "cas") setCasTab(true);
+  }, []);
   const [colleges, setColleges] = useState<College[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [accounts, setAccounts] = useState<CampusAccount[]>([]);
@@ -187,6 +195,7 @@ export function CampusAccountsWorkspace() {
 
   function startEdit(post: Post) {
     if (!post.holder) return;
+    setChairAccountsOpen(true);
     setEditingId(post.holder.id);
     setAssignmentId(post.id);
     setFullName(post.holder.name ?? "");
@@ -433,6 +442,19 @@ export function CampusAccountsWorkspace() {
       <div ref={alertsRef} className="space-y-3 scroll-mt-4 empty:hidden">
       </div>
 
+      {role === "chairman_admin" ? (
+        <div className="space-y-2">
+          <div className="text-[16px] font-semibold">Chairman Assignment</div>
+          {/* Who manages each program / major: one chair for a whole group, or one per major. */}
+          {/* Re-keyed on account changes so a chairman just added appears in its picker. */}
+          <ChairAssignmentWorkspace
+            key={accounts.filter((x) => x.role === "chairman_admin").map((x) => `${x.id}:${x.chairmanProgramId ?? ""}`).join("|")}
+            campusWide
+            embedded
+          />
+        </div>
+      ) : null}
+
       {/* ── Register / edit ─────────────────────────────────────────────── */}
       <div
         ref={formRef}
@@ -441,8 +463,20 @@ export function CampusAccountsWorkspace() {
         }`}
       >
         <div className="text-[16px] font-semibold">
-          {editingId ? `Edit ${ROLE_LABEL[role]}` : `Register ${ROLE_LABEL[role]}`}
+          {role === "chairman_admin"
+            ? editingId
+              ? "Edit chairman account"
+              : "Add chairman account"
+            : editingId
+              ? `Edit ${ROLE_LABEL[role]}`
+              : `Register ${ROLE_LABEL[role]}`}
         </div>
+        {role === "chairman_admin" && !editingId ? (
+          <p className="text-[12px] text-black/55">
+            Creates the sign-in for a new chairman and gives them the chosen program. To give them more
+            programs, or move a program to someone else, use Chairman Assignment above.
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <label className="space-y-1">
@@ -641,6 +675,17 @@ export function CampusAccountsWorkspace() {
       </div>
 
       {/* ── Posts ───────────────────────────────────────────────────────── */}
+      {role === "chairman_admin" ? (
+        <button
+          type="button"
+          className="text-[13px] font-semibold text-[#780301] hover:underline"
+          onClick={() => setChairAccountsOpen((v) => !v)}
+          aria-expanded={chairAccountsOpen}
+        >
+          {chairAccountsOpen ? "▾" : "▸"} Chairman accounts — edit or remove
+        </button>
+      ) : null}
+      {role !== "chairman_admin" || chairAccountsOpen ? (
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
         <div className="p-4 border-b border-black/10">
           <div className="text-[16px] font-semibold">
@@ -700,6 +745,7 @@ export function CampusAccountsWorkspace() {
           </ul>
         )}
       </div>
+      ) : null}
       {pendingDelete ? (
         <DeleteWithImpactDialog
           entity="facultyUser"

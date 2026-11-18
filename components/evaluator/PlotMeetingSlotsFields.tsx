@@ -51,37 +51,17 @@ export function PlotMeetingSlotsFields({
   return (
     <div className="space-y-3">
       <div>
-        <label className={labelClass} htmlFor={`${idPrefix}-start-time`}>
-          Start time
-        </label>
-        <input
-          id={`${idPrefix}-start-time`}
-          type="text"
-          inputMode="text"
-          autoComplete="off"
-          spellCheck={false}
-          className={`${timeFieldClass} tabular-nums`}
-          placeholder="e.g. 8:00 AM or 2:30 PM"
-          disabled={readOnly}
-          value={draft.timeText}
-          onChange={(e) => patchTime(e.target.value)}
-        />
-        <p className="text-[10px] text-black/50 mt-1">
-          Type a start on the hour or half hour (8:00 AM, 2:30 PM, 14:30). The same start applies
-          to each day below.
-        </p>
-      </div>
-
-      <div>
-        <p className={labelClass}>Days and duration</p>
+        <p className={labelClass}>Days, start and duration</p>
         <p className="text-[10px] text-black/50 mt-0.5 mb-2">
-          Up to {PLOT_MEETING_SLOT_COUNT} meetings in one plot — fill extra days instead of clicking the
-          grid again.
+          Up to {PLOT_MEETING_SLOT_COUNT} meetings in one plot, each with its own start — on the hour or
+          half hour (8:00 AM, 2:30 PM, 14:30). Leave Start 2 / 3 empty to use Day 1&apos;s start.
         </p>
         <div className="grid grid-cols-3 gap-2">
           {draft.slots.map((slot, i) => {
             const dayId = `${idPrefix}-day-${i + 1}`;
             const durId = `${idPrefix}-duration-${i + 1}`;
+            // Day 1's start is the plot's start time; Day 2 / 3 may set their own.
+            const startId = i === 0 ? `${idPrefix}-start-time` : `${idPrefix}-start-${i + 1}`;
             const durError = slot.day ? plotDurationError(slot.durationHours) : null;
             return (
               <div key={dayId} className="space-y-2 min-w-0">
@@ -99,6 +79,8 @@ export function PlotMeetingSlotsFields({
                       patchSlot(i, {
                         day,
                         durationHours: durationHoursAfterDayChange(day, slot.durationHours),
+                        // Clearing a day clears its own start too.
+                        ...(day ? {} : { timeText: "" }),
                       });
                     }}
                   >
@@ -118,6 +100,29 @@ export function PlotMeetingSlotsFields({
                       );
                     })}
                   </select>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor={startId}>
+                    Start {i + 1}
+                  </label>
+                  <input
+                    id={startId}
+                    type="text"
+                    inputMode="text"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className={`${i === 0 ? timeFieldClass : `${fieldClass} mt-1`} tabular-nums`}
+                    placeholder={
+                      i === 0
+                        ? "e.g. 8:00 AM"
+                        : draft.timeText.trim()
+                          ? `Same as Day 1 (${draft.timeText.trim()})`
+                          : "Same as Day 1"
+                    }
+                    disabled={readOnly || (i > 0 && !slot.day)}
+                    value={i === 0 ? draft.timeText : slot.timeText ?? ""}
+                    onChange={(e) => (i === 0 ? patchTime(e.target.value) : patchSlot(i, { timeText: e.target.value }))}
+                  />
                 </div>
                 <div>
                   <label className={labelClass} htmlFor={durId}>

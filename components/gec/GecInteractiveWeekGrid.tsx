@@ -52,6 +52,7 @@ import {
   sortedRoomsInBuildingNamed,
 } from "@/lib/evaluator/building-options";
 import { insRoomLabel } from "@/lib/ins/ins-room-label";
+import { scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
 
 function hhmm(t: string): string {
   return normalizeSlotHHMM(t);
@@ -267,6 +268,28 @@ export function GecInteractiveWeekGrid({
   const [highlightedCell, setHighlightedCell] = useState<CellAnchor | null>(null);
   const [modal, setModal] = useState<ModalSession | null>(null);
 
+  /** Every class plotted this term (any section), for the plot window's start-time clash check. */
+  const plottedBlocks = useMemo(
+    () =>
+      mergedEntries
+        .filter((e) => e.academicPeriodId === academicPeriodId)
+        .map((e) => scheduleEntryToSparseBlock(e))
+        .filter((b): b is NonNullable<typeof b> => b != null),
+    [mergedEntries, academicPeriodId],
+  );
+  const plottedBlocksForModal = useMemo(
+    () => (modal ? plottedBlocks.filter((b) => b.id !== modal.draft.id) : plottedBlocks),
+    [plottedBlocks, modal],
+  );
+  const entryById = useMemo(() => new Map(mergedEntries.map((e) => [e.id, e])), [mergedEntries]);
+  const labelForEntry = useCallback(
+    (entryId: string) => {
+      const e = entryById.get(entryId);
+      return e ? subjectById.get(e.subjectId)?.code : undefined;
+    },
+    [entryById, subjectById],
+  );
+
   const sectionRows = useMemo(
     () =>
       mergedEntries
@@ -457,6 +480,19 @@ export function GecInteractiveWeekGrid({
   const handleRemove = useCallback(() => {
     if (!modal || modal.readOnly) return;
     onRemovePendingEntry?.(modal.entryId);
+    closeModal();
+  }, [modal, onRemovePendingEntry, closeModal]);
+
+  /**
+   * Cancel / ✕ / Esc / clicking outside.
+   *
+   * Clicking an empty cell creates the row first so the window has something to edit. Closing without
+   * "Plot schedule" used to leave that row on the grid, and autosave then plotted it — Cancel acted
+   * like Plot. A new plot that was never applied is now discarded; cancelling an edit to an existing
+   * class just closes, leaving it as it was.
+   */
+  const handleCancel = useCallback(() => {
+    if (modal && modal.isNew && !modal.readOnly) onRemovePendingEntry?.(modal.entryId);
     closeModal();
   }, [modal, onRemovePendingEntry, closeModal]);
 
@@ -782,8 +818,10 @@ export function GecInteractiveWeekGrid({
       {gridFooter ? <div className="mt-4 space-y-3 border-t border-black/10 pt-4">{gridFooter}</div> : null}
 
       <GecPlotScheduleModal
+        existingBlocks={plottedBlocksForModal}
+        labelForEntry={labelForEntry}
         open={modal != null}
-        onClose={closeModal}
+        onClose={handleCancel}
         draft={modal?.draft ?? sectionRows[0] ?? ({} as ScheduleEntry)}
         onDraftChange={(next) => setModal((m) => (m ? { ...m, draft: next } : m))}
         buildingValue={modal?.buildingValue ?? ""}

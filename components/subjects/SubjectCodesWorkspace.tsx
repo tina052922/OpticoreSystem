@@ -131,7 +131,8 @@ export function SubjectCodesWorkspace({
   /** The server enforces the same rule; this only decides which controls are worth showing. */
   const canEditSubject = useCallback(
     (s: { code: string; category?: string | null }) =>
-      !gecOnlyEditing || isGecEditableSubject({ code: s.code, category: s.category ?? null }),
+      !gecOnlyEditing ||
+      isGecEditableSubject({ code: s.code, category: s.category ?? null, subjectArea: (s as { subjectArea?: string | null }).subjectArea ?? null }),
     [gecOnlyEditing],
   );
   /** Department a new / edited subject belongs to. */
@@ -484,7 +485,8 @@ export function SubjectCodesWorkspace({
       yearLevel: Math.min(6, Math.max(1, parseInt(yearLevel, 10) || 1)),
       semester: normalizeSubjectSemester(semester),
       category: normalizeSubjectCategory(category, categoryOptions) || null,
-      subjectArea: subjectArea || null,
+      // Service Chairs decide a subject's area; nobody else sends it.
+      ...(gecOnlyEditing ? { subjectArea: subjectArea || null } : {}),
     };
     try {
       if (editingId) {
@@ -651,6 +653,7 @@ export function SubjectCodesWorkspace({
               ))}
             </select>
           </div>
+          {gecOnlyEditing ? (
           <div className="space-y-1">
             <label className="text-sm font-medium" htmlFor="subject-area">
               Subject area
@@ -671,6 +674,7 @@ export function SubjectCodesWorkspace({
               ))}
             </select>
           </div>
+          ) : null}
           <div className="space-y-1">
             <div className="text-sm font-medium">Year level</div>
             <select
@@ -768,7 +772,7 @@ export function SubjectCodesWorkspace({
                 <th className="border border-black/10 px-2 py-1 text-left">Yr</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Sem</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Category</th>
-                <th className="border border-black/10 px-2 py-1 text-left">Area</th>
+                {gecOnlyEditing ? <th className="border border-black/10 px-2 py-1 text-left">Area</th> : null}
                 <th className="border border-black/10 px-2 py-1 text-left">Subject Code</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Descriptive Title</th>
                 <th className="border border-black/10 px-2 py-1 text-left">Units</th>
@@ -784,13 +788,13 @@ export function SubjectCodesWorkspace({
             <tbody className="text-[11.5px] leading-tight">
               {!scopedProgramId && !campusWide ? (
                 <tr>
-                  <td colSpan={campusWide ? 12 : 11} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={(campusWide ? 11 : 10) + (gecOnlyEditing ? 1 : 0)} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     Select a program to load subjects for that program.
                   </td>
                 </tr>
               ) : filteredDbSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={campusWide ? 12 : 11} className="border border-black/10 px-2 py-6 text-center text-black/45">
+                  <td colSpan={(campusWide ? 11 : 10) + (gecOnlyEditing ? 1 : 0)} className="border border-black/10 px-2 py-6 text-center text-black/45">
                     {dbSubjects.length === 0
                       ? "No subjects in the database for this program yet."
                       : semesterFilter === "all"
@@ -804,7 +808,7 @@ export function SubjectCodesWorkspace({
                 dbSubjectsByYear.flatMap((group) => [
                   <tr key={`yr-db-${group.yearLevel}`} className="bg-black/[0.04]">
                     <td
-                      colSpan={campusWide ? 12 : 11}
+                      colSpan={(campusWide ? 11 : 10) + (gecOnlyEditing ? 1 : 0)}
                       className="border border-black/10 px-2 py-1 text-[11px] font-bold text-black/80"
                     >
                       {group.label}
@@ -815,9 +819,11 @@ export function SubjectCodesWorkspace({
                       <td className="border border-black/10 px-2 py-1 tabular-nums">{s.yearLevel}</td>
                       <td className="border border-black/10 px-2 py-1">{subjectSemesterLabel(s.semester)}</td>
                       <td className="border border-black/10 px-2 py-1">{subjectCategoryLabel(s.category, categoryOptions)}</td>
+                      {gecOnlyEditing ? (
                       <td className="border border-black/10 px-2 py-1" title={subjectAreaLabel(s.subjectArea, "", serviceAreas)}>
                         {subjectAreaShortLabel(s.subjectArea, "—", serviceAreas)}
                       </td>
+                      ) : null}
                       <td className="border border-black/10 px-2 py-1 font-semibold">{s.code}</td>
                       <td className="border border-black/10 px-2 py-1">{s.title}</td>
                       <td className="border border-black/10 px-2 py-1">

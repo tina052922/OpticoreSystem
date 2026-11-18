@@ -182,6 +182,8 @@ export type BsitChairmanInteractiveWeekGridProps = {
   plottedEnrollment?: ReadonlyMap<string, number>;
   conflictForRow: (row: PlotRow) => RowConflictFlags;
   conflictDetailForRow?: (row: PlotRow) => string[];
+  /** Subject code (and section) of an already-plotted entry, for clash messages in the plot window. */
+  conflictSubjectLabel?: (entryId: string) => string | undefined;
   campusScanConflictIds: Set<string>;
   overloadedInstructorIds: Set<string>;
   /** Instructor weekly teaching-hours snapshot (current campus-wide hours + cap) for the live overload indicator. */
@@ -298,6 +300,7 @@ export function BsitChairmanInteractiveWeekGrid({
   plottedEnrollment,
   conflictForRow,
   conflictDetailForRow,
+  conflictSubjectLabel,
   campusScanConflictIds,
   overloadedInstructorIds,
   instructorLoadById,
@@ -803,6 +806,7 @@ export function BsitChairmanInteractiveWeekGrid({
         conflictDetailLines={modalConflictLines}
         academicPeriodId={academicPeriodId}
         existingBlocks={existingBlocksForModal}
+        labelForEntry={conflictSubjectLabel}
         instructorLoadById={instructorLoadById}
         subjectHourBudget={
           modal?.draft.sectionId && modal.draft.subjectCode

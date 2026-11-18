@@ -1,12 +1,6 @@
-import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { ChairAssignmentWorkspace } from "@/components/admin/ChairAssignmentWorkspace";
+import { redirect } from "next/navigation";
 
-/** DOI: chairman assignment for any college. */
+/** Chairman Assignment now lives in DOI → College Admins & Chairmen → Chairmen. */
 export default function DoiChairAssignmentPage() {
-  return (
-    <div>
-      <ChairmanPageHeader title="Chairman Assignment" subtitle="Whole program group or per major; transfer when a chair leaves" />
-      <ChairAssignmentWorkspace campusWide />
-    </div>
-  );
+  redirect("/doi/campus-accounts?tab=chairmen");
 }

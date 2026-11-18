@@ -15,7 +15,18 @@ export type GecScopedSubject = {
   code?: string | null;
   /** `Subject.category` (migration 016). */
   category?: string | null;
+  /** Service area code (migration 035), set by Service Chairs in Subject Codes. */
+  subjectArea?: string | null;
 };
+
+/** Categories that are general subjects (served across colleges), not a program's own. */
+const GENERAL_CATEGORIES = new Set(["gec", "gee", "pe", "nstp"]);
+
+/** Code prefixes of general subjects: GEC-, GEE-, PE, PATHFit, NSTP. */
+function hasGeneralSubjectCodePrefix(code: string | null | undefined): boolean {
+  const u = String(code ?? "").trim().toUpperCase();
+  return /^(GEC-|GEE-|PE\b|PE\s|PE-|PE\d|PATHFIT|NSTP)/.test(u);
+}
 
 /** CHED-style general education prefixes. */
 export function hasGecSubjectCodePrefix(code: string | null | undefined): boolean {
@@ -30,8 +41,11 @@ export function hasGecSubjectCodePrefix(code: string | null | undefined): boolea
  * subjects whose codes do not follow the CHED prefix convention.
  */
 export function isGecEditableSubject(subject: GecScopedSubject): boolean {
-  if (hasGecSubjectCodePrefix(subject.code)) return true;
-  return String(subject.category ?? "").trim().toLowerCase() === "gec";
+  // Any general subject — not only GEC-/GEE- codes: PE / PATHFit, NSTP, and anything already given
+  // a service area. Service Chairs are not held to one narrow list.
+  if (hasGeneralSubjectCodePrefix(subject.code)) return true;
+  if (GENERAL_CATEGORIES.has(String(subject.category ?? "").trim().toLowerCase())) return true;
+  return Boolean(String(subject.subjectArea ?? "").trim());
 }
 
 /**
@@ -42,7 +56,7 @@ export function isGecEditableSubject(subject: GecScopedSubject): boolean {
  * department. The prefix is not something they can claim after the fact.
  */
 export function canGecChairmanCreateSubjectCode(code: string | null | undefined): boolean {
-  return hasGecSubjectCodePrefix(code);
+  return hasGeneralSubjectCodePrefix(code);
 }
 
 /**
@@ -62,9 +76,10 @@ export function canGecChairmanWriteSubject(
   if (!isGecEditableSubject(existing)) return false;
   const next = String(nextCode ?? "").trim();
   if (!next) return true;
-  return hasGecSubjectCodePrefix(next);
+  // Renaming keeps it general: a general code, or a subject general by category / area.
+  return hasGeneralSubjectCodePrefix(next) || !hasGeneralSubjectCodePrefix(existing.code);
 }
 
 /** The refusal a GEC Chairman sees, in their words rather than the rule's. */
 export const GEC_SUBJECT_SCOPE_MESSAGE =
-  "GEC Chairman can only add or change general education subjects (codes starting with GEC- or GEE-).";
+  "A Service Chair can add or change general subjects only (GEC-, GEE-, PE / PATHFit, NSTP, or subjects with a service area).";

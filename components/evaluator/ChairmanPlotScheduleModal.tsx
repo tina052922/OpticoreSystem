@@ -39,6 +39,7 @@ import {
   totalPlotMeetingHours,
   type PlotMeetingsDraft,
   type ResolvedPlotMeeting,
+  meetingStartText,
 } from "@/lib/evaluator/plot-meetings";
 import { slotIndexFromTypedTime } from "@/lib/evaluator/plot-time-input";
 import { prospectusRowForProgram } from "@/lib/chairman/prospectus-registry";
@@ -88,6 +89,7 @@ import {
   sortedRoomsInBuildingNamed,
 } from "@/lib/evaluator/building-options";
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
+import { plotStartConflicts } from "@/lib/evaluator/plot-start-conflicts";
 
 const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -156,6 +158,8 @@ export type ChairmanPlotScheduleModalProps = {
   academicPeriodId: string;
   /** All existing schedule blocks (excluding current draft) to check availability against. */
   existingBlocks: SparseScheduleBlock[];
+  /** Subject code (and section) of an already-plotted entry, to name it in a clash message. */
+  labelForEntry?: (entryId: string) => string | undefined;
   /** Instructor weekly teaching-hours snapshot (current campus-wide hours + cap) for the live overload indicator. */
   instructorLoadById?: Map<string, { hours: number; cap: number }>;
   /**
@@ -200,6 +204,7 @@ export function ChairmanPlotScheduleModal({
   conflictDetailLines = [],
   academicPeriodId,
   existingBlocks,
+  labelForEntry,
   instructorLoadById,
   subjectHourBudget = null,
   readOnly,
@@ -300,6 +305,30 @@ export function ChairmanPlotScheduleModal({
       .map((m) => `${m.day} ${formatPlotTimeRange(m.startSlotIndex, m.durationSlots, slots)}`)
       .join(" · ");
   }, [meetings, slots, programMode, maxDur, days, draft.subjectCode]);
+
+  /**
+   * Each day's typed start + duration checked against classes already plotted (this section, the
+   * chosen instructor, the chosen room) — named, so the person knows what is in the way.
+   */
+  const startConflicts = useMemo(() => {
+    if (readOnly) return [] as string[];
+    const resolved = resolvePlotMeetings(meetings, { slots, programMode, maxDur, weekdays: days });
+    if (!resolved.ok) return [] as string[];
+    return plotStartConflicts({
+      meetings: resolved.meetings,
+      base: {
+        id: draft.id,
+        academicPeriodId,
+        sectionId: draft.sectionId,
+        instructorId: draft.instructorId,
+        roomId: draft.roomId,
+      },
+      slots,
+      programMode,
+      existingBlocks,
+      labelForEntry,
+    });
+  }, [meetings, slots, programMode, maxDur, days, draft.id, draft.sectionId, draft.instructorId, draft.roomId, academicPeriodId, existingBlocks, labelForEntry, readOnly]);
   /*
    * Plain-language reason a start does not work, e.g. 9:30 with a class at 10:00 leaves 30 min,
    * shorter than any allowed meeting. Without it the user only saw an hours/conflict error.
@@ -307,10 +336,11 @@ export function ChairmanPlotScheduleModal({
   const freeTimeNotices = useMemo(() => {
     if (!draft.sectionId || readOnly) return [] as string[];
     const out: string[] = [];
-    for (const slot of meetings.slots) {
+    for (const [slotIndex, slot] of meetings.slots.entries()) {
       const day = slot.day?.trim();
-      if (!day || !meetings.timeText.trim()) continue;
-      const idx = slotIndexFromTypedTime(meetings.timeText, slots, day, programMode);
+      const start = meetingStartText(meetings, slotIndex);
+      if (!day || !start) continue;
+      const idx = slotIndexFromTypedTime(start, slots, day, programMode);
       const startTime = idx == null ? null : slots[idx]?.startTime;
       if (!startTime) continue;
       const hrs = parseFloat(slot.durationHours);
@@ -607,6 +637,11 @@ export function ChairmanPlotScheduleModal({
     });
     if (!resolved.ok) {
       setMeetingError(resolved.error);
+      return;
+    }
+    // Not saved while a day lands on a class that is already plotted.
+    if (startConflicts.length > 0) {
+      setMeetingError(startConflicts[0]!);
       return;
     }
     const first = resolved.meetings[0];
@@ -1138,7 +1173,13 @@ export function ChairmanPlotScheduleModal({
           />
 
           <p className="text-[12px] font-medium text-black/60 rounded-lg bg-[#ff990a]/8 border border-[#ff990a]/25 px-3 py-2">
-            Preview: <span className="text-black/85">{timeLine}</span>
+            Preview:{" "}
+            {/* One line per day: each meeting has its own start and duration. */}
+            {timeLine.split(" · ").map((line, i) => (
+              <span key={`${line}-${i}`} className={`${i > 0 ? "block pl-[3.6rem]" : ""} text-black/85`}>
+                {line}
+              </span>
+            ))}
             {draft.subjectCode && additionalHours > 0 ? (
               <span className="text-black/50">
                 {" "}
@@ -1146,6 +1187,13 @@ export function ChairmanPlotScheduleModal({
               </span>
             ) : null}
           </p>
+          {startConflicts.length > 0 ? (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800 space-y-0.5">
+              {startConflicts.map((msg) => (
+                <p key={msg}>{msg}</p>
+              ))}
+            </div>
+          ) : null}
 
           <div>
             <label className={labelClass} htmlFor="plot-students">

@@ -100,9 +100,10 @@ export function CampusScopeFilters({
       return list;
     }
     if (collegeLocked) return programs.filter((p) => p.collegeId === lockedCollegeId);
-    if (!collegeId) return programs;
+    // With "Select college" (requireProgram) nothing is listed until a college is picked.
+    if (!collegeId) return requireProgram ? [] : programs;
     return programs.filter((p) => p.collegeId === collegeId);
-  }, [programs, collegeId, isChairman, chairmanCollegeId, chairmanProgramId, collegeLocked, lockedCollegeId]);
+  }, [programs, collegeId, isChairman, chairmanCollegeId, chairmanProgramId, collegeLocked, lockedCollegeId, requireProgram]);
 
   useEffect(() => {
     const cid = isChairman
@@ -161,7 +162,8 @@ export function CampusScopeFilters({
               }}
               disabled={loading}
             >
-              <option value="">All colleges (campus-wide)</option>
+              {/* Subject Codes (requireProgram): one college at a time — no campus-wide choice. */}
+              <option value="">{requireProgram ? "Select college" : "All colleges (campus-wide)"}</option>
               {colleges.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code} — {c.name}
@@ -188,7 +190,11 @@ export function CampusScopeFilters({
               className={`mt-1 ${selectClass}`}
               value={programId}
               onChange={(e) => setProgramId(e.target.value)}
-              disabled={loading || (isChairman && !hasChairmanCollege)}
+              disabled={
+                loading ||
+                (isChairman && !hasChairmanCollege) ||
+                (requireProgram && !isChairman && !collegeLocked && !collegeId)
+              }
             >
               <option value="">
                 {requireProgram

@@ -39,7 +39,14 @@ const programLabel = (p: ChairAssignmentProgram) => [p.code, p.name].filter(Bool
  * old chair loses Subject Scheduler / Faculty Profile / Subject Codes for that scope and the new one
  * gains it. Schedules are never touched — only who may manage them.
  */
-export function ChairAssignmentWorkspace({ campusWide = false }: { campusWide?: boolean }) {
+export function ChairAssignmentWorkspace({
+  campusWide = false,
+  embedded = false,
+}: {
+  campusWide?: boolean;
+  /** Inside another page (DOI → Colleges & Chairmen → Chairmen): no page padding of its own. */
+  embedded?: boolean;
+}) {
   const toast = useActionToast();
   const [colleges, setColleges] = useState<{ id: string; code: string; name: string }[]>([]);
   const [collegeId, setCollegeId] = useState("");
@@ -176,7 +183,7 @@ export function ChairAssignmentWorkspace({ campusWide = false }: { campusWide?: 
   );
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-[1100px] space-y-5">
+    <div className={embedded ? "space-y-5" : "px-4 sm:px-6 lg:px-8 pb-10 max-w-[1100px] space-y-5"}>
       <p className="text-[13px] text-black/65 leading-relaxed">
         Choose who manages each program. A whole program group (e.g. all BIT majors) can have one chairman, or
         each major its own. Transfer moves a program to another chairman when someone leaves — their Subject

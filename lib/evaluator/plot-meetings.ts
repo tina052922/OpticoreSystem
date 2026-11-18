@@ -18,6 +18,11 @@ export const PLOT_MEETING_SLOT_COUNT = 3;
 export type PlotMeetingSlotFields = {
   day: string;
   durationHours: string;
+  /**
+   * This day's own start (Day 2 / Day 3). Empty = same as Day 1, whose start is the draft's
+   * `timeText`. Lets one plot hold e.g. Mon 8:00 AM and Wed 1:00 PM.
+   */
+  timeText?: string;
 };
 
 export type PlotMeetingsDraft = {
@@ -32,7 +37,14 @@ export type ResolvedPlotMeeting = {
 };
 
 export function emptyPlotMeetingSlot(): PlotMeetingSlotFields {
+  // `timeText` is optional: empty / absent means "same start as Day 1".
   return { day: "", durationHours: "" };
+}
+
+/** The start typed for meeting `index`: its own, else Day 1's. */
+export function meetingStartText(draft: PlotMeetingsDraft, index: number): string {
+  const own = index > 0 ? text(draft?.slots?.[index]?.timeText) : "";
+  return own || text(draft?.timeText);
 }
 
 /**
@@ -153,9 +165,8 @@ export function resolvePlotMeetings(
     weekdays: readonly string[];
   },
 ): ResolvePlotMeetingsResult {
-  const timeText = text(draft?.timeText);
-  if (!timeText) {
-    return { ok: false, error: "Type a start time (for example 8:00 AM)." };
+  if (!text(draft?.timeText)) {
+    return { ok: false, error: "Type a start time for Day 1 (for example 8:00 AM)." };
   }
 
   const meetings: ResolvedPlotMeeting[] = [];
@@ -178,6 +189,8 @@ export function resolvePlotMeetings(
     }
     seenDays.add(day);
 
+    // Each day may have its own start; empty means the same as Day 1.
+    const timeText = meetingStartText(draft, i);
     const startSlotIndex = slotIndexFromTypedTime(timeText, args.slots, day, args.programMode);
     if (startSlotIndex == null) {
       return {
