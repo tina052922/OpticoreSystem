@@ -70,8 +70,6 @@ export function CampusAccountsWorkspace() {
   const [role, setRole] = useState<CampusAccountRole>("college_admin");
   /** Third tab: CAS chairs (Service Chairs + CAS Program Chairs). */
   const [casTab, setCasTab] = useState(false);
-  /** Chairmen tab: account list (edit / remove) is folded under the assignments. */
-  const [chairAccountsOpen, setChairAccountsOpen] = useState(false);
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab === "chairmen") setRole("chairman_admin");
@@ -195,7 +193,6 @@ export function CampusAccountsWorkspace() {
 
   function startEdit(post: Post) {
     if (!post.holder) return;
-    setChairAccountsOpen(true);
     setEditingId(post.holder.id);
     setAssignmentId(post.id);
     setFullName(post.holder.name ?? "");
@@ -451,10 +448,15 @@ export function CampusAccountsWorkspace() {
             key={accounts.filter((x) => x.role === "chairman_admin").map((x) => `${x.id}:${x.chairmanProgramId ?? ""}`).join("|")}
             campusWide
             embedded
+            canManageAccounts
+            onAccountsChanged={() => void load()}
           />
         </div>
       ) : null}
 
+      {/* The Chairmen tab is Chairman Assignment only (accounts are created / edited there). */}
+      {role !== "chairman_admin" ? (
+      <>
       {/* ── Register / edit ─────────────────────────────────────────────── */}
       <div
         ref={formRef}
@@ -463,20 +465,8 @@ export function CampusAccountsWorkspace() {
         }`}
       >
         <div className="text-[16px] font-semibold">
-          {role === "chairman_admin"
-            ? editingId
-              ? "Edit chairman account"
-              : "Add chairman account"
-            : editingId
-              ? `Edit ${ROLE_LABEL[role]}`
-              : `Register ${ROLE_LABEL[role]}`}
+          {editingId ? `Edit ${ROLE_LABEL[role]}` : `Register ${ROLE_LABEL[role]}`}
         </div>
-        {role === "chairman_admin" && !editingId ? (
-          <p className="text-[12px] text-black/55">
-            Creates the sign-in for a new chairman and gives them the chosen program. To give them more
-            programs, or move a program to someone else, use Chairman Assignment above.
-          </p>
-        ) : null}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <label className="space-y-1">
@@ -497,9 +487,6 @@ export function CampusAccountsWorkspace() {
             </select>
             <span className="block text-[11px] text-black/50">
               Only {assignmentLabel.toLowerCase()}s without a holder are listed.
-              {role === "chairman_admin"
-                ? " Service Chairs (general subjects) are in the CAS Chairs tab."
-                : ""}
             </span>
           </label>
 
@@ -675,17 +662,6 @@ export function CampusAccountsWorkspace() {
       </div>
 
       {/* ── Posts ───────────────────────────────────────────────────────── */}
-      {role === "chairman_admin" ? (
-        <button
-          type="button"
-          className="text-[13px] font-semibold text-[#780301] hover:underline"
-          onClick={() => setChairAccountsOpen((v) => !v)}
-          aria-expanded={chairAccountsOpen}
-        >
-          {chairAccountsOpen ? "▾" : "▸"} Chairman accounts — edit or remove
-        </button>
-      ) : null}
-      {role !== "chairman_admin" || chairAccountsOpen ? (
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] overflow-hidden">
         <div className="p-4 border-b border-black/10">
           <div className="text-[16px] font-semibold">
@@ -745,6 +721,7 @@ export function CampusAccountsWorkspace() {
           </ul>
         )}
       </div>
+      </>
       ) : null}
       {pendingDelete ? (
         <DeleteWithImpactDialog

@@ -80,6 +80,9 @@ export type SafeUser = {
   chairmanProgramName?: string | null;
   /** Service Chair / general-subject instructor's area (migration 035). */
   serviceAreaId?: string | null;
+  serviceAreaCode?: string | null;
+  /** e.g. "Humanities and Social Sciences". */
+  serviceAreaName?: string | null;
   /** College Admin of CAS: may plot general subjects on vacant slots of other colleges. */
   casAdmin?: boolean;
   profileImageUrl?: string | null;

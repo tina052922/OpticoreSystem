@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActionToast } from "@/components/alerts/useActionToast";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   apiFetch,
+  campusAccountsApi,
   chairAssignmentsApi,
   type ChairAssignmentChair,
   type ChairAssignmentProgram,
@@ -42,10 +44,18 @@ const programLabel = (p: ChairAssignmentProgram) => [p.code, p.name].filter(Bool
 export function ChairAssignmentWorkspace({
   campusWide = false,
   embedded = false,
+  canManageAccounts = false,
+  onAccountsChanged,
 }: {
   campusWide?: boolean;
   /** Inside another page (DOI → Colleges & Chairmen → Chairmen): no page padding of its own. */
   embedded?: boolean;
+  /**
+   * DOI: create chairman accounts (name, email, password) right here and assign them, and edit or
+   * delete an assigned chairman's account. The server allows account writes to DOI only.
+   */
+  canManageAccounts?: boolean;
+  onAccountsChanged?: () => void;
 }) {
   const toast = useActionToast();
   const [colleges, setColleges] = useState<{ id: string; code: string; name: string }[]>([]);
@@ -177,6 +187,129 @@ export function ChairAssignmentWorkspace({
   }
 
   /** Typed, not scrolled: matches show only once something is entered (name or email). */
+  // ── Chairman accounts (DOI) ───────────────────────────────────────────
+  const MIN_PASSWORD = 8;
+  const [newOpen, setNewOpen] = useState(false);
+  const [newTarget, setNewTarget] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function resetNew() {
+    setNewOpen(false);
+    setNewTarget("");
+    setNewName("");
+    setNewEmail("");
+    setNewPassword("");
+  }
+
+  async function createChair() {
+    if (!group) return;
+    const wholeGroup = newTarget === "__group__";
+    const program = wholeGroup ? group.programs[0] : group.programs.find((p) => p.id === newTarget);
+    if (!program) {
+      toast.refuse("Choose the program", "Pick the major (or the whole group) this chairman manages.");
+      return;
+    }
+    if (!newName.trim()) {
+      toast.refuse("Enter the full name", "This is the name that appears on INS forms.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) {
+      toast.refuse("Enter a valid email", "The chairman signs in with it.");
+      return;
+    }
+    if (newPassword.trim().length < MIN_PASSWORD) {
+      toast.refuse("Set a longer password", `At least ${MIN_PASSWORD} characters; they change it at first sign-in.`);
+      return;
+    }
+    setBusy("new");
+    try {
+      const { account } = await campusAccountsApi.create({
+        role: "chairman_admin",
+        collegeId: program.collegeId,
+        programId: program.id,
+        name: newName.trim(),
+        email: newEmail.trim().toLowerCase(),
+        password: newPassword.trim(),
+      });
+      if (wholeGroup && group.programs.length > 1) {
+        await chairAssignmentsApi.setGroupChair({
+          collegeId: campusWide ? collegeId : null,
+          groupCode: (group.programs[0]?.groupCode ?? "").trim() || group.programs[0]!.id,
+          chairUserId: account.id,
+        });
+      }
+      toast.ok(
+        "Chairman added successfully",
+        `${newName.trim()} manages ${wholeGroup ? `all of ${group.label}` : program.code ?? group.label}. They change the password at first sign-in.`,
+      );
+      resetNew();
+      await load();
+      onAccountsChanged?.();
+    } catch (e) {
+      toast.fail(e, "Could not add the chairman", "chair assignment: create account");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function startEditAccount(chairId: string) {
+    const c = chairById.get(chairId);
+    if (!c) return;
+    setEditId(chairId);
+    setEditName(c.name ?? "");
+    setEditEmail(c.email ?? "");
+    setEditPassword("");
+    setConfirmDelete(false);
+  }
+
+  async function saveAccount() {
+    if (!editId) return;
+    if (editPassword && editPassword.trim().length < MIN_PASSWORD) {
+      toast.refuse("Set a longer password", `At least ${MIN_PASSWORD} characters, or leave it empty to keep the current one.`);
+      return;
+    }
+    setBusy(`acct:${editId}`);
+    try {
+      const { warning } = await campusAccountsApi.update(editId, {
+        name: editName.trim(),
+        email: editEmail.trim().toLowerCase(),
+        password: editPassword.trim() || undefined,
+      });
+      toast.ok("Chairman account updated successfully", editName.trim());
+      toast.caution(warning, "Saved with a limitation");
+      setEditId(null);
+      await load();
+      onAccountsChanged?.();
+    } catch (e) {
+      toast.fail(e, "Could not update the chairman account", "chair assignment: update account");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteAccount() {
+    if (!editId) return;
+    setBusy(`acct:${editId}`);
+    try {
+      await campusAccountsApi.remove(editId);
+      toast.ok("Chairman account deleted successfully", "Their programs now have no chairman. Schedules are unchanged.");
+      setEditId(null);
+      await load();
+      onAccountsChanged?.();
+    } catch (e) {
+      toast.fail(e, "Could not delete the chairman account", "chair assignment: delete account");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const chairOptions = useMemo<SearchSelectOption[]>(
     () => chairs.map((c) => ({ value: c.id, label: c.name || c.email, hint: c.name ? c.email : undefined })),
     [chairs],
@@ -282,6 +415,79 @@ export function ChairAssignmentWorkspace({
             </div>
           ) : null}
 
+          {group && canManageAccounts ? (
+            <div className="rounded-lg border border-black/10 bg-black/[0.02] p-3 space-y-3">
+              {!newOpen ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 text-[13px]"
+                  onClick={() => {
+                    setNewOpen(true);
+                    setNewTarget(mode === "whole" && group.programs.length > 1 ? "__group__" : group.programs[0]?.id ?? "");
+                  }}
+                >
+                  ＋ New chairman
+                </Button>
+              ) : (
+                <>
+                  <div className="text-[13px] font-semibold">New chairman account</div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="space-y-1">
+                      <span className="block text-[12px] font-semibold text-black/75">Manages</span>
+                      <select
+                        className="h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-sm"
+                        value={newTarget}
+                        onChange={(e) => setNewTarget(e.target.value)}
+                      >
+                        {group.programs.length > 1 ? <option value="__group__">All {group.label} majors</option> : null}
+                        {group.programs.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {programLabel(p)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-[12px] font-semibold text-black/75">Full name</span>
+                      <Input value={newName} onChange={(e) => setNewName(e.target.value)} />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-[12px] font-semibold text-black/75">Email (username)</span>
+                      <Input type="email" placeholder="name@ctu.edu.ph" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-[12px] font-semibold text-black/75">Temporary password</span>
+                      <PasswordInput
+                        placeholder={`At least ${MIN_PASSWORD} characters`}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </label>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      className="bg-[#780301] hover:bg-[#5a0201] text-white"
+                      disabled={busy === "new"}
+                      onClick={() => void createChair()}
+                    >
+                      {busy === "new" ? "Creating…" : "Create & assign"}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={resetNew} disabled={busy === "new"}>
+                      Cancel
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-black/50">
+                    Creates the sign-in and assigns the chairman. They are asked to change the password the first time
+                    they sign in.
+                  </p>
+                </>
+              )}
+            </div>
+          ) : null}
+
           {group ? (
             <div className="overflow-x-auto">
               <table className="w-full text-[13px] border-collapse">
@@ -300,7 +506,8 @@ export function ChairAssignmentWorkspace({
                     const changed = choice !== current;
                     const editable = mode === "per" || group.programs.length === 1;
                     return (
-                      <tr key={p.id} className="border-t border-black/10">
+                      <Fragment key={p.id}>
+                      <tr className="border-t border-black/10">
                         <td className="px-3 py-2 font-medium">{programLabel(p)}</td>
                         <td className="px-3 py-2">
                           {editable ? (
@@ -318,7 +525,18 @@ export function ChairAssignmentWorkspace({
                         </td>
                         <td className="px-3 py-2">
                           {current ? (
-                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">Assigned</span>
+                            <span className="inline-flex items-center gap-2">
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">Assigned</span>
+                              {canManageAccounts ? (
+                                <button
+                                  type="button"
+                                  className="text-[11px] font-semibold text-[#780301] hover:underline"
+                                  onClick={() => (editId === current ? setEditId(null) : startEditAccount(current))}
+                                >
+                                  {editId === current ? "Close" : "Edit account"}
+                                </button>
+                              ) : null}
+                            </span>
                           ) : (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">No chairman</span>
                           )}
@@ -351,6 +569,69 @@ export function ChairAssignmentWorkspace({
                           </td>
                         ) : null}
                       </tr>
+                      {canManageAccounts && editId && editId === current && group.programs.find((x) => chairOf.get(x.id) === editId)?.id === p.id ? (
+                        <tr className="bg-black/[0.02]">
+                          <td colSpan={editable ? 4 : 3} className="px-3 py-3">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <label className="space-y-1">
+                                <span className="block text-[12px] font-semibold text-black/75">Full name</span>
+                                <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="block text-[12px] font-semibold text-black/75">Email (username)</span>
+                                <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="block text-[12px] font-semibold text-black/75">New password (optional)</span>
+                                <PasswordInput
+                                  placeholder="Leave empty to keep it"
+                                  value={editPassword}
+                                  onChange={(e) => setEditPassword(e.target.value)}
+                                  autoComplete="new-password"
+                                />
+                              </label>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-8 bg-[#780301] hover:bg-[#5a0201] text-white"
+                                disabled={busy === `acct:${editId}`}
+                                onClick={() => void saveAccount()}
+                              >
+                                Save account
+                              </Button>
+                              {confirmDelete ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="h-8 bg-red-700 text-white hover:bg-red-800"
+                                    disabled={busy === `acct:${editId}`}
+                                    onClick={() => void deleteAccount()}
+                                  >
+                                    Confirm delete
+                                  </Button>
+                                  <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setConfirmDelete(false)}>
+                                    Keep
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-red-800 border-red-200 hover:bg-red-50"
+                                  onClick={() => setConfirmDelete(true)}
+                                >
+                                  Delete account
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -358,8 +639,9 @@ export function ChairAssignmentWorkspace({
             </div>
           ) : null}
           <p className="text-[11px] text-black/50">
-            Only Program Chairman accounts of this college are listed. DOI creates them under Colleges &amp; Chairmen.
-            A chairman with several programs switches between them from their own pages.
+            {canManageAccounts
+              ? "Pick an existing chairman, or use ＋ New chairman to create one. A chairman with several programs switches between them from their own pages."
+              : "Only Program Chairman accounts of this college are listed. DOI creates them under Colleges & Chairmen. A chairman with several programs switches between them from their own pages."}
           </p>
         </div>
       )}

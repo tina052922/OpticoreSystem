@@ -212,6 +212,9 @@ export type GecInteractiveWeekGridProps = {
   insFormBasePath?: string;
   plottingActions?: ChairmanGridPlottingActions;
   gridFooter?: ReactNode;
+  /** Service Chair: typeable pickers in the plot modal. */
+  searchablePickers?: boolean;
+  facultyProfileHref?: string;
 };
 
 export function GecInteractiveWeekGrid({
@@ -252,6 +255,8 @@ export function GecInteractiveWeekGrid({
   insFormBasePath = "/admin/gec/ins",
   plottingActions,
   gridFooter,
+  searchablePickers = false,
+  facultyProfileHref,
 }: GecInteractiveWeekGridProps) {
   const router = useRouter();
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
@@ -820,6 +825,8 @@ export function GecInteractiveWeekGrid({
       <GecPlotScheduleModal
         existingBlocks={plottedBlocksForModal}
         labelForEntry={labelForEntry}
+        searchable={searchablePickers}
+        facultyProfileHref={facultyProfileHref}
         open={modal != null}
         onClose={handleCancel}
         draft={modal?.draft ?? sectionRows[0] ?? ({} as ScheduleEntry)}

@@ -24,6 +24,11 @@ export default async function GecChairmanDashboardPage() {
     <div className="space-y-8 pb-8">
       <CiDashboard
         welcomeName={profile.name ?? undefined}
+        roleBadge={{
+          label: profile.serviceAreaName ? `Service Chair — ${profile.serviceAreaName}` : "Service Chair",
+          // Set by DOI / College Admin when assigning the chair (CAS Chairs).
+          detail: profile.serviceAreaName ? null : "No service area assigned yet — ask DOI or the College Admin.",
+        }}
         basePath="/admin/gec"
         variant="gec"
         liveStats={analyticsData}

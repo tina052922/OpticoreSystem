@@ -8,10 +8,15 @@ type Panel = "timetabling";
 export type GecHubEvaluatorTabsProps = {
   collegeParam: string;
   panel?: Panel;
+  /** Route of this scheduler (Service Chair or CAS Admin). */
+  basePath?: string;
 };
 
-export function GecHubEvaluatorTabs({ collegeParam }: GecHubEvaluatorTabsProps) {
-  const base = "/admin/gec/evaluator";
+export function GecHubEvaluatorTabs({
+  collegeParam,
+  basePath = "/admin/gec/evaluator",
+}: GecHubEvaluatorTabsProps) {
+  const base = basePath;
   const isLanding = !collegeParam;
   const timetablingHref = isLanding
     ? undefined

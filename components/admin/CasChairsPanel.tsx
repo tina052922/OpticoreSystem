@@ -37,16 +37,19 @@ export function CasChairsPanel({
   programs,
   accounts,
   onChanged,
+  fixedCollegeId,
 }: {
   colleges: College[];
   programs: Program[];
   accounts: CampusAccount[];
   onChanged: () => Promise<void> | void;
+  /** CAS College Admin: their own college is CAS; no picker. */
+  fixedCollegeId?: string | null;
 }) {
   const toast = useActionToast();
   const [areas, setAreas] = useState<ServiceArea[]>([]);
   const [areasWarning, setAreasWarning] = useState<string | null>(null);
-  const [casCollegeId, setCasCollegeId] = useState("");
+  const [casCollegeId, setCasCollegeId] = useState(fixedCollegeId ?? "");
 
   const loadAreas = useCallback(async () => {
     try {
@@ -248,6 +251,7 @@ export function CasChairsPanel({
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">{areasWarning}</p>
       ) : null}
 
+      {fixedCollegeId ? null : (
       <label className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
         CAS college
         <select
@@ -263,6 +267,7 @@ export function CasChairsPanel({
           ))}
         </select>
       </label>
+      )}
 
       {/* ── Service areas ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-3">

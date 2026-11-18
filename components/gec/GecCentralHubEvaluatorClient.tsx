@@ -151,6 +151,8 @@ export function GecCentralHubEvaluatorClient({
    * The Service Chair's area: subjects tagged with it in Subject Codes become theirs to plot (as
    * GEC-/GEE- codes always were). Bumped once loaded so lists recompute with it.
    */
+  /** Where this scheduler lives: the CAS Admin's copy must not link into the Service Chair's pages. */
+  const hubBasePath = casAdmin ? "/admin/college/evaluator/general" : "/admin/gec/evaluator";
   const [serviceAreaCode, setServiceAreaCodeState] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -167,6 +169,8 @@ export function GecCentralHubEvaluatorClient({
         const [{ user }, { areas }] = await Promise.all([authApi.me(), serviceAreasApi.list()]);
         const code = areas.find((a) => a.id === user?.serviceAreaId)?.code ?? null;
         setActiveServiceAreaCode(code);
+        // Every general subject (GEC / GEE / PE / NSTP), whatever the chair's own area.
+        setAnyGeneralSubjectScope(true);
         if (alive) setServiceAreaCodeState(code);
       } catch {
         /* GEC-/GEE- codes still work without an area */
@@ -175,6 +179,7 @@ export function GecCentralHubEvaluatorClient({
     return () => {
       alive = false;
       setActiveServiceAreaCode(null);
+      setAnyGeneralSubjectScope(false);
     };
   }, [casAdmin]);
   const slotsForMode = evaluatorTimeSlots(programMode);
@@ -1311,7 +1316,7 @@ export function GecCentralHubEvaluatorClient({
     const programCode = prog?.code ?? "";
     const gecList = gecSubjectsForSectionPlot(subjects, {
       sectionProgramId: sec.programId,
-      allowedProspectusCodes,
+      allowedProspectusCodes: casAdmin ? allowedProspectusCodes : null,
     });
     const firstSub = gecList[0];
     if (!firstSub) {
@@ -1420,6 +1425,12 @@ export function GecCentralHubEvaluatorClient({
    */
   const gecSubjectsForSection = useMemo(() => {
     if (!selectedSection) return null;
+    // Service Chairs know which general subjects they plot: offer every GEC / GEE / PE / NSTP subject
+    // (one per code), not only the prospectus' list for this year and term.
+    if (!casAdmin) {
+      void serviceAreaCode; // recompute once the Service Chair's area has loaded
+      return gecSubjectsForSectionPlot(subjects, { sectionProgramId: selectedSection.programId });
+    }
     return gecSubjectsForSectionPlot(
       // The sidebar term narrows the catalog before anything else looks at it.
       filterSubjectsBySemester(subjects, semesterFilterForPeriod(selectedPeriod)),
@@ -1428,7 +1439,7 @@ export function GecCentralHubEvaluatorClient({
         allowedProspectusCodes,
       },
     );
-  }, [subjects, selectedSection, allowedProspectusCodes, selectedPeriod]);
+  }, [subjects, selectedSection, allowedProspectusCodes, selectedPeriod, casAdmin, serviceAreaCode]);
 
 
   /** Current term → prospectus 1st/2nd sem; the same value the Section picker is scoped by. */
@@ -1563,7 +1574,7 @@ export function GecCentralHubEvaluatorClient({
       <div>
         <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
         <div className="px-4 md:px-8 pb-12 max-w-5xl mx-auto">
-          <GecHubEvaluatorTabs collegeParam="" />
+          <GecHubEvaluatorTabs collegeParam="" basePath={hubBasePath} />
           {loadError ? (
             <p className="mb-4 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               Catalog could not fully load. College list below is still available.
@@ -1590,7 +1601,7 @@ export function GecCentralHubEvaluatorClient({
                 return (
                   <Link
                     key={c.id}
-                    href={`/admin/gec/evaluator?college=${encodeURIComponent(c.id)}`}
+                    href={`${hubBasePath}?college=${encodeURIComponent(c.id)}`}
                     className="group flex items-start gap-3 rounded-xl border border-black/10 bg-white p-4 shadow-sm transition-colors hover:border-[#ff990a] hover:bg-[#ff990a]/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/50"
                   >
                     <span
@@ -1628,7 +1639,7 @@ export function GecCentralHubEvaluatorClient({
       <div>
         <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} />
         <div className="px-4 md:px-8 pb-8">
-          <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
+          <HubCollegesNavLink basePath={hubBasePath} className="text-[13px] font-semibold text-[#780301] hover:underline mb-4 inline-block">
             ← Back to {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
           <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-4">{loadError}</div>
@@ -1642,7 +1653,7 @@ export function GecCentralHubEvaluatorClient({
       <div>
         <ChairmanPageHeader title={SUBJECT_SCHEDULER_NAV_LABEL} subtitle="Invalid college selection." />
         <div className="px-4 md:px-8 pb-8">
-          <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
+          <HubCollegesNavLink basePath={hubBasePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← Back to {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
         </div>
@@ -1660,12 +1671,12 @@ export function GecCentralHubEvaluatorClient({
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <HubCollegesNavLink basePath="/admin/gec/evaluator" className="text-[13px] font-semibold text-[#780301] hover:underline">
+          <HubCollegesNavLink basePath={hubBasePath} className="text-[13px] font-semibold text-[#780301] hover:underline">
             ← {EVALUATOR_TAB_LABELS.colleges}
           </HubCollegesNavLink>
         </div>
 
-        <GecHubEvaluatorTabs collegeParam={collegeParam} />
+        <GecHubEvaluatorTabs collegeParam={collegeParam} basePath={hubBasePath} />
 
         {termPublishLocked ? (
           <div
@@ -1694,7 +1705,7 @@ export function GecCentralHubEvaluatorClient({
               value={isCampusWide ? CAMPUS_WIDE_COLLEGE_SLUG : collegeParam}
               onChange={(e) => {
                 const v = e.target.value;
-                router.replace(`/admin/gec/evaluator?college=${encodeURIComponent(v)}`);
+                router.replace(`${hubBasePath}?college=${encodeURIComponent(v)}`);
               }}
             >
               <option value={CAMPUS_WIDE_COLLEGE_SLUG}>All colleges (campus-wide)</option>
@@ -1858,6 +1869,8 @@ export function GecCentralHubEvaluatorClient({
                     userById={userById}
                     facultyProfileByUserId={facultyProfileByUserId}
                     gecSubjects={gecSubjectsForPlot}
+                    searchablePickers={!casAdmin}
+                    facultyProfileHref={casAdmin ? "/admin/college/faculty-profile" : "/admin/gec/faculty-profile"}
                     instructorPlotOptions={instructorPlotOptionsBase}
                     rooms={roomsForPlotting}
                     buildingsCatalog={buildings}
@@ -1878,7 +1891,7 @@ export function GecCentralHubEvaluatorClient({
                     onFocusEntryHandled={() => setFocusPlotEntryId(null)}
                     onRemovePendingEntry={removeGecEntry}
                     pendingNewEntryIds={pendingNewEntryIds}
-                    insFormBasePath="/admin/gec/ins"
+                    insFormBasePath={casAdmin ? "/admin/college/ins" : "/admin/gec/ins"}
                     plottingActions={{
                       onRunConflictCheck: () => runConflictCheck(),
                       onSaveSchedule: () => void saveVacantEdits(),
@@ -1891,7 +1904,7 @@ export function GecCentralHubEvaluatorClient({
                     gridFooter={
                       <>
                         {instructorPlotOptionsBase.length === 0 ? (
-                          <NoInstructorsNotice gec facultyProfileHref="/admin/gec/faculty-profile" />
+                          <NoInstructorsNotice gec facultyProfileHref={casAdmin ? "/admin/college/faculty-profile" : "/admin/gec/faculty-profile"} />
                         ) : null}
                         {gecEnrichedConflicts.length > 0 ? (
                           <EnrichedConflictIssuesPanel

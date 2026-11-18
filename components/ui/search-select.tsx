@@ -22,6 +22,8 @@ export function SearchSelect({
   className = "",
   maxResults = 8,
   ariaLabel,
+  inputClassName,
+  id,
 }: {
   options: SearchSelectOption[];
   value: string;
@@ -31,6 +33,9 @@ export function SearchSelect({
   className?: string;
   maxResults?: number;
   ariaLabel?: string;
+  /** Replaces the input's default classes (size, border, ring). */
+  inputClassName?: string;
+  id?: string;
 }) {
   const listId = useId();
   const selected = options.find((o) => o.value === value) ?? null;
@@ -75,12 +80,16 @@ export function SearchSelect({
     <div ref={boxRef} className={`relative ${className}`}>
       <input
         type="text"
+        id={id}
         role="combobox"
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 pr-7 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#780301]/30 disabled:opacity-60"
+        className={`${
+          inputClassName ??
+          "h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#780301]/30"
+        } pr-7 disabled:opacity-60`}
         placeholder={selected && !editing ? "" : placeholder}
         value={shown}
         disabled={disabled}

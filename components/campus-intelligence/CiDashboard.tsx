@@ -60,6 +60,8 @@ export type CiDashboardProps = {
    * When provided, `CiDashboardCharts` renders immediately without fetching.
    */
   chartsData?: CiDashboardChartData | null;
+  /** Shown under the title, e.g. the Service Chair's assigned area. */
+  roleBadge?: { label: string; detail?: string | null } | null;
 };
 
 /**
@@ -86,6 +88,7 @@ export function CiDashboard({
   liveStats = null,
   analyticsScope = null,
   chartsData = null,
+  roleBadge = null,
 }: CiDashboardProps) {
   const { selectedPeriodId, ready } = useSemesterFilter();
   const { programMode } = useProgramMode();
@@ -211,6 +214,12 @@ export function CiDashboard({
           <p className="text-sm font-medium text-gray-600 mb-1">Welcome, {welcomeName}</p>
         ) : null}
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Campus Intelligence Core</h2>
+        {roleBadge ? (
+          <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#ff990a]/40 bg-[#ff990a]/10 px-3 py-1.5 text-sm">
+            <span className="font-semibold text-[#780301]">{roleBadge.label}</span>
+            {roleBadge.detail ? <span className="text-black/70">{roleBadge.detail}</span> : null}
+          </div>
+        ) : null}
       </div>
 
       {variant === "full" && basePath.includes("/admin/college") ? (

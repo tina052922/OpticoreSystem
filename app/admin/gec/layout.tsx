@@ -13,7 +13,7 @@ export default async function GecChairmanLayout({ children }: { children: React.
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
       navItems={GEC_CHAIRMAN_NAV}
-      roleLabel="Service Chair"
+      roleLabel={profile.serviceAreaName ? `Service Chair · ${profile.serviceAreaName}` : "Service Chair"}
       profileHref="/admin/gec/profile"
       instructorRequestsBadge
     >

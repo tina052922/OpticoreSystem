@@ -12,7 +12,7 @@ export default async function CollegeAdminLayout({ children }: { children: React
       userName={profile.name ?? undefined}
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
-      // The CAS Admin has the same pages, plus the general-subjects scheduler for other colleges.
+      // The CAS Admin has the same pages; Subject Scheduler adds their general-subjects (all colleges) view.
       navItems={profile.casAdmin ? CAS_COLLEGE_ADMIN_NAV : COLLEGE_ADMIN_NAV}
       // The label follows the account: a CAFE admin must not read "COTE".
       roleLabel={profile.collegeCode ? `College admin · ${profile.collegeCode}` : "College admin"}

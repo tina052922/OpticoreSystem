@@ -107,21 +107,10 @@ export const COLLEGE_ADMIN_NAV: AdminNavEntry[] = [
 ];
 
 /**
- * CAS College Admin: exactly the College Admin pages, plus the general-subjects scheduler that plots
- * into vacant slots of other colleges (like the Service Chairs).
+ * CAS College Admin: exactly the College Admin pages. Their general-subjects scheduler (vacant slots of
+ * every college) is the "General subjects · all colleges" view inside Subject Scheduler.
  */
-export const CAS_COLLEGE_ADMIN_NAV: AdminNavEntry[] = COLLEGE_ADMIN_NAV.map((entry) =>
-  "kind" in entry && entry.kind === "group" && entry.label === SUBJECT_LOAD_GROUP_LABEL
-    ? {
-        ...entry,
-        items: [
-          ...entry.items.slice(0, 1),
-          { label: "General Subjects (all colleges)", href: "/admin/college/general-subjects", icon: "Send" },
-          ...entry.items.slice(1),
-        ],
-      }
-    : entry,
-);
+export const CAS_COLLEGE_ADMIN_NAV: AdminNavEntry[] = COLLEGE_ADMIN_NAV;
 
 /** CAS Admin (legacy pages; the CAS Admin now uses CAS_COLLEGE_ADMIN_NAV). */
 export const CAS_ADMIN_NAV: AdminNavEntry[] = [

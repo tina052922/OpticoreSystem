@@ -53,6 +53,7 @@ import {
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
 import { plotStartConflicts } from "@/lib/evaluator/plot-start-conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 
 const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -106,6 +107,13 @@ export type GecPlotScheduleModalProps = {
   existingBlocks?: SparseScheduleBlock[];
   /** Subject code (and section) of an already-plotted entry, to name it in a clash message. */
   labelForEntry?: (entryId: string) => string | undefined;
+  /**
+   * Service Chair: subject, instructor, building and room are typeable pickers that list matches
+   * only once something is typed, instead of long dropdowns.
+   */
+  searchable?: boolean;
+  /** "Add instructors" link target (CAS Admin: their own Faculty Profile). */
+  facultyProfileHref?: string;
 };
 
 const EMPTY_BLOCKS: SparseScheduleBlock[] = [];
@@ -143,6 +151,8 @@ export function GecPlotScheduleModal({
   subjectHourBudget = null,
   existingBlocks = EMPTY_BLOCKS,
   labelForEntry,
+  searchable = false,
+  facultyProfileHref = "/admin/gec/faculty-profile",
 }: GecPlotScheduleModalProps) {
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
   const days = weekdays ?? evaluatorWeekdays(programMode);
@@ -230,9 +240,10 @@ export function GecPlotScheduleModal({
       labelForEntry,
     });
   }, [meetings, slots, programMode, maxDur, days, draft.id, draft.academicPeriodId, draft.sectionId, draft.instructorId, draft.roomId, existingBlocks, labelForEntry, readOnly]);
-  const roomsInB = buildingValue
-    ? sortedRoomsInBuildingNamed(rooms, buildingValue, buildingsCatalog)
-    : [];
+  const roomsInB = useMemo(
+    () => (buildingValue ? sortedRoomsInBuildingNamed(rooms, buildingValue, buildingsCatalog) : []),
+    [rooms, buildingValue, buildingsCatalog],
+  );
 
   const { availableSubjects, addAnotherSlotSubjects } = useMemo(() => {
     const isCurrent = (id: string) => id === draft.subjectId;
@@ -258,6 +269,58 @@ export function GecPlotScheduleModal({
       additionalHours,
     });
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
+  const incompleteFieldBare = `${fieldClass} ring-2 ring-red-500 border-red-400 bg-red-50/70`;
+
+  const subjectSearchOptions = useMemo<SearchSelectOption[]>(
+    () => [
+      ...availableSubjects.map((s) => ({ value: s.id, label: `${s.code} — ${s.title}` })),
+      ...addAnotherSlotSubjects.map((s) => ({
+        value: s.id,
+        label: `+ ${s.code} — ${s.title}`,
+        hint: "another time slot",
+      })),
+    ],
+    [availableSubjects, addAnotherSlotSubjects],
+  );
+  const instructorSearchOptions = useMemo<SearchSelectOption[]>(
+    () => [
+      { value: GEC_VACANT_INSTRUCTOR_USER_ID, label: "Prof X (TBA) — no instructor yet" },
+      ...instructorPlotOptions.map((opt) => ({ value: opt.id, label: formatInstructorPlotOptionLabel(opt) })),
+    ],
+    [instructorPlotOptions],
+  );
+  const buildingSearchOptions = useMemo<SearchSelectOption[]>(
+    () =>
+      buildingLabels.map((b) => ({
+        value: b,
+        label: plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel),
+      })),
+    [buildingLabels],
+  );
+  const roomSearchOptions = useMemo<SearchSelectOption[]>(
+    () => roomsInB.map((r) => ({ value: r.id, label: formatRoomOptionLabel(r) })),
+    [roomsInB],
+  );
+
+  function pickSubject(subjectId: string) {
+    if (!subjectId) {
+      onDraftChange({ ...draft, subjectId: "" });
+      return;
+    }
+    onDurationSlotsChange(1);
+    setMeetings((prev) => ({
+      ...prev,
+      slots: prev.slots.map((s, i) => (i === 0 ? { ...s, durationHours: "1" } : s)),
+    }));
+    applySlotFromIndex(Math.max(0, startIdx), subjectId, 1);
+  }
+
+  function pickBuilding(b: string) {
+    onBuildingChange(b);
+    const keep =
+      draft.roomId && sortedRoomsInBuildingNamed(rooms, b, buildingsCatalog).some((r) => r.id === draft.roomId);
+    if (!keep) onDraftChange({ ...draft, roomId: "" });
+  }
 
   const applySlotFromIndex = (idx: number, subjectId: string, slotDur = durationSlots) => {
     const subject = gecSubjects.find((s) => s.id === subjectId);
@@ -411,24 +474,25 @@ export function GecPlotScheduleModal({
             <label className={labelClass} htmlFor="gec-plot-subject">
               GEC subject
             </label>
+            {searchable ? (
+              <SearchSelect
+                id="gec-plot-subject"
+                ariaLabel="GEC subject"
+                className="mt-1"
+                inputClassName={missingSubject && !readOnly ? incompleteFieldBare : fieldClass}
+                placeholder="Type a code or title (e.g. GEC-PC, PATHFit)…"
+                options={subjectSearchOptions}
+                value={draft.subjectId}
+                disabled={readOnly || gecSubjects.length === 0}
+                onChange={pickSubject}
+              />
+            ) : (
             <select
               id="gec-plot-subject"
               className={missingSubject && !readOnly ? incompleteField : `${fieldClass} mt-1`}
               value={draft.subjectId}
               disabled={readOnly || gecSubjects.length === 0}
-              onChange={(e) => {
-                const subjectId = e.target.value;
-                if (!subjectId) {
-                  onDraftChange({ ...draft, subjectId: "" });
-                  return;
-                }
-                onDurationSlotsChange(1);
-                setMeetings((prev) => ({
-                  ...prev,
-                  slots: prev.slots.map((s, i) => (i === 0 ? { ...s, durationHours: "1" } : s)),
-                }));
-                applySlotFromIndex(Math.max(0, startIdx), subjectId, 1);
-              }}
+              onChange={(e) => pickSubject(e.target.value)}
             >
               <option value="">Select GEC subject…</option>
               {availableSubjects.length > 0 ? (
@@ -450,6 +514,7 @@ export function GecPlotScheduleModal({
                 </optgroup>
               ) : null}
             </select>
+            )}
             {pickedSummaryCode && pickedSubjectId && onApplyPickedSummary && !readOnly ? (
               <Button
                 type="button"
@@ -466,6 +531,20 @@ export function GecPlotScheduleModal({
             <label className={labelClass} htmlFor="gec-plot-instructor">
               Instructor
             </label>
+            {searchable ? (
+              <SearchSelect
+                id="gec-plot-instructor"
+                ariaLabel="Instructor"
+                className="mt-1"
+                inputClassName={fieldClass}
+                placeholder="Type an instructor's name or ID…"
+                options={instructorSearchOptions}
+                value={draft.instructorId}
+                disabled={readOnly}
+                // Cleared → back to the Prof X (TBA) placeholder, never an empty instructor.
+                onChange={(v) => onDraftChange({ ...draft, instructorId: v || GEC_VACANT_INSTRUCTOR_USER_ID })}
+              />
+            ) : (
             <select
               id="gec-plot-instructor"
               className={`${fieldClass} mt-1`}
@@ -480,8 +559,9 @@ export function GecPlotScheduleModal({
                 </option>
               ))}
             </select>
+            )}
             {instructorPlotOptions.length === 0 && !readOnly ? (
-              <NoInstructorsNotice compact gec facultyProfileHref="/admin/gec/faculty-profile" />
+              <NoInstructorsNotice compact gec facultyProfileHref={facultyProfileHref} />
             ) : null}
           </div>
 
@@ -502,19 +582,25 @@ export function GecPlotScheduleModal({
               <label className={labelClass} htmlFor="gec-plot-building">
                 Building
               </label>
+              {searchable ? (
+                <SearchSelect
+                  id="gec-plot-building"
+                  ariaLabel="Building"
+                  className="mt-1"
+                  inputClassName={missingBuilding && !readOnly ? incompleteFieldBare : fieldClass}
+                  placeholder="Type a building…"
+                  options={buildingSearchOptions}
+                  value={buildingValue}
+                  disabled={readOnly || buildingLabels.length === 0}
+                  onChange={pickBuilding}
+                />
+              ) : (
               <select
                 id="gec-plot-building"
                 className={missingBuilding && !readOnly ? incompleteField : `${fieldClass} mt-1`}
                 value={buildingValue}
                 disabled={readOnly || buildingLabels.length === 0}
-                onChange={(e) => {
-                  const b = e.target.value;
-                  onBuildingChange(b);
-                  const keep =
-                    draft.roomId &&
-                    sortedRoomsInBuildingNamed(rooms, b, buildingsCatalog).some((r) => r.id === draft.roomId);
-                  if (!keep) onDraftChange({ ...draft, roomId: "" });
-                }}
+                onChange={(e) => pickBuilding(e.target.value)}
               >
                 <option value="">Select building…</option>
                 {buildingLabels.map((b) => (
@@ -523,11 +609,25 @@ export function GecPlotScheduleModal({
                   </option>
                 ))}
               </select>
+              )}
             </div>
             <div>
               <label className={labelClass} htmlFor="gec-plot-room">
                 Room
               </label>
+              {searchable ? (
+                <SearchSelect
+                  id="gec-plot-room"
+                  ariaLabel="Room"
+                  className="mt-1"
+                  inputClassName={missingRoom && !readOnly ? incompleteFieldBare : fieldClass}
+                  placeholder={buildingValue ? "Type a room…" : "Select building first"}
+                  options={roomSearchOptions}
+                  value={draft.roomId}
+                  disabled={readOnly || !buildingValue}
+                  onChange={(v) => onDraftChange({ ...draft, roomId: v })}
+                />
+              ) : (
               <select
                 id="gec-plot-room"
                 className={missingRoom && !readOnly ? incompleteField : `${fieldClass} mt-1`}
@@ -542,6 +642,7 @@ export function GecPlotScheduleModal({
                   </option>
                 ))}
               </select>
+              )}
             </div>
           </div>
 

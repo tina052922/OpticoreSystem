@@ -1,13 +1,18 @@
 import { Suspense } from "react";
 import { EvaluatorPage } from "@/components/evaluator/EvaluatorPage";
+import { CasSchedulerScopeTabs } from "@/components/evaluator/CasSchedulerScopeTabs";
 import { requireRoles } from "@/lib/auth/require-role";
 
 export default async function CollegeEvaluatorPage() {
   const profile = await requireRoles(["college_admin"]);
 
   return (
-    <Suspense fallback={<div className="px-8 py-12 text-sm text-black/60">Loading Evaluator…</div>}>
-      <EvaluatorPage variant="college" chairmanCollegeId={profile.collegeId} />
-    </Suspense>
+    <>
+      {/* CAS Admin: the general-subjects (all colleges) scheduler is the second view of this page. */}
+      {profile.casAdmin ? <CasSchedulerScopeTabs active="college" /> : null}
+      <Suspense fallback={<div className="px-8 py-12 text-sm text-black/60">Loading Evaluator…</div>}>
+        <EvaluatorPage variant="college" chairmanCollegeId={profile.collegeId} />
+      </Suspense>
+    </>
   );
 }
