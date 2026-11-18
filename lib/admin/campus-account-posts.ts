@@ -80,5 +80,5 @@ export function assignmentForSaveRole(
 export const CAMPUS_ACCOUNT_ROLE_LABEL: Record<CampusAccountSaveRole, string> = {
   college_admin: "College Admin",
   chairman_admin: "Chairman",
-  gec_chairman: "GEC Chairman",
+  gec_chairman: "Service Chair",
 };

@@ -1,5 +1,5 @@
 import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
-import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
+import { isServiceAreaSubject } from "@/lib/gec/gec-vacant";
 
 /**
  * Which GEC subjects the GEC Chairman may plot into a section.
@@ -35,7 +35,7 @@ function oneRowPerCode<T extends GecPlottableSubject>(
   const byCode = new Map<string, T>();
 
   for (const s of subjects) {
-    if (!isGecCurriculumSubjectCode(s.code)) continue;
+    if (!isServiceAreaSubject(s as { code: string; subjectArea?: string | null })) continue;
     const code = normalizeProspectusCode(s.code);
     const current = byCode.get(code);
     if (!current) {

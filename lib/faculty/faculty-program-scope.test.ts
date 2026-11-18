@@ -57,11 +57,17 @@ describe("facultyMatchesProgramScope", () => {
     expect(facultyMatchesProgramScope(bsitAdvisingAuto, "prog-bit-auto", sections)).toBe(false);
   });
 
-  it("keeps a GEC instructor under every department", () => {
-    // General education is taught across all of them, so no one department owns the person.
+  it("lists a General Subject / both instructor only under their own home program", () => {
+    // Filtering BSIT must not show a BSENVS "General + Program" instructor.
+    const both = faculty({ isGecInstructor: true, homeProgramId: "prog-bsenvs" });
+    expect(facultyMatchesProgramScope(both, "prog-bsit", sections)).toBe(false);
+    expect(facultyMatchesProgramScope(both, "prog-bsenvs", sections)).toBe(true);
+  });
+
+  it("lists a General Subject instructor with no program only where they advise", () => {
     const gec = faculty({ isGecInstructor: true });
-    expect(facultyMatchesProgramScope(gec, "prog-bsit", sections)).toBe(true);
-    expect(facultyMatchesProgramScope(gec, "prog-bit-auto", sections)).toBe(true);
+    expect(facultyMatchesProgramScope(gec, "prog-bsit", sections)).toBe(false);
+    expect(facultyMatchesProgramScope(gec, null, sections)).toBe(true);
   });
 
   it("ignores an advisory id whose section is unknown", () => {

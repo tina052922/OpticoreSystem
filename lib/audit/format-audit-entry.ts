@@ -108,7 +108,7 @@ export function formatAuditDetailsEnglish(entry: AuditEntry): string {
   const rec = d as Record<string, unknown>;
 
   const actor =
-    action.startsWith("gec.") ? "GEC Chairman" : action.startsWith("chairman.") ? "Program Chairman" : action === "schedule.write" ? "User" : action.startsWith("hub.") ? "College Admin" : action.startsWith("access_request.") ? "College Admin" : action.startsWith("doi.") ? "DOI Admin" : "User";
+    action.startsWith("gec.") ? "Service Chair" : action.startsWith("chairman.") ? "Program Chairman" : action === "schedule.write" ? "User" : action.startsWith("hub.") ? "College Admin" : action.startsWith("access_request.") ? "College Admin" : action.startsWith("doi.") ? "DOI Admin" : "User";
 
   const rows = rec.rows;
   const firstRow =

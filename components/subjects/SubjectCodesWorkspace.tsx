@@ -23,7 +23,7 @@ import {
 } from "@/lib/subjects/subject-category";
 import {
   normalizeSubjectArea,
-  SUBJECT_AREA_OPTIONS,
+  subjectAreaChoices,
   subjectAreaLabel,
   subjectAreaShortLabel,
   type SubjectArea,
@@ -40,6 +40,7 @@ import { subjectWeeklyContactHours } from "@/lib/subjects/contact-hours";
 import { subjectCodesApi } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import type { Subject } from "@/types/db";
+import { serviceAreasApi, type ServiceArea } from "@/lib/api/client";
 
 function yearLevelHeading(yearLevel: number): string {
   const ordinal =
@@ -196,6 +197,19 @@ export function SubjectCodesWorkspace({
   const [categoryTouched, setCategoryTouched] = useState(false);
   /** PE, Psychology, or Natural Science and Mathematics (migration 032). */
   const [subjectArea, setSubjectArea] = useState<SubjectArea | "">("");
+  /** Service areas (migration 035) are the Subject area choices; a Service Chair plots their area's subjects. */
+  const [serviceAreas, setServiceAreas] = useState<ServiceArea[]>([]);
+  useEffect(() => {
+    let alive = true;
+    serviceAreasApi
+      .list()
+      .then((r) => alive && setServiceAreas(r.areas ?? []))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const areaChoices = useMemo(() => subjectAreaChoices(serviceAreas), [serviceAreas]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [dbSubjects, setDbSubjects] = useState<Subject[]>([]);
@@ -342,9 +356,10 @@ export function SubjectCodesWorkspace({
         (s.title && s.title.toLowerCase().includes(q)) ||
         (programCodeById[s.programId] ?? "").toLowerCase().includes(q) ||
         subjectCategoryLabel(s.category, categoryOptions, "").toLowerCase().includes(q) ||
-        subjectAreaLabel(s.subjectArea, "").toLowerCase().includes(q),
+        subjectAreaLabel(s.subjectArea, "", serviceAreas).toLowerCase().includes(q),
     );
   }, [
+    serviceAreas,
     categoryOptions,
     dbSubjects,
     subjectSearch,
@@ -435,7 +450,7 @@ export function SubjectCodesWorkspace({
     if (gecCurriculumOnly && !allProgramsCatalog && !isGecCurriculumSubjectCode(trimmedCode)) {
       toast.refuse(
         "That is not a general education subject",
-        "As GEC Chairman you can add codes starting with GEC- or GEE-.",
+        "As a Service Chair you can add codes starting with GEC- or GEE-.",
       );
       return;
     }
@@ -649,7 +664,7 @@ export function SubjectCodesWorkspace({
               title="Which discipline this subject belongs to"
             >
               <option value="">— Not set —</option>
-              {SUBJECT_AREA_OPTIONS.map((o) => (
+              {areaChoices.map((o) => (
                 <option key={o.code} value={o.code}>
                   {o.label}
                 </option>
@@ -800,8 +815,8 @@ export function SubjectCodesWorkspace({
                       <td className="border border-black/10 px-2 py-1 tabular-nums">{s.yearLevel}</td>
                       <td className="border border-black/10 px-2 py-1">{subjectSemesterLabel(s.semester)}</td>
                       <td className="border border-black/10 px-2 py-1">{subjectCategoryLabel(s.category, categoryOptions)}</td>
-                      <td className="border border-black/10 px-2 py-1" title={subjectAreaLabel(s.subjectArea, "")}>
-                        {subjectAreaShortLabel(s.subjectArea)}
+                      <td className="border border-black/10 px-2 py-1" title={subjectAreaLabel(s.subjectArea, "", serviceAreas)}>
+                        {subjectAreaShortLabel(s.subjectArea, "—", serviceAreas)}
                       </td>
                       <td className="border border-black/10 px-2 py-1 font-semibold">{s.code}</td>
                       <td className="border border-black/10 px-2 py-1">{s.title}</td>

@@ -100,12 +100,30 @@ export const COLLEGE_ADMIN_NAV: AdminNavEntry[] = [
   { label: "Faculty Profile", href: "/admin/college/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/college/subject-codes", icon: "Layers" },
   { label: "Programs & Sections", href: "/admin/college/academic-structure", icon: "Network" },
+  { label: "Chairman Assignment", href: "/admin/college/chair-assignments", icon: "UserPlus" },
   { label: "Buildings & Rooms", href: "/admin/college/buildings-rooms", icon: "Building2" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
   { label: "System Configuration", href: "/admin/college/system-configuration", icon: "Settings" },
 ];
 
-/** CAS Admin */
+/**
+ * CAS College Admin: exactly the College Admin pages, plus the general-subjects scheduler that plots
+ * into vacant slots of other colleges (like the Service Chairs).
+ */
+export const CAS_COLLEGE_ADMIN_NAV: AdminNavEntry[] = COLLEGE_ADMIN_NAV.map((entry) =>
+  "kind" in entry && entry.kind === "group" && entry.label === SUBJECT_LOAD_GROUP_LABEL
+    ? {
+        ...entry,
+        items: [
+          ...entry.items.slice(0, 1),
+          { label: "General Subjects (all colleges)", href: "/admin/college/general-subjects", icon: "Send" },
+          ...entry.items.slice(1),
+        ],
+      }
+    : entry,
+);
+
+/** CAS Admin (legacy pages; the CAS Admin now uses CAS_COLLEGE_ADMIN_NAV). */
 export const CAS_ADMIN_NAV: AdminNavEntry[] = [
   { label: "Campus Intelligence", href: "/admin/cas", icon: "LayoutDashboard" },
   {
@@ -117,11 +135,12 @@ export const CAS_ADMIN_NAV: AdminNavEntry[] = [
       { label: LOAD_GENERATOR_NAV_LABEL, href: "/admin/cas/ins/faculty", icon: "BookOpen" },
     ],
   },
-  { label: "GEC distribution", href: "/admin/cas/distribution", icon: "Send" },
+  { label: "General subject distribution", href: "/admin/cas/distribution", icon: "Send" },
   { label: "Inbox", href: "/admin/cas/inbox", icon: "Inbox" },
   { label: "Audit log", href: "/admin/cas/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/admin/cas/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/cas/subject-codes", icon: "Layers" },
+  { label: "Chairman Assignment", href: "/admin/cas/chair-assignments", icon: "UserPlus" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
@@ -192,6 +211,7 @@ export const DOI_ADMIN_NAV: AdminNavEntry[] = [
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
   { label: "College Admins & Chairmen", href: "/doi/campus-accounts", icon: "UserPlus" },
+  { label: "Chairman Assignment", href: "/doi/chair-assignments", icon: "UserPlus" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },
   { label: "Programs & Sections", href: "/doi/academic-structure", icon: "Network" },
   { label: "Buildings & Rooms", href: "/doi/buildings-rooms", icon: "Building2" },

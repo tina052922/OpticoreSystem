@@ -1,6 +1,7 @@
 import { CampusIntelligenceShell } from "@/components/campus-intelligence/CampusIntelligenceShell";
 import { CHAIRMAN_NAV } from "@/lib/admin-nav";
 import { getChairmanSession } from "@/lib/auth/chairman-session";
+import { ChairProgramSwitcher } from "@/components/chairman/ChairProgramSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,8 @@ export default async function ChairmanLayout({ children }: { children: React.Rea
       profileHref="/chairman/profile"
       instructorRequestsBadge
     >
+      {/* Chairs of several programs (e.g. all BIT majors) pick the one they are working on. */}
+      <ChairProgramSwitcher />
       {children}
     </CampusIntelligenceShell>
   );

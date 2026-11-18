@@ -127,6 +127,8 @@ export type INS5AProps = {
   programMode?: "day" | "night";
   headerBanner?: string | null;
   insFooterText?: string;
+  /** Rankings strip at the foot (data URL when embedded); null leaves it out. */
+  footerBanner?: string | null;
 };
 
 export type INS5BProps = {
@@ -141,6 +143,8 @@ export type INS5BProps = {
   programMode?: "day" | "night";
   headerBanner?: string | null;
   insFooterText?: string;
+  /** Rankings strip at the foot (data URL when embedded); null leaves it out. */
+  footerBanner?: string | null;
 };
 
 export type INS5CProps = {
@@ -151,4 +155,6 @@ export type INS5CProps = {
   programMode?: "day" | "night";
   headerBanner?: string | null;
   insFooterText?: string;
+  /** Rankings strip at the foot (data URL when embedded); null leaves it out. */
+  footerBanner?: string | null;
 };

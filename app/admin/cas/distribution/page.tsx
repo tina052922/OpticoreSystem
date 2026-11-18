@@ -7,7 +7,7 @@ export default function CasGecDistributionPage() {
     <div>
       <ChairmanPageHeader
         title="GEC distribution"
-        subtitle="Send GEC-only schedule slices to the correct GEC Chairman. Non-GEC rows stay read-only."
+        subtitle="Send general-subject schedule slices to the correct Service Chair. Program rows stay read-only."
       />
       <div className="px-8 pb-10 max-w-4xl space-y-6">
         <DashboardCard title="Distribution queue (demo)">

@@ -27,6 +27,7 @@ import { isFacultyInsPortal } from "@/lib/ins/schedule-visibility";
 import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
 import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
 import { appointmentStatusLabel } from "@/lib/faculty/appointment-status";
+import { usePdfFooterBanner } from "@/hooks/use-pdf-footer-banner";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -173,7 +174,9 @@ export function INSFormFaculty({
   );
   const { slots: pdfSignatureSlots, ready: pdfSignaturesReady } = usePdfEmbeddedSignatureSlots(pdfSignatureSlotsRaw);
 
+  const footerBanner = usePdfFooterBanner();
   const pdfData = useMemo((): INS5AProps => ({
+    footerBanner,
     facultyName: displayFacultyName,
     semesterLabel: (useLiveData ? live.periodLabel : undefined) ?? "____ Semester, AY ____",
     // From Faculty Profile → Status of Appointment.
@@ -194,7 +197,7 @@ export function INSFormFaculty({
     signatureSlots: pdfSignatureSlots,
     programMode,
     ...insPdfBrandingProps(branding),
-  }), [displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, pdfSignatureSlots, programMode, branding]);
+  }), [footerBanner, displayFacultyName, displaySchedule, displayCourses, useLiveData, live.periodLabel, live.facultyCredentials, live.facultyFormSummary, pdfSignatureSlots, programMode, branding]);
 
   async function runInsConflict() {
     if (!useLiveData) {

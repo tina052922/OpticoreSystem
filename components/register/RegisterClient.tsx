@@ -163,6 +163,12 @@ export function RegisterClient() {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    // Same rule as the server: the code is emailed to a Gmail inbox.
+    if (!/^[^\s@]+@(gmail\.com|googlemail\.com)$/.test(normalizedEmail)) {
+      toast.refuse("Use a Gmail address", "Student registration needs a Gmail address (yourname@gmail.com).");
+      document.querySelector<HTMLInputElement>('input[type="email"]')?.focus();
+      return;
+    }
 
     setSubmitting(true);
     try {

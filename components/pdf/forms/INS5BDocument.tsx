@@ -3,6 +3,7 @@ import { ins } from "../styles/insStyles";
 import type { INS5BProps } from "../types/insTypes";
 import { INSHeader } from "../shared/INSHeader";
 import { INSBrandedFooter } from "../shared/INSBrandedFooter";
+import { INSRankingsStrip } from "../shared/INSRankingsStrip";
 import { INSScheduleGrid } from "../shared/INSScheduleGrid";
 import { INSNightScheduleGrid } from "../shared/INSNightScheduleGrid";
 import { INSSummaryTable } from "../shared/INSSummaryTable";
@@ -77,6 +78,8 @@ export function INS5BDocument({ data }: { data: INS5BProps }) {
           />
         )}
         <INSSummaryTable courses={courses} studentsFirst />
+        {/* Rankings strip, as on the Summary of Teaching Load. */}
+        <INSRankingsStrip src={data.footerBanner} />
         <INSBrandedFooter text={insFooterText} />
       </Page>
     </Document>

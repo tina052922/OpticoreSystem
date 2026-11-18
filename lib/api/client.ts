@@ -78,6 +78,10 @@ export type SafeUser = {
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
+  /** Service Chair / general-subject instructor's area (migration 035). */
+  serviceAreaId?: string | null;
+  /** College Admin of CAS: may plot general subjects on vacant slots of other colleges. */
+  casAdmin?: boolean;
   profileImageUrl?: string | null;
   signatureImageUrl?: string | null;
   studentProfile?: { programId?: string; sectionId?: string; yearLevel?: number } | null;
@@ -1021,6 +1025,8 @@ export const registerApi = {
     facultyCategory?: "program" | "gec" | "both";
     /** Required for program faculty; omit/null for GEC instructors. */
     programId?: string | null;
+    /** General Subject / Both: the service area (migration 035). */
+    serviceAreaId?: string | null;
     employeeId?: string;
     [key: string]: unknown; // Additional faculty profile fields (server allowlists)
   }) {
@@ -1624,6 +1630,8 @@ export const campusAccountsApi = {
     role: CampusAccountSaveRole;
     collegeId: string | null;
     programId: string | null;
+    /** Service Chair: the area they head. */
+    serviceAreaId?: string | null;
     name: string;
     email: string;
     password: string;
@@ -1648,7 +1656,91 @@ export type CampusAccount = {
   role: CampusAccountSaveRole;
   collegeId: string | null;
   chairmanProgramId: string | null;
+  /** Service Chair's area (migration 035). */
+  serviceAreaId?: string | null;
   createdAt?: string;
+};
+
+/** General-subject areas (migration 035), each headed by a Service Chair. */
+export type ServiceArea = { id: string; code: string; name: string; collegeId: string | null; sortOrder: number };
+
+export const serviceAreasApi = {
+  list() {
+    return apiFetch<{ areas: ServiceArea[]; warning?: string }>("/api/catalog/service-areas", { method: "GET" });
+  },
+  /** For the public instructor registration form. */
+  listPublic() {
+    return apiFetch<{ areas: ServiceArea[]; warning?: string }>("/api/catalog/public/service-areas", {
+      method: "GET",
+    });
+  },
+  create(input: { name: string; code?: string; collegeId?: string | null }) {
+    return apiFetch<{ area: ServiceArea }>("/api/catalog/service-areas", { method: "POST", body: input });
+  },
+  update(id: string, input: { name?: string; collegeId?: string | null; sortOrder?: number }) {
+    return apiFetch<{ area: ServiceArea }>(`/api/catalog/service-areas/${id}`, { method: "PUT", body: input });
+  },
+  remove(id: string) {
+    return apiFetch<{ ok: true }>(`/api/catalog/service-areas/${id}`, { method: "DELETE" });
+  },
+};
+
+export type ChairAssignmentProgram = {
+  id: string;
+  code: string | null;
+  name: string | null;
+  collegeId: string | null;
+  groupCode?: string | null;
+};
+export type ChairAssignmentChair = {
+  id: string;
+  name: string;
+  email: string;
+  collegeId: string | null;
+  chairmanProgramId: string | null;
+};
+
+/** Chairman Assignment (migration 035): who manages each program / major. */
+export const chairAssignmentsApi = {
+  list(collegeId?: string | null) {
+    const q = collegeId ? `?collegeId=${encodeURIComponent(collegeId)}` : "";
+    return apiFetch<{
+      programs: ChairAssignmentProgram[];
+      assignments: { programId: string; chairUserId: string; assignedAt: string | null }[];
+      chairs: ChairAssignmentChair[];
+      groupsSupported: boolean;
+      warning?: string;
+    }>(`/api/chair-assignments${q}`, { method: "GET", forceRefresh: true });
+  },
+  /** Assign or transfer one program ("" removes its chair). */
+  setProgramChair(programId: string, chairUserId: string) {
+    return apiFetch<{ ok: true; previousChairUserId?: string | null }>(
+      `/api/chair-assignments/${encodeURIComponent(programId)}`,
+      { method: "PUT", body: { chairUserId } },
+    );
+  },
+  /** One chair for every major of a program group. */
+  setGroupChair(input: { collegeId?: string | null; groupCode: string; chairUserId: string }) {
+    return apiFetch<{ ok: true; programIds: string[] }>("/api/chair-assignments/group", { method: "POST", body: input });
+  },
+  setProgramGroup(programId: string, groupCode: string) {
+    return apiFetch<{ ok: true }>(`/api/chair-assignments/program/${encodeURIComponent(programId)}/group`, {
+      method: "PUT",
+      body: { groupCode },
+    });
+  },
+  mine() {
+    return apiFetch<{ programs: ChairAssignmentProgram[]; activeProgramId: string | null }>(
+      "/api/chair-assignments/mine",
+      { method: "GET", forceRefresh: true },
+    );
+  },
+  setMyActiveProgram(programId: string) {
+    return apiFetch<{ ok: true; activeProgramId: string }>("/api/chair-assignments/mine/active", {
+      method: "PUT",
+      body: { programId },
+    });
+  },
 };
 
 export const subjectCodesApi = {

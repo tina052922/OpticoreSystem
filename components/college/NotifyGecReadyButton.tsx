@@ -62,11 +62,11 @@ export function NotifyGecReadyButton({
       });
       const scope = selected ? categoryLabelForProgram(selected) : "the college";
       toast.ok(
-        "GEC Chairman notified",
+        "Service Chair notified",
         res.message ?? `${scope} is ready for GEC plotting.`,
       );
     } catch (e) {
-      toast.fail(e, "Could not notify the GEC Chairman", "notify: gec ready");
+      toast.fail(e, "Could not notify the Service Chair", "notify: gec ready");
     } finally {
       setBusy(false);
     }

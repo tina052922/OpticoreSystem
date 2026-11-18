@@ -192,7 +192,14 @@ export function userErrorDetail(err: unknown, fallbackTitle: string): string {
 
 export function reportUserError(err: unknown, fallbackTitle: string, context?: string): UserMessage {
   if (typeof console !== "undefined") {
-    console.error(`[opticore] ${context ?? fallbackTitle}`, err);
+    /*
+     * A 4xx is the server refusing input ("requires a Gmail address", "already exists"): expected,
+     * shown to the user in the toast. Logged as a warning so the Next.js dev overlay does not
+     * present it as a crash. Real failures (5xx, network, bugs) stay errors.
+     */
+    const status = (err as { status?: unknown } | null)?.status;
+    const expected = typeof status === "number" && status >= 400 && status < 500;
+    (expected ? console.warn : console.error)(`[opticore] ${context ?? fallbackTitle}`, err);
   }
   return toUserMessage(err, fallbackTitle);
 }

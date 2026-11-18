@@ -3,6 +3,7 @@ import { ins } from "../styles/insStyles";
 import type { INS5CProps } from "../types/insTypes";
 import { INSHeader } from "../shared/INSHeader";
 import { INSBrandedFooter } from "../shared/INSBrandedFooter";
+import { INSRankingsStrip } from "../shared/INSRankingsStrip";
 import { INSScheduleGrid } from "../shared/INSScheduleGrid";
 import { INSNightScheduleGrid } from "../shared/INSNightScheduleGrid";
 import { INSSignatureBlock } from "../shared/INSSignatureBlock";
@@ -33,6 +34,8 @@ export function INS5CDocument({ data }: { data: INS5CProps }) {
         )}
 
         <INSSignatureBlock slots={signatureSlots} layout="horizontal" />
+        {/* Rankings strip, as on the Summary of Teaching Load. */}
+        <INSRankingsStrip src={data.footerBanner} />
         <INSBrandedFooter text={insFooterText} />
       </Page>
     </Document>

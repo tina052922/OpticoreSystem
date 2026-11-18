@@ -26,9 +26,12 @@ export function facultyMatchesProgramScope(
   const target = (programId ?? "").trim();
   if (!target) return true;
 
-  // GEC instructors teach general education across every department, so no one department owns them.
-  if (faculty.isGecInstructor) return true;
-
+  /*
+   * The department filter narrows to that department's people: a faculty with a home program is
+   * listed under it only — General Subject and "both" instructors included (an Uy of BSENVS is not
+   * BSIT's). Without a home program, the advised sections decide. "All" (no target) lists everyone.
+   */
+  void faculty.isGecInstructor;
   const home = (faculty.homeProgramId ?? "").trim();
   if (home) return home === target;
 

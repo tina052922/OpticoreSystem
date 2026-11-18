@@ -90,6 +90,8 @@ export interface User {
   instructorValidation?: "pending" | "active" | "rejected" | null;
   /** Set for chairman_admin: the one program they manage. Instructors store home department here after registration. */
   chairmanProgramId?: string | null;
+  /** Service Chair / General Subject instructor: their service area (migration 035). */
+  serviceAreaId?: string | null;
   /**
    * Teaching category from registration.
    * `gec` = GEC instructor (college-scoped; chairmanProgramId null).

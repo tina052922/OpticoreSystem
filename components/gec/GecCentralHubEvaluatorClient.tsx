@@ -1,5 +1,6 @@
 "use client";
 
+import { serviceAreasApi } from "@/lib/api/client";
 import { apiFetch, authApi, catalogApi, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
 import { userErrorDetail } from "@/lib/ui/user-message";
 import {
@@ -66,6 +67,9 @@ import {
   isGecCurriculumScheduleEntry,
   isGecCurriculumSubjectCode,
   isGecVacantScheduleEntry,
+  isServiceAreaSubject,
+  setActiveServiceAreaCode,
+  setAnyGeneralSubjectScope,
 } from "@/lib/gec/gec-vacant";
 import { roomsForPlotting as allPlotRooms } from "@/lib/scheduling/program-plot-rooms";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
@@ -133,11 +137,46 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
  * Vacant GEC placeholders are editable in the selected college / department (no access-request queue).
  * Major (non-GEC) rows stay read-only. DOI lock still pauses plotting.
  */
-export function GecCentralHubEvaluatorClient() {
+export function GecCentralHubEvaluatorClient({
+  casAdmin = false,
+}: {
+  /** CAS College Admin: every general subject (no single service area). */
+  casAdmin?: boolean;
+} = {}) {
   const toast = useOpticoreToast();
   const systemConfig = useSystemConfigurationOptional();
   const policyConstants = systemConfig?.policyConstants ?? FACULTY_POLICY_CONSTANTS;
   const { programMode, setProgramMode } = useProgramMode();
+  /**
+   * The Service Chair's area: subjects tagged with it in Subject Codes become theirs to plot (as
+   * GEC-/GEE- codes always were). Bumped once loaded so lists recompute with it.
+   */
+  const [serviceAreaCode, setServiceAreaCodeState] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (casAdmin) {
+      setAnyGeneralSubjectScope(true);
+      setActiveServiceAreaCode(null);
+      setServiceAreaCodeState("*");
+      return () => {
+        setAnyGeneralSubjectScope(false);
+      };
+    }
+    void (async () => {
+      try {
+        const [{ user }, { areas }] = await Promise.all([authApi.me(), serviceAreasApi.list()]);
+        const code = areas.find((a) => a.id === user?.serviceAreaId)?.code ?? null;
+        setActiveServiceAreaCode(code);
+        if (alive) setServiceAreaCodeState(code);
+      } catch {
+        /* GEC-/GEE- codes still work without an area */
+      }
+    })();
+    return () => {
+      alive = false;
+      setActiveServiceAreaCode(null);
+    };
+  }, [casAdmin]);
   const slotsForMode = evaluatorTimeSlots(programMode);
   const { selectedPeriodId: academicPeriodId, selectedPeriod } = useSemesterFilter();
   const router = useRouter();
@@ -505,6 +544,7 @@ export function GecCentralHubEvaluatorClient() {
 
   /** GEC/GEE curriculum rows GEC may edit in the current college / department (vacant origin + newly added). */
   const gecOwnedIds = useMemo(() => {
+    void serviceAreaCode; // recompute once the Service Chair's area has loaded
     const ids = new Set<string>();
     for (const e of entries) {
       if (e.academicPeriodId !== academicPeriodId) continue;
@@ -531,6 +571,7 @@ export function GecCentralHubEvaluatorClient() {
     sectionById,
     programById,
     subjectById,
+    serviceAreaCode,
   ]);
 
   /** Rows that started as vacant GEC placeholders (DB origin + newly added local rows). */
@@ -700,6 +741,7 @@ export function GecCentralHubEvaluatorClient() {
   }, [programId, sectionIdFilter, sectionById, sectionsForCollegeFiltered]);
 
   const pickedSubjectId = useMemo(() => {
+    void serviceAreaCode; // recompute once the Service Chair's area has loaded
     if (!pickedSummaryCode || !sectionIdFilter) return null;
     const sec = sectionById.get(sectionIdFilter);
     if (!sec) return null;
@@ -708,10 +750,10 @@ export function GecCentralHubEvaluatorClient() {
       (s) =>
         s.programId === sec.programId &&
         normalizeProspectusCode(s.code) === n &&
-        isGecCurriculumSubjectCode(s.code),
+        isServiceAreaSubject(s),
     );
     return sub?.id ?? null;
-  }, [pickedSummaryCode, sectionIdFilter, sectionById, subjects]);
+  }, [pickedSummaryCode, sectionIdFilter, sectionById, subjects, serviceAreaCode]);
 
   const tableRows = useMemo(() => {
     if (!academicPeriodId || !collegeParam) return [];
@@ -769,6 +811,7 @@ export function GecCentralHubEvaluatorClient() {
   );
 
   const instructorPlotOptionsBase = useMemo(() => {
+    void serviceAreaCode; // recompute once the Service Chair's area has loaded
     if (!plotCollegeId) return [];
     /**
      * GEC instructors only.
@@ -801,7 +844,7 @@ export function GecCentralHubEvaluatorClient() {
       entryInstructorIdsForPlotMerge,
       facultyProfileByUserId,
     );
-  }, [users, plotCollegeId, entryInstructorIdsForPlotMerge, facultyProfileByUserId]);
+  }, [users, plotCollegeId, entryInstructorIdsForPlotMerge, facultyProfileByUserId, serviceAreaCode]);
 
   /** Every room in Buildings & Rooms — GEC plotting is not limited to one college's buildings. */
   const roomsForPlotting = useMemo(() => allPlotRooms(rooms), [rooms]);
@@ -1393,16 +1436,17 @@ export function GecCentralHubEvaluatorClient() {
 
   /** GEC codes already on the master schedule for this section + term (drives “Plotted” in the summary table). */
   const gecPlottedSubjectCodesForSection = useMemo(() => {
+    void serviceAreaCode; // recompute once the Service Chair's area has loaded
     if (!sectionIdFilter || !academicPeriodId) return new Set<string>();
     const set = new Set<string>();
     for (const e of modeMergedEntries) {
       if (e.sectionId !== sectionIdFilter || e.academicPeriodId !== academicPeriodId) continue;
       const sub = subjectById.get(e.subjectId);
-      if (!sub || !isGecCurriculumSubjectCode(sub.code)) continue;
+      if (!sub || !isServiceAreaSubject(sub)) continue;
       set.add(normalizeProspectusCode(sub.code));
     }
     return set;
-  }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
+  }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById, serviceAreaCode]);
 
   const gecPlottedHoursBySubjectCode = useMemo(() => {
     if (!sectionIdFilter || !academicPeriodId) return new Map<string, number>();
@@ -1445,16 +1489,17 @@ export function GecCentralHubEvaluatorClient() {
 
   /** GEC subject ids on this section (enables “add another time slot” in the plot modal). */
   const gecPlottedSubjectIdsForSection = useMemo(() => {
+    void serviceAreaCode; // recompute once the Service Chair's area has loaded
     if (!sectionIdFilter || !academicPeriodId) return new Set<string>();
     const set = new Set<string>();
     for (const e of modeMergedEntries) {
       if (e.sectionId !== sectionIdFilter || e.academicPeriodId !== academicPeriodId) continue;
       const sub = subjectById.get(e.subjectId);
-      if (!sub || !isGecCurriculumSubjectCode(sub.code)) continue;
+      if (!sub || !isServiceAreaSubject(sub)) continue;
       set.add(e.subjectId);
     }
     return set;
-  }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById]);
+  }, [modeMergedEntries, sectionIdFilter, academicPeriodId, subjectById, serviceAreaCode]);
 
   const gecSubjectsForPlot = useMemo(() => gecSubjectsForSection ?? [], [gecSubjectsForSection]);
 

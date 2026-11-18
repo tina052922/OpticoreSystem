@@ -72,7 +72,21 @@ export function TeachingLoadSummaryTable({
             rows.map((r, i) => (
               <tr key={r.instructorId} className={i % 2 === 1 ? "bg-[#fdf6f5]" : "bg-white"}>
                 <td className={`${TD} tabular-nums text-center`}>{i + 1}</td>
-                <td className={`${TD} font-medium`}>{r.facultyName}</td>
+                <td className={`${TD} font-medium`}>
+                  {r.facultyName}
+                  {/* Where they belong: program, general subject area, or both. */}
+                  <span
+                    className={`ml-1.5 inline-block rounded px-1.5 py-0.5 align-middle text-[10px] font-semibold ${
+                      r.facultyCategory === "both"
+                        ? "bg-violet-100 text-violet-900"
+                        : r.facultyCategory === "gec"
+                          ? "bg-sky-100 text-sky-900"
+                          : "bg-amber-100 text-amber-900"
+                    }`}
+                  >
+                    {r.facultyCategory === "both" ? "Both" : r.facultyCategory === "gec" ? "General" : "Program"}
+                  </span>
+                </td>
                 <td className={TD}>{r.administrativeDesignation ?? ""}</td>
                 <td className={`${TD} whitespace-pre-wrap`}>{r.otherResponsibilities}</td>
                 <td className={`${TD} tabular-nums text-center`}>{num(r.day.preps)}</td>

@@ -19,6 +19,7 @@ import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { useCampusBranding } from "@/contexts/CampusBrandingContext";
 import { OpticoreInsNightScheduleTable } from "./OpticoreInsNightScheduleTable";
 import { appointmentStatusLabel } from "@/lib/faculty/appointment-status";
+import { DEFAULT_REPORT_FOOTER_BANNER } from "@/lib/system-configuration/campus-branding";
 
 /** INS Form 5A draft placeholders — keys match the printed-line resolver. */
 const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
@@ -188,10 +189,20 @@ function InsUnderlineInput({
 function InsPrintFooter() {
   const { insFooterText, footerText } = useCampusBranding();
   const line = insFooterText.trim() || footerText.trim();
-  if (!line) return null;
   return (
-    <div className="mt-4 border-t border-neutral-400 pt-1 text-center text-[11px] text-neutral-600 print:mt-2 print:text-[6.5pt]">
-      {line}
+    <div className="mt-4 print:mt-2">
+      {/* Rankings / certifications strip, as on the Summary of Teaching Load. */}
+      {/* eslint-disable-next-line no-restricted-syntax */}
+      <img
+        src={DEFAULT_REPORT_FOOTER_BANNER}
+        alt="University rankings and certifications"
+        className="mx-auto h-auto w-full max-w-[520px] print:max-w-[300px]"
+      />
+      {line ? (
+        <div className="mt-1 border-t border-neutral-400 pt-1 text-center text-[11px] text-neutral-600 print:text-[6.5pt]">
+          {line}
+        </div>
+      ) : null}
     </div>
   );
 }

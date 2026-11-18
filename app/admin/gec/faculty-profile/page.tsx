@@ -20,16 +20,17 @@ const GEC_ROUTING_COLLEGE_ID = "col-tech-eng";
  * the roster and the Advisory sections together.
  */
 export default async function GecFacultyProfilePage() {
-  await getAuthenticatedProfile();
+  const profile = await getAuthenticatedProfile();
 
   return (
     <div>
       <ChairmanPageHeader
-        title="Faculty Profile (GEC)"
-        subtitle="Enroll and update profiles for GEC staffing. Filter by college and department; the list shows GEC instructors across the campus."
+        title="Faculty Profile (General Subjects)"
+        subtitle="General Subject instructors of your service area, across every college. Filter by college and department."
       />
       <FacultyProfileWithScope
         gecFacultyFilter
+        viewerServiceAreaId={profile.serviceAreaId ?? null}
         writeCollegeIdFallback={GEC_ROUTING_COLLEGE_ID}
         writeCollegeLabel="the College of Technology and Engineering"
       />

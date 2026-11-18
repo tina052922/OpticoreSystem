@@ -1,5 +1,5 @@
 import { CampusIntelligenceShell } from "@/components/campus-intelligence/CampusIntelligenceShell";
-import { COLLEGE_ADMIN_NAV } from "@/lib/admin-nav";
+import { CAS_COLLEGE_ADMIN_NAV, COLLEGE_ADMIN_NAV } from "@/lib/admin-nav";
 import { requireRoles } from "@/lib/auth/require-role";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,8 @@ export default async function CollegeAdminLayout({ children }: { children: React
       userName={profile.name ?? undefined}
       profileImageUrl={profile.profileImageUrl}
       userEmail={profile.email}
-      navItems={COLLEGE_ADMIN_NAV}
+      // The CAS Admin has the same pages, plus the general-subjects scheduler for other colleges.
+      navItems={profile.casAdmin ? CAS_COLLEGE_ADMIN_NAV : COLLEGE_ADMIN_NAV}
       // The label follows the account: a CAFE admin must not read "COTE".
       roleLabel={profile.collegeCode ? `College admin · ${profile.collegeCode}` : "College admin"}
       profileHref="/admin/college/profile"

@@ -12,7 +12,10 @@ export function FacultyProfileWithScope({
   excludeGecFaculty = false,
   writeCollegeIdFallback = null,
   writeCollegeLabel = null,
+  viewerServiceAreaId = null,
 }: {
+  /** Service Chair: their area; the roster is that area's General Subject instructors. */
+  viewerServiceAreaId?: string | null;
   initialCollegeId?: string | null;
   enableFacultyListEdit?: boolean;
   /** College Admin: pin every list on the page to their own college. */
@@ -61,6 +64,7 @@ export function FacultyProfileWithScope({
         writeCollegeIdFallback={writeCollegeIdFallback}
         writeCollegeLabel={writeCollegeLabel}
         gecFacultyFilter={gecFacultyFilter}
+        viewerServiceAreaId={viewerServiceAreaId}
         excludeGecFaculty={excludeGecFaculty}
         enableFacultyListEdit={enableFacultyListEdit}
       />

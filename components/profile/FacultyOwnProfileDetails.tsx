@@ -369,7 +369,7 @@ export function FacultyOwnProfileDetails() {
               )}
             </div>
             <p className="text-[11px] text-black/50">
-              Your department puts you on that Program Chairman's list; GEC and “both” instructors are also on the GEC Chairman's list.
+              Your department puts you on that Program Chairman's list; General Subject and “both” instructors are also on their Service Chair's list.
             </p>
           </fieldset>
 

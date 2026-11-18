@@ -95,6 +95,7 @@ import {
   normalizeAppointmentStatus,
   type AppointmentStatus,
 } from "@/lib/faculty/appointment-status";
+import { serviceAreasApi, type ServiceArea } from "@/lib/api/client";
 
 /**
  * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
@@ -136,6 +137,8 @@ export type FacultyProfileWorkspaceProps = {
    * Excludes faculty who only appear on major (non-GEC) schedules, and the vacant-slot placeholder user.
    */
   gecFacultyFilter?: boolean;
+  /** Service Chair: their service area — the roster is that area's General Subject instructors. */
+  viewerServiceAreaId?: string | null;
   /**
    * College Admin: leave GEC instructors out of the roster.
    *
@@ -149,6 +152,8 @@ type ListRow = {
   user: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory"> & {
     /** instructor, or a Program / GEC Chairman (listed with their department, account managed elsewhere). */
     role?: string | null;
+    /** General Subject / Both instructor's service area. */
+    serviceAreaId?: string | null;
     instructorValidation?: string | null;
     /** Account state, so editing can say whether this faculty can sign in. */
     email?: string | null;
@@ -189,7 +194,21 @@ export function FacultyProfileWorkspace({
   enableFacultyListEdit = false,
   gecFacultyFilter = false,
   excludeGecFaculty = false,
+  viewerServiceAreaId = null,
 }: FacultyProfileWorkspaceProps) {
+  /** Service areas, for General Subject / Both instructors (migration 035). */
+  const [serviceAreas, setServiceAreas] = useState<ServiceArea[]>([]);
+  useEffect(() => {
+    let alive = true;
+    serviceAreasApi
+      .list()
+      .then((r) => alive && setServiceAreas(r.areas ?? []))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const [serviceAreaId, setServiceAreaId] = useState("");
   const scope = useMemo(
     () =>
       resolveFacultyCollegeScope({ chairmanCollegeId, viewerCollegeId, scopeCollegeId, allowCampusWide }),
@@ -472,6 +491,7 @@ export function FacultyProfileWorkspace({
             gecOnly: gecFacultyFilter,
             excludeGec: excludeGecFaculty,
             lockedProgramId: chairmanProgramId,
+            serviceAreaId: viewerServiceAreaId,
           }),
         )
         .map((u) => ({
@@ -479,6 +499,7 @@ export function FacultyProfileWorkspace({
           name: u.name,
           employeeId: u.employeeId,
           role: u.role ?? null,
+          serviceAreaId: (u as { serviceAreaId?: string | null }).serviceAreaId ?? null,
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
           instructorValidation: u.instructorValidation ?? null,
@@ -486,7 +507,9 @@ export function FacultyProfileWorkspace({
           mustChangePassword: (u as { mustChangePassword?: boolean | null }).mustChangePassword ?? null,
           emailVerifiedAt: (u as { emailVerifiedAt?: string | null }).emailVerifiedAt ?? null,
         }));
-    } catch {
+    } catch (err) {
+      // Say so instead of showing an empty list that looks like "no faculty".
+      toast.fail(err, "Could not load the faculty list", "faculty: load roster");
       await applyCatalog();
       setLoadingList(false);
       return;
@@ -550,6 +573,7 @@ export function FacultyProfileWorkspace({
           name: u.name,
           employeeId: u.employeeId,
           role: u.role ?? null,
+          serviceAreaId: (u as { serviceAreaId?: string | null }).serviceAreaId ?? null,
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
           instructorValidation: u.instructorValidation ?? null,
@@ -560,7 +584,7 @@ export function FacultyProfileWorkspace({
         profile: byUser.get(u.id) ?? null,
       })),
     );
-  }, [scope, scopeProgramId, chairmanProgramId, gecFacultyFilter, excludeGecFaculty]);
+  }, [scope, scopeProgramId, chairmanProgramId, gecFacultyFilter, excludeGecFaculty, viewerServiceAreaId, toast]);
 
   useEffect(() => {
     void loadFaculty();
@@ -930,6 +954,10 @@ export function FacultyProfileWorkspace({
           // Kept for GEC instructors too: one drawn from a program also shows on that program's list.
           chairmanProgramId: departmentProgramId.trim() || null,
           facultyCategory,
+          // General Subject / Both: their service area (cleared for a program-only instructor).
+          ...(serviceAreas.length > 0
+            ? { serviceAreaId: facultyCategory === FACULTY_CATEGORY_PROGRAM ? null : serviceAreaId || null }
+            : {}),
           ...(hasSignIn ? { email: loginEmail.trim() } : {}),
         });
         if (row?.profile) {
@@ -972,6 +1000,9 @@ export function FacultyProfileWorkspace({
         employeeId: employeeId.trim() || null,
         chairmanProgramId: departmentForSave || null,
         facultyCategory,
+        ...(serviceAreas.length > 0 && facultyCategory !== FACULTY_CATEGORY_PROGRAM && serviceAreaId
+          ? { serviceAreaId }
+          : {}),
         instructorValidation: "active",
       });
       if (created.account) {
@@ -1044,6 +1075,7 @@ export function FacultyProfileWorkspace({
     setStatus(FACULTY_EMPLOYMENT_RESIDENT);
     setDesignation("");
     setAppointmentStatus("");
+    setServiceAreaId(viewerServiceAreaId ?? "");
     setBsDegree("");
     setMajor("");
     setMsDegree("");
@@ -1081,6 +1113,7 @@ export function FacultyProfileWorkspace({
     setStatus(normalizeFacultyProfileStatus(row.profile?.status));
     setDesignation(row.profile?.designation ?? "");
     setAppointmentStatus(normalizeAppointmentStatus(row.profile?.appointmentStatus));
+    setServiceAreaId(row.user.serviceAreaId ?? "");
     setBsDegree(row.profile?.bsDegree ?? "");
     setMajor(row.profile?.major1 ?? "");
     setMsDegree(row.profile?.msDegree ?? "");
@@ -1286,12 +1319,12 @@ export function FacultyProfileWorkspace({
         <div className="bg-white rounded-xl border border-black/10 p-4 shadow-[0px_2px_4px_rgba(0,0,0,0.06)]">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-1">
+              {/* These filters narrow the rows already listed, so they work for All colleges too. */}
               <div className="text-[11px] font-medium text-black/60">Search faculty</div>
               <Input
                 placeholder="Name, rank, qualification, employee ID…"
                 value={facultyListSearch}
                 onChange={(e) => setFacultyListSearch(e.target.value)}
-                disabled={!collegeId}
                 className="h-9 text-sm border-black/20 focus-visible:ring-[#ff990a]/40"
               />
             </div>
@@ -1301,7 +1334,6 @@ export function FacultyProfileWorkspace({
                 className="h-9 w-full rounded-md border border-black/20 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                disabled={!collegeId}
               >
                 <option value="">All statuses</option>
                 <option value={FACULTY_EMPLOYMENT_RESIDENT}>{FACULTY_EMPLOYMENT_RESIDENT}</option>
@@ -1314,7 +1346,6 @@ export function FacultyProfileWorkspace({
                 className="h-9 w-full rounded-md border border-black/20 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
                 value={sexFilter}
                 onChange={(e) => setSexFilter(e.target.value)}
-                disabled={!collegeId}
               >
                 <option value="">All</option>
                 <option value="M">M</option>
@@ -1327,7 +1358,7 @@ export function FacultyProfileWorkspace({
                 className="h-9 w-full rounded-md border border-black/20 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
                 value={rankFilter}
                 onChange={(e) => setRankFilter(e.target.value)}
-                disabled={!collegeId || rankOptions.length === 0}
+                disabled={rankOptions.length === 0}
               >
                 <option value="">All ranks</option>
                 {rankOptions.map((r) => (
@@ -1379,11 +1410,54 @@ export function FacultyProfileWorkspace({
               while you scroll sideways. Without those two, reading row 6 column 14 means losing
               track of both which row and which column you are in.
             */}
+            {/*
+              Empty results are said ABOVE the table: a message inside a 27-column table is centred
+              far off to the right, so the list just looked blank.
+            */}
+            {scope.kind !== "none" && rows.length > 0 && filteredRows.length === 0 ? (
+              <div
+                role="status"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-950"
+              >
+                <div>
+                  <div className="font-semibold">No faculty match your filters.</div>
+                  <div className="text-[12px] opacity-80">
+                    {[
+                      facultyListSearch.trim() ? `Search “${facultyListSearch.trim()}”` : "",
+                      statusFilter ? `Status: ${statusFilter}` : "",
+                      sexFilter ? `Sex: ${sexFilter}` : "",
+                      rankFilter ? `Rank: ${rankFilter}` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Try another search."}
+                    {` — ${rows.length} faculty in this scope.`}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 text-[12px]"
+                  onClick={() => {
+                    setFacultyListSearch("");
+                    setStatusFilter("");
+                    setSexFilter("");
+                    setRankFilter("");
+                  }}
+                >
+                  Clear filters
+                </Button>
+              </div>
+            ) : null}
+            {scope.kind !== "none" && rows.length === 0 && !loadingList ? (
+              <div role="status" className="rounded-lg border border-black/10 bg-black/[0.02] px-4 py-3 text-[13px] text-black/60">
+                {campusWide ? "No instructors in the database yet." : "No instructors in the database for this college yet."}
+              </div>
+            ) : null}
             <div className="max-h-[55vh] overflow-auto rounded-xl border border-black/10">
               <table className="w-full min-w-[1500px] border-collapse text-left">
                 <thead className="sticky top-0 z-20">
                   <tr className="bg-[#ff990a] text-white text-[11px] uppercase tracking-wide">
-                    <th className="sticky left-0 z-30 bg-[#ff990a] px-3 py-2.5 font-semibold w-12">No.</th>
+                    <th className="sticky left-0 z-30 bg-[#ff990a] px-3 py-2.5 font-semibold w-12 min-w-12 max-w-12">No.</th>
                     <th className="sticky left-12 z-30 bg-[#ff990a] px-3 py-2.5 font-semibold min-w-[130px] shadow-[2px_0_0_rgba(0,0,0,0.08)]">
                       Last Name
                     </th>
@@ -1446,7 +1520,8 @@ export function FacultyProfileWorkspace({
                         colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 1 : FACULTY_LIST_COLUMNS}
                         className="px-3 py-8 text-center text-black/45"
                       >
-                        No faculty match &quot;{facultyListSearch.trim()}&quot;.
+                        {/* Said above the table, where it is visible. */}
+                        <span className="sr-only">No faculty match your filters.</span>
                       </td>
                     </tr>
                   ) : (
@@ -1467,14 +1542,16 @@ export function FacultyProfileWorkspace({
                       const age = computeAge(profile?.dateOfBirth);
                       // Zebra stripes make a 17-column row easier to follow across; an edited row
                       // is tinted so it stands out from the ones already saved.
-                      const rowBg = dirty ? "bg-amber-50" : index % 2 === 1 ? "bg-black/[0.015]" : "bg-white";
+                      // Solid colours: the pinned No. / Last name / Actions cells sit over cells scrolling beneath them,
+                      // and a see-through background let those show through.
+                      const rowBg = dirty ? "bg-amber-50" : index % 2 === 1 ? "bg-[#fafafa]" : "bg-white";
                       return (
                         <tr key={user.id} className={`${rowBg} border-b border-black/[0.07] hover:bg-[#ff990a]/[0.06]`}>
-                          <td className={`sticky left-0 z-10 ${rowBg} px-3 py-2.5 tabular-nums text-black/45`}>
+                          <td className={`sticky left-0 z-20 ${rowBg} w-12 min-w-12 max-w-12 px-3 py-2.5 tabular-nums text-black/45`}>
                             {index + 1}
                           </td>
                           <td
-                            className={`sticky left-12 z-10 ${rowBg} px-3 py-2.5 font-semibold text-black/85 shadow-[2px_0_0_rgba(0,0,0,0.05)]`}
+                            className={`sticky left-12 z-20 ${rowBg} px-3 py-2.5 font-semibold text-black/85 shadow-[2px_0_0_rgba(0,0,0,0.05)]`}
                           >
                             <span className="flex items-center gap-1.5">
                               <span className="truncate">
@@ -1717,7 +1794,7 @@ export function FacultyProfileWorkspace({
                             </span>
                           </td>
                           {enableFacultyListEdit ? (
-                            <td className={`sticky right-0 z-10 ${rowBg} px-3 py-2.5 shadow-[-2px_0_0_rgba(0,0,0,0.05)]`}>
+                            <td className={`sticky right-0 z-20 ${rowBg} px-3 py-2.5 shadow-[-2px_0_0_rgba(0,0,0,0.05)]`}>
                               <div className="flex items-center gap-1.5">
                                 {/* Save only where there is something to save; see facultyRowIsDirty. */}
                                 {dirty || savingRowId === user.id ? (
@@ -2105,12 +2182,31 @@ export function FacultyProfileWorkspace({
               </select>
               <p className="text-[11px] text-black/50 leading-relaxed">
                 {facultyCategory === FACULTY_CATEGORY_GEC
-                  ? "Teaches GEC subjects across departments. Set a program below if they belong to one."
+                  ? "Teaches general subjects across departments. Set a program below if they belong to one."
                   : facultyCategory === FACULTY_CATEGORY_BOTH
-                    ? "Teaches both: listed under their program and on the GEC Chairman's list, marked GEC."
+                    ? "Teaches both: listed under their program and on their Service Chair's list."
                     : "Belongs to one department, plotted by that Program Chairman."}
               </p>
             </div>
+            {facultyCategory !== FACULTY_CATEGORY_PROGRAM && serviceAreas.length > 0 ? (
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Service area</div>
+                <select
+                  className="h-10 w-full rounded-md border border-black/25 bg-white px-2 text-[12px] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40 disabled:opacity-60"
+                  value={serviceAreaId}
+                  onChange={(e) => setServiceAreaId(e.target.value)}
+                  disabled={!collegeId}
+                >
+                  <option value="">Select service area…</option>
+                  {serviceAreas.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-black/50">Their Service Chair lists and plots them.</p>
+              </div>
+            ) : null}
             <div className="space-y-1">
               <div className="text-sm font-medium">Program (department)</div>
               <select

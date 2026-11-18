@@ -4,7 +4,7 @@ const LABELS: Partial<Record<UserRole, string>> = {
   chairman_admin: "Chairman Admin",
   college_admin: "College Admin",
   cas_admin: "CAS Admin",
-  gec_chairman: "GEC Chairman",
+  gec_chairman: "Service Chair",
   doi_admin: "DOI Admin",
   instructor: "Instructor",
   student: "Student",

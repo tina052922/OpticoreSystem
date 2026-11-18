@@ -12,7 +12,8 @@ export function getDefaultHomeForRole(
     case "college_admin":
       return "/admin/college";
     case "cas_admin":
-      return "/admin/cas";
+      // The CAS Admin is the College Admin of CAS: same pages.
+      return "/admin/college";
     case "gec_chairman":
       return "/admin/gec";
     case "doi_admin":
@@ -39,7 +40,7 @@ export function pathAllowedForRole(
     case "college_admin":
       return path.startsWith("/admin/college");
     case "cas_admin":
-      return path.startsWith("/admin/cas");
+      return path.startsWith("/admin/college") || path.startsWith("/admin/cas");
     case "gec_chairman":
       return path.startsWith("/admin/gec");
     case "chairman_admin":

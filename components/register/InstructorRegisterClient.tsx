@@ -37,6 +37,7 @@ import {
   type FacultyCategory,
 } from "@/lib/faculty/faculty-category";
 import { useActionToast } from "@/components/alerts/useActionToast";
+import { serviceAreasApi, type ServiceArea } from "@/lib/api/client";
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = { id: string; code: string; name: string; collegeId: string };
@@ -58,6 +59,20 @@ export function InstructorRegisterClient() {
   const [collegeId, setCollegeId] = useState("");
   const [facultyCategory, setFacultyCategory] = useState<FacultyCategory>(FACULTY_CATEGORY_PROGRAM);
   const [programId, setProgramId] = useState("");
+  /** General Subject / Both: the service area whose Service Chair reviews and lists them. */
+  const [serviceAreaId, setServiceAreaId] = useState("");
+  const [serviceAreas, setServiceAreas] = useState<ServiceArea[]>([]);
+  useEffect(() => {
+    let alive = true;
+    serviceAreasApi
+      .listPublic()
+      .then((r) => alive && setServiceAreas(r.areas ?? []))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const needsServiceArea = facultyCategory !== FACULTY_CATEGORY_PROGRAM && serviceAreas.length > 0;
   // Same cells the Faculty Profile page keeps (CTU HR Form 23B), so a registration and a
   // chairman-entered profile hold exactly the same information.
   const [lastName, setLastName] = useState("");
@@ -198,6 +213,13 @@ export function InstructorRegisterClient() {
       );
       return;
     }
+    if (needsServiceArea && !serviceAreaId) {
+      toast.refuse(
+        "Choose your service area",
+        "The Service Chair of that area reviews General Subject instructors (e.g. Humanities and Social Sciences).",
+      );
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -209,6 +231,7 @@ export function InstructorRegisterClient() {
         facultyCategory,
         // Optional for a GEC instructor (some are drawn from a program); required otherwise.
         programId: programId || null,
+        serviceAreaId: needsServiceArea ? serviceAreaId : null,
         employeeId: employeeId.trim(),
         ...profilePayload(),
       });
@@ -301,7 +324,7 @@ export function InstructorRegisterClient() {
       <div className="space-y-6">
         <AuthFormHeader
           title="Instructor registration"
-          subtitle="Register with your CTU email. Program faculty choose a home department for chairman review; GEC instructors are college-scoped and not locked to one. We email you a code, then an administrator confirms your Employee ID."
+          subtitle="Register with your CTU email. Program instructors choose a home department; General Subject instructors choose a service area; Both choose each. We email you a code, then an administrator confirms your Employee ID."
         />
 
         {/*
@@ -466,12 +489,33 @@ export function InstructorRegisterClient() {
                 </select>
                 <p className="mt-1 text-xs text-black/55">
                   {facultyCategory === FACULTY_CATEGORY_GEC
-                    ? "You teach general education across departments. Choose a home department below if you belong to one."
+                    ? "You teach general subjects across departments. Choose your service area below; its Service Chair reviews this registration."
                     : facultyCategory === FACULTY_CATEGORY_BOTH
-                      ? "You teach your program's subjects and GEC subjects. Choose your home department below."
+                      ? "You teach your program's subjects and general subjects. Choose your home department and your service area below."
                       : "Your home department’s Program Chairman reviews this registration."}
                 </p>
               </div>
+              {needsServiceArea ? (
+                <div>
+                  <label htmlFor="ins-service-area" className={labelClass}>
+                    Service area
+                  </label>
+                  <select
+                    id="ins-service-area"
+                    value={serviceAreaId}
+                    onChange={(e) => setServiceAreaId(e.target.value)}
+                    className={fieldClass}
+                    required
+                  >
+                    <option value="">Select service area…</option>
+                    {serviceAreas.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div>
                 <label htmlFor="ins-college" className={labelClass}>
                   Home college
@@ -512,7 +556,7 @@ export function InstructorRegisterClient() {
                       {!collegeId
                         ? "Select college first…"
                         : facultyCategory === FACULTY_CATEGORY_GEC
-                          ? "None — GEC only"
+                          ? "None — general subjects only"
                           : "Select department…"}
                     </option>
                     {programsForCollege.map((p) => (

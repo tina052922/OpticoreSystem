@@ -17,6 +17,8 @@ export type TeachingLoadModeSlice = {
 export type TeachingLoadSummaryRow = {
   instructorId: string;
   facultyName: string;
+  /** Where the faculty belongs: program, general (service area) or both — `User.facultyCategory`. */
+  facultyCategory?: string | null;
   administrativeDesignation: string | null;
   otherResponsibilities: string;
   day: TeachingLoadModeSlice;
@@ -217,6 +219,7 @@ export function buildTeachingLoadSummary(args: {
     rows.push({
       instructorId,
       facultyName: profile?.fullName?.trim() || user?.name?.trim() || instructorId,
+      facultyCategory: (user as { facultyCategory?: string | null } | undefined)?.facultyCategory ?? null,
       administrativeDesignation: profile?.designation?.trim() || null,
       otherResponsibilities: otherResponsibilitiesFromProfile(profile),
       day,

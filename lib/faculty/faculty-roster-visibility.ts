@@ -51,13 +51,25 @@ export function isAwaitingFacultyApproval(user: { instructorValidation?: string 
  */
 export function isFacultyVisibleToRosterViewer(
   user: RosterUser & { facultyCategory?: string | null; chairmanProgramId?: string | null },
-  viewer: { gecOnly?: boolean; lockedProgramId?: string | null; excludeGec?: boolean },
+  viewer: {
+    gecOnly?: boolean;
+    lockedProgramId?: string | null;
+    excludeGec?: boolean;
+    /** Service Chair's area: only the general-subject instructors of that area (and themselves). */
+    serviceAreaId?: string | null;
+  },
 ): boolean {
   if (!isFacultyRosterUser(user)) return false;
 
   const teachesGec = isGecFacultyCategory(user.facultyCategory) || user.role === "gec_chairman";
   const home = (user.chairmanProgramId ?? "").trim();
-  if (viewer.gecOnly) return teachesGec;
+  if (viewer.gecOnly) {
+    if (!teachesGec) return false;
+    const mine = (viewer.serviceAreaId ?? "").trim();
+    const theirs = ((user as { serviceAreaId?: string | null }).serviceAreaId ?? "").trim();
+    // Someone with no area yet (registered before areas) stays visible so they can be placed.
+    return !mine || !theirs || mine === theirs;
+  }
   if (viewer.excludeGec && teachesGec && !home) return false;
 
   const locked = (viewer.lockedProgramId ?? "").trim();

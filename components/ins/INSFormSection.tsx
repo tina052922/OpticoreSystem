@@ -26,6 +26,7 @@ import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@
 import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
 import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
 import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
+import { usePdfFooterBanner } from "@/hooks/use-pdf-footer-banner";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -296,7 +297,9 @@ export function INSFormSection({
   );
   const { slots: pdfSignatureSlots, ready: pdfSignaturesReady } = usePdfEmbeddedSignatureSlots(pdfSignatureSlotsRaw);
 
+  const footerBanner = usePdfFooterBanner();
   const pdfData = useMemo((): INS5BProps => ({
+    footerBanner,
     degreeAndYear: formDegreeAndYear,
     major: formMajor || undefined,
     adviser: formAdviser,
@@ -307,7 +310,7 @@ export function INSFormSection({
     signatureSlots: pdfSignatureSlots,
     programMode,
     ...insPdfBrandingProps(branding),
-  }), [formDegreeAndYear, formMajor, formAdviser, formAssignment, displaySchedule, displayCourses, catalog.periodLabel, pdfSignatureSlots, programMode, branding]);
+  }), [footerBanner, formDegreeAndYear, formMajor, formAdviser, formAssignment, displaySchedule, displayCourses, catalog.periodLabel, pdfSignatureSlots, programMode, branding]);
 
   const sectionConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedSectionId) return 0;

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
+import { CasChairsPanel } from "@/components/admin/CasChairsPanel";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import { useActionToast } from "@/components/alerts/useActionToast";
 import {
@@ -66,6 +67,8 @@ const MIN_PASSWORD_LENGTH = 8;
 
 export function CampusAccountsWorkspace() {
   const [role, setRole] = useState<CampusAccountRole>("college_admin");
+  /** Third tab: CAS chairs (Service Chairs + CAS Program Chairs). */
+  const [casTab, setCasTab] = useState(false);
   const [colleges, setColleges] = useState<College[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [accounts, setAccounts] = useState<CampusAccount[]>([]);
@@ -154,8 +157,9 @@ export function CampusAccountsWorkspace() {
         parentLabel: p.collegeId ? (collegeCode.get(p.collegeId) ?? "") : "",
         holder: holderFor(p.id),
       }));
-    // First, because it is the one post here that is not a department.
-    return [{ ...GEC_CHAIRMAN_POST, holder: holderFor(GEC_CHAIRMAN_POST_ID) }, ...departments];
+    // Service Chairs (the former GEC Chairman) are managed in the CAS Chairs tab, one per service area.
+    void GEC_CHAIRMAN_POST;
+    return departments;
   }, [role, colleges, programs, accounts]);
 
   const openPosts = useMemo(
@@ -383,9 +387,9 @@ export function CampusAccountsWorkspace() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 pb-8 space-y-6 max-w-[1100px]">
       <p className="text-[13px] text-black/65 leading-relaxed">
-        One College Admin for each college, one Chairman for each department, and one GEC Chairman for
-        the whole campus. Registering an account creates its sign-in; the holder is asked to change the
-        password the first time they sign in.
+        One College Admin for each college and one Chairman for each department. CAS Service Chairs and
+        CAS Program Chairs are in the CAS Chairs tab. Registering an account creates its sign-in; the
+        holder is asked to change the password the first time they sign in.
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -394,19 +398,37 @@ export function CampusAccountsWorkspace() {
             key={r}
             type="button"
             onClick={() => {
+              setCasTab(false);
               setRole(r);
               resetForm();
               setImportReport(null);
               setImportPreview(null);
             }}
             className={`h-10 px-4 rounded-[15px] font-bold text-[14px] ${
-              role === r ? "bg-[#780301] text-white" : "bg-white text-black border border-black/10"
+              !casTab && role === r ? "bg-[#780301] text-white" : "bg-white text-black border border-black/10"
             }`}
           >
             {r === "college_admin" ? "College Admins" : "Chairmen"}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => {
+            setCasTab(true);
+            resetForm();
+          }}
+          className={`h-10 px-4 rounded-[15px] font-bold text-[14px] ${
+            casTab ? "bg-[#780301] text-white" : "bg-white text-black border border-black/10"
+          }`}
+        >
+          CAS Chairs
+        </button>
       </div>
+
+      {casTab ? (
+        <CasChairsPanel colleges={colleges} programs={programs} accounts={accounts} onChanged={load} />
+      ) : (
+      <>
 
       <div ref={alertsRef} className="space-y-3 scroll-mt-4 empty:hidden">
       </div>
@@ -442,7 +464,7 @@ export function CampusAccountsWorkspace() {
             <span className="block text-[11px] text-black/50">
               Only {assignmentLabel.toLowerCase()}s without a holder are listed.
               {role === "chairman_admin"
-                ? " GEC covers general education across every college, and there is one GEC Chairman."
+                ? " Service Chairs (general subjects) are in the CAS Chairs tab."
                 : ""}
             </span>
           </label>
@@ -689,7 +711,8 @@ export function CampusAccountsWorkspace() {
           onDeleted={() => void afterDeleted(pendingDelete)}
         />
       ) : null}
-
+      </>
+      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ import type { INS5CProps } from "@/components/pdf/types/insTypes";
 import { isInsReadOnlyPortal, isStudentInsPortal, portalMyScheduleHref } from "@/lib/ins/schedule-visibility";
 import { usePdfEmbeddedSignatureSlots } from "@/hooks/use-pdf-embedded-signature-slots";
 import { ScheduleNotPublishedNotice } from "@/components/portal/ScheduleNotPublishedNotice";
+import { usePdfFooterBanner } from "@/hooks/use-pdf-footer-banner";
 
 type DayKey = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 
@@ -248,14 +249,16 @@ export function INSFormRoom({
   );
   const { slots: pdfSignatureSlots, ready: pdfSignaturesReady } = usePdfEmbeddedSignatureSlots(pdfSignatureSlotsRaw);
 
+  const footerBanner = usePdfFooterBanner();
   const pdfData = useMemo((): INS5CProps => ({
+    footerBanner,
     roomAssignment: displayRoom,
     semesterLabel: (useLiveData ? catalog.periodLabel : undefined) ?? "____ Semester, AY ____",
     schedule: roomScheduleToPdfGrid(displaySchedule, programMode),
     signatureSlots: pdfSignatureSlots,
     programMode,
     ...insPdfBrandingProps(branding),
-  }), [displayRoom, displaySchedule, useLiveData, catalog.periodLabel, pdfSignatureSlots, programMode, branding]);
+  }), [footerBanner, displayRoom, displaySchedule, useLiveData, catalog.periodLabel, pdfSignatureSlots, programMode, branding]);
 
   const roomConflictCount = useMemo(() => {
     if (!useLiveData || !catalog.academicPeriodId || !selectedRoomId) return 0;

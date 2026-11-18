@@ -24,9 +24,9 @@ export type FacultyCategory =
 
 /** Select options, in the order every form lists them. */
 export const FACULTY_CATEGORY_OPTIONS: readonly { value: FacultyCategory; label: string }[] = [
-  { value: FACULTY_CATEGORY_PROGRAM, label: "Program / department instructor" },
-  { value: FACULTY_CATEGORY_GEC, label: "GEC instructor" },
-  { value: FACULTY_CATEGORY_BOTH, label: "Both — program and GEC instructor" },
+  { value: FACULTY_CATEGORY_PROGRAM, label: "Program instructor" },
+  { value: FACULTY_CATEGORY_GEC, label: "General Subject instructor" },
+  { value: FACULTY_CATEGORY_BOTH, label: "Both — program and general subject instructor" },
 ];
 
 export function parseFacultyCategory(raw: unknown): FacultyCategory {
@@ -58,15 +58,15 @@ export function isGecInstructorUser(user: {
   return isGecFacultyCategory(user?.facultyCategory);
 }
 
-/** Short badge for lists: "GEC", "GEC + Program", or "" for a program-only instructor. */
+/** Short badge for lists: "General", "General + Program", or "" for a program-only instructor. */
 export function facultyCategoryBadge(raw: unknown): string {
   const c = parseFacultyCategory(raw);
-  if (c === FACULTY_CATEGORY_BOTH) return "GEC + Program";
-  if (c === FACULTY_CATEGORY_GEC) return "GEC";
+  if (c === FACULTY_CATEGORY_BOTH) return "General + Program";
+  if (c === FACULTY_CATEGORY_GEC) return "General";
   return "";
 }
 
 export function facultyCategoryLabel(raw: unknown): string {
   const c = parseFacultyCategory(raw);
-  return FACULTY_CATEGORY_OPTIONS.find((o) => o.value === c)?.label ?? "Program / department instructor";
+  return FACULTY_CATEGORY_OPTIONS.find((o) => o.value === c)?.label ?? "Program instructor";
 }

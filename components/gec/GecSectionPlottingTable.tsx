@@ -19,7 +19,7 @@ import {
   plotEntryDurationSlots,
   timesFromSlotRange,
 } from "@/lib/evaluator/plot-duration";
-import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecCurriculumSubjectCode, isGecVacantScheduleEntry } from "@/lib/gec/gec-vacant";
+import { GEC_VACANT_INSTRUCTOR_USER_ID, isGecVacantScheduleEntry, isServiceAreaSubject } from "@/lib/gec/gec-vacant";
 import {
   formatInstructorPlotOptionLabel,
   formatUserInstructorLabel,
@@ -205,7 +205,7 @@ export function GecSectionPlottingTable({
   /** Only GEC subjects for the section’s year level (via `allowedSubjectIds` from prospectus). */
   const gecSubjects = useMemo(() => {
     if (!pid) return [];
-    const list = [...subjectById.values()].filter((s) => s.programId === pid && isGecCurriculumSubjectCode(s.code));
+    const list = [...subjectById.values()].filter((s) => s.programId === pid && isServiceAreaSubject(s));
     if (allowedSubjectIds == null) return [];
     if (allowedSubjectIds.size === 0) return [];
     return list.filter((s) => allowedSubjectIds.has(s.id));

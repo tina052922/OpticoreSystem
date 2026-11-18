@@ -22,6 +22,7 @@ import { useActionToast } from "@/components/alerts/useActionToast";
 import { downloadTeachingLoadSummaryWorkbook } from "@/lib/scheduling/teaching-load-summary-export";
 import { DEFAULT_REPORT_FOOTER_BANNER } from "@/lib/system-configuration/campus-branding";
 import { embedImageUrlForPdf } from "@/lib/pdf/embed-image-urls";
+import { usePdfFooterBanner } from "@/hooks/use-pdf-footer-banner";
 
 const ALL_CATEGORIES = "";
 const ALL_COLLEGES = "";
@@ -52,6 +53,8 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
   const [colleges, setColleges] = useState<CollegeOption[]>([]);
   const [pickedCollegeId, setPickedCollegeId] = useState(ALL_COLLEGES);
   const branding = useCampusBranding();
+  /** Rankings strip embedded for the PDF. */
+  const footerBanner = usePdfFooterBanner();
   const [collegeId, setCollegeId] = useState<string | null>(null);
   const [collegeName, setCollegeName] = useState("College");
   const [loading, setLoading] = useState(true);
@@ -455,6 +458,7 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
             semesterLabel={semesterLabel}
             groups={visibleGroups}
             signatories={embeddedSignatories ?? signatories}
+            footerBanner={footerBanner}
             headerBanner={branding.insHeaderBannerUrl}
             insFooterText={branding.insFooterText.trim() || branding.footerText}
           />
