@@ -38,6 +38,21 @@ import {
 } from "@/lib/faculty/faculty-category";
 import { serviceAreasApi, type ServiceArea } from "@/lib/api/client";
 import { useActionToast } from "@/components/alerts/useActionToast";
+import { APPOINTMENT_STATUS_OPTIONS } from "@/lib/faculty/appointment-status";
+
+/** INS Form 5A text cells — the same ones Faculty Profile and the instructor's own profile keep. */
+const INS_5A_FIELDS = [
+  { key: "bsDegree", label: "Bachelor's Degree", placeholder: "BS Information Technology" },
+  { key: "major1", label: "Major", placeholder: "Major" },
+  { key: "msDegree", label: "Master's Degree", placeholder: "MS in Information Technology" },
+  { key: "minor1", label: "Minor", placeholder: "Minor" },
+  { key: "doctoralDegree", label: "Doctorate Degree", placeholder: "PhD / EdD / DIT" },
+  { key: "specialTraining", label: "Special Training", placeholder: "Trainings / certifications" },
+  { key: "production", label: "Production", placeholder: "Production work" },
+  { key: "extension", label: "Extension", placeholder: "Extension projects" },
+  { key: "research", label: "Research", placeholder: "Research projects" },
+] as const;
+type Ins5aKey = (typeof INS_5A_FIELDS)[number]["key"];
 
 type CollegeRow = { id: string; code: string; name: string };
 type ProgramRow = { id: string; code: string; name: string; collegeId: string };
@@ -88,6 +103,11 @@ export function InstructorRegisterClient() {
     FACULTY_EMPLOYMENT_RESIDENT,
   );
   const [designation, setDesignation] = useState("");
+  /** INS Form 5A details (optional at sign-up; editable later in their profile). */
+  const [appointmentStatus, setAppointmentStatus] = useState("");
+  const [ins5a, setIns5a] = useState<Record<Ins5aKey, string>>(
+    () => Object.fromEntries(INS_5A_FIELDS.map((f) => [f.key, ""])) as Record<Ins5aKey, string>,
+  );
   const [colleges, setColleges] = useState<CollegeRow[]>([]);
   const [programs, setPrograms] = useState<ProgramRow[]>([]);
   const [loadingColleges, setLoadingColleges] = useState(true);
@@ -167,6 +187,8 @@ export function InstructorRegisterClient() {
       eligibility: eligibility.trim() || null,
       status,
       designation: designation.trim() || null,
+      appointmentStatus: appointmentStatus || null,
+      ...Object.fromEntries(INS_5A_FIELDS.map((f) => [f.key, ins5a[f.key].trim() || null])),
     };
   }
 
@@ -715,6 +737,45 @@ export function InstructorRegisterClient() {
                   onChange={(e) => setEligibility(e.target.value)}
                   className={fieldClass}
                 />
+              </div>
+            </fieldset>
+
+            {/* What INS Form 5A prints; all optional here and editable later in the instructor's profile. */}
+            <fieldset className="space-y-3 border-0 p-0">
+              <legend className="text-sm font-bold text-[#780301]">INS Form 5A details</legend>
+              <p className="text-xs text-black/55">Optional — you can fill these in later from your profile.</p>
+              <div>
+                <div className={labelClass}>Status of Appointment</div>
+                <div className="mt-1 flex flex-wrap gap-4">
+                  {APPOINTMENT_STATUS_OPTIONS.map((o) => (
+                    <label key={o.code} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="accent-[#ff990a]"
+                        checked={appointmentStatus === o.code}
+                        onChange={(e) => setAppointmentStatus(e.target.checked ? o.code : "")}
+                      />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {INS_5A_FIELDS.map((f) => (
+                  <div key={f.key}>
+                    <label htmlFor={`ins-5a-${f.key}`} className={labelClass}>
+                      {f.label}
+                    </label>
+                    <Input
+                      id={`ins-5a-${f.key}`}
+                      placeholder={f.placeholder}
+                      value={ins5a[f.key]}
+                      maxLength={150}
+                      onChange={(e) => setIns5a((m) => ({ ...m, [f.key]: e.target.value }))}
+                      className={fieldClass}
+                    />
+                  </div>
+                ))}
               </div>
             </fieldset>
 
