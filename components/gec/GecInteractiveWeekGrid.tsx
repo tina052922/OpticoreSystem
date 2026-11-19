@@ -406,7 +406,8 @@ export function GecInteractiveWeekGrid({
 
   const openModalForEntry = useCallback(
     (e: ScheduleEntry, anchor: CellAnchor) => {
-      const isGec = isGecCurriculumScheduleEntry(e, subjectById);
+      // A new, unfinished plot has no subject yet (it gets one on "Plot schedule") — it still opens.
+      const isGec = pendingNewEntryIds.has(e.id) || isGecCurriculumScheduleEntry(e, subjectById);
       if (!isGec) return;
       const isVacant = vacantGecSourceIds.has(e.id);
       if (!isVacant) return;
@@ -419,7 +420,7 @@ export function GecInteractiveWeekGrid({
       setModal({
         entryId: e.id,
         // A new plot starts on "Select general subject…"; editing keeps the plotted subject.
-        draft: isNew ? { ...e, subjectId: "" } : { ...e },
+        draft: isNew ? { ...e, subjectId: "", instructorId: "" } : { ...e },
         buildingValue,
         durationSlots: inferDurationSlotsFromTimes(e.startTime, e.endTime),
         isNew,
@@ -448,7 +449,7 @@ export function GecInteractiveWeekGrid({
       if (!modal || modal.readOnly || meetings.length === 0) return;
       const { entryId, draft, buildingValue } = modal;
       const [first, ...rest] = meetings;
-      if (!first || !draft.subjectId || !draft.roomId) return;
+      if (!first || !draft.subjectId || !draft.instructorId || !draft.roomId) return;
       const firstTimes = timesFromSlotRange(first.startSlotIndex, first.durationSlots, slots);
       if (!firstTimes) return;
       if (buildingValue) {

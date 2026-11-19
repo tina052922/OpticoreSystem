@@ -423,6 +423,8 @@ export function BsitChairmanEvaluatorWorksheet({
   const [conflictDetailLoading, setConflictDetailLoading] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutosaveToastAtRef = useRef<number>(0);
+  /** Over-limit subjects in the selected section (read when autosave fires) + one notice per spell. */
+  const overLimitNoticeShownRef = useRef(false);
   /** When offline, autosave is deferred; we flush once connection is restored. */
   const lastOfflineEditAtRef = useRef<number>(0);
   /** Shown in the grid header so testers see autosave + connectivity without opening the console. */
@@ -1190,6 +1192,9 @@ export function BsitChairmanEvaluatorWorksheet({
     }
     return over;
   }, [plottedHoursBySubjectCodeForSection, selectedSectionId, subjects, programCodeForSummary]);
+  // A new over-limit spell may show its "not auto-saved" notice again.
+  if (overLimitSubjectCodesForSection.size === 0) overLimitNoticeShownRef.current = false;
+
 
   /**
    * Per-section plotted codes (DB + worksheet). Used to keep subject dropdowns clear:
@@ -1498,21 +1503,26 @@ export function BsitChairmanEvaluatorWorksheet({
           if (!sectionId || !subjectId) continue;
           const durationHours =
             metaFromDb?.startTime && metaFromDb?.endTime ? slotDurationHours(metaFromDb.startTime, metaFromDb.endTime) : 2;
-          const sug = runRuleBasedGeneticAlgorithm({
-            universe: mergedBlocksForCampusScan,
-            sectionId,
-            subjectId,
-            academicPeriodId,
-            excludeEntryId: block?.id,
-            durationHours,
-            fixedInstructorId: metaFromDb?.instructorId ?? undefined,
-            roomIds,
-            instructorIds,
-            maxFacultyHours,
-            generations: 28,
-            populationSize: 44,
-          });
-          gaMap[iss.key] = sug.slice(0, 5);
+          // Suggested fixes are optional: a failure here must not hide the conflicts found.
+          try {
+            const sug = runRuleBasedGeneticAlgorithm({
+              universe: mergedBlocksForCampusScan,
+              sectionId,
+              subjectId,
+              academicPeriodId,
+              excludeEntryId: block?.id,
+              durationHours,
+              fixedInstructorId: metaFromDb?.instructorId ?? undefined,
+              roomIds,
+              instructorIds,
+              maxFacultyHours,
+              generations: 28,
+              populationSize: 44,
+            });
+            gaMap[iss.key] = sug.slice(0, 5);
+          } catch (gaErr) {
+            console.warn("[conflict check] suggestions skipped", gaErr);
+          }
         }
       }
       setChairmanGaByIssueKey(gaMap);
@@ -1531,6 +1541,13 @@ export function BsitChairmanEvaluatorWorksheet({
       } else {
         toast.error(`Conflicts found: ${ids.size} row(s)`, "The conflicting rows are highlighted in red.");
       }
+    } catch (e) {
+      // Never let the check take the page down: report it and leave the schedule as it was.
+      console.error("[conflict check] failed", e);
+      toast.error(
+        "Conflict check could not finish",
+        e instanceof Error && e.message ? e.message : "Something unexpected happened. Please try again.",
+      );
     } finally {
       setConflictDetailLoading(false);
     }
@@ -2554,6 +2571,8 @@ export function BsitChairmanEvaluatorWorksheet({
          * sections are named in a warning and the save goes ahead (their rows are already stored).
          */
         const otherSectionWarnings = new Map<string, string>();
+        /** Autosave only: section|subject keys over their hours, left out of this draft. */
+        const overLimitKeys = new Set<string>();
         const checkedKeys = new Set<string>();
         for (const row of hourMeetings) {
           const key = `${row.sectionId}|${normalizeProspectusCode(row.subjectCode)}`;
@@ -2592,8 +2611,23 @@ export function BsitChairmanEvaluatorWorksheet({
             if (source === "manual") {
               setSaveScheduleMsg(msg);
               toast.error("Cannot save: subject hours exceeded", msg);
+              return;
             }
-            return;
+            // Autosave: hold back only this over-limit subject's plots; the rest of the draft still saves.
+            overLimitKeys.add(key);
+            if (!overLimitNoticeShownRef.current) {
+              overLimitNoticeShownRef.current = true;
+              toast.info("Not auto-saved: over limit", msg);
+            }
+            continue;
+          }
+        }
+        if (overLimitKeys.size > 0) {
+          const codeById = new Map(subjects.map((x) => [x.id, x.code] as const));
+          for (let k = upserts.length - 1; k >= 0; k--) {
+            const u = upserts[k]!;
+            const key = `${u.sectionId}|${normalizeProspectusCode(codeById.get(u.subjectId) ?? "")}`;
+            if (overLimitKeys.has(key)) upserts.splice(k, 1);
           }
         }
         if (source === "manual" && otherSectionWarnings.size > 0) {

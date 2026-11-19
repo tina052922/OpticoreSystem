@@ -256,11 +256,14 @@ export function GecPlotScheduleModal({
     conflictFlags.faculty === "Yes" || conflictFlags.room === "Yes" || conflictFlags.section === "Yes";
 
   const missingSubject = !draft.subjectId;
+  /** Prof X (TBA) counts as chosen; only "Select instructor…" is missing. */
+  const missingInstructor = !draft.instructorId;
   const missingRoom = !draft.roomId;
   const missingBuilding = !buildingValue;
   const missingDay = !meetings.slots[0]?.day;
   const missingTime = !meetings.timeText.trim();
-  const plotIncomplete = missingSubject || missingRoom || missingBuilding || missingDay || missingTime;
+  const plotIncomplete =
+    missingSubject || missingInstructor || missingRoom || missingBuilding || missingDay || missingTime;
   const hoursOverLimit =
     Boolean(subjectHourBudget) &&
     hoursExceedSubjectRequirement({
@@ -503,11 +506,12 @@ export function GecPlotScheduleModal({
             {/* A select listing every instructor (Prof X first), for every role. */}
             <select
               id="gec-plot-instructor"
-              className={`${fieldClass} mt-1`}
+              className={missingInstructor && !readOnly ? incompleteField : `${fieldClass} mt-1`}
               value={draft.instructorId}
               disabled={readOnly}
               onChange={(e) => onDraftChange({ ...draft, instructorId: e.target.value })}
             >
+              <option value="">Select instructor…</option>
               <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>Prof X (TBA) — no instructor yet</option>
               {instructorPlotOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>

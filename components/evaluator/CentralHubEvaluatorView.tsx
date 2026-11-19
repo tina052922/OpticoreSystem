@@ -582,6 +582,7 @@ export function CentralHubEvaluatorView({
     if (!academicPeriodId) return;
     setConflictScanBusy(true);
     void (async () => {
+     try {
       const termEntries = modeEntries.filter((e) => e.academicPeriodId === academicPeriodId);
       const entryById = new Map(termEntries.map((e) => [e.id, e]));
       const localBlocks = termEntries
@@ -644,7 +645,12 @@ export function CentralHubEvaluatorView({
       const applyGa = (payload: CampusConflictScanApiPayload) => {
         const gaMap: Record<string, GASuggestion[]> = {};
         for (const iss of payload.enrichedIssues.slice(0, 12)) {
-          gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 5);
+          // Suggested fixes are optional: one failing must not hide the conflicts found.
+          try {
+            gaMap[iss.key] = suggestAlternativesForEntry(iss.rowA.entryId).slice(0, 5);
+          } catch (gaErr) {
+            console.warn("[conflict check] suggestions skipped", gaErr);
+          }
         }
         setHubConflictGaByIssueKey(gaMap);
       };
@@ -706,6 +712,15 @@ export function CentralHubEvaluatorView({
       } finally {
         setConflictScanBusy(false);
       }
+     } catch (e) {
+      // An error before the scan request (bad row data, enrichment) must not leave "Scanning…" stuck.
+      console.error("[conflict check] failed", e);
+      toast.error(
+        "Conflict check could not finish",
+        e instanceof Error && e.message ? e.message : "Something unexpected happened. Please try again.",
+      );
+      setConflictScanBusy(false);
+     }
     })();
   }, [
     academicPeriodId,

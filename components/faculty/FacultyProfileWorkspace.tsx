@@ -1284,15 +1284,6 @@ export function FacultyProfileWorkspace({
         ))}
       </datalist>
 
-      {gecFacultyFilter ? (
-        <div className="rounded-xl border border-[var(--color-opticore-orange)]/35 bg-orange-50/90 px-4 py-3 text-sm text-black/80">
-          <strong className="text-[var(--color-opticore-orange)]">GEC scope.</strong> This list is the GEC
-          instructors — those whose instructor category is <em>GEC instructor</em>. Department instructors are
-          hidden, and anyone enrolled here is recorded as a GEC instructor. Plotting non-GEC courses stays with
-          the Program Chairman.
-        </div>
-      ) : null}
-
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex gap-2 flex-wrap">
           {[

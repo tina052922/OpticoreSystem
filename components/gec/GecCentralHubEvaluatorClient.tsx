@@ -1,5 +1,7 @@
 "use client";
 
+import { isPlaceholderInstructorId } from "@/lib/scheduling/placeholder-instructor";
+
 import { serviceAreasApi } from "@/lib/api/client";
 import { apiFetch, authApi, catalogApi, gecApi, recordScheduleWrite, schedulingApi, ApiClientError } from "@/lib/api/client";
 import { userErrorDetail } from "@/lib/ui/user-message";
@@ -580,7 +582,15 @@ export function GecCentralHubEvaluatorClient({
       }
       if (programId && sec?.programId !== programId) continue;
       if (sectionIdFilter && e.sectionId !== sectionIdFilter) continue;
+      /*
+       * Editable here: a general subject that is still Prof X (TBA), or that has a General / "both"
+       * instructor — i.e. one a Service Chair plotted (the server allows exactly this). A general
+       * subject the Program Chairman gave to a program-only instructor stays locked.
+       */
       if (isGecVacantScheduleEntry(e, subjectById)) ids.add(e.id);
+      else if (isGecCurriculumScheduleEntry(e, subjectById) && isGecInstructorUser(userById.get(e.instructorId))) {
+        ids.add(e.id);
+      }
     }
     for (const e of extraEntries) ids.add(e.id);
     return ids;
@@ -596,6 +606,7 @@ export function GecCentralHubEvaluatorClient({
     programById,
     subjectById,
     serviceAreaCode,
+    userById,
   ]);
 
   /** Rows that started as vacant GEC placeholders (DB origin + newly added local rows). */
@@ -604,6 +615,29 @@ export function GecCentralHubEvaluatorClient({
     for (const id of pendingNewEntryIds) ids.add(id);
     return ids;
   }, [gecOwnedIds, pendingNewEntryIds]);
+
+  /**
+   * Subjects over their weekly hours when autosave fires (a ref: computed further down). Only their
+   * plots are held back — every other plot still autosaves. One notice per over-limit spell.
+   */
+  const overLimitCodesRef = useRef<Set<string>>(new Set());
+  const overLimitNoticeShownRef = useRef(false);
+  /** True = this plot's subject is over limit, so it is not drafted (and the notice shows once). */
+  const isOverLimitDraft = useCallback(
+    (subjectId: string): boolean => {
+      const code = subjectById.get(subjectId)?.code;
+      if (!code || !overLimitCodesRef.current.has(normalizeProspectusCode(code))) return false;
+      if (!overLimitNoticeShownRef.current) {
+        overLimitNoticeShownRef.current = true;
+        toast.info(
+          "Not auto-saved: over limit",
+          `${code} is plotted beyond its weekly hours. Reduce the duration or remove the extra meeting — it saves after.`,
+        );
+      }
+      return true;
+    },
+    [subjectById, toast],
+  );
 
   /** Autosave (Supabase draft upsert) — debounced and lightweight. */
   useEffect(() => {
@@ -624,6 +658,7 @@ export function GecCentralHubEvaluatorClient({
           if (!isNew && !hasPatch) continue;
           const merged = stampProgramMode({ ...e, ...patch }, programMode);
           if (!merged.subjectId || !merged.roomId || !merged.day || !merged.startTime || !merged.endTime) continue;
+          if (isOverLimitDraft(merged.subjectId)) continue;
           toSave.push(merged);
         }
         if (toSave.length === 0) return;
@@ -655,6 +690,7 @@ export function GecCentralHubEvaluatorClient({
     extraEntries,
     entries,
     allEntries,
+    isOverLimitDraft,
     gecOwnedIds,
     pendingNewEntryIds,
     toast,
@@ -683,7 +719,11 @@ export function GecCentralHubEvaluatorClient({
             const isNew = pendingNewEntryIds.has(e.id);
             const hasPatch = patch && Object.keys(patch).length > 0;
             if (!isNew && !hasPatch) continue;
-            toSave.push(stampProgramMode({ ...e, ...patch }, programMode));
+            const merged = stampProgramMode({ ...e, ...patch }, programMode);
+            // Unfinished plots (no subject yet) are never saved.
+            if (!merged.subjectId || !merged.roomId || !merged.day || !merged.startTime || !merged.endTime) continue;
+            if (isOverLimitDraft(merged.subjectId)) continue;
+            toSave.push(merged);
           }
           if (toSave.length === 0) return;
           try {
@@ -709,6 +749,7 @@ export function GecCentralHubEvaluatorClient({
     extraEntries,
     entries,
     allEntries,
+    isOverLimitDraft,
     gecOwnedIds,
     pendingNewEntryIds,
     toast,
@@ -864,12 +905,13 @@ export function GecCentralHubEvaluatorClient({
       if (!u || !isGecInstructorUser(u)) return opt;
       return { ...opt, fullName: `${opt.fullName} (${facultyCategoryBadge(u.facultyCategory)})` };
     });
+    // Prof X (TBA) is its own fixed choice in the plot window; its account must not be listed again.
     return mergeLegacyRowInstructorsIntoPlotOptions(
       base,
       pool,
       entryInstructorIdsForPlotMerge,
       facultyProfileByUserId,
-    );
+    ).filter((o) => !isPlaceholderInstructorId(o.id));
   }, [users, plotCollegeId, entryInstructorIdsForPlotMerge, facultyProfileByUserId, serviceAreaCode]);
 
   /** Every room in Buildings & Rooms — GEC plotting is not limited to one college's buildings. */
@@ -898,9 +940,14 @@ export function GecCentralHubEvaluatorClient({
    * Campus-wide for the selected term: every `ScheduleEntry` row (all colleges/programs — majors + GEC),
    * so conflicts are detected against the real master timetable, not a single department filter.
    */
+  /** One check at a time: a second click while one runs is ignored. */
+  const conflictCheckRunningRef = useRef(false);
   function runConflictCheck() {
     if (!academicPeriodId) return;
+    if (conflictCheckRunningRef.current) return;
+    conflictCheckRunningRef.current = true;
     void (async () => {
+     try {
       const entryById = new Map(modeMergedEntries.map((e) => [e.id, e]));
       const sparseBlocks = modeMergedEntries
         .filter((e) => e.academicPeriodId === academicPeriodId)
@@ -972,20 +1019,25 @@ export function GecCentralHubEvaluatorClient({
         if (!entry) continue;
         if (roomIds.length === 0 || instructorIds.length === 0) continue;
         const durationHours = slotDurationHours(entry.startTime, entry.endTime) || 2;
-        const sug = runRuleBasedGeneticAlgorithm({
-          universe,
-          sectionId: entry.sectionId,
-          subjectId: entry.subjectId,
-          academicPeriodId: entry.academicPeriodId,
-          excludeEntryId: entry.id,
-          durationHours,
-          fixedInstructorId: entry.instructorId,
-          roomIds,
-          instructorIds,
-          generations: 16,
-          populationSize: 24,
-        });
-        gaMap[iss.key] = sug.slice(0, 5);
+        // Suggested fixes are optional: a failure here must not hide the conflicts found.
+        try {
+          const sug = runRuleBasedGeneticAlgorithm({
+            universe,
+            sectionId: entry.sectionId,
+            subjectId: entry.subjectId,
+            academicPeriodId: entry.academicPeriodId,
+            excludeEntryId: entry.id,
+            durationHours,
+            fixedInstructorId: entry.instructorId,
+            roomIds,
+            instructorIds,
+            generations: 16,
+            populationSize: 24,
+          });
+          gaMap[iss.key] = sug.slice(0, 5);
+        } catch (gaErr) {
+          console.warn("[conflict check] suggestions skipped", gaErr);
+        }
       }
       setGecGaByIssueKey(gaMap);
 
@@ -998,6 +1050,16 @@ export function GecCentralHubEvaluatorClient({
           mergedEnriched.length > 0 ? buildConflictSummaryLines(mergedEnriched, 14).length : summaryLines.length;
         toast.info("Conflicts found – see details below", `${summaryCount} issue(s) detected.`);
       }
+     } catch (e) {
+      // Never let the check take the page down: report it and leave the schedule as it was.
+      console.error("[conflict check] failed", e);
+      toast.error(
+        "Conflict check could not finish",
+        e instanceof Error && e.message ? e.message : "Something unexpected happened. Please try again.",
+      );
+     } finally {
+      conflictCheckRunningRef.current = false;
+     }
     })();
   }
 
@@ -1036,6 +1098,8 @@ export function GecCentralHubEvaluatorClient({
         const isNew = pendingNewEntryIds.has(e.id);
         const patch = edits[e.id];
         const hasPatch = patch && Object.keys(patch).length > 0;
+        // A new cell that was opened but never plotted (no subject) is left out, not saved.
+        if (isNew && !merged.subjectId) continue;
         if (isNew || hasPatch) {
           if (!merged.subjectId || !merged.roomId || !merged.day || !merged.startTime || !merged.endTime) {
             toast.error("Cannot save incomplete GEC plots", "Finish required fields or remove the incomplete slot.");
@@ -1362,7 +1426,9 @@ export function GecCentralHubEvaluatorClient({
     const row: ScheduleEntry = {
       id,
       academicPeriodId,
-      subjectId: firstSub.id,
+      // No subject until "Plot schedule" in the plot window: a row with no subject is never autosaved
+      // and counts toward no subject's hours, so just clicking a cell changes nothing.
+      subjectId: "",
       instructorId: GEC_VACANT_INSTRUCTOR_USER_ID,
       sectionId: sectionIdFilter,
       roomId: roomPick,
@@ -1535,6 +1601,8 @@ export function GecCentralHubEvaluatorClient({
     }
     return over;
   }, [gecPlottedHoursBySubjectCode, sectionIdFilter, sectionProgram?.code, subjectById]);
+  overLimitCodesRef.current = gecOverLimitSubjectCodes;
+  if (gecOverLimitSubjectCodes.size === 0) overLimitNoticeShownRef.current = false;
 
   /** GEC subject ids on this section (enables “add another time slot” in the plot modal). */
   const gecPlottedSubjectIdsForSection = useMemo(() => {
@@ -1898,9 +1966,13 @@ export function GecCentralHubEvaluatorClient({
                   >
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
                     <p>
-                      Over limit: {gecOverLimitSubjectCodes.size} GEC subject
-                      {gecOverLimitSubjectCodes.size === 1 ? "" : "s"} plotted beyond prospectus weekly hours
-                      ({[...gecOverLimitSubjectCodes].slice(0, 6).join(", ")}
+                      Over limit: {gecOverLimitSubjectCodes.size} general subject
+                      {gecOverLimitSubjectCodes.size === 1 ? "" : "s"} plotted beyond the required weekly hours
+                      ({[...gecOverLimitSubjectCodes]
+                        .slice(0, 6)
+                        // Show the code as written in Subject Codes (BSP-GEC-MMW), not the matching key.
+                        .map((k) => [...subjectById.values()].find((x) => normalizeProspectusCode(x.code) === k)?.code ?? k)
+                        .join(", ")}
                       {gecOverLimitSubjectCodes.size > 6 ? "…" : ""}). Reduce duration or remove extra meetings
                       before saving.
                     </p>
