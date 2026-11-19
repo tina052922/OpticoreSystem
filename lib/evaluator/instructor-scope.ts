@@ -113,7 +113,13 @@ export function filterInstructorsForGec<T extends InstructorScopeUser>(
   users: readonly T[],
   alreadyPlottedIds: ReadonlySet<string> = new Set(),
 ): T[] {
-  return users.filter((u) => isGecInstructorUser(u) || alreadyPlottedIds.has(u.id));
+  // Service Chairs teach general subjects too, so they are on the general-subject list.
+  return users.filter(
+    (u) =>
+      isGecInstructorUser(u) ||
+      (u as { role?: string | null }).role === "gec_chairman" ||
+      alreadyPlottedIds.has(u.id),
+  );
 }
 
 /**

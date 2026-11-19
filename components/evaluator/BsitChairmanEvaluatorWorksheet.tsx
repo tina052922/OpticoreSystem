@@ -52,7 +52,7 @@ import { slotDurationHours } from "@/lib/scheduling/time";
 import type { Building, FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
 import { isFacultyStaffRole, isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import {
   normalizeScheduleEntryDayForEvaluator,
   normalizeSlotHHMM,
@@ -937,7 +937,12 @@ export function BsitChairmanEvaluatorWorksheet({
     const programFaculty = sortDepartmentThenGec(filterInstructorsForProgramPlot(dbInstructors, programId, keep), programId);
     const base = usersToInstructorPlotOptions(programFaculty, facultyProfileByUserId).map((opt) => {
       const u = programFaculty.find((row) => row.id === opt.id);
-      const badge = u && isGecInstructorUser(u) ? facultyCategoryBadge(u.facultyCategory) : "";
+      const badge =
+        u?.role === "gec_chairman"
+          ? "Service Chair"
+          : u && isGecInstructorUser(u)
+            ? facultyCategoryBadge(u.facultyCategory)
+            : "";
       return badge ? { ...opt, fullName: `${opt.fullName} (${badge})` } : opt;
     });
     const merged = mergeLegacyRowInstructorsIntoPlotOptions(
@@ -1696,13 +1701,33 @@ export function BsitChairmanEvaluatorWorksheet({
     [loadJustifications, policyRows.rows, academicPeriodId],
   );
 
+  /**
+   * The viewer's own instructors — whose justification notices this page shows. Loads are counted
+   * campus-wide, so without this a College Admin saw other colleges' faculty in the notices.
+   *   DOI: everyone · College Admin: home college is theirs · Program Chairman: their department.
+   */
+  const isOwnInstructor = useCallback(
+    (instructorId: string): boolean => {
+      if (campusWidePrograms) return true;
+      const u = userById.get(instructorId);
+      if (!u) return false;
+      if (collegeWidePrograms) return Boolean(chairmanCollegeId) && u.collegeId === chairmanCollegeId;
+      const dept = (chairmanProgramId || programId || "").trim();
+      return Boolean(dept) && (u.chairmanProgramId ?? "").trim() === dept;
+    },
+    [campusWidePrograms, collegeWidePrograms, chairmanCollegeId, chairmanProgramId, programId, userById],
+  );
+
   /** Violators who still need a DOI justification record (drives FAQ, form, and red cell outline). */
   const unjustifiedPolicyRows = useMemo(
     () =>
       policyRows.rows.filter(
-        (r) => rowNeedsTeachingLoadJustification(r) && !recordedFacultyIds.has(r.instructorId),
+        (r) =>
+          isOwnInstructor(r.instructorId) &&
+          rowNeedsTeachingLoadJustification(r) &&
+          !recordedFacultyIds.has(r.instructorId),
       ),
-    [policyRows.rows, recordedFacultyIds],
+    [policyRows.rows, recordedFacultyIds, isOwnInstructor],
   );
 
   const showJustification = unjustifiedPolicyRows.length > 0;
@@ -1766,6 +1791,7 @@ export function BsitChairmanEvaluatorWorksheet({
       limitWithoutJustification: number;
     }[] = [];
     for (const r of policyRows.rows) {
+      if (!isOwnInstructor(r.instructorId)) continue;
       if (!recordedFacultyIds.has(r.instructorId)) continue;
       if (!r.violations.some((v) => v.code === "OVER_PREP_LIMIT")) continue;
 
@@ -1782,7 +1808,7 @@ export function BsitChairmanEvaluatorWorksheet({
       });
     }
     return out;
-  }, [policyRows.rows, recordedFacultyIds, instructorDisplayById, policyConstants]);
+  }, [policyRows.rows, recordedFacultyIds, instructorDisplayById, policyConstants, isOwnInstructor]);
 
   /** Live "hours so far / cap" snapshot for the plot modal's instructor-select warning. */
   const instructorLoadById = useMemo(() => {
@@ -1814,7 +1840,13 @@ export function BsitChairmanEvaluatorWorksheet({
       setJustificationMsg(JUSTIFICATION_TOO_SHORT);
       return false;
     }
+    // Show the loading state right away, and let it paint before the load recount below.
+    setJustificationSaving(true);
+    setJustificationMsg(null);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const rowsForJustif = rowsSnapshot ?? rows;
+    let polJustif: ReturnType<typeof evaluateFacultyLoadsForCollege>;
+    try {
     const mergedForJustif = buildWorksheetPolicyScheduleEntries({
       rows: rowsForJustif,
       allTermScheduleEntries,
@@ -1825,7 +1857,7 @@ export function BsitChairmanEvaluatorWorksheet({
       slots: slotsForMode,
       pendingDeletedIds: pendingDeletedIdsRef.current,
     });
-    const polJustif = evaluateFacultyLoadsForCollege(
+    polJustif = evaluateFacultyLoadsForCollege(
       mergedForJustif,
       subjectByIdForPolicy,
       userById,
@@ -1835,12 +1867,17 @@ export function BsitChairmanEvaluatorWorksheet({
       policyConstants,
       programMode,
     );
+    } catch (e) {
+      console.error("[justification] load recount failed", e);
+      setJustificationSaving(false);
+      setJustificationMsg("Could not check the faculty loads. Please try again.");
+      return false;
+    }
     if (!polJustif.hasTeachingLoadJustificationViolation) {
+      setJustificationSaving(false);
       setJustificationMsg("No teaching load overage detected; a justification is not required.");
       return false;
     }
-    setJustificationSaving(true);
-    setJustificationMsg(null);
     try {
       const { user } = await authApi.me();
       if (!user) {
@@ -1863,9 +1900,13 @@ export function BsitChairmanEvaluatorWorksheet({
         })),
         academicPeriodId,
       );
-      const violators = polJustif.rows.filter(
+      const allViolators = polJustif.rows.filter(
         (r) => rowNeedsTeachingLoadJustification(r) && !alreadyCovered.has(r.instructorId),
       );
+      // Record it for this page's own instructors; if none of them is over (e.g. the prompt came from
+      // assigning someone else's faculty), record it for whoever triggered it.
+      const ownViolators = allViolators.filter((r) => isOwnInstructor(r.instructorId));
+      const violators = ownViolators.length > 0 ? ownViolators : allViolators;
       if (violators.length === 0) {
         setJustificationMsg("Every faculty over policy already has a justification on record.");
         return false;
@@ -1986,6 +2027,7 @@ export function BsitChairmanEvaluatorWorksheet({
     toast,
     programMode,
     slotsForMode,
+    isOwnInstructor,
   ],
 );
 
@@ -2919,7 +2961,10 @@ export function BsitChairmanEvaluatorWorksheet({
                 return;
               }
               const needsRecord = policyRows.rows.some(
-                (r) => rowNeedsTeachingLoadJustification(r) && !recordedFacultyIds.has(r.instructorId),
+                (r) =>
+                  isOwnInstructor(r.instructorId) &&
+                  rowNeedsTeachingLoadJustification(r) &&
+                  !recordedFacultyIds.has(r.instructorId),
               );
               if (!needsRecord) return;
               setPolicyModalReason("save");
@@ -3008,7 +3053,7 @@ export function BsitChairmanEvaluatorWorksheet({
           <textarea
             className="w-full min-h-[100px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
             value={justificationText}
-            disabled={schedulePublished || viewOnly}
+            disabled={schedulePublished || viewOnly || justificationSaving}
             onChange={(e) => setJustificationText(e.target.value)}
             placeholder={JUSTIFICATION_PLACEHOLDER}
           />
@@ -3017,9 +3062,17 @@ export function BsitChairmanEvaluatorWorksheet({
               type="button"
               className="bg-amber-900 hover:bg-amber-950 text-white"
               disabled={schedulePublished || viewOnly || justificationSaving}
+              aria-busy={justificationSaving}
               onClick={() => void saveLoadJustificationForDoi()}
             >
-              {justificationSaving ? "Saving…" : JUSTIFICATION_SUBMIT_LABEL}
+              {justificationSaving ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Recording justification…
+                </span>
+              ) : (
+                JUSTIFICATION_SUBMIT_LABEL
+              )}
             </Button>
             <span className="text-[11px] text-amber-950/70">
               Draft rows still sync automatically. This button records the overload reason for DOI (notification only)

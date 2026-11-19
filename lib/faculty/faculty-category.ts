@@ -51,11 +51,15 @@ export function facultyCategoryRequiresDepartment(raw: unknown): boolean {
   return parseFacultyCategory(raw) !== FACULTY_CATEGORY_GEC;
 }
 
-/** True when a catalog User row teaches general education (GEC or both). */
+/**
+ * True when a catalog User row teaches general education (GEC or both) — including a Service Chair
+ * (`gec_chairman`), who heads a general-subject area and teaches those subjects too.
+ */
 export function isGecInstructorUser(user: {
   facultyCategory?: string | null;
+  role?: string | null;
 } | null | undefined): boolean {
-  return isGecFacultyCategory(user?.facultyCategory);
+  return user?.role === "gec_chairman" || isGecFacultyCategory(user?.facultyCategory);
 }
 
 /** Short badge for lists: "General", "General + Program", or "" for a program-only instructor. */

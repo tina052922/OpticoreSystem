@@ -262,8 +262,18 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
               : { ...g, heading: departmentHeading(g, departments.length + i) },
           )
         : [];
+    /*
+     * An instructor under a service area (General Subject or "Both") is listed only there, with their
+     * whole load counted in that table — not again under a department. (Only when the area tables are
+     * shown; otherwise their department row is the only place their load appears.)
+     */
+    const areaMemberIds = new Set(areaGroups.flatMap((g) => g.rows.map((r) => r.instructorId)));
+    const departmentsShown =
+      areaMemberIds.size > 0
+        ? departments.map((g) => ({ ...g, rows: g.rows.filter((r) => !areaMemberIds.has(r.instructorId)) }))
+        : departments;
     // Service areas continue the lettering after the CAS departments (… D. HUMANITIES AND SOCIAL SCIENCES).
-    return [...departments, ...areaGroups];
+    return [...departmentsShown, ...areaGroups];
   }, [collegeId, selectedPeriodId, campusWide, scopeColleges, entries, users, profiles, programs, sections, subjects, justifications, serviceAreas, colleges, pickedCollegeId]);
 
   // A department picked under another college no longer applies.

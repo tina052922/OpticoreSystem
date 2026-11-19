@@ -33,12 +33,13 @@ describe("buildTeachingLoadSummaryByServiceArea", () => {
     justifications: [],
   });
 
-  it("lists each area's instructors with their general-subject load only", () => {
+  it("lists each area's instructors with their whole load", () => {
     expect(groups.map((g) => g.categoryLabel)).toEqual(["Humanities and Social Sciences", "PE and Sports"]);
     const hss = groups[0]!;
-    expect(hss.rows.map((r) => r.facultyName)).toEqual(["Ana"]);
-    expect(hss.rows[0]!.subjectsHandled).toBe("BSP-GEC-MMW");
-    expect(hss.rows[0]!.totalHoursPerWeek).toBe(3);
+    // The area's Service Chair teaches too, so they are listed with their own load.
+    expect(hss.rows.map((r) => r.facultyName)).toEqual(["Ana", "Hss Chair"]);
+    expect(hss.rows[0]!.subjectsHandled).toBe("BSP-GEC-MMW, PSYCH-BC 122");
+    expect(hss.rows[0]!.totalHoursPerWeek).toBe(6);
     expect(groups[1]!.rows.map((r) => r.facultyName)).toEqual(["Ben"]);
   });
 
@@ -58,5 +59,24 @@ describe("otherResponsibilitiesFromProfile", () => {
   });
   it("keeps real entries and drops placeholders", () => {
     expect(otherResponsibilitiesFromProfile(p({ research: "Thesis adviser", extension: "N/A" }))).toBe("Thesis adviser");
+  });
+});
+
+describe("service area — Both instructor", () => {
+  it("counts the whole load (general + program subjects)", () => {
+    const both = { ...user("u9", "Juan", "a-hss"), facultyCategory: "both" } as unknown as User;
+    const [hss] = buildTeachingLoadSummaryByServiceArea({
+      areas: [areas[0]!],
+      academicPeriodId: PERIOD,
+      entries: [entry("b1", "u9", "s-gec"), entry("b2", "u9", "s-major")],
+      users: [both],
+      profiles: [],
+      subjects,
+      justifications: [],
+    });
+    const row = hss!.rows[0]!;
+    expect(row.totalPreps).toBe(2);
+    expect(row.subjectsHandled).toBe("BSP-GEC-MMW, PSYCH-BC 122");
+    expect(row.totalHoursPerWeek).toBe(6);
   });
 });

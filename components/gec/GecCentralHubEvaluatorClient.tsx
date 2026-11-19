@@ -588,7 +588,10 @@ export function GecCentralHubEvaluatorClient({
        * subject the Program Chairman gave to a program-only instructor stays locked.
        */
       if (isGecVacantScheduleEntry(e, subjectById)) ids.add(e.id);
-      else if (isGecCurriculumScheduleEntry(e, subjectById) && isGecInstructorUser(userById.get(e.instructorId))) {
+      else if (
+        isGecCurriculumScheduleEntry(e, subjectById) &&
+        (isGecInstructorUser(userById.get(e.instructorId)) || userById.get(e.instructorId)?.role === "gec_chairman")
+      ) {
         ids.add(e.id);
       }
     }
@@ -895,13 +898,14 @@ export function GecCentralHubEvaluatorClient({
       users.filter((u) => isPlottableFacultyUser(u)),
       new Set(entryInstructorIdsForPlotMerge),
     ).sort((a, b) => {
-      const ag = isGecInstructorUser(a) ? 0 : 1;
-      const bg = isGecInstructorUser(b) ? 0 : 1;
+      const ag = isGecInstructorUser(a) || a.role === "gec_chairman" ? 0 : 1;
+      const bg = isGecInstructorUser(b) || b.role === "gec_chairman" ? 0 : 1;
       if (ag !== bg) return ag - bg;
       return (a.name ?? "").localeCompare(b.name ?? "");
     });
     const base = usersToInstructorPlotOptions(pool, facultyProfileByUserId).map((opt) => {
       const u = pool.find((row) => row.id === opt.id);
+      if (u?.role === "gec_chairman") return { ...opt, fullName: `${opt.fullName} (Service Chair)` };
       if (!u || !isGecInstructorUser(u)) return opt;
       return { ...opt, fullName: `${opt.fullName} (${facultyCategoryBadge(u.facultyCategory)})` };
     });

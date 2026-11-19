@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   JUSTIFICATION_MIN_LENGTH,
@@ -84,6 +85,7 @@ export function PolicyJustificationModal({
             ref={textareaRef}
             className="mt-1 w-full min-h-[120px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40"
             value={value}
+            disabled={saving}
             onChange={(e) => onChange(e.target.value)}
             onBlur={() => setTouched(true)}
             placeholder={JUSTIFICATION_PLACEHOLDER}
@@ -104,9 +106,17 @@ export function PolicyJustificationModal({
             type="button"
             className="bg-[#780301] hover:bg-[#5a0201] text-white"
             disabled={saving || invalid}
+            aria-busy={saving}
             onClick={() => void onSave()}
           >
-            {saving ? "Saving…" : confirmButtonLabel ?? "Record for DOI"}
+            {saving ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Recording justification…
+              </span>
+            ) : (
+              confirmButtonLabel ?? "Record for DOI"
+            )}
           </Button>
         </div>
       </div>

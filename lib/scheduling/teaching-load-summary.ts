@@ -4,7 +4,6 @@ import { slotDurationHours } from "@/lib/scheduling/time";
 import { isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { subjectPrepKey } from "@/lib/scheduling/prep-key";
 import { PLACEHOLDER_INSTRUCTOR_ID } from "@/lib/scheduling/placeholder-instructor";
-import { isGecEditableSubject } from "@/lib/subjects/gec-subject-scope";
 
 export type TeachingLoadModeSlice = {
   preps: number;
@@ -278,8 +277,8 @@ export type TeachingLoadServiceArea = { id: string; code: string; name: string }
 
 /**
  * One table per service area (Humanities and Social Sciences, Natural Sciences and Mathematics,
- * PE and Sports, …): the General Subject / "both" instructors registered under it, with their
- * general-subject load across every college. Day and Evening stay separate.
+ * PE and Sports, …): the General Subject / "both" instructors registered under it, each with their
+ * whole load (general + program subjects) across every college. Day and Evening stay separate.
  */
 export function buildTeachingLoadSummaryByServiceArea(args: {
   areas: TeachingLoadServiceArea[];
@@ -294,18 +293,18 @@ export function buildTeachingLoadSummaryByServiceArea(args: {
   const profileByUserId = new Map(args.profiles.map((p) => [p.userId, p]));
   const termEntries = hydrateScheduleEntries(
     args.entries.filter((e) => e.academicPeriodId === args.academicPeriodId),
-  ).filter((e) => {
-    const sub = subjectById.get(e.subjectId);
-    return Boolean(
-      sub && isGecEditableSubject({ code: sub.code, category: sub.category ?? null, subjectArea: sub.subjectArea ?? null }),
-    );
-  });
+  );
+
 
   return args.areas.map((area) => {
     const members = args.users.filter(
       (u) => u.serviceAreaId === area.id && u.id !== PLACEHOLDER_INSTRUCTOR_ID && isPlottableFacultyUser(u),
     );
     const rows: TeachingLoadSummaryRow[] = members.map((user) => {
+      /*
+       * The instructor's whole load — general AND program subjects, every college. Service-area
+       * instructors are listed only here (not again under a department), so this row is their total.
+       */
       const mine = termEntries.filter((e) => e.instructorId === user.id);
       const dayEntries = filterByProgramMode(mine, "day");
       const eveningEntries = filterByProgramMode(mine, "night");
