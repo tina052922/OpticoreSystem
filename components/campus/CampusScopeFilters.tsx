@@ -15,11 +15,11 @@ export type CampusScopeFiltersProps = {
     /** Resolved from the selected Program row when `programId` is set. */
     programCode: string | null;
   }) => void;
-  /** Default: campus-wide college + program. Chairman: program filter only (college from session). */
+  /** Default: campus-wide college + program. Chairperson: program filter only (college from session). */
   variant?: "default" | "chairman";
-  /** Required when variant is chairman — from `getChairmanSession().collegeId` */
+  /** Required when variant is chairperson — from `getChairmanSession().collegeId` */
   chairmanCollegeId?: string | null;
-  /** When set, chairman scope is locked to this program (no multi-program or campus-wide picker). */
+  /** When set, chairperson scope is locked to this program (no multi-program or campus-wide picker). */
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
@@ -36,7 +36,7 @@ export type CampusScopeFiltersProps = {
 };
 
 /**
- * Scope bar: campus-wide (college + program) or chairman (program only).
+ * Scope bar: campus-wide (college + program) or chairperson (program only).
  */
 export function CampusScopeFilters({
   initialCollegeId,

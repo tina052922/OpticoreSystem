@@ -1,4 +1,4 @@
-/** Chairman / GEC evaluator slot tables. Day remains Mon–Fri 7:00 AM–5:00 PM. */
+/** Chairperson / GEC evaluator slot tables. Day remains Mon–Fri 7:00 AM–5:00 PM. */
 
 import {
   DAY_PLOT_SLOTS,

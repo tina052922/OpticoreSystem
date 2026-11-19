@@ -12,10 +12,10 @@ import { facultyCategoryBadge, isGecFacultyCategory } from "@/lib/faculty/facult
 import { useActionToast } from "@/components/alerts/useActionToast";
 
 /**
- * Chairman queue for instructor self-registrations.
+ * Chairperson queue for instructor self-registrations.
  *
  * Each row has already proven control of a `@ctu.edu.ph` mailbox. What the
- * chairman decides here is *who the person is* — specifically, which Employee
+ * chairperson decides here is *who the person is* — specifically, which Employee
  * ID they get, which is what binds them to any schedule already plotted.
  *
  * 🔒 No account exists until Approve succeeds. Rejecting leaves the applicant
@@ -60,7 +60,7 @@ export function PendingInstructorsReview() {
     try {
       const [queue, linkable] = await Promise.all([
         instructorRequestsApi.list("all"),
-        // Non-fatal: without candidates the chairman can still type an ID.
+        // Non-fatal: without candidates the chairperson can still type an ID.
         instructorRequestsApi.linkableFaculty().catch(() => ({ candidates: [] })),
       ]);
       setRequests(queue.requests);

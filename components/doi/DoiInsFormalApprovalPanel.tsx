@@ -1,5 +1,7 @@
 "use client";
 
+import { LockOpen } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useActionToast } from "@/components/alerts/useActionToast";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -77,6 +79,7 @@ export function DoiInsFormalApprovalPanel({
   const [notes, setNotes] = useState("");
   const [decisionBusy, setDecisionBusy] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
   /** Set only after mount so SSR and first client paint match (avoids `new Date()` hydration mismatch). */
   const [signaturePreviewAt, setSignaturePreviewAt] = useState<string | null>(null);
 
@@ -124,13 +127,14 @@ export function DoiInsFormalApprovalPanel({
     }
   }
 
-  async function submitDecision(action: "approve" | "reject" | "unpublish") {
+  async function submitDecision(action: "approve" | "reject" | "unpublish", confirmed = false) {
     if (!periodId) return;
     if (action === "unpublish") {
-      const ok = window.confirm(
-        "Unpublish and unlock this term? Program Chairmen, College Admins, and GEC can resume case-to-case edits until you lock again.",
-      );
-      if (!ok) return;
+      // Ask in an in-app dialog (not the browser's confirm); it calls back with confirmed = true.
+      if (!confirmed) {
+        setUnpublishConfirmOpen(true);
+        return;
+      }
     }
     setDecisionBusy(action);
     setDecisionError(null);
@@ -156,7 +160,7 @@ export function DoiInsFormalApprovalPanel({
         action === "approve"
           ? "The term is now locked for editing."
           : action === "unpublish"
-            ? "Chairmen, College Admins and GEC can edit the term again."
+            ? "Chairpersons, College Admins and GEC can edit the term again."
             : null,
       );
     } catch (e) {
@@ -446,7 +450,7 @@ export function DoiInsFormalApprovalPanel({
                 </Button>
               </div>
               <p className="text-xs text-gray-500">
-                Unlocking clears the DOI lock so Program Chairmen, College Admins, and GEC can resume plotting.
+                Unlocking clears the DOI lock so Program Chairpersons, College Admins, and GEC can resume plotting.
                 Approve &amp; publish again when the term should be final.
               </p>
             </>
@@ -529,6 +533,25 @@ export function DoiInsFormalApprovalPanel({
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={unpublishConfirmOpen}
+        title="Unpublish and unlock this term?"
+        confirmLabel="Unpublish / unlock"
+        busyLabel="Unpublishing…"
+        tone="warning"
+        icon={<LockOpen className="h-5 w-5" aria-hidden />}
+        onCancel={() => setUnpublishConfirmOpen(false)}
+        onConfirm={async () => {
+          await submitDecision("unpublish", true);
+          setUnpublishConfirmOpen(false);
+        }}
+      >
+        <p>
+          Program Chairpersons, College Admins and Service Chairs can edit the schedule again until you approve and
+          publish it once more.
+        </p>
+        <p className="mt-2 text-black/50">Instructors and students stop seeing it until it is published again.</p>
+      </ConfirmDialog>
     </div>
   );
 }

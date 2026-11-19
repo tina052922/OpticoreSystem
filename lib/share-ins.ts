@@ -27,13 +27,13 @@ export async function shareInsView(view: InsShareView) {
   });
 }
 
-/** Chairman INS share: persists workflow bundle (INS-scoped rows + linked Evaluator worksheet snapshot). */
+/** Chairperson INS share: persists workflow bundle (INS-scoped rows + linked Evaluator worksheet snapshot). */
 export async function shareInsWorkflowBundle(bundle: WorkflowScheduleBundleV1) {
   await inboxApi.share({
     subject: `INS Form shared – ${VIEW_LABEL[bundle.insShareView]} (Evaluator linked)`,
     body:
       `Workflow handoff: ${bundle.scheduleEntries.length} schedule row(s) for the current academic period. ` +
-      `INS Form 5A/5B/5C views and the Chairman Evaluator use the same ScheduleEntry-linked data. ` +
+      `INS Form 5A/5B/5C views and the Chairperson Evaluator use the same ScheduleEntry-linked data. ` +
       `College Admin can download the JSON bundle and open Central Hub Evaluator to load and organize by college and program.`,
     view: bundle.insShareView,
     payload: bundle,
@@ -41,7 +41,7 @@ export async function shareInsWorkflowBundle(bundle: WorkflowScheduleBundleV1) {
 }
 
 /**
- * Builds the same bundle shape as INS share, for Chairman Inbox "Forward to College Admin"
+ * Builds the same bundle shape as INS share, for Chairperson Inbox "Forward to College Admin"
  * without opening an INS page.
  */
 export async function buildChairmanInboxForwardBundle(args: {

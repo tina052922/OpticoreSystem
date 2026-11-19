@@ -144,7 +144,7 @@ export type BuildWorkflowBundleArgs = {
   /** Scoped term rows from INS catalog (ScheduleEntry). */
   termScopedEntries: ScheduleEntry[];
   insContext?: WorkflowScheduleBundleV1["insContext"];
-  /** Map normalized subject code → Subject.id (Chairman program subjects). */
+  /** Map normalized subject code → Subject.id (Chairperson program subjects). */
   subjectIdByCode: Map<string, string>;
 };
 

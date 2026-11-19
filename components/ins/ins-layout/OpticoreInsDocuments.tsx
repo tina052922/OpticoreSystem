@@ -414,7 +414,7 @@ export type OpticoreInsForm5AProps = {
     title: string;
     degreeYrSec: string;
   }>;
-  /** Portal / print-friendly: static display, no editable inputs (INS chairman pages stay default). */
+  /** Portal / print-friendly: static display, no editable inputs (INS chairperson pages stay default). */
   readOnly?: boolean;
   /** Shown in the semester line when `readOnly` is true. */
   semesterLabel?: string;

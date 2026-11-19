@@ -10,6 +10,7 @@ export function FacultyProfileWithScope({
   lockedCollegeId = null,
   gecFacultyFilter = false,
   excludeGecFaculty = false,
+  includeServiceChairs = false,
   writeCollegeIdFallback = null,
   writeCollegeLabel = null,
   viewerServiceAreaId = null,
@@ -20,10 +21,12 @@ export function FacultyProfileWithScope({
   enableFacultyListEdit?: boolean;
   /** College Admin: pin every list on the page to their own college. */
   lockedCollegeId?: string | null;
-  /** GEC Chairman: the roster is the GEC instructors, across every college. */
+  /** GEC Chairperson: the roster is the GEC instructors, across every college. */
   gecFacultyFilter?: boolean;
-  /** College Admin: leave GEC instructors to the GEC Chairman. */
+  /** College Admin: leave GEC instructors to the GEC Chairperson. */
   excludeGecFaculty?: boolean;
+  /** CAS Admin: list the Service Chairs too. */
+  includeServiceChairs?: boolean;
   /** Where a new faculty is created while the scope is campus-wide. */
   writeCollegeIdFallback?: string | null;
   writeCollegeLabel?: string | null;
@@ -66,6 +69,7 @@ export function FacultyProfileWithScope({
         gecFacultyFilter={gecFacultyFilter}
         viewerServiceAreaId={viewerServiceAreaId}
         excludeGecFaculty={excludeGecFaculty}
+        includeServiceChairs={includeServiceChairs}
         enableFacultyListEdit={enableFacultyListEdit}
       />
     </>

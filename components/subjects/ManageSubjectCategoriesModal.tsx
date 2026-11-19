@@ -31,7 +31,7 @@ export type ManageSubjectCategoriesModalProps = {
 };
 
 /**
- * Where a chairman says what kinds of subject their program runs.
+ * Where a chairperson says what kinds of subject their program runs.
  *
  * The list used to be six words fixed in the code and in a database constraint, which could not
  * describe a campus: a "major" is not one thing, and each program's majors carry their own codes.

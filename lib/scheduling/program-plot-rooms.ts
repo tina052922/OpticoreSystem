@@ -6,7 +6,7 @@ import { insRoomLabel } from "@/lib/ins/ins-room-label";
 /**
  * Rooms offered when plotting a class — every room in Buildings & Rooms, for every role.
  *
- * Rooms used to be limited by college and department (a BSIT chairman saw only the COTE rooms, a
+ * Rooms used to be limited by college and department (a BSIT chairperson saw only the COTE rooms, a
  * room tagged to one program was hidden from the rest). Rooms that existed in Buildings & Rooms
  * then went missing from the Subject Scheduler, so the scope was dropped: any room can be picked,
  * and the room-conflict check is what stops two classes landing in the same room at once.

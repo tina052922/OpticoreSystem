@@ -5,7 +5,7 @@ describe("sectionHasGecSubjectsInScope", () => {
   /**
    * The case from the screenshot. BSIT-4B is Year 4 · 1st Semester, where the prospectus carries
    * only major subjects — the summary says "No GEC subjects found for the selected scope", so the
-   * section has no business being in the GEC Chairman's picker.
+   * section has no business being in the GEC Chairperson's picker.
    */
   it("is false for BSIT year 4, which has no general education", () => {
     expect(sectionHasGecSubjectsInScope({ programCode: "BSIT", yearLevel: 4, semester: 1 })).toBe(false);

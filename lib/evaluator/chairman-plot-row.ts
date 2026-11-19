@@ -21,7 +21,7 @@ export type PlotRow = {
   /** Consecutive 1-hour slots for this meeting (default 1 — split contact across multiple rows). */
   durationSlots?: number;
   day: BsitEvaluatorWeekday | ProgramSessionWeekday | "";
-  /** When set, DOI locked this row; the API rejects chairman writes (423) — do not upsert/delete. */
+  /** When set, DOI locked this row; the API rejects chairperson writes (423) — do not upsert/delete. */
   lockedByDoiAt?: string | null;
 };
 

@@ -51,7 +51,7 @@ describe("filterInsEntriesForScope — College Admin", () => {
   });
 });
 
-describe("filterInsEntriesForScope — Chairman", () => {
+describe("filterInsEntriesForScope — Chairperson", () => {
   it("narrows to their department within the college", () => {
     const out = filterInsEntriesForScope(
       entries,
@@ -63,7 +63,7 @@ describe("filterInsEntriesForScope — Chairman", () => {
   });
 });
 
-describe("filterInsEntriesForScope — GEC Chairman", () => {
+describe("filterInsEntriesForScope — GEC Chairperson", () => {
   it("gives general education from every college, and nothing else", () => {
     const out = filterInsEntriesForScope(entries, { gecOnly: true, campusWide: true }, lookups);
     expect(ids(out)).toEqual(["e-bsit-gec", "e-cas-gee"]);

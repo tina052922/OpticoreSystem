@@ -34,7 +34,7 @@ function numberOrNull(v: unknown): number | null {
 }
 
 /**
- * The load that was justified. `facultyPreparations` is what the Chairman worksheet writes and
+ * The load that was justified. `facultyPreparations` is what the Chairperson worksheet writes and
  * `preparations` what the GEC Central Hub writes; both are read.
  */
 export function justifiedNumbersOf(justification: RecordedJustification): JustifiedNumbers {

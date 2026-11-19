@@ -209,7 +209,7 @@ export function InstructorRegisterClient() {
     if (facultyCategoryRequiresDepartment(facultyCategory) && !programId) {
       toast.refuse(
         "Choose your department",
-        "Your Program Chairman reviews the registration, so they need to know which one.",
+        "Your Program Chairperson reviews the registration, so they need to know which one.",
       );
       return;
     }
@@ -275,7 +275,7 @@ export function InstructorRegisterClient() {
     );
   }
 
-  // ── Awaiting chairman approval ──────────────────────────────────────────
+  // ── Awaiting chairperson approval ──────────────────────────────────────────
   if (phase === "submitted") {
     return (
       <LoginContainer>
@@ -302,11 +302,11 @@ export function InstructorRegisterClient() {
           <p className="-mt-3 text-sm font-semibold text-amber-800">Awaiting approval</p>
           <p className="text-base text-black/80">
             {success ??
-              "Your registration is awaiting approval from your department chairman."}
+              "Your registration is awaiting approval from your department chairperson."}
           </p>
           <p className="text-sm text-black/55">
             You won&apos;t be able to sign in until it&apos;s approved. We&apos;ll
-            email <strong>{email}</strong> once your chairman reviews it.
+            email <strong>{email}</strong> once your chairperson reviews it.
           </p>
           <Button
             asChild
@@ -492,7 +492,7 @@ export function InstructorRegisterClient() {
                     ? "You teach general subjects across departments. Choose your service area below; its Service Chair reviews this registration."
                     : facultyCategory === FACULTY_CATEGORY_BOTH
                       ? "You teach your program's subjects and general subjects. Choose your home department and your service area below."
-                      : "Your home department’s Program Chairman reviews this registration."}
+                      : "Your home department’s Program Chairperson reviews this registration."}
                 </p>
               </div>
               {needsServiceArea ? (
@@ -614,7 +614,7 @@ export function InstructorRegisterClient() {
             <fieldset className="space-y-3 border-0 p-0">
               <legend className="text-sm font-bold text-[#780301]">Faculty profile (HR Form 23B)</legend>
               <p className="text-xs text-black/55">
-                The same details your chairman keeps on Faculty Profile. Leave a field blank if it does not
+                The same details your chairperson keeps on Faculty Profile. Leave a field blank if it does not
                 apply — your reviewer can complete it later.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

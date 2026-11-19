@@ -40,7 +40,7 @@ export type RealtimeBadgeKind =
   | "access_requests"
   | "policy_reviews"
   | "audit_log"
-  /** Instructor self-registrations awaiting chairman approval. */
+  /** Instructor self-registrations awaiting chairperson approval. */
   | "instructor_requests";
 
 export type RealtimeEventPayload = {

@@ -48,7 +48,7 @@ export function facultyProfileRowFromRegistration(
   const designation = trimOrNull(input.designation);
 
   // Registration collects the three name cells; older clients send only `fullName`, so fall back to
-  // splitting it (the chairman can correct the split on the Faculty Profile page).
+  // splitting it (the chairperson can correct the split on the Faculty Profile page).
   const parts = splitFullName(fullName);
 
   return {

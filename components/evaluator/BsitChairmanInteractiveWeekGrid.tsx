@@ -273,7 +273,7 @@ function PlotCellSummary({
 }
 
 /**
- * Chairman Evaluator: INS weekly grid with modal-based plotting (clean cells, full form in popup).
+ * Chairperson Evaluator: INS weekly grid with modal-based plotting (clean cells, full form in popup).
  */
 export function BsitChairmanInteractiveWeekGrid({
   rows,

@@ -34,7 +34,7 @@ export default async function ChairmanProfilePage() {
           <ProfileAvatarUpload initialUrl={session.profileImageUrl} />
         </div>
         <AdminProfileCard
-          fullName={session.name ?? "Chairman"}
+          fullName={session.name ?? "Chairperson"}
           employeeId={
             session.employeeId ?? session.id.slice(0, 8).toUpperCase()
           }

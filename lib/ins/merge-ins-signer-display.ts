@@ -5,7 +5,7 @@ import type { CollegeInsSignerDisplay } from "@/types/db";
  * Slots whose printed NAME comes from the account and may not be overridden.
  *
  * `approved` is the DOI / VPAA line. The DOI signs in as themselves, so the name on the form is
- * their account name — the same rule the Program Chairman's "Prepared by" line already follows.
+ * their account name — the same rule the Program Chairperson's "Prepared by" line already follows.
  * Letting an editor field win here meant the printed reviewer could be any text someone typed, and
  * a name saved once kept printing after the role changed hands.
  *

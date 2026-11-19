@@ -13,8 +13,8 @@ export type InsSignatureSlot = {
    * Raw source-of-truth name for this signer, before any System Configuration
    * display overrides are applied. Set for slots where downstream printed
    * views must use the authoritative account name and never the editor's
-   * display text — for example the Program Chairman on the printed "Prepared
-   * by" line, which must reflect the chairman's own `User.name`, not a value
+   * display text — for example the Program Chairperson on the printed "Prepared
+   * by" line, which must reflect the chairperson's own `User.name`, not a value
    * typed into "INS form signatories" by someone else.
    *
    * Optional — defaults to `signerName` when a caller doesn't set it.
@@ -47,7 +47,7 @@ function firstUrl(...urls: Array<string | null | undefined>): string | null {
  * 1 Approved by (DOI)
  * 2 Campus Director
  * 3 Dean
- * 4 Reviewed & Certified (Program / GEC Chairman)
+ * 4 Reviewed & Certified (Program / GEC Chairperson)
  * 5 Contract
  * 6 Prepared by (College Admin)
  *
@@ -133,7 +133,7 @@ export function buildInsSignatureSlots(args: {
     signerName: u?.name ?? "—",
     imageUrl: imageOverride !== undefined ? imageOverride : u?.signatureImageUrl?.trim() ?? null,
     // Preserved so printed lines that must reflect the account name
-    // (e.g. Program Chairman on 'Prepared by') can bypass any editor
+    // (e.g. Program Chairperson on 'Prepared by') can bypass any editor
     // display overrides applied later by mergeInsSignerDisplay.
     accountName: u?.name?.trim() || null,
   });
@@ -148,7 +148,7 @@ export function buildInsSignatureSlots(args: {
     slot("approved", "Approved by", "Director of Instruction / VPAA", doi, doiImg),
     slot("campus", "Campus Director", "Campus", campusDirectorUser, campusImg),
     slot("dean", "Dean", "College Dean", null),
-    slot("review", "Reviewed & Certified by", "Program Chairman", chairman),
+    slot("review", "Reviewed & Certified by", "Program Chairperson", chairman),
     slot("contract", "Contract", "Authorized signatory", null),
     slot("prepared", "Prepared by", "College Admin", collegeAdmin, preparedImg),
   ];

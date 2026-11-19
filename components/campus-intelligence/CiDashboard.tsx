@@ -41,7 +41,7 @@ export type CiDashboardProps = {
    * Used with `variant="full"` for quick links.
    */
   basePath: string;
-  /** `full`: standard admin modules. `gec`: GEC chairman shortcuts. `doi`: adds policy reviews link in quick access. */
+  /** `full`: standard admin modules. `gec`: GEC chairperson shortcuts. `doi`: adds policy reviews link in quick access. */
   variant?: CiDashboardVariant;
   /**
    * Live overlap scan for the current term (Evaluator scope). When present, shows an actionable “conflicts” card

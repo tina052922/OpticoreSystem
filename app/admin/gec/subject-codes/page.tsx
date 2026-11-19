@@ -10,7 +10,7 @@ import { SubjectCodesWorkspace } from "@/components/subjects/SubjectCodesWorkspa
  * makes a general education catalog readable.
  *
  * Editing is narrower than reading: only general education subjects. A major subject belongs to its
- * own department's chairman, and the server refuses the write regardless of what this page shows.
+ * own department's chairperson, and the server refuses the write regardless of what this page shows.
  */
 export default function GecSubjectCodesPage() {
   return (

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ChairAssignmentWorkspace } from "@/components/admin/ChairAssignmentWorkspace";
 import { CollegeCasChairsTab } from "@/components/admin/CollegeCasChairsTab";
 
-/** CAS College Admin: Chairman Assignment plus a CAS Chairs tab (as in DOI → College Admins & Chairmen). */
+/** CAS College Admin: Chairperson Assignment plus a CAS Chairs tab (as in DOI → College Admins & Chairpersons). */
 export function CollegeChairAssignmentTabs({ collegeId }: { collegeId: string }) {
   const [tab, setTab] = useState<"programs" | "cas">("programs");
   useEffect(() => {
@@ -25,7 +25,7 @@ export function CollegeChairAssignmentTabs({ collegeId }: { collegeId: string })
         </button>
       </div>
       {tab === "programs" ? (
-        <ChairAssignmentWorkspace />
+        <ChairAssignmentWorkspace canManageAccounts />
       ) : (
         <div className="px-4 sm:px-6 lg:px-8 pb-10 max-w-[1100px]">
           <CollegeCasChairsTab collegeId={collegeId} />

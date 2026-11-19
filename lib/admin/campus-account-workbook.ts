@@ -1,5 +1,5 @@
 /**
- * Reading and writing the College Admin / Chairman spreadsheet.
+ * Reading and writing the College Admin / Chairperson spreadsheet.
  *
  * ExcelJS is imported dynamically: it is a large dependency and only these two actions need it.
  * The pure row logic lives in `campus-account-sheet.ts` so it can be tested without a workbook.
@@ -27,7 +27,7 @@ export type CampusAccountExportRow = {
 
 const ROLE_TITLE: Record<CampusAccountRole, string> = {
   college_admin: "College Admins",
-  chairman_admin: "Department Chairmen",
+  chairman_admin: "Department Chairpersons",
 };
 
 /** Extra empty rows the code dropdown covers, for posts added after export. */

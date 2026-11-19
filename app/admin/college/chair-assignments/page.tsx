@@ -8,11 +8,12 @@ export default async function ChairAssignmentPage() {
   const profile = await requireRoles(["college_admin"]);
   return (
     <div>
-      <ChairmanPageHeader title="Chairman Assignment" subtitle="Whole program group or per major; transfer when a chair leaves" />
+      <ChairmanPageHeader title="Chairperson Assignment" subtitle="Whole program group or per major; transfer when a chair leaves" />
       {profile.casAdmin && profile.collegeId ? (
         <CollegeChairAssignmentTabs collegeId={profile.collegeId} />
       ) : (
-        <ChairAssignmentWorkspace />
+        // A College Admin creates and edits their own college's Program Chairpersons (server-scoped).
+        <ChairAssignmentWorkspace canManageAccounts />
       )}
     </div>
   );

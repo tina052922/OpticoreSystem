@@ -5,7 +5,7 @@ import { getAuthenticatedProfile } from "@/lib/auth/require-role";
 /**
  * College a GEC enrollment is written to when the scope is campus-wide.
  *
- * `User.collegeId` is null for the GEC Chairman (migration 022) because the post belongs to the
+ * `User.collegeId` is null for the GEC Chairperson (migration 022) because the post belongs to the
  * campus, not a college — but a new faculty row still has to land in one. This is the college the
  * page already wrote to before it could search beyond it, so enrolling behaves exactly as it did.
  * See `gec_routing_college_id()`.

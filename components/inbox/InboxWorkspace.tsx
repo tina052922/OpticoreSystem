@@ -29,7 +29,7 @@ type Props = {
   portal: PortalId;
   title?: string;
   subtitle?: string;
-  /** Chairman: show “Forward to College Admin” (persists when WorkflowInboxMessage exists). */
+  /** Chairperson: show “Forward to College Admin” (persists when WorkflowInboxMessage exists). */
   enableChairmanForward?: boolean;
   /** Server session scope for building a full workflow bundle on forward. */
   chairmanScope?: { collegeId: string | null; programId: string | null; programCode?: string | null } | null;
@@ -109,13 +109,13 @@ export function InboxWorkspace({
       await inboxApi.forward({
         mailFor: "college",
         sentFor: "chairman",
-        fromLabel: "Chairman (OptiCore)",
+        fromLabel: "Chairperson (OptiCore)",
         toLabel: "College Admin",
         subject: "Draft schedule — INS Form + Evaluator (linked bundle)",
         body:
-          `Forwarded from OptiCore Chairman Inbox.\n\n` +
+          `Forwarded from OptiCore Chairperson Inbox.\n\n` +
           (rowCount > 0
-            ? `Attached workflow bundle: ${rowCount} schedule row(s) linked to INS 5A/5B/5C and the Chairman Evaluator.\n\n`
+            ? `Attached workflow bundle: ${rowCount} schedule row(s) linked to INS 5A/5B/5C and the Chairperson Evaluator.\n\n`
             : `No bundle rows were assembled (check college scope and Supabase). Links for review:\n\n`) +
           `• INS Form: ${origin}/chairman/ins?tab=faculty\n` +
           `• Evaluator: ${origin}/chairman/evaluator\n\n` +
@@ -189,7 +189,7 @@ export function InboxWorkspace({
     portal === "chairman"
       ? "Send and receive workflow mail — share INS / Evaluator drafts with College Admin from Sent."
       : portal === "college"
-        ? "Receive drafts from Chairman in Mail; forward validated drafts to CAS Admin."
+        ? "Receive drafts from Chairperson in Mail; forward validated drafts to CAS Admin."
         : portal === "cas"
           ? "Receive from College, distribute GEC portions, forward to DOI."
           : portal === "gec"

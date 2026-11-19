@@ -1008,10 +1008,10 @@ export const registerApi = {
    * Instructor signup, step 1: emails a 6-digit code to the CTU address.
    *
    * ⚠️ Creates NO account. Even after the code is verified the applicant only
-   * enters the chairman's approval queue — they cannot sign in until a chairman
+   * enters the chairperson's approval queue — they cannot sign in until a chairperson
    * approves and assigns an Employee ID.
    *
-   * `employeeId` is advisory: the chairman sets the authoritative value at
+   * `employeeId` is advisory: the chairperson sets the authoritative value at
    * approval, so do not present it to the user as final.
    *
    * Throws `ApiClientError` with `code`:
@@ -1045,7 +1045,7 @@ export const registerApi = {
       retryOn401: false,
     });
   },
-  /** Instructor signup, step 2: confirms the code and queues for chairman review. */
+  /** Instructor signup, step 2: confirms the code and queues for chairperson review. */
   verifyInstructor(input: { email: string; code: string }) {
     return apiFetch<{
       ok: true;
@@ -1135,14 +1135,14 @@ export const registerApi = {
   },
 };
 
-/** A verified instructor signup awaiting chairman approval. */
+/** A verified instructor signup awaiting chairperson approval. */
 export type InstructorRequest = {
   id: string;
   email: string;
   deliveryEmail: string;
   fullName: string;
   collegeId: string;
-  /** What the applicant typed. Advisory only — the chairman sets the real one. */
+  /** What the applicant typed. Advisory only — the chairperson sets the real one. */
   claimedEmployeeId: string | null;
   /** `program` or `gec` — GEC instructors are not locked to one department. */
   facultyCategory?: "program" | "gec" | "both" | null;
@@ -1165,7 +1165,7 @@ export type InstructorRequest = {
   } | null;
 };
 
-/** An unclaimed placeholder faculty row a chairman can adopt at approval. */
+/** An unclaimed placeholder faculty row a chairperson can adopt at approval. */
 export type LinkableFaculty = {
   id: string;
   name: string | null;
@@ -1174,7 +1174,7 @@ export type LinkableFaculty = {
 };
 
 /**
- * Chairman review queue for instructor self-registrations.
+ * Chairperson review queue for instructor self-registrations.
  *
  * 🔒 Scope is enforced server-side from the session's college — there is no
  * collegeId parameter to pass, deliberately.
@@ -1624,7 +1624,7 @@ export const facultyProfileApi = {
   },
 };
 
-/** College Admin and Chairman accounts (DOI only). One holder per college / department. */
+/** College Admin and Chairperson accounts (DOI only). One holder per college / department. */
 export const campusAccountsApi = {
   list() {
     return apiFetch<{ accounts: CampusAccount[] }>("/api/admin/campus-accounts", { method: "GET", forceRefresh: true });
@@ -1703,7 +1703,7 @@ export type ChairAssignmentChair = {
   chairmanProgramId: string | null;
 };
 
-/** Chairman Assignment (migration 035): who manages each program / major. */
+/** Chairperson Assignment (migration 035): who manages each program / major. */
 export const chairAssignmentsApi = {
   list(collegeId?: string | null) {
     const q = collegeId ? `?collegeId=${encodeURIComponent(collegeId)}` : "";
@@ -2040,7 +2040,7 @@ export const authExtraApi = {
  * Subject categories — the kinds of subject a program runs (migration 024).
  *
  * Reading is open to any signed-in user, because every page that renders a subject needs the
- * labels. Writing is checked per program on the server: a chairman owns one.
+ * labels. Writing is checked per program on the server: a chairperson owns one.
  */
 export const subjectCategoryApi = {
   list(programId?: string | null) {
@@ -2076,7 +2076,7 @@ export const subjectCategoryApi = {
 
 export const profileApi = {
   /** Your own name and employee ID. Role, college and email are not writable from here. */
-  /** `chairmanProgramId` is accepted for a Program Chairman only (own college, unclaimed program). */
+  /** `chairmanProgramId` is accepted for a Program Chairperson only (own college, unclaimed program). */
   updateDetails(body: { name?: string; employeeId?: string | null; chairmanProgramId?: string }) {
     return apiFetch<{ ok: true; profile: { id: string; name: string | null; employeeId: string | null } }>(
       "/api/profile",

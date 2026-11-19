@@ -10,7 +10,7 @@ import type { TeachingLoadCategoryGroup } from "@/lib/scheduling/teaching-load-s
  *   Recommending Approval:  the Dean of Instruction (DOI)
  *   Approved by:            the Campus Director
  *
- * Names come from the same places as the INS forms' signatures: the accounts (Program Chairman,
+ * Names come from the same places as the INS forms' signatures: the accounts (Program Chairperson,
  * DOI, the college's linked Campus Director) with System Configuration → INS form signatories
  * filling in or overriding them (the Dean has no account, so it comes from there).
  */

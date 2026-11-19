@@ -67,7 +67,7 @@ export function BuildingsRoomsWorkspace({
    *
    * With no building name these are saved as standalone rooms, which is why the department is
    * required: a room with neither a building nor a department belongs to nobody and cannot be
-   * plotted by any chairman.
+   * plotted by any chairperson.
    */
   const [newRooms, setNewRooms] = useState<{ code: string; floor: string; capacity: string }[]>([
     { code: "", floor: "1", capacity: "" },

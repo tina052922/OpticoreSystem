@@ -3,10 +3,10 @@
  *
  * These used to be six fixed words in this file and in a database check constraint. That could not
  * hold: a "major" is not one thing campus-wide — each program's majors are its own, with their own
- * codes — so a chairman had no way to say what kinds of subject their program actually runs.
+ * codes — so a chairperson had no way to say what kinds of subject their program actually runs.
  *
  * They are rows now (`SubjectCategory`, migration 024), owned by the program and maintained by its
- * chairman. General education, PE and NSTP are taught everywhere, so those three belong to the
+ * chairperson. General education, PE and NSTP are taught everywhere, so those three belong to the
  * campus and appear for every program.
  *
  * The constants below are a floor, not the list: they are what a program sees before anything has
@@ -15,7 +15,7 @@
 
 export type SubjectCategoryRow = {
   id: string;
-  /** Null = campus-wide; every program sees it and no chairman may edit it. */
+  /** Null = campus-wide; every program sees it and no chairperson may edit it. */
   programId: string | null;
   code: string;
   label: string;
@@ -23,7 +23,7 @@ export type SubjectCategoryRow = {
 };
 
 /**
- * Taught in every program, so owned by the campus rather than by any one chairman.
+ * Taught in every program, so owned by the campus rather than by any one chairperson.
  *
  * GEC and GEE are both general education and sit together; they stay separate categories because a
  * GEE is the elective half of it, and a prospectus distinguishes them.
@@ -39,7 +39,7 @@ export const CAMPUS_SUBJECT_CATEGORY_CODES: ReadonlySet<string> = new Set(
   CAMPUS_SUBJECT_CATEGORIES.map((c) => c.code),
 );
 
-/** True for a category no chairman may rename or delete. */
+/** True for a category no chairperson may rename or delete. */
 export function isCampusSubjectCategory(row: Pick<SubjectCategoryRow, "programId">): boolean {
   return row.programId === null;
 }

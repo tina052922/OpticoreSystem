@@ -5,9 +5,9 @@ import { chairAssignmentsApi, type ChairAssignmentProgram } from "@/lib/api/clie
 import { useActionToast } from "@/components/alerts/useActionToast";
 
 /**
- * Shown to a chairman who holds several programs (e.g. every BIT major — Chairman Assignment).
+ * Shown to a chairperson who holds several programs (e.g. every BIT major — Chairperson Assignment).
  * Switching changes which program their Subject Scheduler, Faculty Profile and Subject Codes open on;
- * it never changes any schedule. Hidden for a chairman with one program.
+ * it never changes any schedule. Hidden for a chairperson with one program.
  */
 export function ChairProgramSwitcher() {
   const toast = useActionToast();

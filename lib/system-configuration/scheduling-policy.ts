@@ -116,7 +116,7 @@ export function resolveHourlyRates(raw: SchedulingPolicyConfig | null | undefine
   };
 }
 
-/** Optional per-designation hourly rate override (e.g. Campus Director, Chairman). Falls back to null when unset. */
+/** Optional per-designation hourly rate override (e.g. Campus Director, Chairperson). Falls back to null when unset. */
 export function resolveRatePerHourForDesignation(
   raw: SchedulingPolicyConfig | null | undefined,
   designation: string | null | undefined,

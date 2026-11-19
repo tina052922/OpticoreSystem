@@ -27,8 +27,8 @@ describe("insScopeLockedCollegeId", () => {
     ).toBeNull();
   });
 
-  /** General education is taught in every college, so the GEC Chairman is not pinned to one. */
-  it("leaves the GEC Chairman unpinned", () => {
+  /** General education is taught in every college, so the GEC Chairperson is not pinned to one. */
+  it("leaves the GEC Chairperson unpinned", () => {
     expect(
       insScopeLockedCollegeId({
         chairmanCollegeId: undefined,
@@ -39,8 +39,8 @@ describe("insScopeLockedCollegeId", () => {
     ).toBeNull();
   });
 
-  /** A Program Chairman has their own picker variant, which already shows only their program. */
-  it("leaves a Program Chairman to their own variant", () => {
+  /** A Program Chairperson has their own picker variant, which already shows only their program. */
+  it("leaves a Program Chairperson to their own variant", () => {
     expect(
       insScopeLockedCollegeId({
         chairmanCollegeId: COTE,

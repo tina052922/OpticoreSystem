@@ -3,7 +3,7 @@
  *
  * All tabs of a browser share one sign-in (the HTTP-only session cookie). Signing in as someone else
  * in a second tab silently replaced it — while the first tab kept SHOWING the old account (e.g.
- * College Admin) and, from then on, acting as the new one (Chairman). Signing out in one tab left the
+ * College Admin) and, from then on, acting as the new one (Chairperson). Signing out in one tab left the
  * others looking signed in.
  *
  * Every sign-in and sign-out is announced here (BroadcastChannel, with a localStorage fallback for

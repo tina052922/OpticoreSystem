@@ -40,9 +40,9 @@ const DOI_POLICY_REVIEWS_HREF = "/doi/reviews";
 const COLLEGE_POLICY_JUSTIFICATIONS_HREF = "/admin/college/policy-reviews";
 const COLLEGE_AUDIT_LOG_HREF = "/admin/college/audit-log";
 const DOI_AUDIT_LOG_HREF = "/doi/audit-log";
-/** Chairman: instructor self-registrations awaiting approval. */
+/** Chairperson: instructor self-registrations awaiting approval. */
 const CHAIRMAN_PENDING_INSTRUCTORS_HREF = "/chairman/pending-instructors";
-/** Review queues that show the pending-registrations count: Program Chairman and GEC Chairman. */
+/** Review queues that show the pending-registrations count: Program Chairperson and GEC Chairperson. */
 const PENDING_INSTRUCTORS_HREFS = new Set([CHAIRMAN_PENDING_INSTRUCTORS_HREF, "/admin/gec/pending-instructors"]);
 
 export type CampusIntelligenceShellProps = {
@@ -51,7 +51,7 @@ export type CampusIntelligenceShellProps = {
   /** Public URL for header avatar (from User.profileImageUrl). */
   profileImageUrl?: string | null;
   userEmail?: string;
-  /** Sidebar navigation (Chairman, College, CAS, GEC, DOI). */
+  /** Sidebar navigation (Chairperson, College, CAS, GEC, DOI). */
   navItems: AdminNavEntry[];
   /** Shown above the semester chip (e.g. “College admin · COTE”). */
   roleLabel?: string;
@@ -70,7 +70,7 @@ export type CampusIntelligenceShellProps = {
    */
   auditLogUnreadScope?: string | null;
   /**
-   * Chairman layout: badge on "Instructor Management" for self-registrations
+   * Chairperson layout: badge on "Instructor Management" for self-registrations
    * awaiting approval. Scope comes from the session server-side, so this is a
    * plain on/off switch rather than a college id.
    */

@@ -14,7 +14,7 @@ const entries = [
 
 describe("instructorPortalEntries", () => {
   it("withholds nothing when there is no instructor to narrow to", () => {
-    // Chairman and admin views pass no user; they are allowed the whole college.
+    // Chairperson and admin views pass no user; they are allowed the whole college.
     expect(instructorPortalEntries({ entries, instructorUserId: null }).map((e) => e.id)).toEqual([
       "a",
       "b",

@@ -3,13 +3,13 @@ import { ExternalLink, ClipboardList } from "lucide-react";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { Button } from "@/components/ui/button";
 
-/** College Admin read-only path: same Evaluator data as Chairman, scoped to your college in production. */
+/** College Admin read-only path: same Evaluator data as Chairperson, scoped to your college in production. */
 export default function CollegeScheduleReviewPage() {
   return (
     <div>
       <ChairmanPageHeader
         title="Schedule review"
-        subtitle="Inspect the plotted draft and Evaluator context. Chairman Admin owns editing; schedules are centralized in ScheduleEntry — use Audit log for who changed what."
+        subtitle="Inspect the plotted draft and Evaluator context. Chairperson Admin owns editing; schedules are centralized in ScheduleEntry — use Audit log for who changed what."
       />
       <div className="px-8 pb-10 max-w-3xl space-y-6">
         <div className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-6 space-y-4">
@@ -18,7 +18,7 @@ export default function CollegeScheduleReviewPage() {
             <div>
               <p className="text-sm text-black/80 leading-relaxed">
                 Open the <strong>Subject Scheduler</strong> in a new tab to view the same timetable, faculty load panel, and
-                conflict status as the Chairman (read-only for your role in a full deployment). Here we link to the
+                conflict status as the Chairperson (read-only for your role in a full deployment). Here we link to the
                 shared module for development.
               </p>
             </div>

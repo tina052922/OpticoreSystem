@@ -1,6 +1,6 @@
 /**
  * BSIT curriculum scope (CMO No. 25 s. 2015, effective A.Y. 2023–2024).
- * Used to lock Chairman scheduling UI to official sections, rooms, and course codes.
+ * Used to lock Chairperson scheduling UI to official sections, rooms, and course codes.
  */
 
 import type { Room } from "@/types/db";
@@ -145,7 +145,7 @@ export function isBsitSchedulingRoomCode(code: string): boolean {
 }
 
 /**
- * BSIT chairman / prospectus plotting: eligible IT lab rows for the schedule grid.
+ * BSIT chairperson / prospectus plotting: eligible IT lab rows for the schedule grid.
  *
  * Legacy seed used `Room.code` = `IT LAB 1` … `IT LAB 4` (now grouped under **COTE Building** like campus navigation).
  * Campus navigation seed uses **COTE 302–305** with `displayName` **IT Lab 01** … **IT Lab 04**.

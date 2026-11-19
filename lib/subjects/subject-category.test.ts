@@ -20,7 +20,7 @@ const cat = (over: Partial<SubjectCategoryRow> & { code: string }): SubjectCateg
   ...over,
 });
 
-/** A program's own list as a chairman would build it, alongside the campus three. */
+/** A program's own list as a chairperson would build it, alongside the campus three. */
 const bsit = [
   ...CAMPUS_SUBJECT_CATEGORIES,
   cat({ code: "major", label: "Major", sortOrder: 100 }),
@@ -89,7 +89,7 @@ describe("subjectCategoriesForProgram", () => {
 });
 
 describe("isCampusSubjectCategory", () => {
-  it("marks the ones a chairman may not edit", () => {
+  it("marks the ones a chairperson may not edit", () => {
     expect(isCampusSubjectCategory({ programId: null })).toBe(true);
     expect(isCampusSubjectCategory({ programId: "prog-bsit" })).toBe(false);
   });
@@ -115,7 +115,7 @@ describe("normalizeSubjectCategory", () => {
 });
 
 describe("subjectCategoryLabel", () => {
-  it("prints the label the chairman chose, not the stored code", () => {
+  it("prints the label the chairperson chose, not the stored code", () => {
     expect(subjectCategoryLabel("elective", bsit)).toBe("Professional Elective");
     expect(subjectCategoryLabel("major", bsit)).toBe("Major");
     expect(subjectCategoryLabel("nstp", bsit)).toBe("NSTP");

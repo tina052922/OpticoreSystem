@@ -17,7 +17,7 @@ export function FacultyLoadJustificationRecord({
 }: {
   facultyUserId: string;
   collegeId: string | null;
-  /** Chairman / GEC Chairman / College Admin / DOI may clear a record; the API enforces the same. */
+  /** Chairperson / GEC Chairperson / College Admin / DOI may clear a record; the API enforces the same. */
   canClear?: boolean;
   /** Lets the page refresh anything that showed the cleared text. */
   onCleared?: () => void;

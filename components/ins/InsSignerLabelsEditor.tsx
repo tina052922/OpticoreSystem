@@ -17,15 +17,15 @@ import { useActionToast } from "@/components/alerts/useActionToast";
  *
  * How this flows onto the printed 3-line INS block
  * (`lib/ins/ins-pdf-adapters.ts` → `resolveInsPrintedSigners`):
- *   - "Prepared by (Program Coordinator/Chair)" prints the Program Chairman's
+ *   - "Prepared by (Program Coordinator/Chair)" prints the Program Chairperson's
  *     own account name + their profile signature image (uploaded on
  *     /chairman/profile). It is NOT sourced from this editor — an admin
- *     cannot rename a chairman on official forms from here. The `prepared`
- *     row below is the fallback used only when no chairman is resolved.
+ *     cannot rename a chairperson on official forms from here. The `prepared`
+ *     row below is the fallback used only when no chairperson is resolved.
  *   - "Reviewed, Certified True and Correct: Director/Dean" prints the DOI's own
  *     account name + the DOI / VPAA e-signature uploaded in System Configuration.
  *     There is NO editor row for it: the DOI signs in as themselves, so the name
- *     comes from their profile the same way the chairman's does. `dean` is still
+ *     comes from their profile the same way the chairperson's does. `dean` is still
  *     a name override for when no DOI account is resolved.
  *   - "Approved: Campus Director"                       → `campus` slot.
  *
@@ -41,7 +41,7 @@ export const INS_SIGNATORY_SLOT_DEFS: { key: string; label: string; hint?: strin
     key: "prepared",
     label: "College Admin (Prepared by — fallback)",
     hint:
-      "Printed under 'Prepared by (Program Coordinator/Chair)' ONLY when no Program Chairman is resolved for the college/program on the form. When a chairman exists, their own account name and profile signature print instead — this row is ignored. The electronic signature image is uploaded in the 'College Admin electronic signature' card below.",
+      "Printed under 'Prepared by (Program Coordinator/Chair)' ONLY when no Program Chairperson is resolved for the college/program on the form. When a chairperson exists, their own account name and profile signature print instead — this row is ignored. The electronic signature image is uploaded in the 'College Admin electronic signature' card below.",
   },
 ];
 

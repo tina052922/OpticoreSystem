@@ -69,7 +69,7 @@ type Props = {
   /** From prospectus summary click — optional quick-apply to vacant rows. */
   pickedSummaryCode: string | null;
   pickedSubjectId: string | null;
-  /** Program Chairman parity: add a new vacant GEC row for this section. */
+  /** Program Chairperson parity: add a new vacant GEC row for this section. */
   onAddScheduleRow?: () => void;
   showAddScheduleButton?: boolean;
   /** UI feedback: disables the button and shows “Adding…” to prevent double clicks. */
@@ -95,7 +95,7 @@ function hhmm(t: string): string {
   return normalizeSlotHHMM(t);
 }
 
-/** Align GEC grid with Program Chairman: tolerate "7:00" vs "07:00" and seconds from Postgres. */
+/** Align GEC grid with Program Chairperson: tolerate "7:00" vs "07:00" and seconds from Postgres. */
 function startSlotIndexFromEntry(e: ScheduleEntry, mode: "day" | "night"): number {
   return startSlotIndexFromScheduleEntryStartTime(e.startTime, resolveProgramMode(e) === "night" ? "night" : mode);
 }
@@ -116,8 +116,8 @@ function entryToSparse(e: ScheduleEntry): SparseScheduleBlock | null {
 }
 
 /**
- * Chairman-style plotting grid for one section: locked major rows read-only; vacant GEC rows use a light-green
- * treatment and accept instructor / room / day / slot (same mental model as Program Chairman).
+ * Chairperson-style plotting grid for one section: locked major rows read-only; vacant GEC rows use a light-green
+ * treatment and accept instructor / room / day / slot (same mental model as Program Chairperson).
  */
 export function GecSectionPlottingTable({
   collegeId,
@@ -158,7 +158,7 @@ export function GecSectionPlottingTable({
   const [localAddBusy, setLocalAddBusy] = useState(false);
   /**
    * Per entry row: building filter for two-step room pick (not persisted — `ScheduleEntry.roomId` only).
-   * Same cascading pattern as Chairman Evaluator: buildings from {@link sortedBuildingKeysFromRooms}, rooms via
+   * Same cascading pattern as Chairperson Evaluator: buildings from {@link sortedBuildingKeysFromRooms}, rooms via
    * {@link roomsInBuildingSorted} (floor then code).
    */
   const [roomBuildingByEntryId, setRoomBuildingByEntryId] = useState<Record<string, string>>({});
@@ -185,7 +185,7 @@ export function GecSectionPlottingTable({
       });
   }, [mergedEntries, academicPeriodId, sectionId, daysForMode]);
 
-  /** All plotted rows for this term campus-wide — matches GEC Chairman full scan (majors + GEC, every program). */
+  /** All plotted rows for this term campus-wide — matches GEC Chairperson full scan (majors + GEC, every program). */
   const sparseCampusWideUniverse = useMemo(() => {
     const list: SparseScheduleBlock[] = [];
     for (const e of mergedEntries) {
@@ -324,7 +324,7 @@ export function GecSectionPlottingTable({
                   className="px-4 py-10 text-center text-[13px] text-black/50"
                 >
                   No schedule rows for this section and term. Use &quot;+ Add schedule row&quot; to plot a GEC class
-                  (same as Program Chairman).
+                  (same as Program Chairperson).
                 </td>
               </tr>
             ) : (

@@ -316,7 +316,7 @@ export function FacultyOwnProfileDetails() {
         <div>
           <h2 className="text-sm font-bold text-black">My details</h2>
           <p className="mt-0.5 text-xs text-black/55">
-            What you entered when you registered. You can update all of it; your chairman sees the same details on
+            What you entered when you registered. You can update all of it; your chairperson sees the same details on
             Faculty Profile.
           </p>
         </div>
@@ -419,7 +419,7 @@ export function FacultyOwnProfileDetails() {
               )}
             </div>
             <p className="text-[11px] text-black/50">
-              Your department puts you on that Program Chairman's list; General Subject and “both” instructors are also on their Service Chair's list.
+              Your department puts you on that Program Chairperson's list; General Subject and “both” instructors are also on their Service Chair's list.
             </p>
           </fieldset>
 
@@ -518,7 +518,7 @@ export function FacultyOwnProfileDetails() {
             </div>
           </fieldset>
 
-          {/* The same INS Form 5A cells the chairman edits in Faculty Profile; they print on INS Form 5A. */}
+          {/* The same INS Form 5A cells the chairperson edits in Faculty Profile; they print on INS Form 5A. */}
           <fieldset className="space-y-3">
             <legend className="text-xs font-bold uppercase tracking-wide text-[#780301]">INS Form 5A details</legend>
             <div className="space-y-1">

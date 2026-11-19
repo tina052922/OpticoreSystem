@@ -61,7 +61,7 @@ describe("filterInstructorsForGec", () => {
 
   /**
    * The gap this closes. The GEC evaluator offered the whole college and only sorted GEC first, so a
-   * GEC chairman could take a BSIT instructor's time for a general education slot.
+   * GEC chairperson could take a BSIT instructor's time for a general education slot.
    */
   it("offers only GEC instructors", () => {
     expect(filterInstructorsForGec(pool).map((u) => u.id)).toEqual(["g1", "g2"]);
@@ -87,7 +87,7 @@ describe("filterInstructorsForGec", () => {
 /**
  * The three roles, in one place.
  *
- * Each rule lives in a different component — the chairman worksheet, the same worksheet with the
+ * Each rule lives in a different component — the chairperson worksheet, the same worksheet with the
  * department lock released, and the GEC hub — so this is where they are stated together and can be
  * read against each other.
  */
@@ -111,7 +111,7 @@ describe("who each role may plot", () => {
     ]);
   });
 
-  it("Program Chairman: their own department only", () => {
+  it("Program Chairperson: their own department only", () => {
     expect(filterInstructorsForDepartment(faculty, "prog-bsit").map((u) => u.id)).toEqual([
       "alberca",
       "batumbakal",
@@ -122,14 +122,14 @@ describe("who each role may plot", () => {
     ]);
   });
 
-  it("Program Chairman: no sibling department, and no GEC instructor", () => {
+  it("Program Chairperson: no sibling department, and no GEC instructor", () => {
     const bsit = filterInstructorsForDepartment(faculty, "prog-bsit").map((u) => u.id);
     expect(bsit).not.toContain("delacruz");
-    // GEC load is the GEC Chairman's to plot, so the person is not in two chairmen's hands.
+    // GEC load is the GEC Chairperson's to plot, so the person is not in two chairpersons's hands.
     expect(bsit).not.toContain("wick");
   });
 
-  it("GEC Chairman: GEC instructors only, whatever college they sit in", () => {
+  it("GEC Chairperson: GEC instructors only, whatever college they sit in", () => {
     expect(filterInstructorsForGec(faculty).map((u) => u.id)).toEqual(["wick"]);
   });
 
@@ -141,10 +141,10 @@ describe("who each role may plot", () => {
     ].map((u) => u.id);
     const gec = filterInstructorsForGec(faculty).map((u) => u.id);
 
-    // No faculty is plottable by two different chairmen.
+    // No faculty is plottable by two different chairpersons.
     expect(new Set(chairs).size).toBe(chairs.length);
     for (const id of gec) expect(chairs).not.toContain(id);
-    // Between them the chairmen and the GEC chairman reach everyone the admin can.
+    // Between them the chairpersons and the GEC chairperson reach everyone the admin can.
     expect(new Set([...chairs, ...gec])).toEqual(admin);
   });
 });
@@ -162,7 +162,7 @@ describe("filterInstructorsForProgramPlot — program plotting sees its faculty 
   it("lists department faculty before GEC instructors", () => {
     expect(sortDepartmentThenGec(filterInstructorsForProgramPlot(all, "prog-bsit")).map((u) => u.id)).toEqual(["u-bsit", "u-gec"]);
   });
-  it("keeps the GEC Chairman's list to GEC instructors only", () => {
+  it("keeps the GEC Chairperson's list to GEC instructors only", () => {
     expect(filterInstructorsForGec(all).map((u) => u.id)).toEqual(["u-gec"]);
   });
 });

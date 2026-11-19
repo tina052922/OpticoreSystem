@@ -1,5 +1,5 @@
 /**
- * Keeps the BSIT Chairman Evaluator worksheet in sessionStorage so INS share / inbox forward
+ * Keeps the BSIT Chairperson Evaluator worksheet in sessionStorage so INS share / inbox forward
  * can attach the same draft rows that power ScheduleEntry sync.
  */
 

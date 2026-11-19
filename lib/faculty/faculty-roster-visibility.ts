@@ -10,7 +10,7 @@ export type RosterUser = Pick<User, "role"> & {
  * Who belongs on the Faculty Profile roster.
  *
  * Deliberately wider than `isPlottableFacultyUser`. That one answers "may this person be put on a
- * schedule?", and a self-registration awaiting a chairman's approval may not. The Faculty Profile
+ * schedule?", and a self-registration awaiting a chairperson's approval may not. The Faculty Profile
  * page asks a different question — "whose profile is on file?" — and a pending registration is
  * precisely the profile someone needs to open, read and complete.
  *
@@ -20,7 +20,7 @@ export type RosterUser = Pick<User, "role"> & {
  * A rejected registration is not faculty and stays out.
  */
 export function isFacultyRosterUser(user: RosterUser): boolean {
-  // Program and GEC Chairmen teach and are listed with their department's faculty.
+  // Program and GEC Chairpersons teach and are listed with their department's faculty.
   if (user.role === "chairman_admin" || user.role === "gec_chairman") return true;
   if (user.role !== "instructor") return false;
   return normalizeInstructorValidation(user.instructorValidation) !== "rejected";
@@ -39,12 +39,12 @@ export function isAwaitingFacultyApproval(user: { instructorValidation?: string 
 /**
  * Who a given admin sees on the Faculty Profile roster.
  *
- *  • **GEC Chairman** (`gecOnly`) — everyone who teaches general education: GEC instructors and
+ *  • **GEC Chairperson** (`gecOnly`) — everyone who teaches general education: GEC instructors and
  *    "both" instructors, from any department. Program-only instructors are not shown.
- *  • **Program Chairman** (`lockedProgramId`) — everyone whose home department is theirs, whatever
+ *  • **Program Chairperson** (`lockedProgramId`) — everyone whose home department is theirs, whatever
  *    the category: a GEC or "both" instructor who belongs to BSIT is on BSIT's roster (marked GEC).
  *  • **College Admin** (`excludeGec`) — their college's department faculty. A GEC instructor with NO
- *    department is left out (the GEC Chairman keeps them); one with a department is shown.
+ *    department is left out (the GEC Chairperson keeps them); one with a department is shown.
  *  • **DOI** (none of the three) — everyone on the roster in scope.
  *
  * `isFacultyRosterUser` still decides who is faculty at all; this narrows that list to the viewer.
@@ -57,6 +57,8 @@ export function isFacultyVisibleToRosterViewer(
     excludeGec?: boolean;
     /** Service Chair's area: only the general-subject instructors of that area (and themselves). */
     serviceAreaId?: string | null;
+    /** CAS Admin: the Service Chairs are listed too (they belong to CAS), even with `excludeGec`. */
+    includeServiceChairs?: boolean;
   },
 ): boolean {
   if (!isFacultyRosterUser(user)) return false;
@@ -70,7 +72,9 @@ export function isFacultyVisibleToRosterViewer(
     // Someone with no area yet (registered before areas) stays visible so they can be placed.
     return !mine || !theirs || mine === theirs;
   }
-  if (viewer.excludeGec && teachesGec && !home) return false;
+  if (viewer.excludeGec && teachesGec && !home && !(viewer.includeServiceChairs && user.role === "gec_chairman")) {
+    return false;
+  }
 
   const locked = (viewer.lockedProgramId ?? "").trim();
   if (!locked) return true;

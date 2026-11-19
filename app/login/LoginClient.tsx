@@ -86,7 +86,7 @@ export function LoginClient() {
       document.cookie = "last_visited_path=; path=/; max-age=0";
 
       const home = getDefaultHomeForRole(user.role);
-      // An account someone else created (Faculty Profile, College Admin / Chairman accounts) must
+      // An account someone else created (Faculty Profile, College Admin / Chairperson accounts) must
       // finish setup first: confirm the email with an emailed code, then choose a password.
       const needsSetup = Boolean(user.firstLoginStep && user.firstLoginStep !== "done");
       const target = needsSetup
@@ -107,7 +107,7 @@ export function LoginClient() {
       const code = err instanceof ApiClientError ? err.code : "";
       toast.error(
         code === "INSTRUCTOR_PENDING"
-          ? "Awaiting chairman approval"
+          ? "Awaiting chairperson approval"
           : code === "INSTRUCTOR_REJECTED"
             ? "Registration not approved"
             : isInvalid

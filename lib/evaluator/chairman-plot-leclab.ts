@@ -9,10 +9,10 @@ import {
 export type PlotLecLabMode = "lec" | "lab";
 
 /**
- * The program's rows from Subject Codes — what the chairman actually maintains.
+ * The program's rows from Subject Codes — what the chairperson actually maintains.
  *
  * These lookups used to read the static prospectus alone, which broke two ways. A subject that
- * exists only in Subject Codes resolved to nothing, and — worse — a subject the chairman EDITED in
+ * exists only in Subject Codes resolved to nothing, and — worse — a subject the chairperson EDITED in
  * Subject Codes was overruled by the hardcoded row. AP-6 ships in the BSIT prospectus as
  * `labUnits: 0`, so adding 3 lab units to it in Subject Codes changed nothing: the evaluator kept
  * reading the static row and offered lecture only.
@@ -23,7 +23,7 @@ export type ExtraSubjectRows = readonly ProspectusSubjectRow[] | undefined;
  * Subject Codes wins over the prospectus wherever both carry a code.
  *
  * The prospectus is a seed for programs whose catalog is not filled in yet; the catalog is live data
- * the chairman edits, so it is the one that decides units and hours.
+ * the chairperson edits, so it is the one that decides units and hours.
  */
 function allRowsFor(programCode: string, extraRows: ExtraSubjectRows): ProspectusSubjectRow[] {
   const base = getProspectusSubjectsForProgram(programCode);
@@ -171,7 +171,7 @@ export function formatLecLabDisplay(mode: PlotLecLabMode): string {
 
 /** Prospectus slice for the plot modal — avoids empty subject lists when year parsing fails. */
 /**
- * Subjects offered when plotting one section: the static prospectus PLUS anything the chairman added
+ * Subjects offered when plotting one section: the static prospectus PLUS anything the chairperson added
  * in Subject Codes for the same program, year and semester.
  *
  * These two sources used to be either/or — the prospectus won whenever it held a single row — so a

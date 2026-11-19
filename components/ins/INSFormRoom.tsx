@@ -38,7 +38,7 @@ export type INSFormRoomProps = {
   chairmanProgramName?: string | null;
   viewerCollegeId?: string | null;
   campusWide?: boolean;
-  /** GEC Chairman: every picker on this form lists general education only. */
+  /** GEC Chairperson: every picker on this form lists general education only. */
   gecOnly?: boolean;
   instructorPortalUserId?: string | null;
   /** Faculty portal: show only this instructor's own classes, not the whole section or room. */
@@ -81,7 +81,7 @@ export function INSFormRoom({
    *
    * The lists on this page were already limited to `viewerCollegeId`; only the picker disagreed,
    * which both misreported the scope and invited a pick that could not take effect. DOI and VPAA
-   * (`campusWide`), the GEC Chairman (`gecOnly`) and a Program Chairman (own variant) genuinely
+   * (`campusWide`), the GEC Chairperson (`gecOnly`) and a Program Chairperson (own variant) genuinely
    * reach past one college, so none of them is locked.
    */
   const scopeLockedCollegeId = insScopeLockedCollegeId({
@@ -90,7 +90,7 @@ export function INSFormRoom({
     campusWide,
     gecOnly,
   });
-  /** Department chosen in the scope bar; a chairman's own program always wins. */
+  /** Department chosen in the scope bar; a chairperson's own program always wins. */
   const [scopeProgramId, setScopeProgramId] = useState<string | null>(null);
   const effectiveProgramId = chairmanProgramId ?? scopeProgramId;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);

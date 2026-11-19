@@ -29,7 +29,7 @@ describe("resolveFacultyCollegeScope", () => {
     expect(resolveFacultyCollegeScope({ allowCampusWide: false })).toEqual({ kind: "none" });
   });
 
-  it("keeps the chairman → viewer → scope precedence", () => {
+  it("keeps the chairperson → viewer → scope precedence", () => {
     expect(
       resolveFacultyCollegeScope({
         chairmanCollegeId: "col-tech-eng",

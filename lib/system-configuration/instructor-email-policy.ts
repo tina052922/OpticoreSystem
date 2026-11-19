@@ -8,7 +8,7 @@
  *
  * Enabling a public domain such as gmail.com deliberately gives up the employment signal. What still
  * stands between a stranger and an instructor account is the emailed OTP (proves they own the
- * mailbox) and chairman approval (proves which person it is) — the approval step carries the weight
+ * mailbox) and chairperson approval (proves which person it is) — the approval step carries the weight
  * the domain used to.
  *
  * Mirrored from `opticore-backend/src/lib/instructor-email-policy.ts`; the two files are kept

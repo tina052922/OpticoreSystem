@@ -25,7 +25,7 @@ const OVER_CAP = "OVER_STANDARD_TEACHING_LOAD";
 
 describe("loadJustificationRequiredForSave", () => {
   /**
-   * The report this exists for. The GEC Chairman saved one row with a single prep and was asked to
+   * The report this exists for. The GEC Chairperson saved one row with a single prep and was asked to
    * justify it, because a different department's instructor was over cap in the same campus-wide
    * evaluation.
    */

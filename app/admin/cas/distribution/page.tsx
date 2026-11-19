@@ -1,7 +1,7 @@
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
 import { DashboardCard } from "@/components/portal/DashboardCard";
 
-/** Placeholder: list GEC course rows to assign per GEC Chairman (integrate with Evaluator filters later). */
+/** Placeholder: list GEC course rows to assign per GEC Chairperson (integrate with Evaluator filters later). */
 export default function CasGecDistributionPage() {
   return (
     <div>
@@ -13,7 +13,7 @@ export default function CasGecDistributionPage() {
         <DashboardCard title="Distribution queue (demo)">
           <p className="text-sm text-black/75 leading-relaxed">
             In production this view filters <strong>ScheduleEntry</strong> rows linked to GEC subjects and lets you
-            assign a recipient GEC Chairman before notifying them via Inbox. The inbox message{" "}
+            assign a recipient GEC Chairperson before notifying them via Inbox. The inbox message{" "}
             <code className="text-xs bg-black/[0.06] px-1 rounded">cas_to_gec</code> demonstrates the notification
             path.
           </p>

@@ -10,7 +10,7 @@ import { subjectWeeklyContactHours } from "@/lib/subjects/contact-hours";
 import { SubjectWeeklyHoursChip } from "@/components/evaluator/SubjectWeeklyHoursBanner";
 
 type Props = {
-  /** Must match `Program.code` for the chairman’s locked program (e.g. BSIT). */
+  /** Must match `Program.code` for the chairperson’s locked program (e.g. BSIT). */
   programCode: string;
   programName?: string | null;
   /** When set, plotted status is computed for this section only. */
@@ -32,7 +32,7 @@ type Props = {
   plottedSubjectCodes: ReadonlySet<string>;
   /** Plotted weekly contact hours for the selected section, keyed by normalized subject code. */
   plottedHoursBySubjectCode?: ReadonlyMap<string, number>;
-  /** Latest code the chairman just plotted — extra emphasis (pulse) in the summary. */
+  /** Latest code the chairperson just plotted — extra emphasis (pulse) in the summary. */
   lastPlottedSubjectCode?: string | null;
   /** College the section belongs to, shown so the scope of the list is never in doubt. */
   collegeLabel?: string | null;
@@ -40,7 +40,7 @@ type Props = {
   sectionLabel?: string | null;
   /**
    * Subjects from Subject Codes for this program. These are the PRIMARY source: the summary shows
-   * what the chairman maintains there, and only falls back to the built-in prospectus when Subject
+   * what the chairperson maintains there, and only falls back to the built-in prospectus when Subject
    * Codes holds nothing for the program.
    */
   fallbackSubjects?: Array<{
@@ -60,7 +60,7 @@ type Props = {
 };
 
 /**
- * Program Chairman: prospectus rows (major + GEC) for the **selected section’s year** (and term semester when known),
+ * Program Chairperson: prospectus rows (major + GEC) for the **selected section’s year** (and term semester when known),
  * grouped by year level × semester. “Plotted” reflects assignments for the selected section only.
  */
 /**
@@ -98,7 +98,7 @@ export function ChairmanProgramProspectusSummaryTable({
   /**
    * Subject Codes first.
    *
-   * The built-in prospectus used to win whenever one existed, so a subject a chairman added or
+   * The built-in prospectus used to win whenever one existed, so a subject a chairperson added or
    * edited in Subject Codes never reached this table. It is now the fallback for programs whose
    * Subject Codes are still empty.
    */

@@ -7,7 +7,7 @@ export default function CasInboxPage() {
     <InboxWorkspace
       portal="cas"
       title="Inbox"
-      subtitle="Mail: from College and returned GEC portions. Sent: to GEC Chairmen and DOI."
+      subtitle="Mail: from College and returned GEC portions. Sent: to GEC Chairpersons and DOI."
     />
   );
 }

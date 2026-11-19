@@ -26,7 +26,7 @@ type Props = {
    * Default to the STUDENT endpoints, which keeps every existing call site
    * working unchanged. The instructor variants differ in what success means —
    * a student's account is created on verify, an instructor's request merely
-   * enters the chairman's queue — so the caller owns the copy shown afterwards.
+   * enters the chairperson's queue — so the caller owns the copy shown afterwards.
    */
   verify?: (input: {
     email: string;

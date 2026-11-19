@@ -1,7 +1,7 @@
 import type { UserRole } from "@/types/db";
 
 const LABELS: Partial<Record<UserRole, string>> = {
-  chairman_admin: "Chairman Admin",
+  chairman_admin: "Chairperson Admin",
   college_admin: "College Admin",
   cas_admin: "CAS Admin",
   gec_chairman: "Service Chair",

@@ -14,7 +14,7 @@ const recorded = {
 };
 
 describe("justifiedNumbersOf", () => {
-  it("reads the Chairman worksheet keys", () => {
+  it("reads the Chairperson worksheet keys", () => {
     expect(justifiedNumbersOf(recorded)).toEqual({ hours: 21, preparations: 4 });
   });
 

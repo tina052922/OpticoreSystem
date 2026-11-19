@@ -1,5 +1,5 @@
 /**
- * Chairman “program plotted” and College Admin “GEC ready” notices.
+ * Chairperson “program plotted” and College Admin “GEC ready” notices.
  * Matched on message text (no dedicated Notification.kind column).
  */
 

@@ -80,7 +80,7 @@ function groupSubjectsByYearLevel<T extends { yearLevel?: number | null }>(
 }
 
 export type SubjectCodesWorkspaceProps = {
-  /** Chairman session: program is fixed. */
+  /** Chairperson session: program is fixed. */
   lockedProgramId?: string | null;
   /** When set, keys the static prospectus registry (must match `Program.code`). Skips a Program lookup. */
   lockedProgramCode?: string | null;
@@ -88,21 +88,21 @@ export type SubjectCodesWorkspaceProps = {
   scopeProgramId?: string | null;
   scopeProgramCode?: string | null;
   /**
-   * GEC Chairman: rows limited to GEC-% / GEE-% codes.
+   * GEC Chairperson: rows limited to GEC-% / GEE-% codes.
    * @deprecated Superseded by {@link SubjectCodesWorkspaceProps.allProgramsCatalog}; GEC now keeps the
-   * whole catalog so its chairman can see how a GEC code sits beside the major subjects of a year.
+   * whole catalog so its chairperson can see how a GEC code sits beside the major subjects of a year.
    */
   gecCurriculumOnly?: boolean;
   /**
    * Campus-wide catalog: every program's subjects in one list, with the department chosen per row
-   * instead of through a scope bar. Used by the GEC Chairman, who works across departments.
+   * instead of through a scope bar. Used by the GEC Chairperson, who works across departments.
    */
   allProgramsCatalog?: boolean;
   /**
    * `"gec"` lets the viewer read the whole catalog but change only general education subjects.
    *
-   * The GEC Chairman needs the surrounding rows as context — general education is taught across
-   * every department — while a major subject stays its own chairman's to edit.
+   * The GEC Chairperson needs the surrounding rows as context — general education is taught across
+   * every department — while a major subject stays its own chairperson's to edit.
    */
   editableScope?: "all" | "gec";
   /**

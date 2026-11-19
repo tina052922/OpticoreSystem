@@ -1,5 +1,37 @@
 import type { AuditEntry } from "@/components/audit/AuditLogViewer";
 
+/** Past tense for the recorder's verbs (server: lib/audit-recorder.ts). */
+const VERB_PAST: Record<string, string> = {
+  create: "added",
+  update: "edited",
+  delete: "deleted",
+  approve: "approved",
+  reject: "rejected",
+  send: "sent",
+  share: "shared",
+  forward: "forwarded",
+  read_all: "marked read",
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  doi_admin: "DOI Admin",
+  college_admin: "College Admin",
+  chairman_admin: "Program Chairperson",
+  gec_chairman: "Service Chair",
+  instructor: "Instructor",
+  student: "Student",
+};
+
+/** A recorder entry: `details.label` + `details.verb` (e.g. Subject + create). */
+function recorderParts(entry: { details?: unknown }): { label: string; verb: string; rec: Record<string, unknown> } | null {
+  const d = entry.details;
+  if (!d || typeof d !== "object") return null;
+  const rec = d as Record<string, unknown>;
+  const label = typeof rec.label === "string" ? rec.label : "";
+  const verb = typeof rec.verb === "string" ? rec.verb : "";
+  return label && verb ? { label, verb, rec } : null;
+}
+
 /** "08:00:00" | "8:00" → "8:00 AM" */
 export function formatTimeAmPm(hms: string): string {
   const raw = hms.trim();
@@ -65,8 +97,21 @@ export function formatAuditActionEnglish(action: string): string {
       return "Access request";
     case "access_request.rejected":
       return "Access request";
-    default:
+    case "doi.schedule_published":
+      return "Schedule published";
+    case "doi.schedule_unpublished":
+      return "Schedule unpublished";
+    case "doi.schedule_rejected":
+      return "Schedule rejected";
+    default: {
+      // Recorder entries: "subject.create" → "Subject added".
+      const [slug, verb] = a.split(".");
+      if (slug && verb && VERB_PAST[verb]) {
+        const label = slug.replace(/_/g, " ");
+        return `${label[0]!.toUpperCase()}${label.slice(1)} ${VERB_PAST[verb]}`;
+      }
       return a.replace(/\./g, " · ");
+    }
   }
 }
 
@@ -108,7 +153,7 @@ export function formatAuditDetailsEnglish(entry: AuditEntry): string {
   const rec = d as Record<string, unknown>;
 
   const actor =
-    action.startsWith("gec.") ? "Service Chair" : action.startsWith("chairman.") ? "Program Chairman" : action === "schedule.write" ? "User" : action.startsWith("hub.") ? "College Admin" : action.startsWith("access_request.") ? "College Admin" : action.startsWith("doi.") ? "DOI Admin" : "User";
+    action.startsWith("gec.") ? "Service Chair" : action.startsWith("chairperson.") ? "Program Chairperson" : action === "schedule.write" ? "User" : action.startsWith("hub.") ? "College Admin" : action.startsWith("access_request.") ? "College Admin" : action.startsWith("doi.") ? "DOI Admin" : "User";
 
   const rows = rec.rows;
   const firstRow =
@@ -183,6 +228,35 @@ export function formatAuditDetailsEnglish(entry: AuditEntry): string {
     const scopes = Array.isArray(rec.scopes) ? (rec.scopes as string[]).join(", ") : "—";
     const verb = action === "access_request.approved" ? "Approved" : "Rejected";
     return `${verb} access (${scopes}).`;
+  }
+
+  // Recorder entries: "College Admin added Subject GEC-PC — Purposive Communication."
+  const parts = recorderParts(entry);
+  if (parts) {
+    const { label, verb, rec: r } = parts;
+    const who = (typeof r.actorRole === "string" && ROLE_LABEL[r.actorRole]) || "User";
+    const pick = (k: string) => (typeof r[k] === "string" && (r[k] as string).trim() ? (r[k] as string).trim() : "");
+    const nameBits = [pick("code"), pick("title") || pick("name") || pick("fullName")].filter(Boolean);
+    const what = nameBits.length ? ` ${nameBits.join(" — ")}` : "";
+    const extra = [pick("email") && `(${pick("email")})`, pick("building") && `in ${pick("building")}`]
+      .filter(Boolean)
+      .join(" ");
+    return `${who} ${VERB_PAST[verb] ?? verb} ${label.toLowerCase()}${what}${extra ? ` ${extra}` : ""}.`;
+  }
+
+  if (action === "doi.schedule_published" || action === "doi.schedule_unpublished" || action === "doi.schedule_rejected") {
+    const term = typeof rec.periodName === "string" && rec.periodName.trim() ? rec.periodName.trim() : "the term";
+    const count = pickNum(rec.entryCount);
+    const classes = count != null ? ` (${count} class${count === 1 ? "" : "es"})` : "";
+    const notes = typeof rec.notes === "string" && rec.notes.trim() ? ` Notes: ${rec.notes.trim()}` : "";
+    if (action === "doi.schedule_published") {
+      const signer = typeof rec.signedByName === "string" && rec.signedByName.trim() ? `, signed by ${rec.signedByName.trim()}` : "";
+      return `DOI Admin published the schedule for ${term}${classes}${signer}. It is now visible to instructors and students.${notes}`;
+    }
+    if (action === "doi.schedule_unpublished") {
+      return `DOI Admin unpublished the schedule for ${term}${classes}. It is back to draft and editable.${notes}`;
+    }
+    return `DOI Admin rejected the schedule for ${term}.${notes}`;
   }
 
   try {

@@ -5,7 +5,7 @@ import { subjectWeeklyContactHours } from "@/lib/subjects/contact-hours";
  * Weekly contact hours required for a subject in the term.
  *
  * Order: the hours stored on the subject, then its units, then the static prospectus. Lec/Lab Hours
- * are editable in Subject Codes, so a chairman who sets 2 lecture + 3 lab hours means 5 — the value
+ * are editable in Subject Codes, so a chairperson who sets 2 lecture + 3 lab hours means 5 — the value
  * they typed is not a hint to be recomputed from units.
  *
  * The prospectus used to be checked first and returned immediately, which made the edit invisible:

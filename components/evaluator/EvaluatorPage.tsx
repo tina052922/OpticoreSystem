@@ -13,11 +13,11 @@ import { EVALUATOR_TAB_LABELS, evaluatorTabClass } from "@/lib/evaluator/evaluat
 import { SUBJECT_SCHEDULER_NAV_LABEL } from "@/lib/admin-nav";
 
 export type EvaluatorPageProps = {
-  /** Chairman / College Admin: week-grid plotter. DOI: campus-wide plotter. CAS: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
+  /** Chairperson / College Admin: week-grid plotter. DOI: campus-wide plotter. CAS: Central Hub. GEC uses `GecCentralHubEvaluatorClient`. */
   variant?: "chairman" | "college" | "cas" | "doi";
-  /** Server-provided college scope for Chairman / College Admin. */
+  /** Server-provided college scope for Chairperson / College Admin. */
   chairmanCollegeId?: string | null;
-  /** Locked program for chairman (`getChairmanSession` defaults BSIT for CTE when DB column unset). */
+  /** Locked program for chairperson (`getChairmanSession` defaults BSIT for CTE when DB column unset). */
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
@@ -131,7 +131,7 @@ export function EvaluatorPage({
 
         {collegeWide ? (
           <p className="text-[13px] text-black/65 mb-4">
-            Same week-grid as Program Chairman. Choose a department, then plot any section in this college. Conflict
+            Same week-grid as Program Chairperson. Choose a department, then plot any section in this college. Conflict
             check is campus-wide.
           </p>
         ) : null}

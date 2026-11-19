@@ -27,7 +27,7 @@ describe("isGecEditableSubject", () => {
     expect(isGecEditableSubject({ code: "GEE-TEM" })).toBe(true);
   });
 
-  it("owns a subject a chairman marked as GEC even without the prefix", () => {
+  it("owns a subject a chairperson marked as GEC even without the prefix", () => {
     expect(isGecEditableSubject({ code: "HUM-101", category: "gec" })).toBe(true);
     expect(isGecEditableSubject({ code: "HUM-101", category: " GEC " })).toBe(true);
   });
@@ -42,7 +42,7 @@ describe("isGecEditableSubject", () => {
 describe("canGecChairmanCreateSubjectCode", () => {
   /**
    * Creation is judged on the code alone. `category` arrives in the request body, so honouring it
-   * here would let the chairman mark any new subject "gec" and file it under another department.
+   * here would let the chairperson mark any new subject "gec" and file it under another department.
    */
   it("allows a general education code", () => {
     expect(canGecChairmanCreateSubjectCode("GEC-RPH")).toBe(true);

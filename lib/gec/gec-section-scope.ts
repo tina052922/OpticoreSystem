@@ -6,7 +6,7 @@ import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
  *
  * This is the rule the "Summary of Subjects (GEC)" panel already applies — the program's prospectus
  * rows, narrowed to the section's year level and the term's semester, keeping only GEC/GEE codes.
- * Mirroring it here is the point: a section the summary calls empty is one the GEC Chairman has
+ * Mirroring it here is the point: a section the summary calls empty is one the GEC Chairperson has
  * nothing to do with, so it should not be in the Section picker at all. BSIT-4B is the example —
  * fourth year carries no general education, and offering it only leads to an empty workspace.
  *

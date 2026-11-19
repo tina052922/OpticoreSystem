@@ -5,22 +5,22 @@
  * uses this to decide what it is saving, and the server uses it to enforce the same rule, so a stale
  * tab or a crafted request cannot create a post the UI would have refused.
  *
- * Most posts are one per thing: a College Admin per college, a Chairman per department. The GEC
- * Chairman is not — general education is taught in every college, so there is one for the campus.
+ * Most posts are one per thing: a College Admin per college, a Chairperson per department. The GEC
+ * Chairperson is not — general education is taught in every college, so there is one for the campus.
  * That makes it a singleton rather than a row in the department list, which is why it needs a post
  * id of its own instead of a program id.
  */
 
-/** The two lists on the page. A tab is not a role: the Chairmen tab can save a GEC Chairman. */
+/** The two lists on the page. A tab is not a role: the Chairpersons tab can save a GEC Chairperson. */
 export type CampusAccountTab = "college_admin" | "chairman_admin";
 
 /** What actually lands in `User.role`. */
 export type CampusAccountSaveRole = CampusAccountTab | "gec_chairman";
 
 /**
- * The GEC Chairman's post id.
+ * The GEC Chairperson's post id.
  *
- * Deliberately not a program id — nothing in `Program` corresponds to it, and the Chairmen list is
+ * Deliberately not a program id — nothing in `Program` corresponds to it, and the Chairpersons list is
  * keyed by program. Prefixed so it can never collide with a real id.
  */
 export const GEC_CHAIRMAN_POST_ID = "__gec_chairman__";
@@ -41,7 +41,7 @@ export function saveRoleForPost(tab: CampusAccountTab, postId: string | null | u
 /**
  * The post an existing account occupies, so a list can find its holder.
  *
- * Returns null for an account that holds no post here — including a College Admin or Chairman whose
+ * Returns null for an account that holds no post here — including a College Admin or Chairperson whose
  * assignment column was never set, which must not be mistaken for holding every post.
  */
 export function postIdForAccount(account: {
@@ -56,7 +56,7 @@ export function postIdForAccount(account: {
   return null;
 }
 
-/** Which tab a role is listed under. The GEC Chairman sits with the Chairmen. */
+/** Which tab a role is listed under. The GEC Chairperson sits with the Chairpersons. */
 export function tabForSaveRole(role: CampusAccountSaveRole): CampusAccountTab {
   return role === "college_admin" ? "college_admin" : "chairman_admin";
 }
@@ -64,7 +64,7 @@ export function tabForSaveRole(role: CampusAccountSaveRole): CampusAccountTab {
 /**
  * The college and program a save assigns.
  *
- * The GEC Chairman gets neither: a college would scope their INS pages to it, and they plot general
+ * The GEC Chairperson gets neither: a college would scope their INS pages to it, and they plot general
  * education across all of them. The app reads a null college as campus-wide.
  */
 export function assignmentForSaveRole(
@@ -79,6 +79,6 @@ export function assignmentForSaveRole(
 
 export const CAMPUS_ACCOUNT_ROLE_LABEL: Record<CampusAccountSaveRole, string> = {
   college_admin: "College Admin",
-  chairman_admin: "Chairman",
+  chairman_admin: "Chairperson",
   gec_chairman: "Service Chair",
 };

@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * to the new Supabase Auth user id, then remove the placeholder row.
  *
  * ## Plotting before self-registration (recommended)
- * The Chairman should add the faculty member in Faculty Profile with the official **Employee ID** first.
+ * The Chairperson should add the faculty member in Faculty Profile with the official **Employee ID** first.
  * That creates `public.User` + `FacultyProfile` without a login. Plotting uses `ScheduleEntry.instructorId`
  * = that placeholder `User.id`. When the instructor self-registers with the **same Employee ID**, we detect
  * the placeholder (no Auth account), clear `employeeId` on the placeholder, insert the real `User` row with

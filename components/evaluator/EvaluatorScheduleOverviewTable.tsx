@@ -23,7 +23,7 @@ export type EvaluatorScheduleOverviewTableProps = {
 };
 
 /**
- * Shared orange-striped schedule grid used on Central Hub and Chairman Evaluator.
+ * Shared orange-striped schedule grid used on Central Hub and Chairperson Evaluator.
  */
 export function EvaluatorScheduleOverviewTable({
   rows,

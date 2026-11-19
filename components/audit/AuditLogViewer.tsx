@@ -229,7 +229,7 @@ export function AuditLogViewer({ auditUnreadScope = "college" }: AuditLogViewerP
                   {loading
                     ? "Loading…"
                     : entries.length === 0
-                      ? "No audit entries yet. Access requests, Chairman/GEC schedule writes, and CAS/DOI workflow events appear here."
+                      ? "No audit entries yet. Access requests, Chairperson/GEC schedule writes, and CAS/DOI workflow events appear here."
                       : "No entries match your search."}
                 </td>
               </tr>

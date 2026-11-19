@@ -59,12 +59,12 @@ export const LOAD_GENERATOR_NAV_LABEL = "INS Forms Generator";
 export const SUBJECT_SCHEDULER_NAV_LABEL = "Subject Scheduler";
 /** Overload justifications, read as the policy decision they record. */
 export const LOADING_POLICY_NAV_LABEL = "Loading Policy";
-/** Chairman's roster of self-registered instructors awaiting a decision. */
+/** Chairperson's roster of self-registered instructors awaiting a decision. */
 export const INSTRUCTOR_MANAGEMENT_NAV_LABEL = "Instructor Management";
 /** The heading the four scheduling pages sit under. */
 export const SUBJECT_LOAD_GROUP_LABEL = "Subject Load Management";
 
-/** Chairman: full campus scheduling authority. */
+/** Chairperson: full campus scheduling authority. */
 export const CHAIRMAN_NAV: AdminNavEntry[] = [
   { label: "Campus Intelligence", href: "/chairman/dashboard", icon: "LayoutDashboard" },
   {
@@ -76,13 +76,14 @@ export const CHAIRMAN_NAV: AdminNavEntry[] = [
       { label: LOAD_GENERATOR_NAV_LABEL, href: "/chairman/ins?tab=faculty", icon: "BookOpen" },
     ],
   },
+  { label: "Audit log", href: "/chairman/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/chairman/faculty-profile", icon: "UserCircle" },
   { label: INSTRUCTOR_MANAGEMENT_NAV_LABEL, href: "/chairman/pending-instructors", icon: "UserPlus" },
   { label: "Subject Codes", href: "/chairman/subject-codes", icon: "Layers" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
-/** College Admin — same shell as Chairman; campus-wide scope with college/department filters. */
+/** College Admin — same shell as Chairperson; campus-wide scope with college/department filters. */
 export const COLLEGE_ADMIN_NAV: AdminNavEntry[] = [
   { label: "Campus Intelligence", href: "/admin/college", icon: "LayoutDashboard" },
   {
@@ -100,7 +101,7 @@ export const COLLEGE_ADMIN_NAV: AdminNavEntry[] = [
   { label: "Faculty Profile", href: "/admin/college/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/college/subject-codes", icon: "Layers" },
   { label: "Programs & Sections", href: "/admin/college/academic-structure", icon: "Network" },
-  { label: "Chairman Assignment", href: "/admin/college/chair-assignments", icon: "UserPlus" },
+  { label: "Chairperson Assignment", href: "/admin/college/chair-assignments", icon: "UserPlus" },
   { label: "Buildings & Rooms", href: "/admin/college/buildings-rooms", icon: "Building2" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
   { label: "System Configuration", href: "/admin/college/system-configuration", icon: "Settings" },
@@ -129,12 +130,12 @@ export const CAS_ADMIN_NAV: AdminNavEntry[] = [
   { label: "Audit log", href: "/admin/cas/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/admin/cas/faculty-profile", icon: "UserCircle" },
   { label: "Subject Codes", href: "/admin/cas/subject-codes", icon: "Layers" },
-  { label: "Chairman Assignment", href: "/admin/cas/chair-assignments", icon: "UserPlus" },
+  { label: "Chairperson Assignment", href: "/admin/cas/chair-assignments", icon: "UserPlus" },
   { label: "Campus navigation", href: "/campus-navigation", icon: "MapPin" },
 ];
 
 /**
- * GEC Chairman — Campus Intelligence + Load Generator + Central Hub.
+ * GEC Chairperson — Campus Intelligence + Load Generator + Central Hub.
  * Vacant GEC cells are editable within the selected college / department; major rows stay read-only.
  */
 export const GEC_CHAIRMAN_NAV: AdminNavEntry[] = [
@@ -148,6 +149,7 @@ export const GEC_CHAIRMAN_NAV: AdminNavEntry[] = [
       { label: LOAD_GENERATOR_NAV_LABEL, href: "/admin/gec/ins", icon: "BookOpen" },
     ],
   },
+  { label: "Audit log", href: "/admin/gec/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/admin/gec/faculty-profile", icon: "UserCircle" },
   { label: INSTRUCTOR_MANAGEMENT_NAV_LABEL, href: "/admin/gec/pending-instructors", icon: "UserPlus" },
   { label: "Subject Codes", href: "/admin/gec/subject-codes", icon: "Layers" },
@@ -199,7 +201,7 @@ export const DOI_ADMIN_NAV: AdminNavEntry[] = [
   },
   { label: "Audit log", href: "/doi/audit-log", icon: "History" },
   { label: "Faculty Profile", href: "/doi/faculty-profile", icon: "UserCircle" },
-  { label: "College Admins & Chairmen", href: "/doi/campus-accounts", icon: "UserPlus" },
+  { label: "College Admins & Chairpersons", href: "/doi/campus-accounts", icon: "UserPlus" },
   { label: "Subject Codes", href: "/doi/subject-codes", icon: "Layers" },
   { label: "Programs & Sections", href: "/doi/academic-structure", icon: "Network" },
   { label: "Buildings & Rooms", href: "/doi/buildings-rooms", icon: "Building2" },

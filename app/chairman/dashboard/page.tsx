@@ -52,7 +52,7 @@ export default async function ChairmanDashboardPage() {
       )}
 
       <CiDashboard
-        welcomeName={session.name ?? "Chairman"}
+        welcomeName={session.name ?? "Chairperson"}
         basePath="/chairman"
         variant="full"
         liveStats={analyticsData}

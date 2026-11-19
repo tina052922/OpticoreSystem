@@ -89,7 +89,7 @@ export function useScheduleEntryCrossReload(
 
   /**
    * Shared Realtime channel per term (see `schedule-entry-realtime-pool.ts`).
-   * Safe when Central Hub + embedded Chairman worksheet both use this hook for the same period.
+   * Safe when Central Hub + embedded Chairperson worksheet both use this hook for the same period.
    */
   useEffect(() => {
     if (!enabled || !academicPeriodId) return;

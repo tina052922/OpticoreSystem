@@ -5,7 +5,7 @@
  *
  * The tile must read the same number that Buildings & Rooms shows, and the same number for every
  * role — a room is a campus resource, not a departmental one. It used to be counted per scope with
- * `collegeId = X OR collegeId IS NULL`, which gave a Chairman a handful of rooms and a GEC Chairman
+ * `collegeId = X OR collegeId IS NULL`, which gave a Chairperson a handful of rooms and a GEC Chairperson
  * a hundred-odd, none of them matching the management page.
  *
  * Counted are the rooms that belong to a building in the `Building` table, matched by

@@ -20,7 +20,7 @@ const autoInstructor: Row = {
 };
 const noDepartment: Row = { role: "instructor", facultyCategory: "program" };
 
-describe("isFacultyVisibleToRosterViewer — GEC Chairman", () => {
+describe("isFacultyVisibleToRosterViewer — GEC Chairperson", () => {
   /**
    * The rule this exists for. The GEC Faculty Profile page carried a banner saying the list was GEC
    * only, but the filter behind it had been removed — so it showed every instructor in the college.
@@ -49,14 +49,14 @@ describe("isFacultyVisibleToRosterViewer — GEC Chairman", () => {
     ).toBe(true);
   });
 
-  it("ignores a locked department when the viewer is the GEC Chairman", () => {
+  it("ignores a locked department when the viewer is the GEC Chairperson", () => {
     expect(
       isFacultyVisibleToRosterViewer(gecInstructor, { gecOnly: true, lockedProgramId: "prog-x" }),
     ).toBe(true);
   });
 });
 
-describe("isFacultyVisibleToRosterViewer — Program Chairman", () => {
+describe("isFacultyVisibleToRosterViewer — Program Chairperson", () => {
   it("shows their own department", () => {
     const viewer = { lockedProgramId: "prog-bsit" };
     expect(isFacultyVisibleToRosterViewer(bsitInstructor, viewer)).toBe(true);
@@ -133,17 +133,17 @@ describe("isFacultyVisibleToRosterViewer — who is faculty at all", () => {
 describe("isFacultyVisibleToRosterViewer — College Admin", () => {
   const viewer = { excludeGec: true };
 
-  /** A College Admin manages their college's departments; GEC load belongs to the GEC Chairman. */
+  /** A College Admin manages their college's departments; GEC load belongs to the GEC Chairperson. */
   it("shows department instructors, and GEC instructors only when they belong to a department", () => {
     expect(isFacultyVisibleToRosterViewer(bsitInstructor, viewer)).toBe(true);
     expect(isFacultyVisibleToRosterViewer(autoInstructor, viewer)).toBe(true);
     expect(isFacultyVisibleToRosterViewer(noDepartment, viewer)).toBe(true);
     expect(isFacultyVisibleToRosterViewer(gecInstructor, viewer)).toBe(true);
-    // A GEC instructor with no department stays with the GEC Chairman.
+    // A GEC instructor with no department stays with the GEC Chairperson.
     expect(isFacultyVisibleToRosterViewer({ role: "instructor", facultyCategory: "gec" }, viewer)).toBe(false);
   });
 
-  it("still defers to the GEC Chairman's own view when both are set", () => {
+  it("still defers to the GEC Chairperson's own view when both are set", () => {
     // `gecOnly` is decided first, so the GEC page is never emptied by this flag.
     expect(
       isFacultyVisibleToRosterViewer(gecInstructor, { gecOnly: true, excludeGec: true }),
@@ -153,10 +153,10 @@ describe("isFacultyVisibleToRosterViewer — College Admin", () => {
 
 describe("isFacultyVisibleToRosterViewer — 'both' category", () => {
   const both: Row = { role: "instructor", facultyCategory: "both", chairmanProgramId: "prog-bit-auto" };
-  it("puts a 'both' instructor on the GEC Chairman's roster too", () => {
+  it("puts a 'both' instructor on the GEC Chairperson's roster too", () => {
     expect(isFacultyVisibleToRosterViewer(both, { gecOnly: true })).toBe(true);
   });
-  it("keeps program-only instructors off the GEC Chairman's roster", () => {
+  it("keeps program-only instructors off the GEC Chairperson's roster", () => {
     expect(isFacultyVisibleToRosterViewer(bsitInstructor, { gecOnly: true })).toBe(false);
   });
 });

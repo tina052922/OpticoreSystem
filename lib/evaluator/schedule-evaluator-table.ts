@@ -38,7 +38,7 @@ export type ScheduleEvaluatorTableRow = {
 };
 
 /**
- * Builds rows for the orange Evaluator schedule grid (Chairman + Central Hub).
+ * Builds rows for the orange Evaluator schedule grid (Chairperson + Central Hub).
  * When scopeCollegeId is null, all colleges are included and `college` is filled per row.
  */
 export function buildScheduleEvaluatorTableRows(args: {

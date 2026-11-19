@@ -7,20 +7,20 @@ import { isGecCurriculumSubjectCode } from "@/lib/gec/gec-vacant";
  * signed in can choose from. The three audiences:
  *
  *   • **DOI** — campus-wide, every college.
- *   • **College Admin / Chairman** — their college, narrowed to their department when they have one.
- *   • **GEC Chairman** — general education across every college, and nothing else.
+ *   • **College Admin / Chairperson** — their college, narrowed to their department when they have one.
+ *   • **GEC Chairperson** — general education across every college, and nothing else.
  *
  * The Faculty picker already applied the college rule; Section and Room did not, and ran campus-wide
  * for everyone — a College Admin's Room list held other colleges' rooms. The GEC rule did not exist
- * at all, so the GEC Chairman saw the whole campus.
+ * at all, so the GEC Chairperson saw the whole campus.
  */
 export type InsEntityScope = {
   /** DOI: everything. Wins over the others. */
   campusWide?: boolean;
-  /** GEC Chairman: general education only, in every college. */
+  /** GEC Chairperson: general education only, in every college. */
   gecOnly?: boolean;
   collegeId?: string | null;
-  /** Chairman: narrows within the college. */
+  /** Chairperson: narrows within the college. */
   programId?: string | null;
 };
 

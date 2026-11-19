@@ -1,19 +1,19 @@
 /**
- * Browser event fired after schedule rows are saved to `ScheduleEntry` (Program Chairman, GEC Chairman,
+ * Browser event fired after schedule rows are saved to `ScheduleEntry` (Program Chairperson, GEC Chairperson,
  * College Admin hub, conflict “Apply”, hub quick-edits). Listeners:
  * - `useInsCatalog` — INS Faculty / Section / Room (instructor, chairman, college admin, GEC, DOI scopes)
- * - `useScheduleEntryCrossReload` — Central Hub, GEC hub, Program Chairman worksheet, timetabling panel
+ * - `useScheduleEntryCrossReload` — Central Hub, GEC hub, Program Chairperson worksheet, timetabling panel
  *
  * Call this after every successful `ScheduleEntry` write so open tabs refetch without waiting only on Realtime.
  *
  * **Cross-tab:** The window event only reaches the current tab. We also `BroadcastChannel` so other open
  * tabs (e.g. GEC Evaluator + College Admin INS) refetch immediately without relying on Supabase Realtime.
  * **Cross-user / cross-browser:** `ScheduleEntry` must be in the `supabase_realtime` publication (see
- * migration `20260418140000_scheduleentry_supabase_realtime_publication.sql`) so Chairmen’s saves notify
+ * migration `20260418140000_scheduleentry_supabase_realtime_publication.sql`) so Chairpersons’s saves notify
  * College Admin hubs via `useScheduleEntryCrossReload`.
  *
  * **Same-tab INS:** `window.dispatchEvent(INS_CATALOG_RELOAD_EVENT)` runs immediately so Faculty/Section/Room
- * INS forms refresh without waiting for Realtime (Chairman + GEC saves already call this after upsert).
+ * INS forms refresh without waiting for Realtime (Chairperson + GEC saves already call this after upsert).
  */
 export const INS_CATALOG_RELOAD_EVENT = "opticore:ins-catalog-reload";
 
@@ -41,7 +41,7 @@ export function dispatchInsCatalogReload(detail?: { academicPeriodId?: string | 
   /**
    * Same-tab listeners (`useInsCatalog`, legacy hooks): always fire the window event as well.
    * BroadcastChannel delivery to the posting document is not guaranteed across browsers; this avoids
-   * stale INS Faculty / Section / Room grids after a Chairman save.
+   * stale INS Faculty / Section / Room grids after a Chairperson save.
    */
   window.dispatchEvent(new CustomEvent<InsCatalogReloadDetail>(INS_CATALOG_RELOAD_EVENT, { detail: payload }));
 }

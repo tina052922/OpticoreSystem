@@ -39,7 +39,7 @@ describe("isFacultyRosterUser", () => {
     }
   });
 
-  it("lists Program and GEC Chairmen with their department's faculty", () => {
+  it("lists Program and GEC Chairpersons with their department's faculty", () => {
     for (const role of ["chairman_admin", "gec_chairman"] as const) {
       expect(isFacultyRosterUser({ role, instructorValidation: null })).toBe(true);
     }

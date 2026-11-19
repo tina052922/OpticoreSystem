@@ -102,11 +102,11 @@ export function useInsCatalog(args: {
   instructorOwnEntriesOnly?: boolean;
   /**
    * INS Form 5A (faculty-by-name): include every program in the college for the term.
-   * When false, a chairman `programId` limits **workflow subject maps** only.
+   * When false, a chairperson `programId` limits **workflow subject maps** only.
    */
   ignoreProgramScope?: boolean;
   /**
-   * GEC Chairman: general education rows only, across every college.
+   * GEC Chairperson: general education rows only, across every college.
    *
    * Their post is campus-wide, so a college cannot narrow them — the subject does.
    */
@@ -148,7 +148,7 @@ export function useInsCatalog(args: {
    */
   const fallbackPeriodIdRef = useRef(fallbackPeriodId);
   fallbackPeriodIdRef.current = fallbackPeriodId;
-  /** Coalesce chairman/GEC save broadcasts into one full catalog pull so new entry ids refresh Section/Subject merges (INS hours). */
+  /** Coalesce chairperson/GEC save broadcasts into one full catalog pull so new entry ids refresh Section/Subject merges (INS hours). */
   const insFullReloadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Second soft `ScheduleEntry` pull after reload — helps same-tab read-your-writes when PostgREST briefly returns old rows. */
   const insCatalogSoftRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -359,7 +359,7 @@ export function useInsCatalog(args: {
   }, [scheduleDebouncedReload, args.collegeId, args.campusWide, academicPeriodId]);
 
   /**
-   * Same-tab + cross-tab: chairman/GEC saves broadcast a reload.
+   * Same-tab + cross-tab: chairperson/GEC saves broadcast a reload.
    * - **Immediate** `loadScheduleEntriesForPeriod({ soft: true })` so INS grids + section views pick up new times
    *   without waiting for the heavy `load()` round-trip (fixes stale 12:00 vs 2:00 PM after Evaluator save).
    * - **Debounced** full `load()` still runs so term-referenced Section/Subject merges stay correct for hours totals.
@@ -500,7 +500,7 @@ export function useInsCatalog(args: {
         return true;
       });
     }
-    // GEC Chairman: general education only, whichever college it is taught in.
+    // GEC Chairperson: general education only, whichever college it is taught in.
     if (args.gecOnly) {
       base = filterInsEntriesForScope(
         modeEntries,
@@ -577,7 +577,7 @@ export function useInsCatalog(args: {
     [insResourceEntries, academicPeriodId],
   );
 
-  /** For workflow bundles: map normalized subject code → id (Chairman program scope). */
+  /** For workflow bundles: map normalized subject code → id (Chairperson program scope). */
   const subjectIdByCode = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of subjects) {
@@ -746,7 +746,7 @@ export function useInsCatalog(args: {
 
   /**
    * Full-term sparse conflict scan (same semantics as Evaluator). Used to tint INS grid cells and to offer
-   * one-click “apply alternative” for College Admin / DOI without opening the chairman worksheet.
+   * one-click “apply alternative” for College Admin / DOI without opening the chairperson worksheet.
    */
   const insConflictScanComputed = useMemo(() => {
     if (!academicPeriodId) {
@@ -959,7 +959,7 @@ export function useInsCatalog(args: {
   );
 
   /**
-   * Applies the first feasible rule-based GA suggestion for a row (same engine as chairman conflict preview).
+   * Applies the first feasible rule-based GA suggestion for a row (same engine as chairperson conflict preview).
    * Updates `ScheduleEntry` and pings INS + evaluator listeners via {@link dispatchInsCatalogReload}.
    */
   const applyInsConflictAlternative = useCallback(

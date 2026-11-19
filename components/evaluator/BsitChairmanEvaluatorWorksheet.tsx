@@ -112,7 +112,7 @@ import {
   roomsInBuildingSorted,
 } from "@/lib/evaluator/room-by-building";
 
-/** Fallback program code when session has no `chairmanProgramCode` (legacy chairman session). */
+/** Fallback program code when session has no `chairmanProgramCode` (legacy chairperson session). */
 const DEFAULT_CHAIRMAN_PROGRAM_CODE: string = BSIT_PROGRAM_CODE;
 
 const selectClass =
@@ -353,7 +353,7 @@ type BsitChairmanEvaluatorWorksheetProps = {
   /** Static prospectus / summary label (e.g. BSIT) — mirrors `getChairmanSession().programCode`. */
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
-  /** College Admin: plot every department in the college (program picker). Chairman stays locked to one program. */
+  /** College Admin: plot every department in the college (program picker). Chairperson stays locked to one program. */
   collegeWidePrograms?: boolean;
   /** DOI: same program picker as College Admin, campus-wide. */
   campusWidePrograms?: boolean;
@@ -415,7 +415,8 @@ export function BsitChairmanEvaluatorWorksheet({
   /** Row ids flagged by explicit &quot;Run conflict check&quot; (full campus scan). */
   const [campusScanConflictIds, setCampusScanConflictIds] = useState<Set<string>>(() => new Set());
   const [saveScheduleBusy, setSaveScheduleBusy] = useState(false);
-  const [saveScheduleMsg, setSaveScheduleMsg] = useState<string | null>(null);
+  // Save results are toasts now (the message box under the grid was removed).
+  const [, setSaveScheduleMsg] = useState<string | null>(null);
   /** Server-enriched explanations (saved DB rows); local unsaved edits may add conflicts not listed here. */
   const [chairmanEnrichedIssues, setChairmanEnrichedIssues] = useState<EnrichedCampusIssue[]>([]);
   const [chairmanGaByIssueKey, setChairmanGaByIssueKey] = useState<Record<string, GASuggestion[]>>({});
@@ -554,7 +555,7 @@ export function BsitChairmanEvaluatorWorksheet({
     void (async () => {
       try {
         const data = await apiFetch<{ justifications: ScheduleLoadJustification[] }>(
-          // The whole term, every college: a faculty justified by the GEC Chairman (or another
+          // The whole term, every college: a faculty justified by the GEC Chairperson (or another
           // college) is not asked again here.
           `/api/catalog/schedule-load-justifications?academicPeriodId=${academicPeriodId}`,
           { method: "GET" },
@@ -576,7 +577,7 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [academicPeriodId, chairmanCollegeId, policyJustificationModalOpen, justificationReloadTick]);
 
   /**
-   * All sections for this chairman program (plotting grid only). Policy load + INS use campus-wide `ScheduleEntry`
+   * All sections for this chairperson program (plotting grid only). Policy load + INS use campus-wide `ScheduleEntry`
    * rows visible under RLS; INS 5B/5C pickers use `insResourceEntries` (not a college-only slice).
    */
   const programSections = useMemo(
@@ -606,7 +607,7 @@ export function BsitChairmanEvaluatorWorksheet({
     return (sectionId: string) => m.get(sectionId) ?? null;
   }, [sections, programCollegeByProgramId]);
 
-  /** All catalog subjects — policy lec/lab split must see BIT/BSIT/etc. rows, not only chairman prospectus ids. */
+  /** All catalog subjects — policy lec/lab split must see BIT/BSIT/etc. rows, not only chairperson prospectus ids. */
   const subjectByIdForPolicy = useMemo(() => {
     const m = new Map<string, Subject>();
     for (const s of subjects) m.set(s.id, s);
@@ -618,7 +619,7 @@ export function BsitChairmanEvaluatorWorksheet({
    *
    * Production data can have programId mismatches (chairmanProgramId vs the actual Subject.programId used in seed).
    * To prevent “Save schedule” from skipping rows, we keep:
-   * - a preferred map scoped to the chairman program (when set)
+   * - a preferred map scoped to the chairperson program (when set)
    * - a global fallback map across all subjects
    */
   const subjectIdByCode = useMemo(() => {
@@ -718,14 +719,14 @@ export function BsitChairmanEvaluatorWorksheet({
       );
       const instrIds = [...new Set(entries.map((e) => e.instructorId).filter(Boolean))] as string[];
       /**
-       * A Program Chairman plots their own department only, so sibling departments in the same
+       * A Program Chairperson plots their own department only, so sibling departments in the same
        * college must not appear in the instructor picker. College Admin and DOI keep the wider list:
        * they work across departments, and `lockedDepartmentId` is blank for them.
        */
       const lockedDepartmentId =
         collegeWidePrograms || campusWidePrograms ? null : chairmanProgramId;
       /*
-       * A Program Chairman sees their own department's faculty plus every GEC instructor (their
+       * A Program Chairperson sees their own department's faculty plus every GEC instructor (their
        * sections take general education subjects too) — never a sibling department's faculty.
        * College Admin and DOI work across departments, so `lockedDepartmentId` is blank for them.
        */
@@ -916,10 +917,10 @@ export function BsitChairmanEvaluatorWorksheet({
   }, [facultyProfiles]);
 
   /**
-   * Who the Plot schedule window offers, for every role (Program Chairman, College Admin, DOI): the
+   * Who the Plot schedule window offers, for every role (Program Chairperson, College Admin, DOI): the
    * selected program's own faculty (`User.chairmanProgramId`) plus every GEC instructor, since the
    * program's sections take general education subjects too. Sibling departments' faculty are not
-   * offered. (The GEC Chairman's scheduler is the reverse: GEC instructors only.) Instructors already
+   * offered. (The GEC Chairperson's scheduler is the reverse: GEC instructors only.) Instructors already
    * on this program's own (non-GEC) classes are kept so those rows stay readable. `dbInstructors`
    * keeps the wider list for names on existing cells.
    */
@@ -1097,7 +1098,7 @@ export function BsitChairmanEvaluatorWorksheet({
           subjects.filter((s) => {
             if (programId && s.programId !== programId) return false;
             /*
-             * College Admin does not plot general education — the GEC Chairman does, from their own
+             * College Admin does not plot general education — the GEC Chairperson does, from their own
              * evaluator. Offering GEC codes here is how the same subject ends up plotted twice.
              * DOI keeps them, since they review the whole campus timetable.
              */
@@ -1114,8 +1115,8 @@ export function BsitChairmanEvaluatorWorksheet({
 
   /**
    * Summary of Subjects: the term's whole curriculum for the program, GEC/GEE included, for every
-   * role (Program Chairman, College Admin, DOI). Only the plot dropdown above leaves GEC out for
-   * College Admin — they can see GEC subjects here but the GEC Chairman still plots them.
+   * role (Program Chairperson, College Admin, DOI). Only the plot dropdown above leaves GEC out for
+   * College Admin — they can see GEC subjects here but the GEC Chairperson still plots them.
    */
   const summarySubjectRows = useMemo(
     () =>
@@ -1622,7 +1623,7 @@ export function BsitChairmanEvaluatorWorksheet({
   /**
    * Faculty load + justification must match INS Form 5A and faculty “My Schedule”:
    * merge **every** persisted row for this term with unsaved worksheet rows (same id wins from the grid).
-   * Totals are campus-wide per instructor — not a slice of only the chairman’s college.
+   * Totals are campus-wide per instructor — not a slice of only the chairperson’s college.
    */
   const mergedEntriesForCollegePolicy = useMemo((): ScheduleEntry[] => {
     if (!academicPeriodId) return [];
@@ -1704,7 +1705,7 @@ export function BsitChairmanEvaluatorWorksheet({
   /**
    * The viewer's own instructors — whose justification notices this page shows. Loads are counted
    * campus-wide, so without this a College Admin saw other colleges' faculty in the notices.
-   *   DOI: everyone · College Admin: home college is theirs · Program Chairman: their department.
+   *   DOI: everyone · College Admin: home college is theirs · Program Chairperson: their department.
    */
   const isOwnInstructor = useCallback(
     (instructorId: string): boolean => {
@@ -2422,6 +2423,31 @@ export function BsitChairmanEvaluatorWorksheet({
    * Writes worksheet rows to `ScheduleEntry` (same source as INS Faculty / Section / Room).
    * Autosave is debounced; &quot;Save schedule&quot; flushes immediately and dispatches `ins-catalog-reload`.
    */
+  /**
+   * A refused save (e.g. 409 "Scheduling conflict detected") is shown with its reason — which instructor,
+   * room or section clashes, and when — and the scheduler stays open. Autosave says it once per reason.
+   */
+  const lastSaveFailureRef = useRef<string>("");
+  const reportSaveFailure = useCallback(
+    (e: unknown, source: "autosave" | "manual", fallback: string) => {
+      const err = e as { message?: string; code?: string; details?: unknown } | null;
+      const conflicts = (err?.details as { conflicts?: { message?: string }[] } | undefined)?.conflicts ?? [];
+      const reasons = [...new Set(conflicts.map((c) => c.message).filter((m): m is string => Boolean(m)))];
+      const title = err?.code === "SCHEDULE_CONFLICT" ? "Not saved: scheduling conflict" : "Failed to save. Please try again.";
+      const detail = reasons.length
+        ? reasons.slice(0, 3).join(" · ") + (reasons.length > 3 ? ` (+${reasons.length - 3} more)` : "") +
+          ". Change the time, room or instructor, then save again."
+        : err?.message || fallback;
+      setSaveScheduleMsg(`${title} ${detail}`);
+      const key = `${title}|${detail}`;
+      if (source === "manual" || lastSaveFailureRef.current !== key) {
+        lastSaveFailureRef.current = key;
+        toast.error(title, detail);
+      }
+    },
+    [toast],
+  );
+
   const performSchedulePersist = useCallback(
     async (source: "autosave" | "manual") => {
       if (viewOnly) return;
@@ -2453,7 +2479,10 @@ export function BsitChairmanEvaluatorWorksheet({
       try {
         const { user } = await authApi.me();
         if (!user) {
-          if (source === "manual") setSaveScheduleMsg("Not signed in.");
+          if (source === "manual") {
+            setSaveScheduleMsg("Not signed in.");
+            toast.error("Not signed in", "Sign in again, then save.");
+          }
           return;
         }
 
@@ -2563,9 +2592,8 @@ export function BsitChairmanEvaluatorWorksheet({
             setPendingDeletedIds(stillPending);
             setAllTermScheduleEntries((prev) => prev.filter((e) => !removedIds.includes(e.id)));
           } catch (e: any) {
-            setLoadError(e?.message ?? "Delete failed");
-            if (source === "manual") setSaveScheduleMsg(e?.message ?? "Delete failed");
-            if (source === "manual") toast.error("Failed to save. Please try again.", e?.message ?? "Delete failed");
+            // A failed save keeps the scheduler open (it is not a load failure).
+            reportSaveFailure(e, source, "Delete failed");
             return;
           }
         }
@@ -2684,9 +2712,7 @@ export function BsitChairmanEvaluatorWorksheet({
           try {
             await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: upserts });
           } catch (e: any) {
-            setLoadError(e?.message ?? "Upsert failed");
-            if (source === "manual") setSaveScheduleMsg(e?.message ?? "Upsert failed");
-            if (source === "manual") toast.error("Failed to save. Please try again.", e?.message ?? "Upsert failed");
+            reportSaveFailure(e, source, "Upsert failed");
             return;
           }
         }
@@ -2743,6 +2769,9 @@ export function BsitChairmanEvaluatorWorksheet({
           if (wrote) {
             toast.success("Schedule saved successfully");
             if (skipped.length > 0) showSkippedMsg("partial");
+          } else if (skipped.length === 0) {
+            // (The skipped case already showed "Nothing saved" with the reasons.)
+            toast.info("Nothing new to save", "The draft already matches the saved schedule.");
           }
         }
         if (source === "autosave" && wrote) {
@@ -2758,7 +2787,7 @@ export function BsitChairmanEvaluatorWorksheet({
         if (source === "manual") setSaveScheduleBusy(false);
       }
     },
-    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, selectedSectionId, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, schedulePublished, subjects, selectedSectionId, selectedSectionMode],
+    [rows, academicPeriodId, subjectIdByCode, chairmanCollegeId, sectionNameById, selectedSectionId, toast, programCodeForSummary, programId, allTermScheduleEntries, sparseCampusUniverse, programMode, slotsForMode, viewOnly, schedulePublished, subjects, selectedSectionId, selectedSectionMode, reportSaveFailure],
   );
 
   /** When connection is restored, flush the most recent autosave immediately (no waiting 9s). */
@@ -2982,11 +3011,6 @@ export function BsitChairmanEvaluatorWorksheet({
           <>
             {instructorPlotOptions.length === 0 && !viewOnly ? (
               <NoInstructorsNotice facultyProfileHref={facultyProfileHrefForInsBase(insFormBasePath)} />
-            ) : null}
-            {saveScheduleMsg ? (
-              <p className="text-[12px] text-black/70 border border-black/10 rounded-lg px-3 py-2 bg-emerald-50/80">
-                {saveScheduleMsg}
-              </p>
             ) : null}
             {conflictDetailLoading ? (
               <p className="text-[11px] text-black/50">Loading conflict detail…</p>

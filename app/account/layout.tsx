@@ -46,14 +46,14 @@ export default async function AccountLayout({ children }: { children: React.Reac
 
   const byRole = {
     instructor: { nav: INSTRUCTOR_NAV, label: "Instructor", profileHref: "/faculty/profile" },
-    chairman_admin: { nav: CHAIRMAN_NAV, label: "Chairman admin", profileHref: "/chairman/profile" },
+    chairman_admin: { nav: CHAIRMAN_NAV, label: "Chairperson admin", profileHref: "/chairman/profile" },
     college_admin: {
       nav: COLLEGE_ADMIN_NAV,
       label: profile.collegeCode ? `College admin · ${profile.collegeCode}` : "College admin",
       profileHref: "/admin/college/profile",
     },
     cas_admin: { nav: CAS_ADMIN_NAV, label: "CAS admin", profileHref: "/admin/cas/profile" },
-    gec_chairman: { nav: GEC_CHAIRMAN_NAV, label: "GEC chairman", profileHref: "/admin/gec/profile" },
+    gec_chairman: { nav: GEC_CHAIRMAN_NAV, label: "GEC chairperson", profileHref: "/admin/gec/profile" },
     doi_admin: { nav: DOI_ADMIN_NAV, label: "DOI · VPAA", profileHref: "/doi/profile" },
   } as const;
   const shell = byRole[profile.role as keyof typeof byRole] ?? byRole.instructor;

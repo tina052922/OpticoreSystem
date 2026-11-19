@@ -5,10 +5,10 @@ import { getChairmanSession } from "@/lib/auth/chairman-session";
 import { INSTRUCTOR_MANAGEMENT_NAV_LABEL } from "@/lib/admin-nav";
 
 /**
- * Chairman approval queue for instructor self-registrations.
+ * Chairperson approval queue for instructor self-registrations.
  *
  * Scope is enforced by the API from the session's college, not from anything
- * this page passes — so a chairman cannot see or act on another college's
+ * this page passes — so a chairperson cannot see or act on another college's
  * applicants even by crafting a request.
  */
 export default async function ChairmanPendingInstructorsPage() {

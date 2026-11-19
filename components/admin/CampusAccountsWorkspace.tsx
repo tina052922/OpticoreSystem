@@ -35,7 +35,7 @@ import {
 type College = { id: string; code: string; name: string };
 type Program = { id: string; code: string; name: string; collegeId: string | null };
 
-/** One post: a college (for an admin) or a department (for a chairman), and who holds it. */
+/** One post: a college (for an admin) or a department (for a chairperson), and who holds it. */
 type Post = {
   id: string;
   code: string;
@@ -46,14 +46,14 @@ type Post = {
 
 const ROLE_LABEL: Record<CampusAccountRole, string> = {
   college_admin: "College Admin",
-  chairman_admin: "Chairman",
+  chairman_admin: "Chairperson",
 };
 
 /**
- * The GEC Chairman, as a post in the Chairmen list.
+ * The GEC Chairperson, as a post in the Chairpersons list.
  *
  * It is not a department, so it has no row in `Program` to come from — general education is taught
- * across every college and there is one chairman for all of it. Listing it here means the page
+ * across every college and there is one chairperson for all of it. Listing it here means the page
  * shows at a glance whether the post is filled, and `openPosts` stops offering it the moment it is:
  * that, plus the same rule on the server, is what keeps it to one.
  */
@@ -141,7 +141,7 @@ export function CampusAccountsWorkspace() {
 
   /**
    * Every post, held or not. Listing the empty ones is the point: DOI needs to see at a glance which
-   * college has no admin and which department has no chairman.
+   * college has no admin and which department has no chairperson.
    */
   const posts = useMemo<Post[]>(() => {
     // Matched within the open tab, so a program id could never be read as a college id.
@@ -163,7 +163,7 @@ export function CampusAccountsWorkspace() {
         parentLabel: p.collegeId ? (collegeCode.get(p.collegeId) ?? "") : "",
         holder: holderFor(p.id),
       }));
-    // Service Chairs (the former GEC Chairman) are managed in the CAS Chairs tab, one per service area.
+    // Service Chairs (the former GEC Chairperson) are managed in the CAS Chairs tab, one per service area.
     void GEC_CHAIRMAN_POST;
     return departments;
   }, [role, colleges, programs, accounts]);
@@ -228,7 +228,7 @@ export function CampusAccountsWorkspace() {
     }
 
     /*
-     * The post decides the role, not the tab: picking GEC in the Chairmen tab saves a GEC Chairman,
+     * The post decides the role, not the tab: picking GEC in the Chairpersons tab saves a GEC Chairperson,
      * campus-wide and with no department. The server applies the same rule.
      */
     const saveRole = saveRoleForPost(role, assignmentId);
@@ -293,7 +293,7 @@ export function CampusAccountsWorkspace() {
   async function onExport() {
     try {
       /*
-       * The GEC Chairman is left out of the round trip on purpose. The sheet matches a row to a post
+       * The GEC Chairperson is left out of the round trip on purpose. The sheet matches a row to a post
        * by college or department code, and GEC is neither — an exported row could not be imported
        * back. The post is registered from the form instead.
        */
@@ -408,7 +408,7 @@ export function CampusAccountsWorkspace() {
               !casTab && role === r ? "bg-[#780301] text-white" : "bg-white text-black border border-black/10"
             }`}
           >
-            {r === "college_admin" ? "College Admins" : "Chairmen"}
+            {r === "college_admin" ? "College Admins" : "Chairpersons"}
           </button>
         ))}
         <button
@@ -435,9 +435,9 @@ export function CampusAccountsWorkspace() {
 
       {role === "chairman_admin" ? (
         <div className="space-y-2">
-          <div className="text-[16px] font-semibold">Chairman Assignment</div>
+          <div className="text-[16px] font-semibold">Chairperson Assignment</div>
           {/* Who manages each program / major: one chair for a whole group, or one per major. */}
-          {/* Re-keyed on account changes so a chairman just added appears in its picker. */}
+          {/* Re-keyed on account changes so a chairperson just added appears in its picker. */}
           <ChairAssignmentWorkspace
             key={accounts.filter((x) => x.role === "chairman_admin").map((x) => `${x.id}:${x.chairmanProgramId ?? ""}`).join("|")}
             campusWide
@@ -448,7 +448,7 @@ export function CampusAccountsWorkspace() {
         </div>
       ) : null}
 
-      {/* The Chairmen tab is Chairman Assignment only (accounts are created / edited there). */}
+      {/* The Chairpersons tab is Chairperson Assignment only (accounts are created / edited there). */}
       {role !== "chairman_admin" ? (
       <>
       {/* ── Register / edit ─────────────────────────────────────────────── */}

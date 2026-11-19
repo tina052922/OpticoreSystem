@@ -212,7 +212,7 @@ export function SchoolYearCopyModal({
 
           {willCopy ? (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-950">
-              Copied classes come in as <strong>drafts</strong>, unlocked, so chairmen can adjust them. Each semester
+              Copied classes come in as <strong>drafts</strong>, unlocked, so chairpersons can adjust them. Each semester
               copies from the same semester of the previous school year (1st → 1st, 2nd → 2nd).
             </p>
           ) : null}

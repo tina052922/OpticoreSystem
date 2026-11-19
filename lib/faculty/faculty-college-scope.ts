@@ -18,7 +18,7 @@ export type FacultyCollegeScope =
   | { kind: "college"; collegeId: string };
 
 export type FacultyCollegeScopeInput = {
-  /** Chairman / GEC: the college their session is bound to. */
+  /** Chairperson / GEC: the college their session is bound to. */
   chairmanCollegeId?: string | null;
   /** Page-level viewer college, where the route supplies one. */
   viewerCollegeId?: string | null;
@@ -33,7 +33,7 @@ export type FacultyCollegeScopeInput = {
   allowCampusWide?: boolean;
 };
 
-/** Same precedence the workspace has always used: chairman → viewer → scope bar. */
+/** Same precedence the workspace has always used: chairperson → viewer → scope bar. */
 export function resolveFacultyCollegeScope(input: FacultyCollegeScopeInput): FacultyCollegeScope {
   const explicit = [input.chairmanCollegeId, input.viewerCollegeId, input.scopeCollegeId]
     .map((v) => (v ?? "").trim())

@@ -42,7 +42,7 @@ export function normalizeScheduleEntryDayForEvaluator(day: string | null | undef
 }
 
 /**
- * First half-hour row index for chairman / GEC grids (0 = 7:00, 1 = 7:30). Returns 0 only when no slot matches.
+ * First half-hour row index for chairperson / GEC grids (0 = 7:00, 1 = 7:30). Returns 0 only when no slot matches.
  */
 export function startSlotIndexFromScheduleEntryStartTime(
   startTime: string | null | undefined,

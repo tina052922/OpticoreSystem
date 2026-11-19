@@ -18,7 +18,7 @@ export type AdminProfileCardProps = {
   collegeLine: string;
   email: string;
   accountStatus?: string;
-  /** Extra grid rows (e.g. program scope for chairman). */
+  /** Extra grid rows (e.g. program scope for chairperson). */
   extraRows?: Array<{ label: string; value: string }>;
   /** Optional second line under the name (e.g. role • college) */
   subheading?: string;
@@ -51,8 +51,8 @@ export type AdminProfileCardProps = {
    */
   allowIdEdit?: boolean;
   /**
-   * Program Chairman: lets them change the program they chair, within their own college. Everything
-   * that follows a chairman's program (plotting, the INS "Reviewed & Certified by" line, dashboards)
+   * Program Chairperson: lets them change the program they chair, within their own college. Everything
+   * that follows a chairperson's program (plotting, the INS "Reviewed & Certified by" line, dashboards)
    * moves with it. Omit for roles without a program.
    */
   programScope?: { programId: string | null; collegeId: string | null };
@@ -61,7 +61,7 @@ export type AdminProfileCardProps = {
 };
 
 /**
- * Shared profile card — matches Chairman profile layout for all admin roles.
+ * Shared profile card — matches Chairperson profile layout for all admin roles.
  */
 export function AdminProfileCard({
   fullName,
@@ -91,7 +91,7 @@ export function AdminProfileCard({
   const [programDraft, setProgramDraft] = useState(programScope?.programId ?? "");
   const [programOptions, setProgramOptions] = useState<{ id: string; code: string; name: string }[]>([]);
 
-  // The chairman's own college's programs, loaded only when the editor opens.
+  // The chairperson's own college's programs, loaded only when the editor opens.
   useEffect(() => {
     if (!editing || !programScope) return;
     let alive = true;
@@ -157,7 +157,7 @@ export function AdminProfileCard({
       setEditing(false);
       if (programChanged) {
         const code = programOptions.find((p) => p.id === programDraft)?.code ?? "the new program";
-        toast.ok("Profile updated successfully", `You are now the Program Chairman of ${code}.`);
+        toast.ok("Profile updated successfully", `You are now the Program Chairperson of ${code}.`);
       } else {
         toast.ok("Profile updated successfully");
       }
@@ -254,7 +254,7 @@ export function AdminProfileCard({
               <p className="text-[11px] text-gray-500">
                 The program you chair. Changing it moves your plotting, dashboards and your name on the INS
                 forms (“Reviewed &amp; Certified by”) to the new program. Only programs in your college that
-                have no chairman yet can be chosen.
+                have no chairperson yet can be chosen.
               </p>
             </div>
           ) : null}

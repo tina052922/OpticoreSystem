@@ -8,7 +8,7 @@ import {
 const entries = [
   { sectionId: "sec-1a", academicPeriodId: "ap-1", instructorId: "u-gec" },
   { sectionId: "sec-1a", academicPeriodId: "ap-1", instructorId: "u-legacy" },
-  // Another section, same term — a different chairman's row.
+  // Another section, same term — a different chairperson's row.
   { sectionId: "sec-2b", academicPeriodId: "ap-1", instructorId: "u-bsit" },
   // Same section, a previous term.
   { sectionId: "sec-1a", academicPeriodId: "ap-0", instructorId: "u-old" },
@@ -84,7 +84,7 @@ describe("filterInstructorsExcludingGec", () => {
     { id: "u-auto", facultyCategory: "program", chairmanProgramId: "prog-bit-auto" },
   ];
 
-  /** A College Admin plots their departments; GEC load is the GEC Chairman's. */
+  /** A College Admin plots their departments; GEC load is the GEC Chairperson's. */
   it("keeps every department of the college and drops the GEC instructors", () => {
     expect(filterInstructorsExcludingGec(users).map((u) => u.id)).toEqual(["u-bsit", "u-auto"]);
   });

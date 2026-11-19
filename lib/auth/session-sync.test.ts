@@ -9,7 +9,7 @@ describe("session sync", () => {
   });
 
   it("reloads a tab when a DIFFERENT account signs in elsewhere", () => {
-    // Tab 1 shows College Admin; tab 2 signs in as Chairman.
+    // Tab 1 shows College Admin; tab 2 signs in as Chairperson.
     expect(reactionToSessionEvent("college-admin", ev("login", "chairman"))).toBe("switch");
   });
 

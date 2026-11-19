@@ -22,7 +22,7 @@ describe("gecSubjectsForSectionPlot", () => {
 
   /**
    * The bug this exists for. BACOMM has no GEC rows of its own, and the list was filtered to the
-   * section's own program — so the chairman could select a BACOMM section and plot nothing into it.
+   * section's own program — so the chairperson could select a BACOMM section and plot nothing into it.
    */
   it("still offers GEC subjects to a program that has none of its own", () => {
     const codes = gecSubjectsForSectionPlot(subjects, { sectionProgramId: "prog-bacomm" }).map(

@@ -37,7 +37,7 @@ function TabLink({
 }
 
 /**
- * Combined INS page (Faculty / Section / Room) — same tab pattern as Program Chairman routes,
+ * Combined INS page (Faculty / Section / Room) — same tab pattern as Program Chairperson routes,
  * scoped to the college admin’s college (`viewerCollegeId`).
  */
 export default async function CollegeInsIndexPage({

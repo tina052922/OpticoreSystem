@@ -1,6 +1,6 @@
 /**
  * Canonical Subject Scheduler tab chrome — same labels and order for every role
- * (Chairman, College Admin, GEC, CAS, DOI).
+ * (Chairperson, College Admin, GEC, CAS, DOI).
  *
  * There was a third tab, "Hrs · Units · Preps · Remarks". Those totals belong to the Summary of
  * Teaching Load, which has its own page; a copy behind a tab here was a second place to read the

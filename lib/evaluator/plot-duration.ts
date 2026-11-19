@@ -86,7 +86,7 @@ export function plottedDurationHours(durationSlots?: number | null): number {
 export type PlotDurationRow = { durationSlots?: number };
 
 /**
- * Slots spanned by one plot row. Defaults to **1 hour** so chairmen can split lec/lab
+ * Slots spanned by one plot row. Defaults to **1 hour** so chairpersons can split lec/lab
  * contact across multiple non-contiguous meetings for the same subject code.
  */
 export function plotRowDurationSlots(_p: ProspectusSubjectRow | undefined, row?: PlotDurationRow): number {
@@ -136,7 +136,7 @@ export function maxPlotDurationSlotsForSubject(
   return MAX_CONSECUTIVE_PLOT_SLOTS;
 }
 
-/** Default 1 slot per meeting so GEC / chairman can split contact across rows. */
+/** Default 1 slot per meeting so GEC / chairperson can split contact across rows. */
 export function plotEntryDurationSlots(
   programCode: string | null | undefined,
   subject: Subject | undefined,

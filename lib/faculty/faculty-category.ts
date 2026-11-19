@@ -6,9 +6,9 @@
  *               OPTIONAL: some GEC instructors are drawn from a program and still belong to it.
  * - `both`    — teaches both: a program instructor who also takes GEC classes. Home department required.
  *
- * "Teaches GEC" (`gec` or `both`) is what puts someone on the GEC Chairman's roster and pickers;
+ * "Teaches GEC" (`gec` or `both`) is what puts someone on the GEC Chairperson's roster and pickers;
  * the home department is what puts them on that department's roster. A `both` instructor of BSIT is
- * therefore on BSIT's list AND the GEC Chairman's, marked GEC.
+ * therefore on BSIT's list AND the GEC Chairperson's, marked GEC.
  *
  * Keep in sync with opticore-backend/src/lib/faculty-category.ts.
  */

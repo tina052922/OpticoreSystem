@@ -1,10 +1,10 @@
 /**
- * Which subjects the GEC Chairman may change.
+ * Which subjects the GEC Chairperson may change.
  *
- * The GEC Chairman sees the whole campus catalog, because general education subjects are taught
+ * The GEC Chairperson sees the whole campus catalog, because general education subjects are taught
  * across every department and the surrounding rows are the context that makes the list useful. What
  * they may *edit* is narrower: the general education subjects themselves. A major subject belongs to
- * its own department's chairman.
+ * its own department's chairperson.
  *
  * Mirrored from `opticore-backend/src/lib/gec-subject-scope.ts`; the two files are kept identical so
  * the browser hides exactly what the server refuses. The server re-checks every write — this copy
@@ -35,7 +35,7 @@ export function hasGecSubjectCodePrefix(code: string | null | undefined): boolea
 }
 
 /**
- * Is this an existing subject the GEC Chairman owns?
+ * Is this an existing subject the GEC Chairperson owns?
  *
  * Either signal is enough: the code prefix, or a stored category of `gec` for the general education
  * subjects whose codes do not follow the CHED prefix convention.
@@ -49,10 +49,10 @@ export function isGecEditableSubject(subject: GecScopedSubject): boolean {
 }
 
 /**
- * May the GEC Chairman create a subject with this code?
+ * May the GEC Chairperson create a subject with this code?
  *
  * Creation is judged on the CODE ALONE, deliberately. `category` travels in the request body, so
- * accepting it here would let the chairman mark any new subject `gec` and file it under another
+ * accepting it here would let the chairperson mark any new subject `gec` and file it under another
  * department. The prefix is not something they can claim after the fact.
  */
 export function canGecChairmanCreateSubjectCode(code: string | null | undefined): boolean {
@@ -60,10 +60,10 @@ export function canGecChairmanCreateSubjectCode(code: string | null | undefined)
 }
 
 /**
- * May the GEC Chairman change or remove this subject?
+ * May the GEC Chairperson change or remove this subject?
  *
  * `existing` must be the row as STORED, never the incoming payload. Judging it on the request would
- * let a chairman send `category: "gec"` alongside an edit to a major subject and be granted the very
+ * let a chairperson send `category: "gec"` alongside an edit to a major subject and be granted the very
  * permission being checked.
  *
  * `nextCode` is the code the edit would leave behind: a subject may not be renamed out of GEC scope,
@@ -80,6 +80,6 @@ export function canGecChairmanWriteSubject(
   return hasGeneralSubjectCodePrefix(next) || !hasGeneralSubjectCodePrefix(existing.code);
 }
 
-/** The refusal a GEC Chairman sees, in their words rather than the rule's. */
+/** The refusal a GEC Chairperson sees, in their words rather than the rule's. */
 export const GEC_SUBJECT_SCOPE_MESSAGE =
   "A Service Chair can add or change general subjects only (GEC-, GEE-, PE / PATHFit, NSTP, or subjects with a service area).";

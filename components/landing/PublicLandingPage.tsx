@@ -27,7 +27,7 @@ const FEATURES = [
   {
     icon: Cloud,
     title: "One source of truth",
-    desc: "The same schedule everywhere — Chairman, GEC, College, DOI and Faculty all read the one record.",
+    desc: "The same schedule everywhere — Chairperson, GEC, College, DOI and Faculty all read the one record.",
   },
   {
     icon: BarChart3,
@@ -273,7 +273,7 @@ export function PublicLandingPage() {
               Built around how the campus actually schedules
             </h2>
             <p className="mt-4 text-base leading-relaxed text-black/65 sm:text-lg">
-              Every role works from the same timetable, so a change made by a chairman is the change
+              Every role works from the same timetable, so a change made by a chairperson is the change
               the dean, the faculty member and the student all see.
             </p>
           </div>
@@ -324,7 +324,7 @@ export function PublicLandingPage() {
             <p className="mt-5 text-base leading-relaxed text-black/70 sm:text-lg">
               OptiCore carries a term from first plot to published form: schedule plotting with live
               conflict checking, INS Forms 5A–5C generated from the real schedule, teaching-load
-              policy with justifications, and the approval trail between chairman, dean and DOI.
+              policy with justifications, and the approval trail between chairperson, dean and DOI.
             </p>
             <ul className="mt-8 space-y-3">
               {[

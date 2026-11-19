@@ -86,8 +86,8 @@ describe("advisoryProgramFilter", () => {
     expect(advisoryProgramFilter("prog-bsit", null)).toBe("prog-bsit");
   });
 
-  it("falls back to a locked chairman program when the bar has none", () => {
-    // The Chairman page's scope bar is display-only, so the lock is the only signal there.
+  it("falls back to a locked chairperson program when the bar has none", () => {
+    // The Chairperson page's scope bar is display-only, so the lock is the only signal there.
     expect(advisoryProgramFilter(null, "prog-bsit")).toBe("prog-bsit");
   });
 

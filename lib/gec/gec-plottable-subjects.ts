@@ -3,13 +3,13 @@ import { isServiceAreaSubject } from "@/lib/gec/gec-vacant";
 import { isGecEditableSubject } from "@/lib/subjects/gec-subject-scope";
 
 /**
- * Which GEC subjects the GEC Chairman may plot into a section.
+ * Which GEC subjects the GEC Chairperson may plot into a section.
  *
  * General education is taught to every program, but the `Subject` catalog stores a row per program —
  * so a program that was never seeded with GEC rows had none of its own, and the evaluator offered
  * nothing at all for its sections. The same happened when the section's program had no entry in the
  * hardcoded prospectus registry, or when its name carried no year level to match against: the
- * allowed-code set came back empty and the subject list with it. The chairman could then select the
+ * allowed-code set came back empty and the subject list with it. The chairperson could then select the
  * section but had nothing to plot into it.
  *
  * The rule here is that the catalog and the prospectus *narrow* the choice where they have something

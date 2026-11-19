@@ -81,9 +81,9 @@ describe("toUserMessage", () => {
   it("keeps a conflict message the server wrote for a person", () => {
     const msg = toUserMessage(
       apiError(409, "Juan already holds this post. Edit or remove that account first."),
-      "Could not register the chairman",
+      "Could not register the chairperson",
     );
-    expect(msg.title).toBe("Could not register the chairman");
+    expect(msg.title).toBe("Could not register the chairperson");
     expect(msg.detail).toBe("Juan already holds this post. Edit or remove that account first.");
   });
 

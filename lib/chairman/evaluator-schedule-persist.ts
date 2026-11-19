@@ -96,7 +96,7 @@ export function plotRowsToScheduleEntries(args: {
   return { entries };
 }
 
-/** Rehydrate plot rows from saved `ScheduleEntry` rows for the Chairman BSIT grid. */
+/** Rehydrate plot rows from saved `ScheduleEntry` rows for the Chairperson BSIT grid. */
 export function scheduleEntriesToPlotRows(args: {
   entries: ScheduleEntry[];
   subjectById: Map<string, Subject>;

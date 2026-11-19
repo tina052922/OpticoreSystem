@@ -1,5 +1,7 @@
 "use client";
 
+import { LockOpen } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { userErrorDetail } from "@/lib/ui/user-message";
 import Link from "next/link";
@@ -37,6 +39,7 @@ export function DoiScheduleHubClient() {
   const [notes, setNotes] = useState("");
   const [decisionBusy, setDecisionBusy] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
 
   /** Lock audit name from profile — printed INS names live in System Configuration only. */
   const signedByName = useMemo(() => (user?.name ?? "").trim(), [user?.name]);
@@ -99,13 +102,14 @@ export function DoiScheduleHubClient() {
     }
   }
 
-  async function submitDecision(action: "approve" | "reject" | "unpublish") {
+  async function submitDecision(action: "approve" | "reject" | "unpublish", confirmed = false) {
     if (!periodId) return;
     if (action === "unpublish") {
-      const ok = window.confirm(
-        "Unpublish and unlock this term? Editors can resume case-to-case plotting until DOI locks again.",
-      );
-      if (!ok) return;
+      // Ask in an in-app dialog (not the browser's confirm); it calls back with confirmed = true.
+      if (!confirmed) {
+        setUnpublishConfirmOpen(true);
+        return;
+      }
     }
     setDecisionBusy(action);
     setDecisionError(null);
@@ -336,6 +340,25 @@ export function DoiScheduleHubClient() {
           )}
         </section>
       </div>
+      <ConfirmDialog
+        open={unpublishConfirmOpen}
+        title="Unpublish and unlock this term?"
+        confirmLabel="Unpublish / unlock"
+        busyLabel="Unpublishing…"
+        tone="warning"
+        icon={<LockOpen className="h-5 w-5" aria-hidden />}
+        onCancel={() => setUnpublishConfirmOpen(false)}
+        onConfirm={async () => {
+          await submitDecision("unpublish", true);
+          setUnpublishConfirmOpen(false);
+        }}
+      >
+        <p>
+          Program Chairpersons, College Admins and Service Chairs can edit the schedule again until you approve and
+          publish it once more.
+        </p>
+        <p className="mt-2 text-black/50">Instructors and students stop seeing it until it is published again.</p>
+      </ConfirmDialog>
     </div>
   );
 }

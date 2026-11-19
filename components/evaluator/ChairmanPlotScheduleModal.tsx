@@ -90,6 +90,7 @@ import {
 } from "@/lib/evaluator/building-options";
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
 import { plotStartConflicts } from "@/lib/evaluator/plot-start-conflicts";
+import { apiFetch } from "@/lib/api/client";
 
 const fieldClass =
   "w-full min-h-10 rounded-lg border border-black/20 bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#ff990a]/40";
@@ -329,6 +330,67 @@ export function ChairmanPlotScheduleModal({
       labelForEntry,
     });
   }, [meetings, slots, programMode, maxDur, days, draft.id, draft.sectionId, draft.instructorId, draft.roomId, academicPeriodId, existingBlocks, labelForEntry, readOnly]);
+  /**
+   * The server's own check, before saving: it sees every class on campus (other colleges too), which
+   * the list above may not. Asked a moment after the plot settles; its clashes show here and keep
+   * "Plot schedule" disabled, instead of failing on save. A failed check never blocks.
+   */
+  const [serverConflicts, setServerConflicts] = useState<string[]>([]);
+  const [serverChecking, setServerChecking] = useState(false);
+  const serverCheckKey = useMemo(() => {
+    if (readOnly || !academicPeriodId || !draft.sectionId) return "";
+    const resolved = resolvePlotMeetings(meetings, { slots, programMode, maxDur, weekdays: days });
+    if (!resolved.ok) return "";
+    const rows = resolved.meetings
+      .map((m, i) => {
+        const t = timesFromSlotRange(m.startSlotIndex, m.durationSlots, slots);
+        if (!t) return null;
+        return {
+          id: i === 0 ? draft.id : `${draft.id}-check-${i}`,
+          academicPeriodId,
+          sectionId: draft.sectionId,
+          instructorId: draft.instructorId || null,
+          roomId: draft.roomId || null,
+          day: m.day,
+          startTime: t.startTime,
+          endTime: t.endTime,
+          programMode,
+        };
+      })
+      .filter(Boolean);
+    return rows.length ? JSON.stringify(rows) : "";
+  }, [readOnly, academicPeriodId, draft.id, draft.sectionId, draft.instructorId, draft.roomId, meetings, slots, programMode, maxDur, days]);
+  useEffect(() => {
+    if (!serverCheckKey) {
+      setServerConflicts([]);
+      setServerChecking(false);
+      return;
+    }
+    let cancelled = false;
+    setServerChecking(true);
+    const t = window.setTimeout(() => {
+      apiFetch<{ ok: boolean; conflicts?: { message?: string }[] }>("/api/catalog/schedule-entries-upsert?dryRun=1", {
+        method: "POST",
+        body: JSON.parse(serverCheckKey),
+      })
+        .then((r) => {
+          if (cancelled) return;
+          const msgs = [...new Set((r.conflicts ?? []).map((c) => c.message).filter((m): m is string => Boolean(m)))];
+          setServerConflicts(msgs);
+        })
+        .catch(() => {
+          if (!cancelled) setServerConflicts([]); // the save itself still checks
+        })
+        .finally(() => {
+          if (!cancelled) setServerChecking(false);
+        });
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [serverCheckKey]);
+
   /*
    * Plain-language reason a start does not work, e.g. 9:30 with a class at 10:00 leaves 30 min,
    * shorter than any allowed meeting. Without it the user only saw an hours/conflict error.
@@ -766,7 +828,7 @@ export function ChairmanPlotScheduleModal({
                 value={programCodeForSummary}
                 disabled={readOnly || majorOptions.length <= 1}
                 onChange={() => {
-                  /* Chairman scope is one program; dropdown documents the active major. */
+                  /* Chairperson scope is one program; dropdown documents the active major. */
                 }}
               >
                 {majorOptions.length === 0 ? (
@@ -1187,12 +1249,19 @@ export function ChairmanPlotScheduleModal({
               </span>
             ) : null}
           </p>
-          {startConflicts.length > 0 ? (
+          {startConflicts.length > 0 || serverConflicts.length > 0 ? (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800 space-y-0.5">
+              <p className="font-semibold">This plot can’t be saved yet:</p>
               {startConflicts.map((msg) => (
                 <p key={msg}>{msg}</p>
               ))}
+              {serverConflicts.map((msg) => (
+                <p key={`srv-${msg}`}>{msg}.</p>
+              ))}
+              <p className="text-red-700/80">Change the time, room or instructor.</p>
             </div>
+          ) : serverChecking ? (
+            <p className="text-[11px] text-black/50">Checking for clashes…</p>
           ) : null}
 
           <div>
@@ -1247,7 +1316,9 @@ export function ChairmanPlotScheduleModal({
           <Button
             type="button"
             className="bg-[#ff990a] hover:bg-[#e68a09] text-white font-bold min-w-[120px]"
-            disabled={readOnly || hasConflict || plotIncomplete || hoursOverLimit}
+            disabled={
+              readOnly || hasConflict || plotIncomplete || hoursOverLimit || serverChecking || serverConflicts.length > 0
+            }
             onClick={handleApplyMeetings}
           >
             {isNewPlot ? "Plot schedule" : "Save changes"}

@@ -138,7 +138,7 @@ describe("subjectWeeklyHoursCaption", () => {
   });
 
   /**
-   * AP-6 is hardcoded in the BSIT prospectus as lecture-only (3 units, no lab). A chairman who gives
+   * AP-6 is hardcoded in the BSIT prospectus as lecture-only (3 units, no lab). A chairperson who gives
    * it 2 lecture + 3 lab hours in Subject Codes needs the term to require 5, not the prospectus' 3 —
    * otherwise the over-limit guard fires the moment the lab is plotted.
    */

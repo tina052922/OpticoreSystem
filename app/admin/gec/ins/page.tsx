@@ -65,7 +65,7 @@ export default async function GecInsIndexPage({
                 insBasePath="/admin/gec/ins"
                 viewerCollegeId={profile.collegeId}
                 campusWide={campusWide}
-                /* The GEC Chairman's pickers list general education, in every college. */
+                /* The GEC Chairperson's pickers list general education, in every college. */
                 gecOnly
                 hideInnerInsTabs
               />
@@ -75,7 +75,7 @@ export default async function GecInsIndexPage({
                 insBasePath="/admin/gec/ins"
                 viewerCollegeId={profile.collegeId}
                 campusWide={campusWide}
-                /* The GEC Chairman's pickers list general education, in every college. */
+                /* The GEC Chairperson's pickers list general education, in every college. */
                 gecOnly
                 hideInnerInsTabs
               />
@@ -85,7 +85,7 @@ export default async function GecInsIndexPage({
                 insBasePath="/admin/gec/ins"
                 viewerCollegeId={profile.collegeId}
                 campusWide={campusWide}
-                /* The GEC Chairman's pickers list general education, in every college. */
+                /* The GEC Chairperson's pickers list general education, in every college. */
                 gecOnly
                 hideInnerInsTabs
               />

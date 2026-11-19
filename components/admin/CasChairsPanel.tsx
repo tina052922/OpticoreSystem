@@ -23,12 +23,12 @@ function guessCasCollegeId(colleges: College[], areas: ServiceArea[]): string {
 }
 
 /**
- * DOI → Colleges & Chairmen → CAS Chairs.
+ * DOI → Colleges & Chairpersons → CAS Chairs.
  *
  * CAS has two kinds of chair, both under CAS:
  *   • Service Chair — heads a general-subject area (Humanities and Social Sciences, Natural Sciences
  *     and Mathematics, PE and Sports, General Education, …) and plots those subjects into vacant
- *     slots of any college, like the former GEC Chairman.
+ *     slots of any college, like the former GEC Chairperson.
  *   • Program Chair — heads one CAS program (BAL, BAEL, Psychology, …). The programs listed are the
  *     current ones from Programs & Sections, never a fixed list.
  */
@@ -244,7 +244,7 @@ export function CasChairsPanel({
     <div className="space-y-6">
       <p className="text-[13px] text-black/65 leading-relaxed">
         CAS chairs only. A <b>Service Chair</b> heads a general-subject area and plots those subjects into
-        vacant slots of every college (like the former GEC Chairman). A <b>Program Chair</b> heads one CAS
+        vacant slots of every college (like the former GEC Chairperson). A <b>Program Chair</b> heads one CAS
         program. Both stay under CAS.
       </p>
       {areasWarning ? (

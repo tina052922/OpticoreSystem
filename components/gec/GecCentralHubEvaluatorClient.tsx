@@ -131,7 +131,7 @@ function toBlock(e: ScheduleEntry): ScheduleBlock {
 }
 
 /**
- * GEC Chairman Central Hub:
+ * GEC Chairperson Central Hub:
  * 1) College tiles → college workspace.
  * 2) Department + Section — same `ScheduleEntry` data College Admin sees in the hub.
  * 3) Layout (matches College Admin hub): prospectus summary by year level (top) → chairman-style plotting grid
@@ -228,7 +228,7 @@ export function GecCentralHubEvaluatorClient({
   /** DOI-style enriched pairwise issues + GA alternatives (same engine as Central Hub / VPAA panel). */
   const [gecEnrichedConflicts, setGecEnrichedConflicts] = useState<EnrichedCampusIssue[]>([]);
   const [gecGaByIssueKey, setGecGaByIssueKey] = useState<Record<string, GASuggestion[]>>({});
-  /** Local rows not yet in Supabase — same “Add schedule row” flow as Program Chairman (`BsitChairmanEvaluatorWorksheet`). */
+  /** Local rows not yet in Supabase — same “Add schedule row” flow as Program Chairperson (`BsitChairmanEvaluatorWorksheet`). */
   const [extraEntries, setExtraEntries] = useState<ScheduleEntry[]>([]);
   const skipPeriodEntryFetchRef = useRef(true);
   const pendingDeletedIdsRef = useRef<Set<string>>(new Set());
@@ -340,7 +340,7 @@ export function GecCentralHubEvaluatorClient({
   });
 
   /**
-   * Program Chairman / hub saves + Realtime: reload should be lightweight (term `ScheduleEntry` only),
+   * Program Chairperson / hub saves + Realtime: reload should be lightweight (term `ScheduleEntry` only),
    * not a full catalog refresh (which is expensive and causes UI lag on frequent saves).
    */
   const reloadScheduleEntriesSoft = useCallback(async () => {
@@ -353,7 +353,7 @@ export function GecCentralHubEvaluatorClient({
     } catch {}
   }, [academicPeriodId, applyFetchedEntries]);
 
-  /** Program Chairman / hub saves + Realtime: GEC grid & previews stay aligned with INS campus-wide. */
+  /** Program Chairperson / hub saves + Realtime: GEC grid & previews stay aligned with INS campus-wide. */
   useScheduleEntryCrossReload(reloadScheduleEntriesSoft, { academicPeriodId, enabled: Boolean(academicPeriodId) });
 
   useEffect(() => {
@@ -585,7 +585,7 @@ export function GecCentralHubEvaluatorClient({
       /*
        * Editable here: a general subject that is still Prof X (TBA), or that has a General / "both"
        * instructor — i.e. one a Service Chair plotted (the server allows exactly this). A general
-       * subject the Program Chairman gave to a program-only instructor stays locked.
+       * subject the Program Chairperson gave to a program-only instructor stays locked.
        */
       if (isGecVacantScheduleEntry(e, subjectById)) ids.add(e.id);
       else if (
@@ -867,7 +867,7 @@ export function GecCentralHubEvaluatorClient({
       /*
        * GEC rows only. The exemption is there so a GEC slot already filled stays readable; drawn
        * from every row in the section, it also readmitted whoever teaches the section's majors —
-       * e.g. a Program Chairman teaching PC-4215 showed up as a GEC choice.
+       * e.g. a Program Chairperson teaching PC-4215 showed up as a GEC choice.
        */
       ...instructorIdsOnRowsInScope(
         mergedEntries.filter((e) => isGecCurriculumScheduleEntry(e, subjectById)),
@@ -887,8 +887,8 @@ export function GecCentralHubEvaluatorClient({
      * GEC instructors only.
      *
      * This list used to hold every plottable faculty in the college and merely sort the GEC ones
-     * first, so a GEC chairman could assign a departmental instructor to a general education slot —
-     * and that instructor's own chairman would then find their time taken by a plot they had no
+     * first, so a GEC chairperson could assign a departmental instructor to a general education slot —
+     * and that instructor's own chairperson would then find their time taken by a plot they had no
      * part in. Anyone already on a plotted row is kept so existing rows stay readable.
      */
     const pool = filterInstructorsForGec(
@@ -1271,7 +1271,7 @@ export function GecCentralHubEvaluatorClient({
               violationsSnapshot: {
                 summary: snapRows.join("\n"),
                 detail: policy.rows,
-                // Same keys the Chairman worksheet writes, so coverage can be compared either way.
+                // Same keys the Chairperson worksheet writes, so coverage can be compared either way.
                 preparations: v.preparations,
                 ...justificationLoadSnapshot({
                   instructorId: v.instructorId,
@@ -1514,7 +1514,7 @@ export function GecCentralHubEvaluatorClient({
    *
    * General education reaches every program, so this is not limited to the section's own program's
    * catalog rows: a program seeded without GEC subjects, or missing from the prospectus registry,
-   * used to yield an empty set and the chairman could plot nothing into its sections at all.
+   * used to yield an empty set and the chairperson could plot nothing into its sections at all.
    * `gecSubjectsForSectionPlot` keeps the narrowing where there is something to narrow by.
    */
   const gecSubjectsForSection = useMemo(() => {

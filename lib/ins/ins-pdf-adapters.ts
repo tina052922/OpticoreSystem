@@ -260,14 +260,14 @@ export function roomScheduleToPdfGrid(
  *
  * Official paper roles (fixed titles on the form):
  *   Prepared by:                          Program Coordinator/Chair
- *     → Program Chairman ACCOUNT name (`review.accountName`, from
- *       `User.name` for the resolved chairman) + their profile signature
+ *     → Program Chairperson ACCOUNT name (`review.accountName`, from
+ *       `User.name` for the resolved chairperson) + their profile signature
  *       image uploaded on /chairman/profile. System Configuration display
  *       overrides for the 'review' slot are deliberately NOT used here —
- *       the printed form must reflect the chairman themselves, not a
+ *       the printed form must reflect the chairperson themselves, not a
  *       different name typed into the College Admin's editor.
  *       Falls back to the `prepared` slot (College Admin name + e-sig from
- *       /admin/college/system-configuration) when no chairman is resolved.
+ *       /admin/college/system-configuration) when no chairperson is resolved.
  *   Reviewed, Certified True and Correct: Director/Dean
  *     → DOI / VPAA System Configuration name + e-sig (`approved`); dean only if DOI blank
  *   Approved:                             Campus Director
@@ -334,18 +334,18 @@ export function resolveInsPrintedSigners(slots: InsSignatureSlot[]) {
   }
 
   /**
-   * Prepared: Program Chairman's account name (source of truth), fallback to
+   * Prepared: Program Chairperson's account name (source of truth), fallback to
    * the College Admin System Configuration slot.
    *
-   * The printed name comes from the chairman's own `User.name` — carried on
+   * The printed name comes from the chairperson's own `User.name` — carried on
    * the `review` slot as `accountName` — NOT from anything typed into the
-   * "Program Chairman" row of the College Admin's INS form signatories editor.
+   * "Program Chairperson" row of the College Admin's INS form signatories editor.
    * That protects the printed form from a College Admin overriding a
-   * chairman's name with arbitrary display text.
+   * chairperson's name with arbitrary display text.
    *
-   * The chairman's signature image (`review.imageUrl`) still travels with the
+   * The chairperson's signature image (`review.imageUrl`) still travels with the
    * slot; we never borrow the College Admin's landscape image for this line.
-   * If the chairman is unresolved for this college/program (no `accountName`
+   * If the chairperson is unresolved for this college/program (no `accountName`
    * on the review slot) we fall back to the `prepared` slot: name + e-sig
    * configured by the College Admin in System Configuration.
    */

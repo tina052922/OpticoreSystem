@@ -43,7 +43,7 @@ type Props = {
 };
 
 /**
- * INS-style weekly grid (Mon–Fri, 1-hour slots) for one section — mirrors Chairman `BsitWeekPreview`
+ * INS-style weekly grid (Mon–Fri, 1-hour slots) for one section — mirrors Chairperson `BsitWeekPreview`
  * but reads live `ScheduleEntry` rows (including locked majors + filled GEC).
  */
 export function GecSectionSchedulePreview({

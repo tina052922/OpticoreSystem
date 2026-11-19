@@ -3,7 +3,7 @@
  *
  * Failures arrive from several layers and most of them are written for whoever is maintaining the
  * system: `Cannot reach API (Failed to fetch)`, `could not find the 'profileImageUrl' column of
- * 'User' in the schema cache`, `run migration 016_subject_category.sql on the database`. A chairman
+ * 'User' in the schema cache`, `run migration 016_subject_category.sql on the database`. A chairperson
  * reading that learns nothing they can do.
  *
  * So: the server's own message is shown when it was written for a person — "Juan already holds this

@@ -25,7 +25,7 @@ const DOMAIN_NOTES: Record<string, string> = {
   [INSTRUCTOR_INSTITUTIONAL_DOMAIN]:
     "Institutional mailboxes. Only CTU can issue one, so the address itself is evidence the applicant works here. Subdomains such as @cs.ctu.edu.ph are included.",
   [INSTRUCTOR_PUBLIC_DOMAIN]:
-    "Personal Gmail. Anyone can create one, so approval rests entirely on the emailed code and your chairman's review. Turn this on if faculty do not have institutional mailboxes yet.",
+    "Personal Gmail. Anyone can create one, so approval rests entirely on the emailed code and your chairperson's review. Turn this on if faculty do not have institutional mailboxes yet.",
 };
 
 function Toggle({

@@ -89,7 +89,7 @@ describe("resolveImportRows", () => {
     expect(hit).toMatchObject({ collegeId: "col-tech-eng", programId: null, error: null });
   });
 
-  it("matches a department code for a chairman, and carries its college", () => {
+  it("matches a department code for a chairperson, and carries its college", () => {
     const [hit] = resolveImportRows(rows(["bsit", "Ana", "ana@ctu.edu.ph"]), "chairman_admin", SCOPE);
     expect(hit).toMatchObject({ programId: "prog-bsit", collegeId: "col-tech-eng", error: null });
   });

@@ -9,7 +9,7 @@ type College = { id: string; code: string; name: string };
 type Program = { id: string; code: string; name: string; collegeId: string | null };
 
 /**
- * CAS College Admin → Chairman Assignment → CAS Chairs: the same panel DOI has (Service Chairs and
+ * CAS College Admin → Chairperson Assignment → CAS Chairs: the same panel DOI has (Service Chairs and
  * CAS Program Chairs, service areas). The server limits these accounts to CAS chairs.
  */
 export function CollegeCasChairsTab({ collegeId }: { collegeId: string }) {

@@ -20,7 +20,7 @@ export type EnrichedConflictIssuesPanelProps = {
   maxIssues?: number;
   /** Human-readable one-line fix, e.g. room code + time + instructor name. */
   formatSuggestionLabel?: (s: GASuggestion) => string;
-  /** Extra controls per issue (e.g. DOI “Show in grid”, chairman locked row). */
+  /** Extra controls per issue (e.g. DOI “Show in grid”, chairperson locked row). */
   renderIssueFooter?: (issue: EnrichedCampusIssue) => React.ReactNode;
   /** Optional title override */
   title?: string;
@@ -72,7 +72,7 @@ function SnapshotDigest({ label, snap }: { label: string; snap: EnrichedCampusIs
 
 /**
  * Readable conflict list: room / faculty / section double-booking with optional GA apply actions.
- * Design is shared across Program Chairman, Central Hub, GEC, and DOI.
+ * Design is shared across Program Chairperson, Central Hub, GEC, and DOI.
  */
 export function EnrichedConflictIssuesPanel({
   issues,

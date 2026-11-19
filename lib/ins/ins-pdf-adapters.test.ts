@@ -28,7 +28,7 @@ describe("resolveInsPrintedSigners", () => {
     {
       key: "review",
       lineTitle: "Reviewed & Certified by",
-      lineSubtitle: "Program Chairman",
+      lineSubtitle: "Program Chairperson",
       signerName: "Chair Name",
       // Authoritative account name — what should print on 'Prepared by'.
       accountName: "Chair Name",
@@ -43,9 +43,9 @@ describe("resolveInsPrintedSigners", () => {
     },
   ];
 
-  it("maps paper roles: Prepared=Chairman, Reviewed=DOI name+ink, Approved=Campus Director", () => {
+  it("maps paper roles: Prepared=Chairperson, Reviewed=DOI name+ink, Approved=Campus Director", () => {
     const printed = resolveInsPrintedSigners(fullStrip);
-    // Prepared line goes to the Program Chairman when they are resolved
+    // Prepared line goes to the Program Chairperson when they are resolved
     // (name + their own uploaded signature). College Admin is the fallback.
     expect(printed.prepared?.signerName).toBe("Chair Name");
     expect(printed.prepared?.imageUrl).toBe("https://cdn.example/chair.png");
@@ -87,24 +87,24 @@ describe("resolveInsPrintedSigners", () => {
     expect(printed.review?.imageUrl).toBe("https://cdn.example/doi.png");
   });
 
-  it("falls Prepared back to College Admin when the chairman slot has no name", () => {
+  it("falls Prepared back to College Admin when the chairperson slot has no name", () => {
     const slots = fullStrip.filter((s) => s.key !== "review");
     const printed = resolveInsPrintedSigners(slots);
     expect(printed.prepared?.signerName).toBe("Admin Name");
     expect(printed.prepared?.imageUrl).toBe("https://cdn.example/admin.png");
   });
 
-  it("keeps chairman name on Prepared even without an uploaded signature", () => {
-    // Chairman is resolved (accountName from their User row) but hasn't
+  it("keeps chairperson name on Prepared even without an uploaded signature", () => {
+    // Chairperson is resolved (accountName from their User row) but hasn't
     // uploaded a profile signature yet; the College Admin HAS uploaded one.
-    // We must still print the chairman's name — with no image — rather than
+    // We must still print the chairperson's name — with no image — rather than
     // borrow the College Admin's landscape signature under a different
     // person's name.
     const slots: InsSignatureSlot[] = [
       {
         key: "review",
         lineTitle: "Reviewed & Certified by",
-        lineSubtitle: "Program Chairman",
+        lineSubtitle: "Program Chairperson",
         signerName: "Chair Name",
         accountName: "Chair Name",
         imageUrl: null,
@@ -122,20 +122,20 @@ describe("resolveInsPrintedSigners", () => {
     expect(printed.prepared?.imageUrl).toBeNull();
   });
 
-  it("uses the chairman's account name over any editor display override", () => {
-    // A College Admin typed a different name into the 'Program Chairman'
+  it("uses the chairperson's account name over any editor display override", () => {
+    // A College Admin typed a different name into the 'Program Chairperson'
     // row of INS form signatories, which would land on `review.signerName`.
-    // The printed Prepared line must ignore that and use the chairman's
+    // The printed Prepared line must ignore that and use the chairperson's
     // authoritative `accountName` instead.
     const slots: InsSignatureSlot[] = [
       {
         key: "review",
         lineTitle: "Reviewed & Certified by",
-        lineSubtitle: "Program Chairman",
+        lineSubtitle: "Program Chairperson",
         // What an editor override would produce after mergeInsSignerDisplay.
         signerName: "TOTALLY DIFFERENT NAME",
-        // What the chairman's User.name actually is.
-        accountName: "Dr. Real Chairman",
+        // What the chairperson's User.name actually is.
+        accountName: "Dr. Real Chairperson",
         imageUrl: "https://cdn.example/chair.png",
       },
       {
@@ -147,19 +147,19 @@ describe("resolveInsPrintedSigners", () => {
       },
     ];
     const printed = resolveInsPrintedSigners(slots);
-    expect(printed.prepared?.signerName).toBe("Dr. Real Chairman");
+    expect(printed.prepared?.signerName).toBe("Dr. Real Chairperson");
     expect(printed.prepared?.imageUrl).toBe("https://cdn.example/chair.png");
   });
 
-  it("falls back to the College Admin slot when the chairman has no accountName", () => {
-    // Chairman slot may have a display override but no `accountName` — that
-    // means no chairman was resolved for this college/program. Print the
+  it("falls back to the College Admin slot when the chairperson has no accountName", () => {
+    // Chairperson slot may have a display override but no `accountName` — that
+    // means no chairperson was resolved for this college/program. Print the
     // College Admin instead of using the stale display text.
     const slots: InsSignatureSlot[] = [
       {
         key: "review",
         lineTitle: "Reviewed & Certified by",
-        lineSubtitle: "Program Chairman",
+        lineSubtitle: "Program Chairperson",
         signerName: "Stale Editor Text",
         accountName: null,
         imageUrl: null,
@@ -204,7 +204,7 @@ describe("resolveInsPrintedSigners", () => {
 
   it("uses System Configuration names on Reviewed/Approved but not on Prepared", () => {
     // System Configuration display overrides win for DOI/Campus rows. On the
-    // Prepared line, only the chairman's own `accountName` counts — a display
+    // Prepared line, only the chairperson's own `accountName` counts — a display
     // override on `review` alone (no accountName) does NOT land on Prepared.
     // Prepared falls through to the College Admin (`prepared`) fallback here.
     const slots: InsSignatureSlot[] = [

@@ -13,7 +13,7 @@ export function isFacultyStaffRole(role: UserRole | string | null | undefined): 
 }
 
 /**
- * Active instructors + chairmen (Program Chairs and Service Chairs, who also teach).
+ * Active instructors + chairpersons (Program Chairs and Service Chairs, who also teach).
  * Pending/rejected self-registrations cannot be assigned on plots.
  */
 export function isPlottableFacultyUser(

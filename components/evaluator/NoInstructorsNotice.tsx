@@ -13,7 +13,7 @@ export function NoInstructorsNotice({
   compact = false,
 }: {
   facultyProfileHref: string;
-  /** GEC Chairman wording: GEC instructors specifically. */
+  /** GEC Chairperson wording: GEC instructors specifically. */
   gec?: boolean;
   /** Tighter variant for inside the Plot schedule window. */
   compact?: boolean;

@@ -45,8 +45,8 @@ export function facultyMatchesProgramScope(
  *
  * Advisory has to answer to the same Search & scope as the faculty list, or the two disagree: the
  * list shows one department while the checkboxes offer every section in the college. The scope bar's
- * choice wins; a locked chairman program is the floor when the bar has none, which is the case on
- * the Chairman page where the bar is display-only.
+ * choice wins; a locked chairperson program is the floor when the bar has none, which is the case on
+ * the Chairperson page where the bar is display-only.
  */
 export function advisoryProgramFilter(
   scopeProgramId?: string | null,

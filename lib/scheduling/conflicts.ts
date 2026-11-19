@@ -216,7 +216,7 @@ export type SparseConflictScanResult = {
   issues: { entryId: string; type: string; message: string; relatedEntryId?: string }[];
 };
 
-/** HH:MM from DB strings (matches GEC / Chairman sparse grids). */
+/** HH:MM from DB strings (matches GEC / Chairperson sparse grids). */
 export function hhmmForConflict(t: string): string {
   const s = t.trim();
   return s.length > 5 ? s.slice(0, 5) : s;
@@ -246,7 +246,7 @@ export function scheduleEntryToSparseBlock(e: ScheduleEntry): SparseScheduleBloc
   };
 }
 
-/** Dense plotter block → sparse (Chairman worksheet campus scan uses merged DB + draft blocks). */
+/** Dense plotter block → sparse (Chairperson worksheet campus scan uses merged DB + draft blocks). */
 export function scheduleBlockToSparseBlock(b: ScheduleBlock): SparseScheduleBlock {
   return {
     id: b.id,

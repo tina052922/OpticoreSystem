@@ -1,11 +1,11 @@
 /**
- * Which faculty a Program Chairman may plot.
+ * Which faculty a Program Chairperson may plot.
  *
- * A chairman plots their own department's load, so the instructor picker must hold only that
+ * A chairperson plots their own department's load, so the instructor picker must hold only that
  * department's faculty. It used to be scoped by college, which put every sibling department's
- * instructors in the list — a BSIT chairman could assign a BIT-AUTO instructor.
+ * instructors in the list — a BSIT chairperson could assign a BIT-AUTO instructor.
  *
- * The rule matches the one Faculty Profile already applies to a chairman's roster:
+ * The rule matches the one Faculty Profile already applies to a chairperson's roster:
  *   • the instructor's home department (`User.chairmanProgramId`) must be this department, and
  *   • GEC instructors from other departments are not department faculty, but every GEC (or "both")
  *     instructor can still be plotted into a program's general education classes — see
@@ -57,12 +57,12 @@ export function filterInstructorsForDepartment<T extends InstructorScopeUser>(
 }
 
 /**
- * The faculty offered when plotting a PROGRAM's classes (Program Chairman, College Admin, DOI):
+ * The faculty offered when plotting a PROGRAM's classes (Program Chairperson, College Admin, DOI):
  * that department's own instructors AND every GEC instructor.
  *
  * A program's sections take general education subjects too, so the person plotting BSIT must be
  * able to pick a GEC instructor as well as a BSIT one. GEC instructors are campus-wide, so they are
- * offered whatever their recorded college. The reverse does not hold: the GEC Chairman sees GEC
+ * offered whatever their recorded college. The reverse does not hold: the GEC Chairperson sees GEC
  * instructors only (`filterInstructorsForGec`).
  *
  * With no department (`programId` blank) everyone passes, as before. Anyone already on a plotted row
@@ -99,11 +99,11 @@ export function sortDepartmentThenGec<T extends InstructorScopeUser & { name?: s
 }
 
 /**
- * The faculty a GEC Chairman may plot.
+ * The faculty a GEC Chairperson may plot.
  *
  * Mirror of the department rule, for the role that has no department. The GEC evaluator used to
  * offer every plottable faculty in the college and merely sort the GEC ones to the top, so a GEC
- * chairman could assign a BSIT instructor to a general education slot — and a BSIT chairman would
+ * chairperson could assign a BSIT instructor to a general education slot — and a BSIT chairperson would
  * then find that instructor's time taken by a plot they had no part in.
  *
  * `alreadyPlottedIds` keeps existing rows readable for the same reason as the department filter: an
@@ -159,8 +159,8 @@ export function instructorIdsOnRowsInScope(
  * The faculty a College Admin may plot.
  *
  * Their college's department instructors, without the GEC ones. General education is plotted by the
- * GEC Chairman across every college, so a GEC instructor appearing here lets two people schedule the
- * same person — the same reason they are excluded from a Chairman's list and from a College Admin's
+ * GEC Chairperson across every college, so a GEC instructor appearing here lets two people schedule the
+ * same person — the same reason they are excluded from a Chairperson's list and from a College Admin's
  * Faculty Profile roster.
  *
  * DOI is not narrowed by this: they work across every college and post by design.

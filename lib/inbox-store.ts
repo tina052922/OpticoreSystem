@@ -1,5 +1,5 @@
 /**
- * In-memory inbox for workflow simulation (Chairman → College → CAS → GEC → CAS → DOI).
+ * In-memory inbox for workflow simulation (Chairperson → College → CAS → GEC → CAS → DOI).
  * Replace with Supabase tables when ready.
  */
 
@@ -33,7 +33,7 @@ function seed(): InboxMessage[] {
     {
       id: "m-reg",
       from: "Registrar Office",
-      to: "Chairman Admin (COTE)",
+      to: "Chairperson Admin (COTE)",
       subject: "INS Form submission deadline",
       body: "Reminder: All INS Forms must be submitted by the published college deadline. This is a system notification.",
       status: "Unread",
@@ -44,11 +44,11 @@ function seed(): InboxMessage[] {
     },
     {
       id: "m-draft-college",
-      from: "Chairman Admin (COTE)",
+      from: "Chairperson Admin (COTE)",
       to: "College Admin (COTE)",
       subject: "Draft schedule — 2nd Semester AY 2025-2026 (non-conflict)",
       body:
-        "The Evaluator draft for COTE has been finalized for conflict review at the chairman level. " +
+        "The Evaluator draft for COTE has been finalized for conflict review at the chairperson level. " +
         "Please open Schedule review, run conflict check, and finalize for CAS Admin.\n\n" +
         "Attached context: BSIT / BIT sections, room and faculty assignments as plotted in the Evaluator module.",
       status: "Unread",
@@ -73,7 +73,7 @@ function seed(): InboxMessage[] {
     {
       id: "m-cas-gec",
       from: "CAS Admin",
-      to: "GEC Chairman (assigned)",
+      to: "GEC Chairperson (assigned)",
       subject: "GEC portion — vacant slots for insertion",
       body:
         "Please fill only vacant GEC time slots; do not alter non-GEC plotted courses. Return the GEC portion when complete.",
@@ -85,7 +85,7 @@ function seed(): InboxMessage[] {
     },
     {
       id: "m-gec-cas",
-      from: "GEC Chairman",
+      from: "GEC Chairperson",
       to: "CAS Admin",
       subject: "Returned: GEC portion with vacant slots filled",
       body: "GEC vacant slots have been filled. Please validate and forward to DOI for final approval.",

@@ -17,11 +17,11 @@ export default async function ChairmanLayout({ children }: { children: React.Rea
       /*
        * The department, not the college.
        *
-       * A chairman chairs one program; the college is shared with every other chairman in it, so
-       * "Chairman admin · COTE" did not say which chairman was signed in. The college code is kept
+       * A chairperson chairs one program; the college is shared with every other chairperson in it, so
+       * "Chairperson admin · COTE" did not say which chairperson was signed in. The college code is kept
        * as the fallback for an account whose program is not recorded yet.
        */
-      roleLabel={`Chairman admin${
+      roleLabel={`Chairperson admin${
         session.programCode ? ` · ${session.programCode}` : session.collegeCode ? ` · ${session.collegeCode}` : ""
       }`}
       profileHref="/chairman/profile"

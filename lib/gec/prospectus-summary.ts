@@ -14,7 +14,7 @@ export type ProspectusYearSemGroup = {
   subjects: ProspectusSummaryRow[];
 };
 
-/** One year-level bucket (1st + 2nd sem subjects together) for the GEC Chairman “by year only” summary. */
+/** One year-level bucket (1st + 2nd sem subjects together) for the GEC Chairperson “by year only” summary. */
 export type ProspectusYearLevelGroup = {
   yearLevel: number;
   label: string;
@@ -22,7 +22,7 @@ export type ProspectusYearLevelGroup = {
 };
 
 /**
- * Group any program’s static prospectus rows for the GEC Chairman summary UI (Year Level × Semester).
+ * Group any program’s static prospectus rows for the GEC Chairperson summary UI (Year Level × Semester).
  */
 export function groupProspectusByYearAndSemester(subjects: ProspectusSubjectRow[]): ProspectusYearSemGroup[] {
   if (subjects.length === 0) return [];

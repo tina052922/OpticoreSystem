@@ -15,10 +15,10 @@ import {
 } from "./admin-nav";
 
 const ROLE_NAVS: Array<[string, readonly AdminNavEntry[]]> = [
-  ["Chairman", CHAIRMAN_NAV],
+  ["Chairperson", CHAIRMAN_NAV],
   ["College Admin", COLLEGE_ADMIN_NAV],
   ["CAS Admin", CAS_ADMIN_NAV],
-  ["GEC Chairman", GEC_CHAIRMAN_NAV],
+  ["GEC Chairperson", GEC_CHAIRMAN_NAV],
   ["DOI", DOI_ADMIN_NAV],
 ];
 

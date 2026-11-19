@@ -246,7 +246,7 @@ export function CentralHubEvaluatorView({
     } catch {}
   }, [academicPeriodId]);
 
-  /** Chairman / GEC saves + Realtime: keep this hub grid aligned with INS Forms without a manual refresh. */
+  /** Chairperson / GEC saves + Realtime: keep this hub grid aligned with INS Forms without a manual refresh. */
   useScheduleEntryCrossReload(reloadScheduleEntriesSoft, {
     academicPeriodId,
     enabled: Boolean(academicPeriodId),
@@ -315,7 +315,7 @@ export function CentralHubEvaluatorView({
         : "all programs in scope";
 
     setHubBundleNotice(
-      `Imported ${pending.scheduleEntries.length} schedule row(s) from the Chairman workflow bundle (INS + Evaluator). ` +
+      `Imported ${pending.scheduleEntries.length} schedule row(s) from the Chairperson workflow bundle (INS + Evaluator). ` +
         `Organized under college scope “${isWide ? "All colleges" : pendingHub?.name ?? collegeSlug}” · Department filter: ${progName}.`,
     );
   }, [loading, collegeSlug, periods, programs, colleges]);
@@ -1177,7 +1177,7 @@ export function CentralHubEvaluatorView({
    * With one college open, the hub plots in the week grid rather than listing rows.
    *
    * A flat table of plotted entries answers "what is already scheduled"; it cannot answer "where does
-   * this class go", which is what opening a college is for. This is the same workspace the Chairman
+   * this class go", which is what opening a college is for. This is the same workspace the Chairperson
    * and College Admin use — section picker, prospectus summary, weekly grid, Save, Generate INS Form —
    * scoped to the college that was clicked.
    *
@@ -1242,7 +1242,7 @@ export function CentralHubEvaluatorView({
                 <Link href="/admin/college/evaluator" className="font-semibold text-[#780301] hover:underline">
                   Evaluator worksheet
                 </Link>{" "}
-                (same week-grid as Program Chairman). This hub stays for college tiles, overview, and peer-college view.
+                (same week-grid as Program Chairperson). This hub stays for college tiles, overview, and peer-college view.
               </div>
             ) : null}
             {showDoiGovernance ? (
@@ -1587,7 +1587,7 @@ export function CentralHubEvaluatorView({
                 >
                   <h2 className="text-lg font-semibold mb-2">Alternative suggestions</h2>
                   <p className="text-sm text-black/65 mb-4">
-                    Rule-based optimization for the first scheduled row in this college (same engine as the Chairman
+                    Rule-based optimization for the first scheduled row in this college (same engine as the Chairperson
                     plotter).
                   </p>
                   {altSuggestions.length === 0 ? (

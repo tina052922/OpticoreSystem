@@ -12,7 +12,12 @@ export default async function CollegeFacultyProfilePage() {
         subtitle="Faculty in your college — filter by department"
       />
       {/* College Admin sees only their own college. */}
-      <FacultyProfileWithScope lockedCollegeId={profile.collegeId} excludeGecFaculty />
+      {/* The CAS Admin also sees the Service Chairs (they belong to CAS). */}
+      <FacultyProfileWithScope
+        lockedCollegeId={profile.collegeId}
+        excludeGecFaculty
+        includeServiceChairs={Boolean(profile.casAdmin)}
+      />
     </div>
   );
 }

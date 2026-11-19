@@ -1,5 +1,5 @@
 /**
- * Excel import / export for College Admin and Chairman accounts.
+ * Excel import / export for College Admin and Chairperson accounts.
  *
  * The format is three columns on the first sheet — Assignment code · Full name · Email — and the
  * Export file IS the template: it lists every college (or department) with its current holder, so
@@ -23,7 +23,7 @@ export const CAMPUS_ACCOUNT_SHEET_COLUMNS = ["Assignment code", "Full name", "Em
 
 /** One row as typed in the sheet, before it is matched to a college or department. */
 export type CampusAccountSheetRow = {
-  /** College code for an admin ("COTE"), program code for a chairman ("BSIT"). */
+  /** College code for an admin ("COTE"), program code for a chairperson ("BSIT"). */
   assignmentCode: string;
   fullName: string;
   email: string;

@@ -48,7 +48,7 @@ const DEMO_COURSES = [
 
 /**
  * Faculty INS (Form 5A) uses `useInsLiveSchedule` with **college-wide** schedule rows for the selected instructor
- * so **Hours/Week** matches the faculty portal and chairman evaluator policy (cross-program load).
+ * so **Hours/Week** matches the faculty portal and chairperson evaluator policy (cross-program load).
  *
  * **Policy justification (manual test):** overload the same instructor in the **Evaluator** (all their sections
  * across programs) past the cap; on Save, the justification modal should open. INS totals should reflect the
@@ -60,9 +60,9 @@ export type INSFormFacultyProps = {
   chairmanProgramId?: string | null;
   chairmanProgramCode?: string | null;
   chairmanProgramName?: string | null;
-  /** When set (e.g. College Admin), live schedule uses this college even without chairman session props. */
+  /** When set (e.g. College Admin), live schedule uses this college even without chairperson session props. */
   viewerCollegeId?: string | null;
-  /** GEC Chairman: every picker on this form lists general education only. */
+  /** GEC Chairperson: every picker on this form lists general education only. */
   gecOnly?: boolean;
   /** Logged-in faculty: lock the grid to this instructor. */
   lockedInstructorId?: string | null;
@@ -103,7 +103,7 @@ export function INSFormFaculty({
    *
    * The lists on this page were already limited to `viewerCollegeId`; only the picker disagreed,
    * which both misreported the scope and invited a pick that could not take effect. DOI and VPAA
-   * (`campusWide`), the GEC Chairman (`gecOnly`) and a Program Chairman (own variant) genuinely
+   * (`campusWide`), the GEC Chairperson (`gecOnly`) and a Program Chairperson (own variant) genuinely
    * reach past one college, so none of them is locked.
    */
   const scopeLockedCollegeId = insScopeLockedCollegeId({
@@ -112,7 +112,7 @@ export function INSFormFaculty({
     campusWide,
     gecOnly,
   });
-  /** Department chosen in the scope bar; a chairman's own program always wins. */
+  /** Department chosen in the scope bar; a chairperson's own program always wins. */
   const [scopeProgramId, setScopeProgramId] = useState<string | null>(null);
   const effectiveProgramId = chairmanProgramId ?? scopeProgramId;
   const useLiveData = Boolean(effectiveCollegeId || campusWide);
@@ -158,7 +158,7 @@ export function INSFormFaculty({
     return () => window.clearTimeout(t);
   }, [highlightEntryId, urlInstructorId, live.selectedInstructorId]);
 
-  /** College Admin + DOI: allow one-click GA apply; chairmen use the Evaluator for edits. */
+  /** College Admin + DOI: allow one-click GA apply; chairpersons use the Evaluator for edits. */
   const enableInsAltApply =
     (campusWide || insBasePath.includes("/college")) && useLiveData && !live.termPublishLocked;
   const [insAltBusy, setInsAltBusy] = useState(false);

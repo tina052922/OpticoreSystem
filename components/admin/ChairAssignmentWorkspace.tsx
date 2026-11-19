@@ -34,7 +34,7 @@ function groupPrograms(programs: ChairAssignmentProgram[]): Group[] {
 const programLabel = (p: ChairAssignmentProgram) => [p.code, p.name].filter(Boolean).join(" — ") || p.id;
 
 /**
- * Chairman Assignment.
+ * Chairperson Assignment.
  *
  * A program group (e.g. BIT with its majors) is managed either by ONE chair for every major, or by a
  * separate chair per major. When a chair leaves, Transfer hands the program(s) to someone else: the
@@ -48,11 +48,11 @@ export function ChairAssignmentWorkspace({
   onAccountsChanged,
 }: {
   campusWide?: boolean;
-  /** Inside another page (DOI → Colleges & Chairmen → Chairmen): no page padding of its own. */
+  /** Inside another page (DOI → Colleges & Chairpersons → Chairpersons): no page padding of its own. */
   embedded?: boolean;
   /**
-   * DOI: create chairman accounts (name, email, password) right here and assign them, and edit or
-   * delete an assigned chairman's account. The server allows account writes to DOI only.
+   * DOI: create chairperson accounts (name, email, password) right here and assign them, and edit or
+   * delete an assigned chairperson's account. The server allows account writes to DOI only.
    */
   canManageAccounts?: boolean;
   onAccountsChanged?: () => void;
@@ -94,7 +94,7 @@ export function ChairAssignmentWorkspace({
       setGroupsSupported(r.groupsSupported !== false);
       setRowChoice({});
     } catch (e) {
-      toast.fail(e, "Could not load chairman assignments", "chair assignment: load");
+      toast.fail(e, "Could not load chairperson assignments", "chair assignment: load");
     } finally {
       setLoading(false);
     }
@@ -117,6 +117,14 @@ export function ChairAssignmentWorkspace({
     setWholeChair(single ?? "");
   }, [group, chairOf]);
 
+  /** The chairperson holding every major of this group, if one person does. */
+  const groupHolder = useMemo(() => {
+    if (!group) return "";
+    const holders = new Set(group.programs.map((p) => chairOf.get(p.id) ?? ""));
+    const only = holders.size === 1 ? [...holders][0] ?? "" : "";
+    return only;
+  }, [group, chairOf]);
+
   const chairName = (id: string | undefined) => {
     const c = id ? chairById.get(id) : undefined;
     return c ? c.name || c.email : "";
@@ -124,7 +132,7 @@ export function ChairAssignmentWorkspace({
 
   async function assignWhole() {
     if (!group || !wholeChair) {
-      toast.refuse("Choose the chairman", "Pick who manages every program in this group.");
+      toast.refuse("Choose the chairperson", "Pick who manages every program in this group.");
       return;
     }
     setBusy("whole");
@@ -138,10 +146,10 @@ export function ChairAssignmentWorkspace({
           chairUserId: wholeChair,
         });
       }
-      toast.ok("Chairman assigned successfully", `${chairName(wholeChair)} now manages all of ${group.label}.`);
+      toast.ok("Chairperson assigned successfully", `${chairName(wholeChair)} now manages all of ${group.label}.`);
       await load();
     } catch (e) {
-      toast.fail(e, "Could not assign the chairman", "chair assignment: whole");
+      toast.fail(e, "Could not assign the chairperson", "chair assignment: whole");
     } finally {
       setBusy(null);
     }
@@ -153,10 +161,10 @@ export function ChairAssignmentWorkspace({
       const prev = chairOf.get(programId);
       await chairAssignmentsApi.setProgramChair(programId, chairUserId);
       const p = programs.find((x) => x.id === programId);
-      if (!chairUserId) toast.ok("Chairman removed successfully", `${p?.code ?? ""} has no chairman now.`);
+      if (!chairUserId) toast.ok("Chairperson removed successfully", `${p?.code ?? ""} has no chairperson now.`);
       else if (prev && prev !== chairUserId)
-        toast.ok("Chairman transferred successfully", `${p?.code ?? ""}: ${chairName(prev)} → ${chairName(chairUserId)}. Schedules are unchanged.`);
-      else toast.ok("Chairman assigned successfully", `${chairName(chairUserId)} manages ${p?.code ?? ""}.`);
+        toast.ok("Chairperson transferred successfully", `${p?.code ?? ""}: ${chairName(prev)} → ${chairName(chairUserId)}. Schedules are unchanged.`);
+      else toast.ok("Chairperson assigned successfully", `${chairName(chairUserId)} manages ${p?.code ?? ""}.`);
       await load();
     } catch (e) {
       toast.fail(e, "Could not save the assignment", "chair assignment: row");
@@ -187,14 +195,17 @@ export function ChairAssignmentWorkspace({
   }
 
   /** Typed, not scrolled: matches show only once something is entered (name or email). */
-  // ── Chairman accounts (DOI) ───────────────────────────────────────────
+  // ── Chairperson accounts (DOI) ───────────────────────────────────────────
   const MIN_PASSWORD = 8;
   const [newOpen, setNewOpen] = useState(false);
+  /** Manages: a program id, "__group__" (every major of the group) or "__later__" (no program yet). */
   const [newTarget, setNewTarget] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
+  /** Per major: the row whose "Edit account" opened the editor (the same chairperson can be on several). */
+  const [editRowId, setEditRowId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
@@ -208,12 +219,22 @@ export function ChairAssignmentWorkspace({
     setNewPassword("");
   }
 
+  /**
+   * New chairman: the sign-in only (full name, email, temporary password) in this college. Which
+   * programs they manage is set with the Chairperson picker / Assign above — the new account is picked
+   * there for you.
+   */
   async function createChair() {
-    if (!group) return;
-    const wholeGroup = newTarget === "__group__";
-    const program = wholeGroup ? group.programs[0] : group.programs.find((p) => p.id === newTarget);
-    if (!program) {
-      toast.refuse("Choose the program", "Pick the major (or the whole group) this chairman manages.");
+    const later = newTarget === "__later__" || !group;
+    const wholeGroup = !later && newTarget === "__group__";
+    const program = later ? undefined : wholeGroup ? group!.programs[0] : group!.programs.find((p) => p.id === newTarget);
+    if (!later && !program) {
+      toast.refuse("Choose the program", "Pick the major (or the whole group) this chairperson manages, or Assign later.");
+      return;
+    }
+    const accountCollegeId = program?.collegeId ?? (campusWide ? collegeId : group?.programs[0]?.collegeId ?? "");
+    if (!accountCollegeId) {
+      toast.refuse("Choose the college", "Pick the college this chairperson belongs to first.");
       return;
     }
     if (!newName.trim()) {
@@ -221,7 +242,7 @@ export function ChairAssignmentWorkspace({
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) {
-      toast.refuse("Enter a valid email", "The chairman signs in with it.");
+      toast.refuse("Enter a valid email", "The chairperson signs in with it.");
       return;
     }
     if (newPassword.trim().length < MIN_PASSWORD) {
@@ -232,13 +253,13 @@ export function ChairAssignmentWorkspace({
     try {
       const { account } = await campusAccountsApi.create({
         role: "chairman_admin",
-        collegeId: program.collegeId,
-        programId: program.id,
+        collegeId: accountCollegeId,
+        programId: program?.id ?? null,
         name: newName.trim(),
         email: newEmail.trim().toLowerCase(),
         password: newPassword.trim(),
       });
-      if (wholeGroup && group.programs.length > 1) {
+      if (wholeGroup && group && group.programs.length > 1) {
         await chairAssignmentsApi.setGroupChair({
           collegeId: campusWide ? collegeId : null,
           groupCode: (group.programs[0]?.groupCode ?? "").trim() || group.programs[0]!.id,
@@ -246,14 +267,18 @@ export function ChairAssignmentWorkspace({
         });
       }
       toast.ok(
-        "Chairman added successfully",
-        `${newName.trim()} manages ${wholeGroup ? `all of ${group.label}` : program.code ?? group.label}. They change the password at first sign-in.`,
+        "Chairperson added successfully",
+        later
+          ? `${newName.trim()} can sign in now (they change the password first). Assign them to a program above.`
+          : `${newName.trim()} manages ${wholeGroup && group ? `all of ${group.label}` : program?.code ?? ""}. They change the password at first sign-in.`,
       );
       resetNew();
       await load();
+      // "Assign later": the new chairperson is picked in the Chairperson field, ready to Assign.
+      if (later && mode === "whole") setWholeChair(account.id);
       onAccountsChanged?.();
     } catch (e) {
-      toast.fail(e, "Could not add the chairman", "chair assignment: create account");
+      toast.fail(e, "Could not add the chairperson", "chair assignment: create account");
     } finally {
       setBusy(null);
     }
@@ -282,13 +307,13 @@ export function ChairAssignmentWorkspace({
         email: editEmail.trim().toLowerCase(),
         password: editPassword.trim() || undefined,
       });
-      toast.ok("Chairman account updated successfully", editName.trim());
+      toast.ok("Chairperson account updated successfully", editName.trim());
       toast.caution(warning, "Saved with a limitation");
       setEditId(null);
       await load();
       onAccountsChanged?.();
     } catch (e) {
-      toast.fail(e, "Could not update the chairman account", "chair assignment: update account");
+      toast.fail(e, "Could not update the chairperson account", "chair assignment: update account");
     } finally {
       setBusy(null);
     }
@@ -299,16 +324,78 @@ export function ChairAssignmentWorkspace({
     setBusy(`acct:${editId}`);
     try {
       await campusAccountsApi.remove(editId);
-      toast.ok("Chairman account deleted successfully", "Their programs now have no chairman. Schedules are unchanged.");
+      toast.ok("Chairperson account deleted successfully", "Their programs now have no chairperson. Schedules are unchanged.");
       setEditId(null);
       await load();
       onAccountsChanged?.();
     } catch (e) {
-      toast.fail(e, "Could not delete the chairman account", "chair assignment: delete account");
+      toast.fail(e, "Could not delete the chairperson account", "chair assignment: delete account");
     } finally {
       setBusy(null);
     }
   }
+
+  /** Name / email / new password + delete for the chairperson being edited (`editId`). */
+  const accountEditor = () => (
+    <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <label className="space-y-1">
+          <span className="block text-[12px] font-semibold text-black/75">Full name</span>
+          <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+        </label>
+        <label className="space-y-1">
+          <span className="block text-[12px] font-semibold text-black/75">Email (username)</span>
+          <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+        </label>
+        <label className="space-y-1">
+          <span className="block text-[12px] font-semibold text-black/75">New password (optional)</span>
+          <PasswordInput
+            placeholder="Leave empty to keep it"
+            value={editPassword}
+            onChange={(e) => setEditPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+        </label>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 bg-[#780301] hover:bg-[#5a0201] text-white"
+          disabled={busy === `acct:${editId}`}
+          onClick={() => void saveAccount()}
+        >
+          Save account
+        </Button>
+        {confirmDelete ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 bg-red-700 text-white hover:bg-red-800"
+              disabled={busy === `acct:${editId}`}
+              onClick={() => void deleteAccount()}
+            >
+              Confirm delete
+            </Button>
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setConfirmDelete(false)}>
+              Keep
+            </Button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-red-800 border-red-200 hover:bg-red-50"
+            onClick={() => setConfirmDelete(true)}
+          >
+            Delete account
+          </Button>
+        )}
+      </div>
+    </>
+  );
 
   const chairOptions = useMemo<SearchSelectOption[]>(
     () => chairs.map((c) => ({ value: c.id, label: c.name || c.email, hint: c.name ? c.email : undefined })),
@@ -318,8 +405,8 @@ export function ChairAssignmentWorkspace({
   return (
     <div className={embedded ? "space-y-5" : "px-4 sm:px-6 lg:px-8 pb-10 max-w-[1100px] space-y-5"}>
       <p className="text-[13px] text-black/65 leading-relaxed">
-        Choose who manages each program. A whole program group (e.g. all BIT majors) can have one chairman, or
-        each major its own. Transfer moves a program to another chairman when someone leaves — their Subject
+        Choose who manages each program. A whole program group (e.g. all BIT majors) can have one chairperson, or
+        each major its own. Transfer moves a program to another chairperson when someone leaves — their Subject
         Scheduler, Faculty Profile and Subject Codes access moves with it. <b>Schedules are never changed.</b>
       </p>
       {warning ? (
@@ -391,27 +478,56 @@ export function ChairAssignmentWorkspace({
           {group && mode === "whole" ? (
             <div className="flex flex-wrap items-end gap-3">
               <label className="space-y-1">
-                <span className="block text-[12px] font-semibold text-black/75">Chairman</span>
+                <span className="block text-[12px] font-semibold text-black/75">Chairperson</span>
                 <SearchSelect
                   className="min-w-[320px]"
                   options={chairOptions}
                   value={wholeChair}
                   onChange={setWholeChair}
-                  placeholder="Type the chairman's name or email…"
-                  ariaLabel="Chairman"
+                  placeholder="Type the chairperson's name or email…"
+                  ariaLabel="Chairperson"
                 />
               </label>
               <span className="rounded-full bg-[#780301]/10 px-3 py-1 text-[12px] font-semibold text-[#780301]">
                 Scope: {group.programs.length > 1 ? `All ${group.label} majors` : group.label}
               </span>
-              <Button
-                type="button"
-                className="bg-[#780301] hover:bg-[#5a0201] text-white"
-                disabled={busy === "whole" || !wholeChair}
-                onClick={() => void assignWhole()}
-              >
-                {busy === "whole" ? "Saving…" : "Assign"}
-              </Button>
+              {groupHolder && wholeChair === groupHolder ? (
+                // Already assigned to this chairman: edit their account instead of re-assigning.
+                canManageAccounts ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#780301]/40 text-[#780301]"
+                    onClick={() => (editId === groupHolder ? setEditId(null) : startEditAccount(groupHolder))}
+                  >
+                    {editId === groupHolder ? "Close" : "Edit"}
+                  </Button>
+                ) : (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-[12px] font-semibold text-emerald-900">
+                    Assigned
+                  </span>
+                )
+              ) : (
+                <Button
+                  type="button"
+                  className="bg-[#780301] hover:bg-[#5a0201] text-white"
+                  disabled={busy === "whole" || !wholeChair}
+                  onClick={() => void assignWhole()}
+                >
+                  {busy === "whole" ? "Saving…" : "Assign"}
+                </Button>
+              )}
+            </div>
+          ) : null}
+
+          {group && mode === "whole" && canManageAccounts && editId && editId === groupHolder ? (
+            // One account for the whole group: edited once here, not under one major's row.
+            <div className="rounded-lg border border-[#780301]/20 bg-[#780301]/[0.03] p-4 space-y-3">
+              <div className="text-[13px] font-semibold">
+                Edit chairperson account — manages{" "}
+                {group.programs.length > 1 ? `all ${group.label} majors` : group.label}
+              </div>
+              {accountEditor()}
             </div>
           ) : null}
 
@@ -427,11 +543,11 @@ export function ChairAssignmentWorkspace({
                     setNewTarget(mode === "whole" && group.programs.length > 1 ? "__group__" : group.programs[0]?.id ?? "");
                   }}
                 >
-                  ＋ New chairman
+                  ＋ New chairperson
                 </Button>
               ) : (
                 <>
-                  <div className="text-[13px] font-semibold">New chairman account</div>
+                  <div className="text-[13px] font-semibold">New chairperson account</div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="space-y-1">
                       <span className="block text-[12px] font-semibold text-black/75">Manages</span>
@@ -446,6 +562,7 @@ export function ChairAssignmentWorkspace({
                             {programLabel(p)}
                           </option>
                         ))}
+                        <option value="__later__">Assign later (account only)</option>
                       </select>
                     </label>
                     <label className="space-y-1">
@@ -473,15 +590,15 @@ export function ChairAssignmentWorkspace({
                       disabled={busy === "new"}
                       onClick={() => void createChair()}
                     >
-                      {busy === "new" ? "Creating…" : "Create & assign"}
+                      {busy === "new" ? "Creating…" : newTarget === "__later__" ? "Create chairperson" : "Create & assign"}
                     </Button>
                     <Button type="button" variant="outline" onClick={resetNew} disabled={busy === "new"}>
                       Cancel
                     </Button>
                   </div>
                   <p className="text-[11px] text-black/50">
-                    Creates the sign-in and assigns the chairman. They are asked to change the password the first time
-                    they sign in.
+                    Creates the sign-in and assigns the chairperson (or, with Assign later, the sign-in only). They are
+                    asked to change the password the first time they sign in.
                   </p>
                 </>
               )}
@@ -494,7 +611,7 @@ export function ChairAssignmentWorkspace({
                 <thead>
                   <tr className="bg-black/[0.04] text-left">
                     <th className="px-3 py-2">Major / Program</th>
-                    <th className="px-3 py-2">Chairman</th>
+                    <th className="px-3 py-2">Chairperson</th>
                     <th className="px-3 py-2">Status</th>
                     {mode === "per" || group.programs.length === 1 ? <th className="px-3 py-2 text-right">Action</th> : null}
                   </tr>
@@ -517,7 +634,7 @@ export function ChairAssignmentWorkspace({
                               value={choice}
                               onChange={(v) => setRowChoice((m) => ({ ...m, [p.id]: v }))}
                               placeholder="Type a name or email…"
-                              ariaLabel={`Chairman for ${p.code ?? p.id}`}
+                              ariaLabel={`Chairperson for ${p.code ?? p.id}`}
                             />
                           ) : (
                             chairName(current) || <span className="text-black/40">—</span>
@@ -527,18 +644,26 @@ export function ChairAssignmentWorkspace({
                           {current ? (
                             <span className="inline-flex items-center gap-2">
                               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">Assigned</span>
-                              {canManageAccounts ? (
+                              {canManageAccounts && mode === "per" ? (
                                 <button
                                   type="button"
                                   className="text-[11px] font-semibold text-[#780301] hover:underline"
-                                  onClick={() => (editId === current ? setEditId(null) : startEditAccount(current))}
+                                  onClick={() => {
+                                    if (editId === current && editRowId === p.id) {
+                                      setEditId(null);
+                                      setEditRowId(null);
+                                    } else {
+                                      startEditAccount(current);
+                                      setEditRowId(p.id);
+                                    }
+                                  }}
                                 >
-                                  {editId === current ? "Close" : "Edit account"}
+                                  {editId === current && editRowId === p.id ? "Close" : "Edit account"}
                                 </button>
                               ) : null}
                             </span>
                           ) : (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">No chairman</span>
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">No chairperson</span>
                           )}
                         </td>
                         {editable ? (
@@ -569,65 +694,10 @@ export function ChairAssignmentWorkspace({
                           </td>
                         ) : null}
                       </tr>
-                      {canManageAccounts && editId && editId === current && group.programs.find((x) => chairOf.get(x.id) === editId)?.id === p.id ? (
+                      {canManageAccounts && mode === "per" && editId && editId === current && editRowId === p.id ? (
                         <tr className="bg-black/[0.02]">
                           <td colSpan={editable ? 4 : 3} className="px-3 py-3">
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                              <label className="space-y-1">
-                                <span className="block text-[12px] font-semibold text-black/75">Full name</span>
-                                <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
-                              </label>
-                              <label className="space-y-1">
-                                <span className="block text-[12px] font-semibold text-black/75">Email (username)</span>
-                                <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
-                              </label>
-                              <label className="space-y-1">
-                                <span className="block text-[12px] font-semibold text-black/75">New password (optional)</span>
-                                <PasswordInput
-                                  placeholder="Leave empty to keep it"
-                                  value={editPassword}
-                                  onChange={(e) => setEditPassword(e.target.value)}
-                                  autoComplete="new-password"
-                                />
-                              </label>
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="h-8 bg-[#780301] hover:bg-[#5a0201] text-white"
-                                disabled={busy === `acct:${editId}`}
-                                onClick={() => void saveAccount()}
-                              >
-                                Save account
-                              </Button>
-                              {confirmDelete ? (
-                                <>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="h-8 bg-red-700 text-white hover:bg-red-800"
-                                    disabled={busy === `acct:${editId}`}
-                                    onClick={() => void deleteAccount()}
-                                  >
-                                    Confirm delete
-                                  </Button>
-                                  <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setConfirmDelete(false)}>
-                                    Keep
-                                  </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 text-red-800 border-red-200 hover:bg-red-50"
-                                  onClick={() => setConfirmDelete(true)}
-                                >
-                                  Delete account
-                                </Button>
-                              )}
-                            </div>
+                            {accountEditor()}
                           </td>
                         </tr>
                       ) : null}
@@ -640,8 +710,8 @@ export function ChairAssignmentWorkspace({
           ) : null}
           <p className="text-[11px] text-black/50">
             {canManageAccounts
-              ? "Pick an existing chairman, or use ＋ New chairman to create one. A chairman with several programs switches between them from their own pages."
-              : "Only Program Chairman accounts of this college are listed. DOI creates them under Colleges & Chairmen. A chairman with several programs switches between them from their own pages."}
+              ? "Pick an existing chairperson, or use ＋ New chairperson to create one. A chairperson with several programs switches between them from their own pages."
+              : "Only Program Chairperson accounts of this college are listed. A chairperson with several programs switches between them from their own pages."}
           </p>
         </div>
       )}

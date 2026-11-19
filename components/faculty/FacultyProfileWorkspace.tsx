@@ -98,7 +98,7 @@ import {
 import { serviceAreasApi, type ServiceArea } from "@/lib/api/client";
 
 /**
- * Chairman adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
+ * Chairperson adds faculty here with **Employee ID** before (or while) plotting. That creates `User` + `FacultyProfile`
  * without Auth; `User.email` is a unique placeholder until self-registration (see `register-instructor` API).
  * The Evaluator assigns `ScheduleEntry.instructorId` to that `User.id`. Self-registration with the same Employee ID
  * links Auth and schedules.
@@ -123,17 +123,17 @@ export type FacultyProfileWorkspaceProps = {
   /**
    * The college a new faculty is created under while the list is campus-wide.
    *
-   * A roster can span colleges; a new row cannot — it has to land in exactly one. The GEC Chairman
+   * A roster can span colleges; a new row cannot — it has to land in exactly one. The GEC Chairperson
    * searches campus-wide but still enrolls into the GEC routing college, which is the single college
    * their page wrote to before it could search at all.
    */
   writeCollegeIdFallback?: string | null;
   /** How to name {@link writeCollegeIdFallback} in the campus-wide notice. */
   writeCollegeLabel?: string | null;
-  /** Chairman Faculty Profile page: edit status & designation on list rows (updates evaluator load rules). */
+  /** Chairperson Faculty Profile page: edit status & designation on list rows (updates evaluator load rules). */
   enableFacultyListEdit?: boolean;
   /**
-   * GEC Chairman: show instructors who teach at least one GEC/GEE course (or have no plots yet).
+   * GEC Chairperson: show instructors who teach at least one GEC/GEE course (or have no plots yet).
    * Excludes faculty who only appear on major (non-GEC) schedules, and the vacant-slot placeholder user.
    */
   gecFacultyFilter?: boolean;
@@ -142,15 +142,17 @@ export type FacultyProfileWorkspaceProps = {
   /**
    * College Admin: leave GEC instructors out of the roster.
    *
-   * They teach general education across every college and the GEC Chairman plots their load, so
+   * They teach general education across every college and the GEC Chairperson plots their load, so
    * they are managed from the GEC Faculty Profile rather than here.
    */
   excludeGecFaculty?: boolean;
+  /** CAS Admin: the Service Chairs belong to CAS, so they are listed. */
+  includeServiceChairs?: boolean;
 };
 
 type ListRow = {
   user: Pick<User, "id" | "name" | "employeeId" | "chairmanProgramId" | "facultyCategory"> & {
-    /** instructor, or a Program / GEC Chairman (listed with their department, account managed elsewhere). */
+    /** instructor, or a Program / GEC Chairperson (listed with their department, account managed elsewhere). */
     role?: string | null;
     /** General Subject / Both instructor's service area. */
     serviceAreaId?: string | null;
@@ -194,6 +196,7 @@ export function FacultyProfileWorkspace({
   enableFacultyListEdit = false,
   gecFacultyFilter = false,
   excludeGecFaculty = false,
+  includeServiceChairs = false,
   viewerServiceAreaId = null,
 }: FacultyProfileWorkspaceProps) {
   /** Service areas, for General Subject / Both instructors (migration 035). */
@@ -266,11 +269,11 @@ export function FacultyProfileWorkspace({
   const [extension, setExtension] = useState("");
   const [research, setResearch] = useState("");
   const [advisorySectionIds, setAdvisorySectionIds] = useState<string[]>([]);
-  /** Department the instructor belongs to (`User.chairmanProgramId`). Locked for a Program Chairman. */
+  /** Department the instructor belongs to (`User.chairmanProgramId`). Locked for a Program Chairperson. */
   const [departmentProgramId, setDepartmentProgramId] = useState("");
   /**
    * Teaching category. A GEC instructor is college-scoped and teaches across departments, so they
-   * carry no home department — a Program Chairman can enroll one from here.
+   * carry no home department — a Program Chairperson can enroll one from here.
    */
   const [facultyCategory, setFacultyCategory] = useState<FacultyCategory>(
     gecFacultyFilter ? FACULTY_CATEGORY_GEC : FACULTY_CATEGORY_PROGRAM,
@@ -416,7 +419,7 @@ export function FacultyProfileWorkspace({
      * but campus-wide has no college narrowing it, and without this the page would pull every
      * student on campus just to throw them away.
      */
-    // Chairmen teach too: every Program / GEC Chairman is on their department's faculty list.
+    // Chairpersons teach too: every Program / GEC Chairperson is on their department's faculty list.
     const userQuery = new URLSearchParams({ role: "instructor,chairman_admin,gec_chairman" });
     if (scopeParam) userQuery.set("collegeId", scopeParam);
     setLoadingList(true);
@@ -490,6 +493,7 @@ export function FacultyProfileWorkspace({
           isFacultyVisibleToRosterViewer(u, {
             gecOnly: gecFacultyFilter,
             excludeGec: excludeGecFaculty,
+            includeServiceChairs,
             lockedProgramId: chairmanProgramId,
             serviceAreaId: viewerServiceAreaId,
           }),
@@ -584,7 +588,7 @@ export function FacultyProfileWorkspace({
         profile: byUser.get(u.id) ?? null,
       })),
     );
-  }, [scope, scopeProgramId, chairmanProgramId, gecFacultyFilter, excludeGecFaculty, viewerServiceAreaId, toast]);
+  }, [scope, scopeProgramId, chairmanProgramId, gecFacultyFilter, excludeGecFaculty, includeServiceChairs, viewerServiceAreaId, toast]);
 
   useEffect(() => {
     void loadFaculty();
@@ -789,7 +793,7 @@ export function FacultyProfileWorkspace({
 
   async function onAddFaculty() {
     if (!collegeId) {
-      toast.refuse("Choose a college first", "Use the scope bar above, or sign in as Chairman.");
+      toast.refuse("Choose a college first", "Use the scope bar above, or sign in as Chairperson.");
       return;
     }
 
@@ -866,7 +870,7 @@ export function FacultyProfileWorkspace({
      */
     const emailTrim = loginEmail.trim().toLowerCase();
     const editingRowNow = editingUserId ? rows.find((r) => r.user.id === editingUserId) : undefined;
-    /** A chairman's sign-in and account are managed under College Admins & Chairmen; here, the profile only. */
+    /** A chairperson's sign-in and account are managed under College Admins & Chairpersons; here, the profile only. */
     const editingChairman =
       editingRowNow?.user.role === "chairman_admin" || editingRowNow?.user.role === "gec_chairman";
     const storedEmail = editingRowNow && hasFacultySignIn(editingRowNow.user.email)
@@ -901,7 +905,7 @@ export function FacultyProfileWorkspace({
       let emailNote = "";
       try {
         if (editingChairman) {
-          // Nothing: the chairman's account is not edited from Faculty Profile.
+          // Nothing: the chairperson's account is not edited from Faculty Profile.
         } else if (!storedEmail) {
           const res = await userAdminApi.issueAccount(editingUserId, {
             email: emailTrim,
@@ -947,7 +951,7 @@ export function FacultyProfileWorkspace({
         if (row?.profile && scopeChangeWouldInvalidateAdvisory) {
           await facultyProfileApi.update(row.profile.id, advisoryWriteFields([]));
         }
-        // A chairman's account is managed under College Admins & Chairmen.
+        // A chairperson's account is managed under College Admins & Chairpersons.
         if (!editingChairman) await userAdminApi.update(editingUserId, {
           name: nameTrim,
           employeeId: employeeId.trim() || null,
@@ -1548,10 +1552,10 @@ export function FacultyProfileWorkspace({
                               <span className="truncate">
                                 {parts.lastName || <span className="text-black/30">—</span>}
                               </span>
-                              {/* Listed, but the evaluator will not offer them until a chairman approves. */}
+                              {/* Listed, but the evaluator will not offer them until a chairperson approves. */}
                               {isAwaitingFacultyApproval(user) ? (
                                 <span
-                                  title="Self-registered — awaiting chairman approval. Cannot be plotted yet."
+                                  title="Self-registered — awaiting chairperson approval. Cannot be plotted yet."
                                   className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-900"
                                 >
                                   Pending
@@ -1729,7 +1733,7 @@ export function FacultyProfileWorkspace({
                               ) : null}
                               {user.role === "chairman_admin" || user.role === "gec_chairman" ? (
                                 <span className="inline-flex items-center rounded-md bg-[#780301]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#780301]">
-                                  Chairman
+                                  Chairperson
                                 </span>
                               ) : null}
                             </div>
@@ -1808,7 +1812,7 @@ export function FacultyProfileWorkspace({
                                 >
                                   Edit
                                 </Button>
-                                {/* A chairman's account is managed under College Admins & Chairmen, not here. */}
+                                {/* A chairperson's account is managed under College Admins & Chairpersons, not here. */}
                                 {user.role !== "chairman_admin" && user.role !== "gec_chairman" ? (
                                   <Button
                                     type="button"
@@ -1849,7 +1853,7 @@ export function FacultyProfileWorkspace({
             </p>
           ) : !collegeId ? (
             <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-              Set college scope using the bar above (campus pages) or open this page as Chairman / College Admin with a
+              Set college scope using the bar above (campus pages) or open this page as Chairperson / College Admin with a
               linked college.
             </p>
           ) : null}
@@ -2163,7 +2167,7 @@ export function FacultyProfileWorkspace({
                 disabled={!collegeId}
               >
                 {FACULTY_CATEGORY_OPTIONS.filter(
-                  // The GEC Chairman's roster is everyone who teaches GEC, so program-only is not offered there.
+                  // The GEC Chairperson's roster is everyone who teaches GEC, so program-only is not offered there.
                   (o) => !gecFacultyFilter || o.value !== FACULTY_CATEGORY_PROGRAM,
                 ).map((o) => (
                   <option key={o.value} value={o.value}>
@@ -2176,7 +2180,7 @@ export function FacultyProfileWorkspace({
                   ? "Teaches general subjects across departments. Set a program below if they belong to one."
                   : facultyCategory === FACULTY_CATEGORY_BOTH
                     ? "Teaches both: listed under their program and on their Service Chair's list."
-                    : "Belongs to one department, plotted by that Program Chairman."}
+                    : "Belongs to one department, plotted by that Program Chairperson."}
               </p>
             </div>
             {facultyCategory !== FACULTY_CATEGORY_PROGRAM && serviceAreas.length > 0 ? (

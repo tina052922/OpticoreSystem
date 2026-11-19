@@ -12,7 +12,7 @@ type ChairmanScopedPageProps = {
   children: ReactNode;
 };
 
-/** Chairman pages: program-only scope bar (no college/campus switcher) + shared header styling. */
+/** Chairperson pages: program-only scope bar (no college/campus switcher) + shared header styling. */
 export function ChairmanScopedPage({
   title,
   subtitle,

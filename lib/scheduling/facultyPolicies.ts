@@ -317,8 +317,8 @@ export function evaluateFacultyLoadsForCollege(
  *
  * `evaluateFacultyLoadsForCollege` reports on every instructor in the entries it is handed, and the
  * evaluators hand it the whole campus timetable — they have to, because an instructor's weekly total
- * includes the rows other chairmen plotted. Asking "did anything come back over the line?" therefore
- * asks about the whole campus, and the GEC Chairman was prompted to justify a single one-prep row
+ * includes the rows other chairpersons plotted. Asking "did anything come back over the line?" therefore
+ * asks about the whole campus, and the GEC Chairperson was prompted to justify a single one-prep row
  * because someone in another department was over their cap.
  *
  * A save is justified by the person making it, so only the instructors that save puts hours on can

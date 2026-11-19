@@ -6,13 +6,13 @@
  * This states the rule in one place so the three forms cannot drift apart on it.
  */
 export function insScopeLockedCollegeId(args: {
-  /** `undefined` when the page is not a Program Chairman's; they have their own picker variant. */
+  /** `undefined` when the page is not a Program Chairperson's; they have their own picker variant. */
   chairmanCollegeId: string | null | undefined;
   /** The viewer's own college, passed by the page. */
   viewerCollegeId: string | null;
   /** DOI / VPAA: the forms genuinely cover every college. */
   campusWide: boolean;
-  /** GEC Chairman: general education reaches into every college. */
+  /** GEC Chairperson: general education reaches into every college. */
   gecOnly: boolean;
 }): string | null {
   if (args.chairmanCollegeId !== undefined) return null;

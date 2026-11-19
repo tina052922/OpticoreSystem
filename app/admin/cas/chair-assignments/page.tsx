@@ -5,7 +5,7 @@ import { ChairAssignmentWorkspace } from "@/components/admin/ChairAssignmentWork
 export default function ChairAssignmentPage() {
   return (
     <div>
-      <ChairmanPageHeader title="Chairman Assignment" subtitle="Whole program group or per major; transfer when a chair leaves" />
+      <ChairmanPageHeader title="Chairperson Assignment" subtitle="Whole program group or per major; transfer when a chair leaves" />
       <ChairAssignmentWorkspace />
     </div>
   );

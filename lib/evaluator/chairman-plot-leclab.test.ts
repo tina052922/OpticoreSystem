@@ -69,7 +69,7 @@ describe("chairman-plot-leclab", () => {
 
   /**
    * Subjects that exist only in Subject Codes, not in the built-in prospectus. AP-6 is the case the
-   * chairman hit: 3 lec units and 3 lab units, but no prospectus row, so every helper drew a blank
+   * chairperson hit: 3 lec units and 3 lab units, but no prospectus row, so every helper drew a blank
    * and the Lec/Lab select had nothing to offer.
    */
   const catalogOnly: ProspectusSubjectRow[] = [
@@ -125,7 +125,7 @@ describe("chairman-plot-leclab", () => {
   });
 
   it("still offers lecture when the subject is in neither source", () => {
-    // Better a plottable lecture than an empty select the chairman cannot get past.
+    // Better a plottable lecture than an empty select the chairperson cannot get past.
     expect(lecLabModesAvailable("BSA", "ZZ-999")).toEqual(["lec"]);
     expect(lecLabModesAvailable("BSA", "")).toEqual([]);
   });
@@ -205,7 +205,7 @@ describe("chairman-plot-leclab", () => {
   });
 
   /**
-   * The bug the chairman reported: AP-6 ships in the BSIT prospectus as lecture-only, and adding lab
+   * The bug the chairperson reported: AP-6 ships in the BSIT prospectus as lecture-only, and adding lab
    * units to it in Subject Codes had no effect on the evaluator at all.
    */
   it("lets a Subject Codes edit override the hardcoded prospectus row", () => {

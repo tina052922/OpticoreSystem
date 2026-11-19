@@ -2,7 +2,7 @@
  * Schedule viewing policy:
  * - Faculty: own Form 5A only; may browse by section and by room.
  * - Students: own section timetable; may browse by section and by room (no faculty 5A).
- * - DOI / Program Chairman (and other admin INS shells): other faculty + section + room.
+ * - DOI / Program Chairperson (and other admin INS shells): other faculty + section + room.
  */
 
 export function isFacultyInsPortal(insBasePath: string): boolean {
