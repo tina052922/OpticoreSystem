@@ -443,7 +443,23 @@ export function GecCentralHubEvaluatorClient({
     return m;
   }, [colleges]);
 
-  const allEntries = useMemo(() => [...entries, ...extraEntries], [entries, extraEntries]);
+  /**
+   * Fetched rows plus local new plots, each id once. Autosave writes a new plot to the database but
+   * keeps it in `extraEntries` until Save; the next refetch (realtime, or returning after being idle)
+   * brings the same row back from the server. The local copy wins — it is the one being edited.
+   */
+  const allEntries = useMemo(() => {
+    if (extraEntries.length === 0) return entries;
+    const localIds = new Set(extraEntries.map((e) => e.id));
+    const seen = new Set<string>();
+    const out: ScheduleEntry[] = [];
+    for (const e of [...entries.filter((x) => !localIds.has(x.id)), ...extraEntries]) {
+      if (seen.has(e.id)) continue;
+      seen.add(e.id);
+      out.push(e);
+    }
+    return out;
+  }, [entries, extraEntries]);
 
   const pendingNewEntryIds = useMemo(
     () => new Set(extraEntries.map((e) => e.id)),
@@ -600,7 +616,7 @@ export function GecCentralHubEvaluatorClient({
       void (async () => {
         if (typeof navigator !== "undefined" && navigator.onLine === false) return;
         const toSave: ScheduleEntry[] = [];
-        for (const e of [...entries, ...extraEntries]) {
+        for (const e of allEntries) {
           if (!gecOwnedIds.has(e.id)) continue;
           const patch = edits[e.id];
           const isNew = pendingNewEntryIds.has(e.id);
@@ -638,6 +654,7 @@ export function GecCentralHubEvaluatorClient({
     edits,
     extraEntries,
     entries,
+    allEntries,
     gecOwnedIds,
     pendingNewEntryIds,
     toast,
@@ -660,7 +677,7 @@ export function GecCentralHubEvaluatorClient({
         autosaveTimerRef.current = null;
         void (async () => {
           const toSave: ScheduleEntry[] = [];
-          for (const e of [...entries, ...extraEntries]) {
+          for (const e of allEntries) {
             if (!gecOwnedIds.has(e.id)) continue;
             const patch = edits[e.id];
             const isNew = pendingNewEntryIds.has(e.id);
@@ -691,6 +708,7 @@ export function GecCentralHubEvaluatorClient({
     edits,
     extraEntries,
     entries,
+    allEntries,
     gecOwnedIds,
     pendingNewEntryIds,
     toast,
@@ -1701,7 +1719,7 @@ export function GecCentralHubEvaluatorClient({
       <ChairmanPageHeader
         actions={headerActions}
         title={SUBJECT_SCHEDULER_NAV_LABEL}
-        subtitle="Plot vacant GEC slots in the selected college and department. Major subjects stay read-only."
+        subtitle="Plot general subjects into vacant slots of the selected college and department. Major subjects stay read-only."
       />
 
       <div className="px-4 md:px-8 pb-10 space-y-5 max-w-[1400px] mx-auto">

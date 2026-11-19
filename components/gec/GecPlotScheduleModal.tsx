@@ -271,13 +271,6 @@ export function GecPlotScheduleModal({
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
   const incompleteFieldBare = `${fieldClass} ring-2 ring-red-500 border-red-400 bg-red-50/70`;
 
-  const instructorSearchOptions = useMemo<SearchSelectOption[]>(
-    () => [
-      { value: GEC_VACANT_INSTRUCTOR_USER_ID, label: "Prof X (TBA) — no instructor yet" },
-      ...instructorPlotOptions.map((opt) => ({ value: opt.id, label: formatInstructorPlotOptionLabel(opt) })),
-    ],
-    [instructorPlotOptions],
-  );
   const buildingSearchOptions = useMemo<SearchSelectOption[]>(
     () =>
       buildingLabels.map((b) => ({
@@ -507,20 +500,7 @@ export function GecPlotScheduleModal({
             <label className={labelClass} htmlFor="gec-plot-instructor">
               Instructor
             </label>
-            {searchable ? (
-              <SearchSelect
-                id="gec-plot-instructor"
-                ariaLabel="Instructor"
-                className="mt-1"
-                inputClassName={fieldClass}
-                placeholder="Type an instructor's name or ID…"
-                options={instructorSearchOptions}
-                value={draft.instructorId}
-                disabled={readOnly}
-                // Cleared → back to the Prof X (TBA) placeholder, never an empty instructor.
-                onChange={(v) => onDraftChange({ ...draft, instructorId: v || GEC_VACANT_INSTRUCTOR_USER_ID })}
-              />
-            ) : (
+            {/* A select listing every instructor (Prof X first), for every role. */}
             <select
               id="gec-plot-instructor"
               className={`${fieldClass} mt-1`}
@@ -535,7 +515,6 @@ export function GecPlotScheduleModal({
                 </option>
               ))}
             </select>
-            )}
             {instructorPlotOptions.length === 0 && !readOnly ? (
               <NoInstructorsNotice compact gec facultyProfileHref={facultyProfileHref} />
             ) : null}
