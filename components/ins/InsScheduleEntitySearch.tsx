@@ -9,7 +9,8 @@ type Option = { id: string; name: string };
 export type InsScheduleEntityPickerMode = "search" | "select";
 
 /** How many matches the list shows at once; typing more narrows it. */
-const MAX_RESULTS = 50;
+/** At most 20 matches in the list — type more to narrow it. */
+const MAX_RESULTS = 20;
 
 /**
  * Search box for the INS Forms pickers (section, room, faculty), for every role that opens them.

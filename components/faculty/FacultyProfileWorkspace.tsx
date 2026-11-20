@@ -1,5 +1,6 @@
 "use client";
 
+import { ShowMoreRows, useIncrementalList } from "@/hooks/use-incremental-list";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
@@ -656,6 +657,11 @@ export function FacultyProfileWorkspace({
       return haystack.includes(q);
     });
   }, [viewRows, facultyListSearch, statusFilter, sexFilter, rankFilter]);
+  // Draw 20 faculty rows at a time; a new search, filter or scope starts again at 20.
+  const facultyPage = useIncrementalList(
+    filteredRows,
+    `${facultyListSearch}|${statusFilter}|${sexFilter}|${rankFilter}|${viewRows.length}`,
+  );
 
   const loadJustifications = useCallback(() => {
     if (!facultyScopeShouldLoad(scope)) {
@@ -1520,7 +1526,7 @@ export function FacultyProfileWorkspace({
                       </td>
                     </tr>
                   ) : (
-                    filteredRows.map(({ user, profile, parts }, index) => {
+                    facultyPage.visible.map(({ user, profile, parts }, index) => {
                       const draft = draftForRow({ user, profile });
                       // Sections spoken for by anyone other than this row's faculty.
                       const rowHolders = advisoryHoldersBySection(advisoryAssignments, {
@@ -1831,6 +1837,13 @@ export function FacultyProfileWorkspace({
                       );
                     })
                   )}
+                  <ShowMoreRows
+                    hasMore={facultyPage.hasMore}
+                    shown={facultyPage.shown}
+                    total={facultyPage.total}
+                    onMore={facultyPage.showMore}
+                    colSpan={enableFacultyListEdit ? FACULTY_LIST_COLUMNS + 1 : FACULTY_LIST_COLUMNS}
+                  />
                 </tbody>
               </table>
             </div>

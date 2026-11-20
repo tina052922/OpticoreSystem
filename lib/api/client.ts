@@ -697,7 +697,7 @@ export type CascadeEntity =
 export type CascadeImpactRow = {
   table: string;
   column: string;
-  action: "delete" | "detach" | "prune";
+  action: "delete" | "detach" | "prune" | "reassign";
   label: string;
   count: number;
 };
@@ -1565,8 +1565,13 @@ export const catalogApi = {
     );
   },
   /** Bulk INS catalog payload (periods + entries + reference data). */
-  insBundle<T>(opts: { forceRefresh?: boolean } = {}) {
-    return apiFetch<T>("/api/catalog/ins-bundle", {
+  /**
+   * Catalog for the INS pages, with the meetings of ONE term only (`academicPeriodId`, else the
+   * current term). The response says which term in `entriesPeriodId`.
+   */
+  insBundle<T>(opts: { forceRefresh?: boolean; academicPeriodId?: string } = {}) {
+    const term = (opts.academicPeriodId ?? "").trim();
+    return apiFetch<T>(`/api/catalog/ins-bundle${term ? `?academicPeriodId=${encodeURIComponent(term)}` : ""}`, {
       method: "GET",
       cacheTtlMs: API_CACHE_TTL.INS_BUNDLE,
       forceRefresh: opts.forceRefresh,

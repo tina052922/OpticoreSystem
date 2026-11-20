@@ -217,10 +217,20 @@ export function useInsCatalog(args: {
       settings: CampusInsSettings | null;
       facultyProfiles: Pick<FacultyProfile, "userId" | "fullName" | "advisorySectionId" | "advisorySectionIds">[];
       doiLockedPeriodIds?: string[];
+      /** The term `entries` belong to (newer API; older ones sent every term). */
+      entriesPeriodId?: string;
     } | null = null;
 
+    // Ask only for the term on screen, when it is already known.
+    const wantedPeriodId =
+      semesterFilter?.ready && semesterFilter.selectedPeriodId
+        ? semesterFilter.selectedPeriodId
+        : !semesterFilter
+          ? fallbackPeriodIdRef.current
+          : "";
+
     try {
-      bundle = await catalogApi.insBundle<any>();
+      bundle = await catalogApi.insBundle<any>({ academicPeriodId: wantedPeriodId || undefined });
     } catch {
       setLoading(false);
       return;
@@ -238,7 +248,16 @@ export function useInsCatalog(args: {
       periodId = defaultAcademicPeriodId(periodList);
     }
 
-    const sch = bundle.entries.filter((e) => e.academicPeriodId === periodId);
+    let termEntries = bundle.entries;
+    if (periodId && bundle.entriesPeriodId && bundle.entriesPeriodId !== periodId) {
+      // The server picked a different term than the one shown: fetch the shown one.
+      try {
+        termEntries = (await catalogApi.scheduleEntries<{ entries: ScheduleEntry[] }>(periodId)).entries ?? [];
+      } catch {
+        termEntries = [];
+      }
+    }
+    const sch = termEntries.filter((e) => e.academicPeriodId === periodId);
 
     const entrySectionIds = [...new Set(sch.map((e) => e.sectionId))];
     const entrySubjectIds = [...new Set(sch.map((e) => e.subjectId))];

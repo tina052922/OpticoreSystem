@@ -6,6 +6,7 @@ import { formatAuditActionEnglish, formatAuditDetailsEnglish } from "@/lib/audit
 import { auditLogApi } from "@/lib/api/client";
 import { markAuditLogPageSeen } from "@/hooks/use-audit-log-unread-count";
 import { useActionToast } from "@/components/alerts/useActionToast";
+import { ShowMoreRows, useIncrementalList } from "@/hooks/use-incremental-list";
 import { Input } from "@/components/ui/input";
 
 export type AuditEntry = {
@@ -123,6 +124,8 @@ export function AuditLogViewer({ auditUnreadScope = "college" }: AuditLogViewerP
   }, [rows, query, actionFilter, entityFilter]);
 
   const filtering = Boolean(query.trim() || actionFilter || entityFilter || from || to);
+  // Draw 20 rows at a time; a new search or filter starts again at 20.
+  const page = useIncrementalList(visible, `${query}|${actionFilter}|${entityFilter}|${from}|${to}|${rows.length}`);
 
   function clearAll() {
     setQuery("");
@@ -234,7 +237,7 @@ export function AuditLogViewer({ auditUnreadScope = "college" }: AuditLogViewerP
                 </td>
               </tr>
             ) : (
-              visible.map((r) => (
+              page.visible.map((r) => (
                 <tr key={r.entry.id} className="border-t border-black/10 align-top hover:bg-black/[0.02]">
                   <td className="px-2 py-1 whitespace-nowrap tabular-nums text-black/80">{r.time}</td>
                   <td className="px-2 py-1 whitespace-nowrap">{r.user}</td>
@@ -247,6 +250,7 @@ export function AuditLogViewer({ auditUnreadScope = "college" }: AuditLogViewerP
                 </tr>
               ))
             )}
+            <ShowMoreRows hasMore={page.hasMore} shown={page.shown} total={page.total} onMore={page.showMore} colSpan={5} />
           </tbody>
         </table>
       </div>
