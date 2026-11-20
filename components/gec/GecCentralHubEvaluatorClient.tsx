@@ -1,5 +1,6 @@
 "use client";
 
+import { onSubjectSchedulerPage } from "@/lib/subject-scheduler-route";
 import { isPlaceholderInstructorId } from "@/lib/scheduling/placeholder-instructor";
 
 import { serviceAreasApi } from "@/lib/api/client";
@@ -669,7 +670,8 @@ export function GecCentralHubEvaluatorClient({
           await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
           setLastDraftSaveAt(new Date());
           const now = Date.now();
-          if (now - lastAutosaveToastAtRef.current > 30_000) {
+          // Only on the Subject Scheduler: a save that finishes after the user left stays silent.
+          if (now - lastAutosaveToastAtRef.current > 30_000 && onSubjectSchedulerPage()) {
             lastAutosaveToastAtRef.current = now;
             toast.success("Draft saved automatically");
           }
@@ -732,7 +734,7 @@ export function GecCentralHubEvaluatorClient({
           try {
             await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
             setLastDraftSaveAt(new Date());
-            toast.success("Draft saved automatically");
+            if (onSubjectSchedulerPage()) toast.success("Draft saved automatically");
           } catch (e) {
             if (e instanceof ApiClientError && e.status === 423) {
               toast.error("Schedule locked", e.message || DOI_SCHEDULE_LOCKED_MESSAGE);

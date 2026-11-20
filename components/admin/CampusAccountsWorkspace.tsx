@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
-import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
+import { DeleteCampusAccountDialog } from "@/components/admin/DeleteCampusAccountDialog";
 import { CasChairsPanel } from "@/components/admin/CasChairsPanel";
 import { ChairAssignmentWorkspace } from "@/components/admin/ChairAssignmentWorkspace";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
@@ -83,7 +83,12 @@ export function CampusAccountsWorkspace() {
 
   // ── form ────────────────────────────────────────────────────────────────
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string; postCode: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    postCode: string;
+  } | null>(null);
   const [assignmentId, setAssignmentId] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -273,6 +278,7 @@ export function CampusAccountsWorkspace() {
     setPendingDelete({
       id: holder.id,
       name: holder.name || holder.email,
+      email: holder.email ?? "",
       postCode: post.code,
     });
   }
@@ -707,12 +713,9 @@ export function CampusAccountsWorkspace() {
       </>
       ) : null}
       {pendingDelete ? (
-        <DeleteWithImpactDialog
-          entity="facultyUser"
-          id={pendingDelete.id}
-          name={pendingDelete.name}
-          title="Remove account"
-          open
+        <DeleteCampusAccountDialog
+          account={pendingDelete}
+          roleLabel={ROLE_LABEL[role]}
           onClose={() => setPendingDelete(null)}
           onDeleted={() => void afterDeleted(pendingDelete)}
         />

@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActionToast } from "@/components/alerts/useActionToast";
+import { DeleteCampusAccountDialog } from "@/components/admin/DeleteCampusAccountDialog";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import {
   apiFetch,
@@ -312,20 +313,16 @@ export function ChairAssignmentWorkspace({
     }
   }
 
-  async function deleteAccount() {
-    if (!editId) return;
-    setBusy(`acct:${editId}`);
-    try {
-      await campusAccountsApi.remove(editId);
-      toast.ok("Chairperson account deleted successfully", "Their programs now have no chairperson. Schedules are unchanged.");
-      setEditId(null);
-      await load();
-      onAccountsChanged?.();
-    } catch (e) {
-      toast.fail(e, "Could not delete the chairperson account", "chair assignment: delete account");
-    } finally {
-      setBusy(null);
-    }
+  /** After the delete dialog has removed the account (it reports its own errors). */
+  async function afterAccountDeleted() {
+    toast.ok(
+      "Chairperson account deleted successfully",
+      "Their programs now have no chairperson. Classes they taught stay plotted without an instructor.",
+    );
+    setConfirmDelete(false);
+    setEditId(null);
+    await load();
+    onAccountsChanged?.();
   }
 
   /** Name / email / "send a new temporary password" + delete for the chairperson being edited (`editId`). */
@@ -363,32 +360,24 @@ export function ChairAssignmentWorkspace({
         >
           Save account
         </Button>
-        {confirmDelete ? (
-          <>
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 bg-red-700 text-white hover:bg-red-800"
-              disabled={busy === `acct:${editId}`}
-              onClick={() => void deleteAccount()}
-            >
-              Confirm delete
-            </Button>
-            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setConfirmDelete(false)}>
-              Keep
-            </Button>
-          </>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-red-800 border-red-200 hover:bg-red-50"
-            onClick={() => setConfirmDelete(true)}
-          >
-            Delete account
-          </Button>
-        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 text-red-800 border-red-200 hover:bg-red-50"
+          disabled={busy === `acct:${editId}`}
+          onClick={() => setConfirmDelete(true)}
+        >
+          Delete account
+        </Button>
+        {confirmDelete && editId ? (
+          <DeleteCampusAccountDialog
+            account={{ id: editId, name: editName, email: editEmail }}
+            roleLabel="Chairperson"
+            onClose={() => setConfirmDelete(false)}
+            onDeleted={() => void afterAccountDeleted()}
+          />
+        ) : null}
       </div>
     </>
   );

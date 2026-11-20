@@ -46,12 +46,8 @@ const FORM_5A_DRAFT_SIGNATURE_SLOTS: InsSignatureSlot[] = [
   },
 ];
 
-const formDate = () =>
-  new Intl.DateTimeFormat("en-PH", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date());
+/** Issue date of the CTU INS forms (Revision 2): fixed, never today's date. Same as the PDF `INSHeader`. */
+const INS_FORM_ISSUE_DATE = "February 15, 2021";
 
 /**
  * On-screen / print letterhead mirrored from PDF `INSHeader`:
@@ -61,12 +57,10 @@ function InsPdfMatchingHeader({
   formCode,
   formTitle,
   semesterLabel,
-  readOnly = false,
 }: {
   formCode: string;
   formTitle: string;
   semesterLabel?: string;
-  readOnly?: boolean;
 }) {
   const { insHeaderBannerUrl, universityName } = useCampusBranding();
   const { programMode } = useProgramMode();
@@ -89,7 +83,7 @@ function InsPdfMatchingHeader({
         )}
         <div className="absolute right-0 top-0 text-right text-[11px] leading-snug text-neutral-900 sm:text-xs print:text-[6.5pt] print:leading-tight">
           <div className="font-semibold">{formCode}</div>
-          <div>{formDate()}</div>
+          <div>{INS_FORM_ISSUE_DATE}</div>
           <div>Revision: 2</div>
         </div>
       </div>
@@ -102,19 +96,10 @@ function InsPdfMatchingHeader({
         </h4>
         <div className="text-sm print:text-[7pt]">{programModeLabel(programMode)}</div>
         <div className="inline-block min-w-[min(100%,20rem)] border-b border-neutral-900 px-4 pb-1">
-          {readOnly ? (
-            <span className="block py-1 text-center text-sm text-neutral-900 print:py-0 print:text-[7.5pt]">
-              {semesterLabel ?? "____ Semester, AY ____"}
-            </span>
-          ) : (
-            <input
-              type="text"
-              placeholder="____ Semester, AY ____"
-              defaultValue={semesterLabel ?? ""}
-              className="w-full min-w-[16rem] bg-transparent text-center text-sm outline-none placeholder:text-neutral-400 print:text-[7.5pt]"
-              aria-label="Semester and academic year"
-            />
-          )}
+          {/* Read-only: the term comes from the selected academic period. */}
+          <span className="block py-1 text-center text-sm text-neutral-900 print:py-0 print:text-[7.5pt]">
+            {semesterLabel?.trim() || "____ Semester, AY ____"}
+          </span>
         </div>
       </div>
     </div>
@@ -160,25 +145,6 @@ function InsUnderlineValue({
     >
       {value?.trim() ? value : "—"}
     </span>
-  );
-}
-
-function InsUnderlineInput({
-  defaultValue,
-  className = "",
-  "aria-label": ariaLabel,
-}: {
-  defaultValue?: string;
-  className?: string;
-  "aria-label"?: string;
-}) {
-  return (
-    <input
-      type="text"
-      defaultValue={defaultValue ?? ""}
-      aria-label={ariaLabel}
-      className={`min-h-[1.5rem] flex-1 min-w-0 border-0 border-b border-neutral-900 bg-transparent outline-none print:min-h-0 ${className}`}
-    />
   );
 }
 
@@ -445,7 +411,6 @@ export function OpticoreInsForm5A({
   facultyName,
   schedule,
   courses,
-  readOnly = false,
   semesterLabel,
   scheduleApproved = false,
   insSignatureSlots = null,
@@ -461,21 +426,12 @@ export function OpticoreInsForm5A({
         formCode="INS Form 5A"
         formTitle="Program by Teacher"
         semesterLabel={semesterLabel}
-        readOnly={readOnly}
       />
 
       <div className="space-y-2 print:space-y-0.5 text-sm print:text-[6.5pt]">
         <div className="flex flex-wrap items-end gap-3 print:gap-1">
           <span className="shrink-0">Name:</span>
-          {readOnly ? (
-            <InsUnderlineValue value={facultyName} className="min-w-[12rem]" />
-          ) : (
-            <InsUnderlineInput
-              defaultValue={facultyName}
-              className="min-w-[12rem] focus:border-[#FF990A]"
-              aria-label="Faculty name"
-            />
-          )}
+          <InsUnderlineValue value={facultyName} className="min-w-[12rem]" />
         </div>
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -491,7 +447,7 @@ export function OpticoreInsForm5A({
               {/* Ticked from Faculty Profile → Status of Appointment. */}
               <input
                 type="checkbox"
-                disabled={readOnly}
+                disabled
                 defaultChecked={appointmentStatusLabel(facultyCredentials?.appointmentStatus) === label}
                 key={`${label}-${facultyCredentials?.appointmentStatus ?? ""}`}
                 className="rounded border-neutral-500"
@@ -504,59 +460,21 @@ export function OpticoreInsForm5A({
         <div className="space-y-2 print:space-y-0.5">
           <InsTwoColFieldRow
             leftLabel="Bachelor's Degree"
-            leftNode={
-              readOnly ? (
-                <InsUnderlineValue value={facultyCredentials?.bachelors} />
-              ) : (
-                <InsUnderlineInput defaultValue={facultyCredentials?.bachelors ?? ""} />
-              )
-            }
+            leftNode={<InsUnderlineValue value={facultyCredentials?.bachelors} />}
             rightLabel="Major"
-            rightNode={
-              readOnly ? (
-                <InsUnderlineValue value={facultyCredentials?.major} />
-              ) : (
-                <InsUnderlineInput defaultValue={facultyCredentials?.major ?? ""} />
-              )
-            }
+            rightNode={<InsUnderlineValue value={facultyCredentials?.major} />}
           />
           <InsTwoColFieldRow
             leftLabel="Master's Degree"
-            leftNode={
-              readOnly ? (
-                <InsUnderlineValue value={facultyCredentials?.master} />
-              ) : (
-                <InsUnderlineInput defaultValue={facultyCredentials?.master ?? ""} />
-              )
-            }
+            leftNode={<InsUnderlineValue value={facultyCredentials?.master} />}
             rightLabel="Minor"
-            rightNode={
-              readOnly ? (
-                <InsUnderlineValue value={facultyCredentials?.minor} />
-              ) : (
-                <InsUnderlineInput defaultValue={facultyCredentials?.minor ?? ""} />
-              )
-            }
+            rightNode={<InsUnderlineValue value={facultyCredentials?.minor} />}
           />
           <InsTwoColFieldRow
             leftLabel="Doctorate Degree"
-            leftNode={
-              readOnly ? (
-                <InsUnderlineValue value={facultyCredentials?.doctorate} />
-              ) : (
-                <InsUnderlineInput defaultValue={facultyCredentials?.doctorate ?? ""} />
-              )
-            }
+            leftNode={<InsUnderlineValue value={facultyCredentials?.doctorate} />}
             rightLabel="Special Training"
-            rightNode={
-              readOnly ? (
-                <InsUnderlineValue value={facultyCredentials?.specialTraining} />
-              ) : (
-                <InsUnderlineInput
-                  defaultValue={facultyCredentials?.specialTraining ?? ""}
-                />
-              )
-            }
+            rightNode={<InsUnderlineValue value={facultyCredentials?.specialTraining} />}
           />
         </div>
       </div>
@@ -583,17 +501,7 @@ export function OpticoreInsForm5A({
       <OpticoreInsScheduleTableWithSignatures
         cellMode="spanned"
         cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
-        showMondayPlaceholder={!readOnly}
-        renderSpanned={({ items, paperFormRow }) => {
-          if (paperFormRow) {
-            return (
-              <div className="text-xs leading-relaxed text-neutral-500">
-                <div>Course code</div>
-                <div>Yr. & Sec.</div>
-                <div>Room</div>
-              </div>
-            );
-          }
+        renderSpanned={({ items }) => {
           return (
             <div className="w-full space-y-1 print:space-y-0 print:flex print:flex-row print:flex-wrap print:gap-x-2 print:gap-y-0.5 print:items-start print:justify-start">
               {(items as InsFacultyCell[])
@@ -652,127 +560,52 @@ export function OpticoreInsForm5A({
       {/* Metrics sit below Summary — same order as PDF `INS5ADocument`. */}
       <div className="grid grid-cols-1 gap-x-10 gap-y-2 border-t border-neutral-900 pt-2 print:gap-y-0 print:pt-1 text-sm md:grid-cols-2 print:text-[6.5pt]">
         <div className="space-y-2 print:space-y-0">
-          {readOnly ? (
-            <>
-              <CredLine
-                label="No. of Preparations"
-                value={
-                  facultyFormSummary != null
-                    ? String(facultyFormSummary.preparations)
-                    : null
-                }
-              />
-              <CredLine
-                label="No. of Units"
-                value={
-                  facultyFormSummary != null
-                    ? String(facultyFormSummary.totalUnits)
-                    : null
-                }
-              />
-              <CredLine
-                label="No. of Hours/Week"
-                value={
-                  facultyFormSummary != null
-                    ? String(facultyFormSummary.hoursPerWeek)
-                    : null
-                }
-              />
-            </>
-          ) : (
-            <>
-              <FieldLine
-                label="No. of Preparations"
-                defaultValue={
-                  facultyFormSummary != null
-                    ? String(facultyFormSummary.preparations)
-                    : ""
-                }
-              />
-              <FieldLine
-                label="No. of Units"
-                defaultValue={
-                  facultyFormSummary != null
-                    ? String(facultyFormSummary.totalUnits)
-                    : ""
-                }
-              />
-              <FieldLine
-                label="No. of Hours/Week"
-                defaultValue={
-                  facultyFormSummary != null
-                    ? String(facultyFormSummary.hoursPerWeek)
-                    : ""
-                }
-              />
-            </>
-          )}
+          <CredLine
+            label="No. of Preparations"
+            value={
+              facultyFormSummary != null
+                ? String(facultyFormSummary.preparations)
+                : null
+            }
+          />
+          <CredLine
+            label="No. of Units"
+            value={
+              facultyFormSummary != null
+                ? String(facultyFormSummary.totalUnits)
+                : null
+            }
+          />
+          <CredLine
+            label="No. of Hours/Week"
+            value={
+              facultyFormSummary != null
+                ? String(facultyFormSummary.hoursPerWeek)
+                : null
+            }
+          />
         </div>
         <div className="space-y-2 print:space-y-0">
-          {readOnly ? (
-            <>
-              <CredLine
-                label="Administrative Designation"
-                value={facultyFormSummary?.administrativeDesignation}
-              />
-              <CredLine
-                label="Production"
-                value={facultyFormSummary?.production}
-              />
-              <CredLine
-                label="Extension"
-                value={facultyFormSummary?.extension}
-              />
-              <CredLine
-                label="Research"
-                value={facultyFormSummary?.research}
-              />
-            </>
-          ) : (
-            <>
-              <FieldLine
-                label="Administrative Designation"
-                defaultValue={
-                  facultyFormSummary?.administrativeDesignation ?? ""
-                }
-              />
-              <FieldLine
-                label="Production"
-                defaultValue={facultyFormSummary?.production ?? ""}
-              />
-              <FieldLine
-                label="Extension"
-                defaultValue={facultyFormSummary?.extension ?? ""}
-              />
-              <FieldLine
-                label="Research"
-                defaultValue={facultyFormSummary?.research ?? ""}
-              />
-            </>
-          )}
+          <CredLine
+            label="Administrative Designation"
+            value={facultyFormSummary?.administrativeDesignation}
+          />
+          <CredLine
+            label="Production"
+            value={facultyFormSummary?.production}
+          />
+          <CredLine
+            label="Extension"
+            value={facultyFormSummary?.extension}
+          />
+          <CredLine
+            label="Research"
+            value={facultyFormSummary?.research}
+          />
         </div>
       </div>
 
       <InsPrintFooter />
-    </div>
-  );
-}
-
-function FieldLine({
-  label,
-  defaultValue = "",
-}: {
-  label: string;
-  defaultValue?: string;
-}) {
-  return (
-    <div className="flex items-end gap-3">
-      <span className="shrink-0 text-sm">{label}:</span>
-      <input
-        type="text"
-        defaultValue={defaultValue}
-        className="min-h-[1.5rem] flex-1 border-0 border-b border-neutral-900 bg-transparent text-sm outline-none"
-      />
     </div>
   );
 }
@@ -861,7 +694,6 @@ export function OpticoreInsForm5B({
   major,
   schedule,
   courses,
-  readOnly = false,
   semesterLabel,
   scheduleApproved = false,
   insSignatureSlots = null,
@@ -874,43 +706,23 @@ export function OpticoreInsForm5B({
         formCode="INS Form 5B"
         formTitle="Program by Section"
         semesterLabel={semesterLabel}
-        readOnly={readOnly}
       />
 
       <div className="space-y-2 print:space-y-1 text-sm print:text-[7.5pt]">
         <InsTwoColFieldRow
           leftLabel="Degree and Year"
-          leftNode={
-            readOnly ? (
-              <InsUnderlineValue value={degreeAndYear} />
-            ) : (
-              <InsUnderlineInput defaultValue={degreeAndYear} />
-            )
-          }
+          // Read-only: these come from the section's record, not typed on the form.
+          leftNode={<InsUnderlineValue value={degreeAndYear} />}
           rightLabel="Major"
-          rightNode={
-            readOnly ? (
-              <InsUnderlineValue value={major} />
-            ) : (
-              <InsUnderlineInput defaultValue={major ?? ""} />
-            )
-          }
+          rightNode={<InsUnderlineValue value={major} />}
         />
         <div className="flex items-end gap-3">
           <span className="shrink-0">Adviser:</span>
-          {readOnly ? (
-            <InsUnderlineValue value={adviser} />
-          ) : (
-            <InsUnderlineInput defaultValue={adviser} />
-          )}
+          <InsUnderlineValue value={adviser} />
         </div>
         <div className="flex items-end gap-3">
           <span className="shrink-0">Assignment:</span>
-          {readOnly ? (
-            <InsUnderlineValue value={assignment} />
-          ) : (
-            <InsUnderlineInput defaultValue={assignment} />
-          )}
+          <InsUnderlineValue value={assignment} />
         </div>
       </div>
 
@@ -942,17 +754,7 @@ export function OpticoreInsForm5B({
         cellMode="spanned"
         cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
         compactSignaturePrint
-        showMondayPlaceholder={!readOnly}
-        renderSpanned={({ items, paperFormRow }) => {
-          if (paperFormRow) {
-            return (
-              <div className="text-xs leading-relaxed text-neutral-500">
-                <div>Course code</div>
-                <div>Instructor</div>
-                <div>Room</div>
-              </div>
-            );
-          }
+        renderSpanned={({ items }) => {
           return (
             <div className="w-full space-y-1 pr-1 print:space-y-0 print:pr-0.5">
               {(items as SectionScheduleCell[]).slice(0, 3).map((row, idx) => {
@@ -1014,7 +816,6 @@ export function OpticoreInsForm5C({
   schedule,
   scheduleApproved = false,
   insSignatureSlots = null,
-  readOnly = false,
   semesterLabel,
   conflictingScheduleEntryIds = null,
 }: OpticoreInsForm5CProps) {
@@ -1033,16 +834,11 @@ export function OpticoreInsForm5C({
         formCode="INS Form 5C"
         formTitle="Room Utilization"
         semesterLabel={semesterLabel}
-        readOnly={readOnly}
       />
 
       <div className="flex items-end gap-3 text-sm print:text-[7.5pt]">
         <span className="shrink-0">Room Assignment:</span>
-        {readOnly ? (
-          <InsUnderlineValue value={roomAssignment} />
-        ) : (
-          <InsUnderlineInput defaultValue={roomAssignment} />
-        )}
+        <InsUnderlineValue value={roomAssignment} />
       </div>
 
       {programMode === "night" ? (
@@ -1064,18 +860,7 @@ export function OpticoreInsForm5C({
       <OpticoreInsScheduleTableWithSignatures
         cellMode="spanned"
         cellsByDay={schedule as Record<InsDay, InsTimedCell[]>}
-        showMondayPlaceholder={!readOnly}
-        renderSpanned={({ items, paperFormRow }) => {
-          if (paperFormRow) {
-            return (
-              <div className="text-xs leading-relaxed text-neutral-500">
-                <div>Course code</div>
-                <div>Instructor</div>
-                <div>Yr. & Sec.</div>
-                <div>Room</div>
-              </div>
-            );
-          }
+        renderSpanned={({ items }) => {
           return (
             <div className="w-full space-y-1 pr-1">
               {(items as InsRoomCell[]).slice(0, 3).map((classAtTime, idx) => {

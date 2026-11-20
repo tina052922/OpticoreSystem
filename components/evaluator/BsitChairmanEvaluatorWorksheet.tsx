@@ -1,5 +1,6 @@
 "use client";
 
+import { onSubjectSchedulerPage } from "@/lib/subject-scheduler-route";
 import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/api/client";
 import { useSubjectCategoryLabels } from "@/hooks/use-subject-category-labels";
 import { NoInstructorsNotice, facultyProfileHrefForInsBase } from "@/components/evaluator/NoInstructorsNotice";
@@ -2778,7 +2779,8 @@ export function BsitChairmanEvaluatorWorksheet({
           const now = Date.now();
           setLastDraftSaveAt(new Date());
           /** Avoid spamming autosave toasts on frequent edits. */
-          if (now - lastAutosaveToastAtRef.current > 30_000) {
+          // Only on the Subject Scheduler: a save that finishes after the user left stays silent.
+          if (now - lastAutosaveToastAtRef.current > 30_000 && onSubjectSchedulerPage()) {
             lastAutosaveToastAtRef.current = now;
             toast.success("Draft saved automatically");
           }

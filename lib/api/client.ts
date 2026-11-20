@@ -690,6 +690,7 @@ export type CascadeEntity =
   | "building"
   | "section"
   | "facultyUser"
+  | "campusAccount"
   | "program"
   | "college";
 
@@ -1315,6 +1316,35 @@ export const doiApi = {
       invalidates: ["/api/admin/system-configuration", "/api/catalog"],
     });
   },
+  /** System Configuration → Chairperson signatures. */
+  listChairpersonSignatures() {
+    return apiFetch<{ chairpersons: ChairpersonSignatureRow[] }>("/api/doi/chairperson-signatures", {
+      method: "GET",
+      forceRefresh: true,
+    });
+  },
+  updateChairpersonName(id: string, name: string) {
+    return apiFetch<{ ok: true; name: string }>(`/api/doi/chairperson-signatures/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: { name },
+      invalidates: ["/api/doi/chairperson-signatures", "/api/admin/campus-accounts", "/api/catalog"],
+    });
+  },
+  uploadChairpersonSignature(id: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiFetch<{ url: string }>(`/api/doi/chairperson-signatures/${encodeURIComponent(id)}/signature`, {
+      method: "POST",
+      body: formData,
+      invalidates: ["/api/doi/chairperson-signatures", "/api/catalog"],
+    });
+  },
+  clearChairpersonSignature(id: string) {
+    return apiFetch<{ ok: true }>(`/api/doi/chairperson-signatures/${encodeURIComponent(id)}/signature`, {
+      method: "DELETE",
+      invalidates: ["/api/doi/chairperson-signatures", "/api/catalog"],
+    });
+  },
   clearElectronicSignature() {
     return apiFetch<{ ok: true }>("/api/doi/electronic-signature", {
       method: "DELETE",
@@ -1651,9 +1681,30 @@ export const campusAccountsApi = {
       body: input,
     });
   },
-  remove(id: string) {
-    return apiFetch<{ ok: true }>(`/api/admin/campus-accounts/${id}`, { method: "DELETE" });
+  /** What deleting this account removes or unlinks. Writes nothing. */
+  deletionImpact(id: string) {
+    return apiFetch<{ impact: CascadeImpact }>(
+      `/api/admin/campus-accounts/${encodeURIComponent(id)}/deletion-impact`,
+      { method: "GET", forceRefresh: true },
+    );
   },
+  /** Permanent. Show `deletionImpact` first (DeleteCampusAccountDialog). */
+  remove(id: string) {
+    return apiFetch<{ ok: true; removed?: { table: string; count: number }[] }>(
+      `/api/admin/campus-accounts/${encodeURIComponent(id)}`,
+      { method: "DELETE", body: { confirm: true } },
+    );
+  },
+};
+
+export type ChairpersonSignatureRow = {
+  id: string;
+  name: string;
+  email: string;
+  role: "chairman_admin" | "gec_chairman";
+  /** Program · College for a Program Chairperson, the service area for a Service Chair. */
+  assignment: string | null;
+  signatureImageUrl: string | null;
 };
 
 export type CampusAccount = {

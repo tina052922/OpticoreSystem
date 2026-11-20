@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActionToast } from "@/components/alerts/useActionToast";
+import { DeleteCampusAccountDialog } from "@/components/admin/DeleteCampusAccountDialog";
 import { campusAccountsApi, serviceAreasApi, type CampusAccount, type ServiceArea } from "@/lib/api/client";
 
 type College = { id: string; code: string; name: string };
@@ -222,16 +223,12 @@ export function CasChairsPanel({
     }
   }
 
-  async function remove(a: CampusAccount) {
-    try {
-      await campusAccountsApi.remove(a.id);
-      toast.ok("Chair removed successfully", a.name);
-      setConfirmRemoveId(null);
-      if (editingId === a.id) resetForm();
-      await onChanged();
-    } catch (e) {
-      toast.fail(e, "Could not remove the chair", "cas chairs: remove");
-    }
+  /** After the delete dialog has removed the account (it reports its own errors). */
+  async function afterRemoved(a: CampusAccount) {
+    toast.ok("Chair account deleted successfully", a.name);
+    setConfirmRemoveId(null);
+    if (editingId === a.id) resetForm();
+    await onChanged();
   }
 
   const scopeLabel = (a: CampusAccount) =>
@@ -496,31 +493,23 @@ export function CasChairsPanel({
                         <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => startEdit(a)}>
                           Edit
                         </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-red-800 border-red-200 hover:bg-red-50"
+                          onClick={() => setConfirmRemoveId(a.id)}
+                        >
+                          Delete
+                        </Button>
                         {confirmRemoveId === a.id ? (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-8 bg-red-700 text-white hover:bg-red-800"
-                              onClick={() => void remove(a)}
-                            >
-                              Confirm remove
-                            </Button>
-                            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setConfirmRemoveId(null)}>
-                              Keep
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-red-800 border-red-200 hover:bg-red-50"
-                            onClick={() => setConfirmRemoveId(a.id)}
-                          >
-                            Remove
-                          </Button>
-                        )}
+                          <DeleteCampusAccountDialog
+                            account={a}
+                            roleLabel={a.role === "gec_chairman" ? "Service Chair" : "Program Chairperson"}
+                            onClose={() => setConfirmRemoveId(null)}
+                            onDeleted={() => void afterRemoved(a)}
+                          />
+                        ) : null}
                       </div>
                     </td>
                   </tr>

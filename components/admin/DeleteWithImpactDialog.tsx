@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,10 @@ export function DeleteWithImpactDialog({
   onDeleted,
   /** Shown while the impact is unknown, e.g. "Delete faculty". */
   title,
+  warning,
+  requireTyping = false,
+  loadImpact,
+  performDelete,
 }: {
   entity: CascadeEntity;
   id: string;
@@ -43,7 +47,20 @@ export function DeleteWithImpactDialog({
   onClose: () => void;
   onDeleted: () => void;
   title?: string;
+  /** A prominent warning above the impact list. */
+  warning?: ReactNode;
+  /** Ask for the name even when nothing else is deleted (accounts). */
+  requireTyping?: boolean;
+  /** Defaults to the catalog impact endpoint. */
+  loadImpact?: () => Promise<{ impact: CascadeImpact }>;
+  /** Defaults to the catalog cascade endpoint. */
+  performDelete?: () => Promise<unknown>;
 }) {
+  // Latest callbacks without re-running the load whenever a parent re-renders.
+  const loadImpactRef = useRef(loadImpact);
+  loadImpactRef.current = loadImpact;
+  const performDeleteRef = useRef(performDelete);
+  performDeleteRef.current = performDelete;
   const [impact, setImpact] = useState<CascadeImpact | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -55,7 +72,9 @@ export function DeleteWithImpactDialog({
     setError(null);
     setImpact(null);
     try {
-      const { impact: next } = await cascadeDeleteApi.impact(entity, id);
+      const { impact: next } = loadImpactRef.current
+        ? await loadImpactRef.current()
+        : await cascadeDeleteApi.impact(entity, id);
       setImpact(next);
     } catch (e) {
       setError(e instanceof ApiClientError ? e.message : "Could not check what this would affect.");
@@ -86,14 +105,15 @@ export function DeleteWithImpactDialog({
   const detaches = impact?.detaches ?? [];
   const destroysCount = destroys.reduce((n, r) => n + r.count, 0);
   // Typing the name is asked for only when rows would actually be destroyed.
-  const needsTyping = destroysCount > 0;
+  const needsTyping = requireTyping || destroysCount > 0;
   const confirmed = !needsTyping || typed.trim() === label.trim();
 
   async function onConfirm() {
     setDeleting(true);
     setError(null);
     try {
-      await cascadeDeleteApi.cascade(entity, id);
+      if (performDeleteRef.current) await performDeleteRef.current();
+      else await cascadeDeleteApi.cascade(entity, id);
       onDeleted();
       onClose();
     } catch (e) {
@@ -126,6 +146,15 @@ export function DeleteWithImpactDialog({
         </div>
 
         <div className="max-h-[50vh] overflow-auto px-5 py-4 space-y-4">
+          {warning ? (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12px] leading-snug text-red-900"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-700" aria-hidden />
+              <div>{warning}</div>
+            </div>
+          ) : null}
           {loading ? (
             <p className="flex items-center gap-2 text-sm text-black/55">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />

@@ -49,6 +49,9 @@ export default async function CollegeInsIndexPage({
   const sp = (await searchParams) ?? {};
   const requestedTab = typeof sp.tab === "string" ? sp.tab : undefined;
   const activeTab: TabKey = requestedTab === "section" || requestedTab === "room" ? requestedTab : "faculty";
+  // "Generate INS Form" from the Subject Scheduler opens straight on that section (and term, via periodId).
+  const initialSectionId = typeof sp.sectionId === "string" ? sp.sectionId : null;
+  const printOnLoad = sp.print === "1";
 
   return (
     <div>
@@ -70,7 +73,13 @@ export default async function CollegeInsIndexPage({
               <INSFormFaculty insBasePath="/admin/college/ins" viewerCollegeId={profile.collegeId} hideInnerInsTabs />
             ) : null}
             {activeTab === "section" ? (
-              <INSFormSection insBasePath="/admin/college/ins" viewerCollegeId={profile.collegeId} hideInnerInsTabs />
+              <INSFormSection
+                insBasePath="/admin/college/ins"
+                viewerCollegeId={profile.collegeId}
+                hideInnerInsTabs
+                initialSectionId={initialSectionId}
+                printOnLoad={printOnLoad}
+              />
             ) : null}
             {activeTab === "room" ? (
               <INSFormRoom insBasePath="/admin/college/ins" viewerCollegeId={profile.collegeId} hideInnerInsTabs />
