@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActionToast } from "@/components/alerts/useActionToast";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
-import { PasswordInput } from "@/components/ui/password-input";
 import {
   apiFetch,
   campusAccountsApi,
@@ -196,19 +195,18 @@ export function ChairAssignmentWorkspace({
 
   /** Typed, not scrolled: matches show only once something is entered (name or email). */
   // ── Chairperson accounts (DOI) ───────────────────────────────────────────
-  const MIN_PASSWORD = 8;
   const [newOpen, setNewOpen] = useState(false);
   /** Manages: a program id, "__group__" (every major of the group) or "__later__" (no program yet). */
   const [newTarget, setNewTarget] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   /** Per major: the row whose "Edit account" opened the editor (the same chairperson can be on several). */
   const [editRowId, setEditRowId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
-  const [editPassword, setEditPassword] = useState("");
+  /** Edit: email them a new temporary password. */
+  const [editSendPassword, setEditSendPassword] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   function resetNew() {
@@ -216,7 +214,6 @@ export function ChairAssignmentWorkspace({
     setNewTarget("");
     setNewName("");
     setNewEmail("");
-    setNewPassword("");
   }
 
   /**
@@ -245,19 +242,15 @@ export function ChairAssignmentWorkspace({
       toast.refuse("Enter a valid email", "The chairperson signs in with it.");
       return;
     }
-    if (newPassword.trim().length < MIN_PASSWORD) {
-      toast.refuse("Set a longer password", `At least ${MIN_PASSWORD} characters; they change it at first sign-in.`);
-      return;
-    }
     setBusy("new");
     try {
-      const { account } = await campusAccountsApi.create({
+      // The server generates the temporary password and emails it to them.
+      const { account, warning } = await campusAccountsApi.create({
         role: "chairman_admin",
         collegeId: accountCollegeId,
         programId: program?.id ?? null,
         name: newName.trim(),
         email: newEmail.trim().toLowerCase(),
-        password: newPassword.trim(),
       });
       if (wholeGroup && group && group.programs.length > 1) {
         await chairAssignmentsApi.setGroupChair({
@@ -269,9 +262,10 @@ export function ChairAssignmentWorkspace({
       toast.ok(
         "Chairperson added successfully",
         later
-          ? `${newName.trim()} can sign in now (they change the password first). Assign them to a program above.`
-          : `${newName.trim()} manages ${wholeGroup && group ? `all of ${group.label}` : program?.code ?? ""}. They change the password at first sign-in.`,
+          ? `A temporary password was emailed to ${newEmail.trim()}. Assign them to a program above.`
+          : `${newName.trim()} manages ${wholeGroup && group ? `all of ${group.label}` : program?.code ?? ""}. A temporary password was emailed to ${newEmail.trim()}.`,
       );
+      toast.caution(warning, "Created, but the email was not sent");
       resetNew();
       await load();
       // "Assign later": the new chairperson is picked in the Chairperson field, ready to Assign.
@@ -290,24 +284,23 @@ export function ChairAssignmentWorkspace({
     setEditId(chairId);
     setEditName(c.name ?? "");
     setEditEmail(c.email ?? "");
-    setEditPassword("");
+    setEditSendPassword(false);
     setConfirmDelete(false);
   }
 
   async function saveAccount() {
     if (!editId) return;
-    if (editPassword && editPassword.trim().length < MIN_PASSWORD) {
-      toast.refuse("Set a longer password", `At least ${MIN_PASSWORD} characters, or leave it empty to keep the current one.`);
-      return;
-    }
     setBusy(`acct:${editId}`);
     try {
-      const { warning } = await campusAccountsApi.update(editId, {
+      const { warning, emailed } = await campusAccountsApi.update(editId, {
         name: editName.trim(),
         email: editEmail.trim().toLowerCase(),
-        password: editPassword.trim() || undefined,
+        ...(editSendPassword ? { resetPassword: true } : {}),
       });
-      toast.ok("Chairperson account updated successfully", editName.trim());
+      toast.ok(
+        "Chairperson account updated successfully",
+        emailed ? `A new temporary password was emailed to ${editEmail.trim()}.` : editName.trim(),
+      );
       toast.caution(warning, "Saved with a limitation");
       setEditId(null);
       await load();
@@ -335,7 +328,7 @@ export function ChairAssignmentWorkspace({
     }
   }
 
-  /** Name / email / new password + delete for the chairperson being edited (`editId`). */
+  /** Name / email / "send a new temporary password" + delete for the chairperson being edited (`editId`). */
   const accountEditor = () => (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -347,14 +340,17 @@ export function ChairAssignmentWorkspace({
           <span className="block text-[12px] font-semibold text-black/75">Email (username)</span>
           <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
         </label>
-        <label className="space-y-1">
-          <span className="block text-[12px] font-semibold text-black/75">New password (optional)</span>
-          <PasswordInput
-            placeholder="Leave empty to keep it"
-            value={editPassword}
-            onChange={(e) => setEditPassword(e.target.value)}
-            autoComplete="new-password"
+        <label className="flex items-start gap-2 self-end pb-2 text-[12px] text-black/75">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-[#780301]"
+            checked={editSendPassword}
+            onChange={(e) => setEditSendPassword(e.target.checked)}
           />
+          <span>
+            <span className="font-semibold">Send a new temporary password</span>
+            <span className="block text-black/50">Emailed to them; they choose their own at sign-in.</span>
+          </span>
         </label>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -548,7 +544,7 @@ export function ChairAssignmentWorkspace({
               ) : (
                 <>
                   <div className="text-[13px] font-semibold">New chairperson account</div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <label className="space-y-1">
                       <span className="block text-[12px] font-semibold text-black/75">Manages</span>
                       <select
@@ -573,15 +569,6 @@ export function ChairAssignmentWorkspace({
                       <span className="block text-[12px] font-semibold text-black/75">Email (username)</span>
                       <Input type="email" placeholder="name@ctu.edu.ph" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
                     </label>
-                    <label className="space-y-1">
-                      <span className="block text-[12px] font-semibold text-black/75">Temporary password</span>
-                      <PasswordInput
-                        placeholder={`At least ${MIN_PASSWORD} characters`}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        autoComplete="new-password"
-                      />
-                    </label>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -597,8 +584,8 @@ export function ChairAssignmentWorkspace({
                     </Button>
                   </div>
                   <p className="text-[11px] text-black/50">
-                    Creates the sign-in and assigns the chairperson (or, with Assign later, the sign-in only). They are
-                    asked to change the password the first time they sign in.
+                    Creates the sign-in and assigns the chairperson (or, with Assign later, the sign-in only). A temporary
+                    password is emailed to them, and they choose their own the first time they sign in.
                   </p>
                 </>
               )}

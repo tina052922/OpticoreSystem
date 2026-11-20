@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch, campusAccountsApi, type CampusAccount } from "@/lib/api/client";
 import { DeleteWithImpactDialog } from "@/components/admin/DeleteWithImpactDialog";
 import { CasChairsPanel } from "@/components/admin/CasChairsPanel";
@@ -64,7 +63,6 @@ const GEC_CHAIRMAN_POST = {
   parentLabel: "All colleges",
 } as const;
 
-const MIN_PASSWORD_LENGTH = 8;
 
 export function CampusAccountsWorkspace() {
   const [role, setRole] = useState<CampusAccountRole>("college_admin");
@@ -89,7 +87,8 @@ export function CampusAccountsWorkspace() {
   const [assignmentId, setAssignmentId] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  /** Edit: email them a new temporary password. (New accounts always get one.) */
+  const [sendNewPassword, setSendNewPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   /**
    * "Register" / "Edit" in the list fill the form at the top of the page. On a long list that form
@@ -108,7 +107,6 @@ export function CampusAccountsWorkspace() {
 
   // ── import ──────────────────────────────────────────────────────────────
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [importPassword, setImportPassword] = useState("");
   const [importing, setImporting] = useState(false);
   const [importReport, setImportReport] = useState<string[] | null>(null);
   /** Rows read from the chosen file, shown for review before anything is created. */
@@ -188,7 +186,7 @@ export function CampusAccountsWorkspace() {
     setAssignmentId("");
     setFullName("");
     setEmail("");
-    setPassword("");
+    setSendNewPassword(false);
   }
 
   function startEdit(post: Post) {
@@ -197,7 +195,7 @@ export function CampusAccountsWorkspace() {
     setAssignmentId(post.id);
     setFullName(post.holder.name ?? "");
     setEmail(post.holder.email ?? "");
-    setPassword("");
+    setSendNewPassword(false);
     revealForm();
   }
 
@@ -219,13 +217,6 @@ export function CampusAccountsWorkspace() {
       toast.refuse("Enter the full name", "This is the name that appears on INS forms.");
       return;
     }
-    if (!editingId && password.trim().length < MIN_PASSWORD_LENGTH) {
-      toast.refuse(
-        "Set a longer password",
-        `It needs at least ${MIN_PASSWORD_LENGTH} characters. They will be asked to change it at first sign-in.`,
-      );
-      return;
-    }
 
     /*
      * The post decides the role, not the tab: picking GEC in the Chairpersons tab saves a GEC Chairperson,
@@ -238,26 +229,30 @@ export function CampusAccountsWorkspace() {
       role: saveRole,
       name: fullName.trim(),
       email: email.trim().toLowerCase(),
-      password: password.trim(),
     };
     const saveLabel = CAMPUS_ACCOUNT_ROLE_LABEL[saveRole];
 
     setSaving(true);
     try {
       if (editingId) {
-        const { warning } = await campusAccountsApi.update(editingId, {
+        const { warning, emailed } = await campusAccountsApi.update(editingId, {
           ...payload,
-          // An empty password on edit means "leave the current one alone".
-          password: password.trim() || undefined,
+          ...(sendNewPassword ? { resetPassword: true } : {}),
         });
-        toast.ok(`${saveLabel} account updated successfully`);
+        toast.ok(
+          `${saveLabel} account updated successfully`,
+          emailed ? `A new temporary password was emailed to ${payload.email}.` : null,
+        );
         toast.caution(warning, "Saved with a limitation");
       } else {
-        await campusAccountsApi.create(payload);
+        const { warning, emailed } = await campusAccountsApi.create(payload);
         toast.ok(
           `${saveLabel} account created successfully`,
-          "They will be asked to change this password at first sign-in.",
+          emailed
+            ? `A temporary password was emailed to ${payload.email}. They choose their own at first sign-in.`
+            : null,
         );
+        toast.caution(warning, "Created, but the email was not sent");
       }
       resetForm();
       await load();
@@ -339,16 +334,9 @@ export function CampusAccountsWorkspace() {
     }
   }
 
-  /** Step 2: register the rows marked ready, all with the one temporary password. */
+  /** Step 2: register the rows marked ready; each gets its own temporary password by email. */
   async function confirmImport() {
     if (!importPreview) return;
-    if (importPassword.trim().length < MIN_PASSWORD_LENGTH) {
-      toast.refuse(
-        "Set a temporary password first",
-        `Imported accounts all start with it, so it needs at least ${MIN_PASSWORD_LENGTH} characters.`,
-      );
-      return;
-    }
     setImporting(true);
     const report: string[] = [];
     let created = 0;
@@ -362,7 +350,6 @@ export function CampusAccountsWorkspace() {
             programId: target.programId,
             name: target.row.fullName,
             email: target.row.email,
-            password: importPassword.trim(),
           });
           created += 1;
         } catch (e) {
@@ -375,13 +362,12 @@ export function CampusAccountsWorkspace() {
       if (created > 0) {
         toast.ok(
           `${created} ${ROLE_LABEL[role]} account${created === 1 ? "" : "s"} created successfully`,
-          "Each will be asked to change the temporary password at first sign-in.",
+          "Each was emailed a temporary password and chooses their own at first sign-in.",
         );
       }
       if (created === 0 && report.length > 0) {
         toast.refuse("Nothing was imported", "Check the rows listed below and try again.");
       }
-      setImportPassword("");
       await load();
     } finally {
       setImporting(false);
@@ -505,20 +491,26 @@ export function CampusAccountsWorkspace() {
             />
           </label>
 
-          <div className="space-y-1">
-            <label className="block text-[12px] font-semibold text-black/75" htmlFor="campus-account-password">
-              {editingId ? "New password (optional)" : "Password"}
+          <div className="space-y-1 self-end">
+            {editingId ? (
+              <label className="flex items-start gap-2 text-[12px] text-black/75">
+              <input
+                type="checkbox"
+                className="mt-0.5 accent-[#780301]"
+                checked={sendNewPassword}
+                onChange={(e) => setSendNewPassword(e.target.checked)}
+                disabled={saving}
+              />
+              <span>
+                <span className="font-semibold">Send a new temporary password</span>
+                <span className="block text-black/50">Emailed to them; they choose their own at sign-in.</span>
+              </span>
             </label>
-            <PasswordInput
-              id="campus-account-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={editingId ? "Leave blank to keep" : `At least ${MIN_PASSWORD_LENGTH} characters`}
-              disabled={saving}
-              autoComplete="new-password"
-              // Back to hidden whenever the form switches rows or is reset.
-              hiddenKey={editingId ?? "new"}
-            />
+            ) : (
+              <p className="text-[11px] text-black/55">
+                A temporary password is generated and emailed to this address. They choose their own at first sign-in.
+              </p>
+            )}
           </div>
         </div>
 
@@ -567,7 +559,7 @@ export function CampusAccountsWorkspace() {
                   {assignmentLabel.toLowerCase()} that needs an account. Leave the others blank — blank rows are skipped.
                 </li>
                 <li>Save it as <strong>.xlsx</strong>, click <strong>Import from Excel</strong> and check the preview.</li>
-                <li>Enter one temporary password and click <strong>Create</strong>. Each person changes it at first sign-in.</li>
+                <li>Click <strong>Create</strong>. Each person is emailed a temporary password and chooses their own at first sign-in.</li>
               </ol>
               <table className="w-full border-collapse text-left">
                 <thead>
@@ -631,9 +623,6 @@ export function CampusAccountsWorkspace() {
         {importPreview ? (
           <ImportPreview
             preview={importPreview}
-            password={importPassword}
-            onPasswordChange={setImportPassword}
-            minPasswordLength={MIN_PASSWORD_LENGTH}
             busy={importing}
             roleLabel={ROLE_LABEL[role]}
             onCancel={() => setImportPreview(null)}
@@ -744,18 +733,12 @@ const STATUS_STYLE: Record<CampusAccountImportTarget["status"], { label: string;
 /** Every row of the chosen file with what will happen to it; Create registers only the ready ones. */
 function ImportPreview({
   preview,
-  password,
-  onPasswordChange,
-  minPasswordLength,
   busy,
   roleLabel,
   onCancel,
   onConfirm,
 }: {
   preview: { fileName: string; rows: CampusAccountImportTarget[] };
-  password: string;
-  onPasswordChange: (v: string) => void;
-  minPasswordLength: number;
   busy: boolean;
   roleLabel: string;
   onCancel: () => void;
@@ -825,26 +808,16 @@ function ImportPreview({
       </button>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-        <div className="space-y-1">
-          <label className="block text-[12px] font-semibold text-black/75" htmlFor="campus-account-import-password">
-            Temporary password for the new accounts
-          </label>
-          <PasswordInput
-            id="campus-account-import-password"
-            value={password}
-            onChange={(e) => onPasswordChange(e.target.value)}
-            placeholder={`At least ${minPasswordLength} characters`}
-            disabled={busy}
-            autoComplete="new-password"
-          />
-        </div>
+        <p className="text-[11px] text-black/55">
+          Each new account is emailed its own temporary password.
+        </p>
         <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
         <Button
           type="button"
           className="bg-[#780301] hover:bg-[#5a0201] text-white"
-          disabled={busy || ready === 0 || password.trim().length < minPasswordLength}
+          disabled={busy || ready === 0}
           onClick={onConfirm}
         >
           {busy ? "Creating…" : `Create ${ready} ${roleLabel}${ready === 1 ? "" : "s"}`}

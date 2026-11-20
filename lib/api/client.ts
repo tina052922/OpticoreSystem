@@ -1637,12 +1637,16 @@ export const campusAccountsApi = {
     serviceAreaId?: string | null;
     name: string;
     email: string;
-    password: string;
   }) {
-    return apiFetch<{ account: CampusAccount }>("/api/admin/campus-accounts", { method: "POST", body: input });
+    // The server generates the temporary password and emails it to `email`.
+    return apiFetch<{ account: CampusAccount; emailed?: boolean; warning?: string }>("/api/admin/campus-accounts", {
+      method: "POST",
+      body: input,
+    });
   },
   update(id: string, input: Record<string, unknown>) {
-    return apiFetch<{ account: CampusAccount; warning?: string }>(`/api/admin/campus-accounts/${id}`, {
+    // `resetPassword: true` emails a new temporary password.
+    return apiFetch<{ account: CampusAccount; warning?: string; emailed?: boolean }>(`/api/admin/campus-accounts/${id}`, {
       method: "PUT",
       body: input,
     });

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/ui/password-input";
 import { useActionToast } from "@/components/alerts/useActionToast";
 import { campusAccountsApi, serviceAreasApi, type CampusAccount, type ServiceArea } from "@/lib/api/client";
 
@@ -11,7 +10,6 @@ type College = { id: string; code: string; name: string };
 type Program = { id: string; code: string; name: string; collegeId: string | null };
 type ChairType = "service" | "program";
 
-const MIN_PASSWORD_LENGTH = 8;
 
 /** Best guess at the CAS college: code "CAS" or "… Arts and Sciences". DOI can change it. */
 function guessCasCollegeId(colleges: College[], areas: ServiceArea[]): string {
@@ -139,7 +137,8 @@ export function CasChairsPanel({
   const [programId, setProgramId] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  /** Edit: email them a new temporary password. (New chairs always get one.) */
+  const [sendNewPassword, setSendNewPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
@@ -150,7 +149,7 @@ export function CasChairsPanel({
     setProgramId("");
     setFullName("");
     setEmail("");
-    setPassword("");
+    setSendNewPassword(false);
   }
 
   function startEdit(a: CampusAccount) {
@@ -160,7 +159,7 @@ export function CasChairsPanel({
     setProgramId(a.chairmanProgramId ?? "");
     setFullName(a.name ?? "");
     setEmail(a.email ?? "");
-    setPassword("");
+    setSendNewPassword(false);
     document.getElementById("cas-chair-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -177,10 +176,6 @@ export function CasChairsPanel({
       toast.refuse("Enter the full name", "This is the name that appears on INS forms.");
       return;
     }
-    if (!editingId && password.trim().length < MIN_PASSWORD_LENGTH) {
-      toast.refuse("Set a longer password", `At least ${MIN_PASSWORD_LENGTH} characters; they change it at first sign-in.`);
-      return;
-    }
     const payload =
       chairType === "service"
         ? { role: "gec_chairman" as const, collegeId: null, programId: null, serviceAreaId: areaId }
@@ -194,22 +189,29 @@ export function CasChairsPanel({
     setSaving(true);
     try {
       if (editingId) {
-        const { warning } = await campusAccountsApi.update(editingId, {
+        const { warning, emailed } = await campusAccountsApi.update(editingId, {
           ...payload,
           name: fullName.trim(),
           email: email.trim().toLowerCase(),
-          password: password.trim() || undefined,
+          ...(sendNewPassword ? { resetPassword: true } : {}),
         });
-        toast.ok(`${label} updated successfully`, fullName.trim());
+        toast.ok(
+          `${label} updated successfully`,
+          emailed ? `A new temporary password was emailed to ${email.trim()}.` : fullName.trim(),
+        );
         toast.caution(warning, "Saved with a limitation");
       } else {
-        await campusAccountsApi.create({
+        // The server generates the temporary password and emails it to them.
+        const { warning, emailed } = await campusAccountsApi.create({
           ...payload,
           name: fullName.trim(),
           email: email.trim().toLowerCase(),
-          password: password.trim(),
         });
-        toast.ok(`${label} added successfully`, "They will be asked to change this password at first sign-in.");
+        toast.ok(
+          `${label} added successfully`,
+          emailed ? `A temporary password was emailed to ${email.trim()}. They choose their own at first sign-in.` : null,
+        );
+        toast.caution(warning, "Created, but the email was not sent");
       }
       resetForm();
       await onChanged();
@@ -415,18 +417,27 @@ export function CasChairsPanel({
               disabled={saving}
             />
           </label>
-          <label className="space-y-1">
-            <span className="text-[12px] font-semibold text-black/75">
-              {editingId ? "New password (optional)" : "Temporary password"}
-            </span>
-            <PasswordInput
-              value={password}
-              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={saving}
-              autoComplete="new-password"
-            />
-          </label>
+          <div className="space-y-1 self-end">
+            {editingId ? (
+              <label className="flex items-start gap-2 text-[12px] text-black/75">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-[#780301]"
+                  checked={sendNewPassword}
+                  onChange={(e) => setSendNewPassword(e.target.checked)}
+                  disabled={saving}
+                />
+                <span>
+                  <span className="font-semibold">Send a new temporary password</span>
+                  <span className="block text-black/50">Emailed to them; they choose their own at sign-in.</span>
+                </span>
+              </label>
+            ) : (
+              <p className="text-[11px] text-black/55">
+                A temporary password is generated and emailed to this address. They choose their own at first sign-in.
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           <Button
