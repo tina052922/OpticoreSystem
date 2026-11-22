@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, MapPin, Navigation, X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { MapPin, Navigation, X } from 'lucide-react';
 import { FloatingSearchOverlay } from './components/kiosk/SidebarNav';
 import { NavigationBottomSheet } from './components/kiosk/NavigationBottomSheet';
 import { CampusMapInteractive } from './components/CampusMapInteractive';
@@ -8,9 +8,8 @@ import { PathfindingService } from './services/pathfinding';
 import { smoothRoutePath } from './services/walkabilityGraph';
 import type { PathNode } from './types/campus';
 import type { LocationRecord } from './types/locationRecord';
-import { getCanonicalLocation, locationRecords } from './data/placesCatalog';
+import { getCanonicalLocation, getLocationById, locationRecords } from './data/placesCatalog';
 import { pathNodes } from './data/campusData';
-import { getOpticoreLandingHref } from './utils/opticoreHome';
 
 function polylineLength(pts: PathNode[]): number {
   let d = 0;
@@ -52,6 +51,35 @@ function attachTerminalSnaps(
   return pts;
 }
 
+/** Shown when nothing is selected, so phone users can pick a common place without typing. */
+const POPULAR_NAMES = [
+  'Main Campus Entrance',
+  'Admin Building',
+  'Registrar',
+  'Library',
+  'Canteen',
+  'Kalampusan Gym',
+  'COTE Building',
+  'COED Building',
+  'Chapel',
+  'Oval',
+];
+const POPULAR_PLACES: LocationRecord[] = POPULAR_NAMES.map((n) =>
+  locationRecords.find((l) => l.name.toLowerCase() === n.toLowerCase())
+).filter((l): l is LocationRecord => Boolean(l));
+
+/** `?to=<id>&from=<id>` — a route can be shared, bookmarked, or linked from OptiCore (e.g. a room). */
+function readRouteFromUrl(): { to: LocationRecord | null; from: LocationRecord | null } {
+  if (typeof window === 'undefined') return { to: null, from: null };
+  const q = new URLSearchParams(window.location.search);
+  const find = (id: string | null) => {
+    if (!id) return null;
+    const hit = getLocationById(id) ?? locationRecords.find((l) => l.roomId?.toLowerCase() === id.toLowerCase());
+    return hit ? getCanonicalLocation(hit) : null;
+  };
+  return { to: find(q.get('to')), from: find(q.get('from')) };
+}
+
 export default function App() {
   const pathfinderRef = useRef<PathfindingService | null>(null);
   if (!pathfinderRef.current) {
@@ -60,11 +88,26 @@ export default function App() {
 
   const [graphRevision, setGraphRevision] = useState(0);
   const [category, setCategory] = useState<'all' | LocationRecord['type']>('all');
-  const [selectedLocation, setSelectedLocation] = useState<LocationRecord | null>(null);
+  const initialRoute = useRef(readRouteFromUrl()).current;
+  const [selectedLocation, setSelectedLocation] = useState<LocationRecord | null>(initialRoute.to);
   const selectLocation = useCallback((loc: LocationRecord | null) => {
     setSelectedLocation(loc == null ? null : getCanonicalLocation(loc));
   }, []);
-  const [currentLocation, setCurrentLocation] = useState<LocationRecord | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<LocationRecord | null>(initialRoute.from);
+
+  // Keep the address in step with the route (replaceState: no extra history entries).
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (selectedLocation) url.searchParams.set('to', selectedLocation.id);
+      else url.searchParams.delete('to');
+      if (currentLocation) url.searchParams.set('from', currentLocation.id);
+      else url.searchParams.delete('from');
+      if (url.href !== window.location.href) window.history.replaceState(null, '', url);
+    } catch {
+      /* ignore */
+    }
+  }, [selectedLocation, currentLocation]);
   const [startSetSignal, setStartSetSignal] = useState(0);
   const [routePath, setRoutePath] = useState<PathNode[]>([]);
   const [routeDistance, setRouteDistance] = useState<number>(0);
@@ -135,6 +178,11 @@ export default function App() {
     setRoutePath([]);
   };
 
+  const categoryRecords = useMemo(
+    () => (category === 'all' ? [] : locationRecords.filter((l) => l.type === category)),
+    [category]
+  );
+
   const buildingCount = locationRecords.filter((l) => l.type === 'building').length;
   const roomCount = locationRecords.filter((l) => l.type === 'room').length;
   const officeCount = locationRecords.filter((l) => l.type === 'office').length;
@@ -148,6 +196,7 @@ export default function App() {
           selectedLocation={selectedLocation}
           routePath={routePath}
           locationRecords={locationRecords}
+          categoryRecords={categoryRecords}
           onWalkGraphReady={onWalkGraphReady}
           onDestinationCenterResolved={onDestinationCenterResolved}
           onLocationClick={(loc) => {
@@ -170,6 +219,7 @@ export default function App() {
       {/* Draggable bottom sheet — info, routing, metadata */}
       <NavigationBottomSheet
         hasSelection={selectedLocation != null}
+        selectionKey={selectedLocation?.id ?? null}
         peekTitle={selectedLocation?.name}
       >
         {(currentLocation || selectedLocation) && (
@@ -231,18 +281,27 @@ export default function App() {
         )}
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y">
+          {!selectedLocation && POPULAR_PLACES.length > 0 ? (
+            <div className="px-3 sm:px-4 pt-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-2">
+                {currentLocation ? 'Where to?' : 'Popular places'}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {POPULAR_PLACES.filter((p) => p.id !== currentLocation?.id).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => selectLocation(p)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-sm active:scale-[0.97] hover:border-opticore-orange/50"
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-opticore-red-2" aria-hidden />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <InfoPanel selected={selectedLocation} embedded />
-        </div>
-
-        <div className="shrink-0 border-t border-border bg-card/90 px-3 sm:px-4 py-3">
-          <a
-            href={getOpticoreLandingHref()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-center text-xs font-semibold text-foreground shadow-sm hover:bg-muted/85 hover:border-opticore-orange/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opticore-orange/45 transition-colors"
-            aria-label="Back to Opticore homepage"
-          >
-            <ArrowLeft className="h-4 w-4 shrink-0 text-opticore-red-2" aria-hidden />
-            <span className="truncate">Back to Opticore</span>
-          </a>
         </div>
 
         <div className="shrink-0 px-3 sm:px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] border-t border-border bg-card/90 text-[10px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 justify-center items-center">

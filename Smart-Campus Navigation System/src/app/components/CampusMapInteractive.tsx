@@ -7,6 +7,7 @@ import { isPinDebugEnabled, resolveLocationSvgCenter } from '../utils/svgLocatio
 import { getSvgElementByLayerId, getSvgGraphicsByLayerId } from '../utils/svgIdResolver';
 import { warnSvgCatalogAgainstDom } from '../utils/validateSvgCatalog';
 import { MapSVGLoader } from './MapSVGLoader';
+import { EXTRA_MAP_LABELS } from '../data/extraMapLabels';
 
 interface CampusMapInteractiveProps {
   selectedLocation: LocationRecord | null;
@@ -18,13 +19,17 @@ interface CampusMapInteractiveProps {
   /** Bbox center of the selected `svgId` element in SVG user space (for pin + routing). */
   onDestinationCenterResolved?: (locationId: string, x: number, y: number) => void;
   onLocationClick: (location: LocationRecord) => void;
+  /** Places of the chosen category chip, marked with dots (empty for All). */
+  categoryRecords?: LocationRecord[];
 }
 
 const MAP_W = 1728;
 const MAP_H = 1117;
 const TAP_RADIUS = 56;
-const MIN_SCALE = 0.35;
-const MAX_SCALE = 2.25;
+/** Zoom range 50%–200%. The map opens at the minimum, and Reset returns to it. */
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 2;
+const DEFAULT_SCALE = MIN_SCALE;
 
 export function CampusMapInteractive({
   selectedLocation,
@@ -33,6 +38,7 @@ export function CampusMapInteractive({
   onWalkGraphReady,
   onDestinationCenterResolved,
   onLocationClick,
+  categoryRecords = [],
 }: CampusMapInteractiveProps) {
   const [svgElement, setSvgElement] = useState<SVGSVGElement | null>(null);
   /** Resolved visual center of `selectedLocation.svgId` in SVG user space; falls back to catalog x/y. */
@@ -41,8 +47,15 @@ export function CampusMapInteractive({
   const mapScrollRef = useRef<HTMLDivElement>(null);
   const focusRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [fitScale, setFitScale] = useState(1);
+  const [scale, setScale] = useState(DEFAULT_SCALE);
+  /** The box sized to the scaled map; used to keep the point under the fingers still while zooming. */
+  const sizedBoxRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  /** Screen point + fraction of the map under it, applied after the next scale change. */
+  const zoomAnchorRef = useRef<{ clientX: number; clientY: number; fx: number; fy: number } | null>(null);
+  /** A pinch just ended: ignore the click it produces so it does not select a place. */
+  const suppressClickUntilRef = useRef(0);
   const handleSVGLoad = useCallback((svg: SVGSVGElement) => {
     setSvgElement(svg);
   }, []);
@@ -72,29 +85,161 @@ export function CampusMapInteractive({
     onDestinationCenterResolved?.(selectedLocation.id, c.x, c.y);
   }, [svgElement, selectedLocation, onDestinationCenterResolved]);
 
-  // Fit-to-screen scaling so users don't need to browser-zoom out.
+
+  const clampScale = (v: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(v * 100) / 100));
+
+  /** Zoom to `next`, keeping the map point under (clientX, clientY) where it is on screen. */
+  const zoomAt = useCallback((next: number, clientX: number, clientY: number) => {
+    const box = sizedBoxRef.current;
+    const target = clampScale(next);
+    if (box && target !== scaleRef.current) {
+      const rect = box.getBoundingClientRect();
+      zoomAnchorRef.current = {
+        clientX,
+        clientY,
+        fx: rect.width ? (clientX - rect.left) / rect.width : 0.5,
+        fy: rect.height ? (clientY - rect.top) / rect.height : 0.5,
+      };
+    }
+    setScale(target);
+  }, []);
+
+  const zoomAtCenter = (next: number) => {
+    const host = mapScrollRef.current;
+    if (!host) return setScale(clampScale(next));
+    const r = host.getBoundingClientRect();
+    zoomAt(next, r.left + r.width / 2, r.top + r.height / 2);
+  };
+  const zoomIn = () => zoomAtCenter(scaleRef.current + 0.15);
+  const zoomOut = () => zoomAtCenter(scaleRef.current - 0.15);
+  /** Back to 50%, centered on campus. */
+  const zoomReset = () => {
+    const host = mapScrollRef.current;
+    setScale(DEFAULT_SCALE);
+    requestAnimationFrame(() => {
+      if (!host) return;
+      host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
+      host.scrollTop = Math.max(0, (host.scrollHeight - host.clientHeight) / 2);
+    });
+  };
+
+  // Open on the middle of campus (when 50% is larger than the screen, it would start at the top-left).
+  const centeredOnceRef = useRef(false);
+  useLayoutEffect(() => {
+    const host = mapScrollRef.current;
+    if (!svgElement || !host || centeredOnceRef.current) return;
+    centeredOnceRef.current = true;
+    host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
+    host.scrollTop = Math.max(0, (host.scrollHeight - host.clientHeight) / 2);
+  }, [svgElement]);
+
+  // After a scale change, scroll so the anchored point stays under the fingers / cursor.
+  useLayoutEffect(() => {
+    const a = zoomAnchorRef.current;
+    const host = mapScrollRef.current;
+    const box = sizedBoxRef.current;
+    zoomAnchorRef.current = null;
+    if (!a || !host || !box) return;
+    const rect = box.getBoundingClientRect();
+    host.scrollLeft += rect.left + a.fx * rect.width - a.clientX;
+    host.scrollTop += rect.top + a.fy * rect.height - a.clientY;
+  }, [scale]);
+
+  // Gestures: two-finger pinch (phones), ctrl/⌘ + wheel or trackpad pinch (desktop), double-tap.
   useEffect(() => {
     const host = mapScrollRef.current;
     if (!host) return;
+    let pinch: { dist: number; scale: number } | null = null;
+    let frame = 0;
+    let pending: { scale: number; x: number; y: number } | null = null;
+    const flush = () => {
+      frame = 0;
+      if (pending) zoomAt(pending.scale, pending.x, pending.y);
+      pending = null;
+    };
+    const queue = (scale: number, x: number, y: number) => {
+      pending = { scale, x, y };
+      if (!frame) frame = requestAnimationFrame(flush);
+    };
+    const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const mid = (t: TouchList) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
 
-    const computeFit = () => {
-      const w = host.clientWidth;
-      const h = host.clientHeight;
-      if (!w || !h) return;
-      const next = Math.max(MIN_SCALE, Math.min(1, Math.min(w / MAP_W, h / MAP_H)));
-      setFitScale(next);
-      setScale((cur) => (cur === 1 ? next : cur));
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) pinch = { dist: dist(e.touches), scale: scaleRef.current };
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault(); // keep the page itself from zooming
+      const m = mid(e.touches);
+      queue(pinch.scale * (dist(e.touches) / pinch.dist), m.x, m.y);
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (pinch && e.touches.length < 2) {
+        pinch = null;
+        suppressClickUntilRef.current = Date.now() + 350;
+      }
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return; // plain wheel keeps scrolling the map
+      e.preventDefault();
+      queue(scaleRef.current * Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
+    };
+    const onDblClick = (e: MouseEvent) => {
+      e.preventDefault();
+      zoomAt(scaleRef.current * 1.6, e.clientX, e.clientY);
     };
 
-    computeFit();
-    const ro = new ResizeObserver(() => computeFit());
-    ro.observe(host);
-    return () => ro.disconnect();
-  }, []);
+    // Mouse: press and drag the map to pan; a drag never selects a place.
+    let drag: { x: number; y: number; left: number; top: number; moved: boolean; id: number } | null = null;
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      drag = { x: e.clientX, y: e.clientY, left: host.scrollLeft, top: host.scrollTop, moved: false, id: e.pointerId };
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        host.setPointerCapture(e.pointerId);
+        host.classList.add('map-dragging');
+      }
+      host.scrollLeft = drag.left - dx;
+      host.scrollTop = drag.top - dy;
+    };
+    const endDrag = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (drag.moved) suppressClickUntilRef.current = Date.now() + 120;
+      if (host.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId);
+      host.classList.remove('map-dragging');
+      drag = null;
+    };
+    host.addEventListener('pointerdown', onPointerDown);
+    host.addEventListener('pointermove', onPointerMove);
+    host.addEventListener('pointerup', endDrag);
+    host.addEventListener('pointercancel', endDrag);
 
-  const zoomIn = () => setScale((s) => Math.min(MAX_SCALE, Math.round((s + 0.1) * 100) / 100));
-  const zoomOut = () => setScale((s) => Math.max(MIN_SCALE, Math.round((s - 0.1) * 100) / 100));
-  const zoomFit = () => setScale(fitScale);
+    host.addEventListener('touchstart', onTouchStart, { passive: true });
+    host.addEventListener('touchmove', onTouchMove, { passive: false });
+    host.addEventListener('touchend', onTouchEnd, { passive: true });
+    host.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    host.addEventListener('wheel', onWheel, { passive: false });
+    host.addEventListener('dblclick', onDblClick);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      host.removeEventListener('touchstart', onTouchStart);
+      host.removeEventListener('touchmove', onTouchMove);
+      host.removeEventListener('touchend', onTouchEnd);
+      host.removeEventListener('touchcancel', onTouchEnd);
+      host.removeEventListener('wheel', onWheel);
+      host.removeEventListener('dblclick', onDblClick);
+      host.removeEventListener('pointerdown', onPointerDown);
+      host.removeEventListener('pointermove', onPointerMove);
+      host.removeEventListener('pointerup', endDrag);
+      host.removeEventListener('pointercancel', endDrag);
+    };
+  }, [zoomAt]);
 
   // Theme + interactive base styles (does not change SVG geometry).
   useEffect(() => {
@@ -122,19 +267,16 @@ export function CampusMapInteractive({
           fill: var(--building) !important;
           stroke: var(--building-stroke) !important;
           stroke-width: 0.65 !important;
-          filter: drop-shadow(0px 1px 0px rgba(0,0,0,0.10)) drop-shadow(0px 3px 8px rgba(0,0,0,0.10));
         }
         rect[fill="#D9D9D9"] {
           fill: var(--building-alt) !important;
           stroke: var(--building-stroke) !important;
           stroke-width: 0.65 !important;
-          filter: drop-shadow(0px 1px 0px rgba(0,0,0,0.08)) drop-shadow(0px 3px 8px rgba(0,0,0,0.10));
         }
         rect[fill="#A1A1A1"] {
           fill: var(--roof) !important;
           stroke: var(--building-stroke) !important;
           stroke-width: 0.65 !important;
-          filter: drop-shadow(0px 1px 0px rgba(0,0,0,0.08)) drop-shadow(0px 3px 8px rgba(0,0,0,0.10));
         }
         [fill="#6E6D6D"] {
           fill: var(--road) !important;
@@ -143,7 +285,6 @@ export function CampusMapInteractive({
           stroke-width: 2.25 !important;
           stroke-linecap: round;
           stroke-linejoin: round;
-          filter: drop-shadow(0px 2px 6px rgba(0,0,0,0.12));
         }
         [stroke="#B4BEC7"] {
           stroke: var(--road) !important;
@@ -151,7 +292,6 @@ export function CampusMapInteractive({
           opacity: 0.92 !important;
           stroke-linecap: round;
           stroke-linejoin: round;
-          filter: drop-shadow(0px 2px 6px rgba(0,0,0,0.12));
         }
         [stroke="#3BB4FF"] {
           stroke: var(--path) !important;
@@ -166,23 +306,23 @@ export function CampusMapInteractive({
         rect[fill="#D9D9D9"],
         rect[fill="#A1A1A1"] {
           cursor: pointer;
-          transition: fill 140ms ease, opacity 140ms ease, filter 140ms ease;
+          transition: fill 140ms ease;
         }
         rect[fill="#C5C3C3"]:hover,
         rect[fill="#D9D9D9"]:hover,
         rect[fill="#A1A1A1"]:hover {
           fill: #ff990a !important;
           opacity: 0.96 !important;
-          filter: drop-shadow(0px 2px 0px rgba(0,0,0,0.12)) drop-shadow(0px 6px 14px rgba(0,0,0,0.18));
         }
         .ctu-svg-hit {
-          filter: drop-shadow(0 0 10px #ff990a) !important;
           stroke: #780301 !important;
           stroke-width: 2.5px !important;
         }
         .destination-pin {
           pointer-events: none;
         }
+        .ctu-category-dot { cursor: pointer; }
+        rect[fill="#A9E9C1"] { cursor: pointer; }
       `.trim();
 
       svgElement.insertBefore(styleEl, svgElement.firstChild);
@@ -205,24 +345,100 @@ export function CampusMapInteractive({
   useEffect(() => {
     if (!svgElement) return;
 
-    const onClick = (e: MouseEvent) => {
-      const ctm = svgElement.getScreenCTM();
-      if (!ctm) return;
-      const pt = svgElement.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const p = pt.matrixTransform(ctm.inverse());
+    /** The building / room shapes of the map (the grey boxes). */
+    const BOX_SELECTOR = 'rect[fill="#C5C3C3"], rect[fill="#D9D9D9"], rect[fill="#A1A1A1"]';
+    const bySvgId = new Map<string, LocationRecord>();
+    const byId = new Map<string, LocationRecord>();
+    for (const loc of locationRecords) {
+      byId.set(loc.id, loc);
+      const sid = loc.svgId?.trim().toLowerCase();
+      if (sid && !bySvgId.has(sid)) bySvgId.set(sid, loc);
+    }
 
+    const toSvg = (x: number, y: number, ctm: DOMMatrix) => {
+      const pt = svgElement.createSVGPoint();
+      pt.x = x;
+      pt.y = y;
+      return pt.matrixTransform(ctm.inverse());
+    };
+
+    /** Map shapes that can stand for a place (fields, courts, plots — not text, pins or the route). */
+    const SHAPE_SELECTOR = 'rect, path, ellipse, circle, polygon';
+
+    /**
+     * What is under the pointer, top to bottom: a category dot or a shape with a catalog id (a
+     * place straight away), otherwise the shapes there — grey building / room boxes first.
+     */
+    const hitAt = (x: number, y: number): { loc?: LocationRecord; shapes: { el: Element; building: boolean }[] } => {
+      const shapes: { el: Element; building: boolean }[] = [];
+      const mapRect = svgElement.getBoundingClientRect();
+      const mapArea = mapRect.width * mapRect.height || 1;
+      for (const el of document.elementsFromPoint(x, y)) {
+        if (!svgElement.contains(el)) continue;
+        const dot = (el as SVGElement).dataset?.locId;
+        if (dot && byId.has(dot)) return { loc: byId.get(dot), shapes };
+        for (let n: Element | null = el; n && n !== svgElement; n = n.parentElement) {
+          const hit = n.id ? bySvgId.get(n.id.trim().toLowerCase()) : undefined;
+          if (hit) return { loc: hit, shapes };
+        }
+        if (el.closest('#route-overlay, #selection-marker, #ctu-destination-glow, #category-markers')) continue;
+        if (!el.matches(SHAPE_SELECTOR)) continue;
+        const br = el.getBoundingClientRect();
+        // Skip the campus ground, lawns around everything, and long roads.
+        if ((br.width * br.height) / mapArea > 0.06) continue;
+        shapes.push({ el, building: el.matches(BOX_SELECTOR) });
+      }
+      shapes.sort((a, b) => Number(b.building) - Number(a.building));
+      return { shapes };
+    };
+
+    /** The place a clicked shape stands for, or null. */
+    const placeInShape = (shape: Element, building: boolean, clientX: number, clientY: number, ctm: DOMMatrix) => {
+      const r = shape.getBoundingClientRect();
+      const a = toSvg(r.left, r.top, ctm);
+      const b = toSvg(r.right, r.bottom, ctm);
+      const p = toSvg(clientX, clientY, ctm);
+      const [x0, x1] = [Math.min(a.x, b.x) - 4, Math.max(a.x, b.x) + 4];
+      const [y0, y1] = [Math.min(a.y, b.y) - 4, Math.max(a.y, b.y) + 4];
+      // The place inside the clicked box (closest to the click when a building holds several).
       let best: LocationRecord | null = null;
-      let bestD = TAP_RADIUS;
+      let bestD = Infinity;
       for (const loc of locationRecords) {
+        if (loc.x < x0 || loc.x > x1 || loc.y < y0 || loc.y > y1) continue;
         const d = Math.hypot(loc.x - p.x, loc.y - p.y);
         if (d < bestD) {
           bestD = d;
           best = loc;
         }
       }
-      if (best) onLocationClick(best);
+      // A building box whose catalog point sits just outside it: the nearest place within reach.
+      // (Other shapes must contain the point, so a stray click on a plot selects nothing.)
+      if (!best && building) {
+        const reach = Math.hypot(x1 - x0, y1 - y0) / 2 + TAP_RADIUS / 2;
+        const cx = (x0 + x1) / 2;
+        const cy = (y0 + y1) / 2;
+        for (const loc of locationRecords) {
+          const d = Math.hypot(loc.x - cx, loc.y - cy);
+          if (d < reach && d < bestD) {
+            bestD = d;
+            best = loc;
+          }
+        }
+      }
+      return best;
+    };
+
+    const onClick = (e: MouseEvent) => {
+      if (Date.now() < suppressClickUntilRef.current) return; // the end of a drag or pinch
+      const hit = hitAt(e.clientX, e.clientY);
+      if (hit.loc) return onLocationClick(hit.loc);
+      const ctm = svgElement.getScreenCTM();
+      if (!ctm) return;
+      for (const { el, building } of hit.shapes) {
+        const place = placeInShape(el, building, e.clientX, e.clientY, ctm);
+        if (place) return onLocationClick(place);
+      }
+      // Nothing that stands for a place here: empty ground, just the map.
     };
 
     svgElement.addEventListener('click', onClick);
@@ -267,16 +483,81 @@ export function CampusMapInteractive({
     ellipse.setAttribute('fill', '#ff990a');
     ellipse.setAttribute('opacity', '0.14');
 
-    const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-    anim.setAttribute('attributeName', 'opacity');
-    anim.setAttribute('values', '0.08;0.18;0.08');
-    anim.setAttribute('dur', '2.4s');
-    anim.setAttribute('repeatCount', 'indefinite');
-    ellipse.appendChild(anim);
 
     g.appendChild(ellipse);
     svgElement.appendChild(g);
   }, [svgElement, selectedLocation, destinationPinCenter]);
+
+  // Labels the drawing leaves out (Basketball Court, Green House, the BIT labs, …).
+  useEffect(() => {
+    if (!svgElement || svgElement.querySelector('#extra-labels')) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('id', 'extra-labels');
+    g.setAttribute('pointer-events', 'none');
+    for (const label of EXTRA_MAP_LABELS) {
+      const loc = locationRecords.find((l) => l.name.toLowerCase() === label.name.toLowerCase());
+      if (!loc) continue;
+      const text = document.createElementNS(NS, 'text');
+      text.setAttribute('x', String(loc.x));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('font-family', 'Inter, "Segoe UI", system-ui, sans-serif');
+      text.setAttribute('font-weight', '600');
+      text.setAttribute('font-size', String(label.size));
+      text.setAttribute('fill', '#111827');
+      text.setAttribute('stroke', '#ffffff');
+      text.setAttribute('stroke-width', String(Math.max(1.2, label.size * 0.28)));
+      text.setAttribute('stroke-linejoin', 'round');
+      text.setAttribute('paint-order', 'stroke');
+      // Center the block of lines on the place (plus any offset).
+      const lineH = label.size * 1.15;
+      const top = loc.y + (label.dy ?? 0) - ((label.lines.length - 1) * lineH) / 2 + label.size * 0.35;
+      label.lines.forEach((line, i) => {
+        const span = document.createElementNS(NS, 'tspan');
+        span.setAttribute('x', String(loc.x));
+        span.setAttribute('y', String(top + i * lineH));
+        span.textContent = line;
+        text.appendChild(span);
+      });
+      g.appendChild(text);
+    }
+    svgElement.appendChild(g);
+  }, [svgElement, locationRecords]);
+
+  // Category dots: where every place of the chosen chip is (tap one to select it).
+  useEffect(() => {
+    if (!svgElement) return;
+    svgElement.querySelector('#category-markers')?.remove();
+    if (categoryRecords.length === 0) return;
+    const colors: Record<string, string> = {
+      building: '#780301',
+      room: '#047857',
+      office: '#6d28d9',
+      facility: '#0f766e',
+      cr: '#be123c',
+      landmark: '#b45309',
+    };
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('id', 'category-markers');
+    for (const loc of categoryRecords) {
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('cx', String(loc.x));
+      c.setAttribute('cy', String(loc.y));
+      c.setAttribute('r', '7');
+      c.setAttribute('fill', colors[loc.type] ?? '#780301');
+      c.setAttribute('stroke', '#fff');
+      c.setAttribute('stroke-width', '2.5');
+      c.setAttribute('data-loc-id', loc.id);
+      c.setAttribute('class', 'ctu-category-dot');
+      g.appendChild(c);
+    }
+    svgElement.appendChild(g);
+    // Keep the route and the destination pin above the dots.
+    for (const id of ['#route-overlay', '#selection-marker']) {
+      const el = svgElement.querySelector(id);
+      if (el) svgElement.appendChild(el);
+    }
+  }, [svgElement, categoryRecords]);
 
   // Route overlay
   useEffect(() => {
@@ -310,26 +591,7 @@ export function CampusMapInteractive({
       routeLine.setAttribute('stroke-linecap', 'round');
       routeLine.setAttribute('stroke-linejoin', 'round');
 
-      let defs = svgElement.querySelector('defs');
-      if (!defs) {
-        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-        svgElement.insertBefore(defs, svgElement.firstChild);
-      }
-      if (!svgElement.getElementById('ctu-route-glow-filter')) {
-        const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-        filter.setAttribute('id', 'ctu-route-glow-filter');
-        filter.setAttribute('x', '-40%');
-        filter.setAttribute('y', '-40%');
-        filter.setAttribute('width', '180%');
-        filter.setAttribute('height', '180%');
-        const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
-        blur.setAttribute('in', 'SourceGraphic');
-        blur.setAttribute('stdDeviation', '5');
-        blur.setAttribute('result', 'blur');
-        filter.appendChild(blur);
-        defs.appendChild(filter);
-      }
-      glow.setAttribute('filter', 'url(#ctu-route-glow-filter)');
+      // No blur filter: it re-rendered the whole route on every frame of the dash animation.
 
       const animatedLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       animatedLine.setAttribute('d', pathData);
@@ -537,7 +799,7 @@ export function CampusMapInteractive({
     <div className="w-full h-full min-h-0 min-w-0 bg-card rounded-lg sm:rounded-xl shadow-lg border border-border overflow-hidden relative flex flex-col isolation-isolate touch-pan-x touch-pan-y">
       <div
         ref={mapScrollRef}
-        className="flex-1 min-h-0 min-w-0 w-full overflow-auto scroll-smooth overscroll-contain bg-gradient-to-br from-opticore-bg via-card to-muted/80 p-2 sm:p-4 md:p-6 lg:p-8"
+        className="map-pan-surface flex-1 min-h-0 min-w-0 w-full overflow-auto overscroll-contain bg-gradient-to-br from-opticore-bg via-card to-muted/80 p-2 sm:p-4 md:p-6 lg:p-8"
       >
         {/* 
           Important: transform: scale() does NOT affect layout size.
@@ -545,8 +807,14 @@ export function CampusMapInteractive({
           and scale an inner fixed-size map. This way, zooming out
           truly reduces scrollable area and the whole UI stays visible.
         */}
+        {/*
+          Centering: smaller than the screen → the map sits in the middle (m-auto in a full-size
+          flex box); larger → it starts at the edge and scrolls, so no side is ever cut off.
+        */}
+        <div className="flex min-h-full min-w-full w-max">
         <div
-          className="relative mx-auto"
+          ref={sizedBoxRef}
+          className="relative m-auto shrink-0"
           style={{
             width: Math.round(MAP_W * scale),
             height: Math.round(MAP_H * scale),
@@ -567,32 +835,12 @@ export function CampusMapInteractive({
               className="absolute w-px h-px pointer-events-none opacity-0 z-10"
               aria-hidden
             />
-            {/* Semi-3D: perspective tilt; focusRef stays unrotated for scroll anchoring. */}
-            <div
-              className="absolute inset-0 z-0"
-              style={{
-                perspective: 'min(1400px, 85vw)',
-                perspectiveOrigin: '50% 36%',
-              }}
-            >
-              <div
-                className="w-full h-full rounded-sm"
-                style={{
-                  transformStyle: 'preserve-3d',
-                  transform: 'rotateX(10deg) rotateY(-4deg) translateZ(0)',
-                  transformOrigin: '50% 50%',
-                  boxShadow: `
-                    0 2px 0 rgba(255,255,255,0.45),
-                    0 50px 100px -28px rgba(15, 23, 42, 0.45),
-                    0 28px 56px -24px rgba(15, 23, 42, 0.28)
-                  `,
-                  filter: 'saturate(1.04) contrast(1.02)',
-                }}
-              >
-                <MapSVGLoader onLoad={handleSVGLoad} />
-              </div>
+            {/* Flat map: a 3D tilt and CSS filters made every pan/zoom repaint expensive on phones. */}
+            <div className="absolute inset-0 z-0 rounded-sm shadow-[0_18px_40px_-20px_rgba(15,23,42,0.35)]">
+              <MapSVGLoader onLoad={handleSVGLoad} />
             </div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -619,10 +867,10 @@ export function CampusMapInteractive({
         </button>
         <button
           type="button"
-          onClick={zoomFit}
+          onClick={zoomReset}
           className="p-2 rounded-lg hover:bg-muted text-foreground min-h-[40px] min-w-[40px] flex items-center justify-center"
-          aria-label="Fit to screen"
-          title="Fit to screen"
+          aria-label="Reset zoom to 50%"
+          title="Reset zoom (50%)"
         >
           <RefreshCcw className="w-4 h-4" />
         </button>
@@ -641,10 +889,10 @@ export function CampusMapInteractive({
       </div>
 
       <div className="absolute top-2 left-10 right-2 sm:left-auto sm:right-3 md:top-3 z-10 hidden sm:block max-w-[min(100%-2.75rem,20rem)] md:max-w-[22rem] bg-card/95 border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-muted-foreground shadow-sm truncate">
-        Fit · Pan · Tap to pick place
+        Drag to move · Pinch or double-tap to zoom · Click a building or room
       </div>
       <span className="sr-only">
-        Fit-to-screen enabled · Scroll to pan · Tap map to pick nearest place
+        Zoom 50% to 200% · Drag to pan · Select a building or room to see its details
       </span>
     </div>
   );

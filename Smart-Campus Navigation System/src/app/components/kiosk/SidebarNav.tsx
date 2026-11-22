@@ -2,6 +2,13 @@ import { ArrowLeft } from 'lucide-react';
 import { SearchBar } from '../SearchBar';
 import { getOpticoreLandingHref } from '../../utils/opticoreHome';
 import type { LocationRecord } from '../../types/locationRecord';
+import { locationRecords } from '../../data/placesCatalog';
+
+/** How many places each chip holds (shown on the chip). */
+const CATEGORY_COUNTS: Record<string, number> = locationRecords.reduce<Record<string, number>>((acc, l) => {
+  acc[l.type] = (acc[l.type] ?? 0) + 1;
+  return acc;
+}, {});
 
 export const DIRECTORY_CATEGORIES: { id: 'all' | LocationRecord['type']; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -30,7 +37,18 @@ export function FloatingSearchOverlay({
 }: FloatingSearchOverlayProps) {
   return (
     <div className="pointer-events-none w-full max-w-2xl lg:max-w-3xl mx-auto px-3 sm:px-4 pt-[max(0.75rem,env(safe-area-inset-top))] space-y-2">
-      <div className="flex items-center gap-2 pointer-events-auto">
+      {/* items-start: the button stays level with the search box when the selected-place bar appears under it. */}
+      <div className="flex items-start gap-2 pointer-events-auto">
+        {/* Back to OptiCore: a round button on phones, with its label from small tablets up. */}
+        <a
+          href={getOpticoreLandingHref()}
+          aria-label="Back to OptiCore"
+          title="Back to OptiCore"
+          className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border/80 bg-card px-3 text-sm font-semibold text-foreground shadow-lg hover:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-opticore-orange/50 w-11 sm:w-auto sm:px-4"
+        >
+          <ArrowLeft className="h-4 w-4 shrink-0 text-opticore-red-2" aria-hidden />
+          <span className="hidden sm:inline">OptiCore</span>
+        </a>
         <div className="flex-1 min-w-0">
           <SearchBar
             variant="floating"
@@ -42,22 +60,39 @@ export function FloatingSearchOverlay({
         </div>
       </div>
 
-      <div className="pointer-events-auto overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Category chips: tap one to list every place of that kind (and mark them on the map); tap again for All. */}
+      <div
+        role="toolbar"
+        aria-label="Show places by category"
+        className="pointer-events-auto overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <div className="flex gap-1.5 pb-1 w-max max-w-full pr-1">
-          {DIRECTORY_CATEGORIES.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => onCategoryChange(c.id)}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors shrink-0 shadow-sm backdrop-blur-md ${
-                category === c.id
-                  ? 'bg-primary text-primary-foreground ring-1 ring-black/10'
-                  : 'bg-card/95 text-muted-foreground hover:bg-card border border-border/80'
-              }`}
-            >
-              {c.label}
-            </button>
-          ))}
+          {DIRECTORY_CATEGORIES.filter((c) => c.id === 'all' || CATEGORY_COUNTS[c.id]).map((c) => {
+            const active = category === c.id;
+            const count = c.id === 'all' ? locationRecords.length : CATEGORY_COUNTS[c.id] ?? 0;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onCategoryChange(active && c.id !== 'all' ? 'all' : c.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors shrink-0 shadow-sm ${
+                  active
+                    ? 'bg-primary text-primary-foreground ring-1 ring-black/10'
+                    : 'bg-card text-muted-foreground hover:text-foreground border border-border/80'
+                }`}
+              >
+                {c.label}
+                <span
+                  className={`rounded-full px-1.5 text-[10px] tabular-nums ${
+                    active ? 'bg-white/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

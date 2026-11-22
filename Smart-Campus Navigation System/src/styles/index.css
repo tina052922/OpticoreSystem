@@ -1,3 +1,14 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* Campus map: grab the background to pan; buildings / rooms keep the pointer cursor. */
+.map-pan-surface {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.map-pan-surface.map-dragging,
+.map-pan-surface.map-dragging * {
+  cursor: grabbing !important;
+}

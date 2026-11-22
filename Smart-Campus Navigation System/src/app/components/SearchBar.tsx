@@ -23,6 +23,25 @@ export function SearchBar({
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const prevStartSignalRef = useRef(startSetSignal);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const prevCategoryRef = useRef(category);
+
+  // Choosing a category opens its list straight away; going back to All closes it.
+  useEffect(() => {
+    if (prevCategoryRef.current === category) return;
+    prevCategoryRef.current = category;
+    setIsOpen(category !== 'all');
+  }, [category]);
+
+  // Tap outside the search box (or its list) to close the list.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setIsOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [isOpen]);
 
   // Only run when Set-as-Start actually increments the signal — never on mount (signal starts at 0).
   useEffect(() => {
@@ -38,8 +57,12 @@ export function SearchBar({
     return locationRecords.filter((l) => l.type === category);
   }, [category]);
 
+  /** No text typed but a category chosen: every place of that kind, A–Z. */
+  const browsing = !query.trim() && category !== 'all';
   const filteredLocations = useMemo(() => {
-    if (!query.trim()) return [];
+    if (!query.trim()) {
+      return category === 'all' ? [] : [...pool].sort((a, b) => a.name.localeCompare(b.name));
+    }
     const lowerQuery = query.toLowerCase();
     return pool
       .filter((loc) => {
@@ -62,8 +85,19 @@ export function SearchBar({
           matchRoomId
         );
       })
-      .slice(0, 12);
-  }, [query, pool]);
+      .slice(0, 30);
+  }, [query, pool, category]);
+
+  const CATEGORY_WORD: Record<string, string> = {
+    building: 'buildings',
+    room: 'rooms',
+    office: 'offices',
+    facility: 'facilities',
+    cr: 'comfort rooms',
+    landmark: 'landmarks',
+  };
+  const placeholder =
+    category === 'all' ? 'Search buildings, rooms, offices…' : `Search ${CATEGORY_WORD[category] ?? 'places'}…`;
 
   const handleSelect = (location: LocationRecord) => {
     onLocationSelect(location);
@@ -85,7 +119,7 @@ export function SearchBar({
   };
 
   return (
-    <div className="relative w-full min-w-0">
+    <div ref={boxRef} className="relative w-full min-w-0">
       <div className="relative min-w-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <input
@@ -96,7 +130,7 @@ export function SearchBar({
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder="Search buildings, rooms, offices…"
+          placeholder={placeholder}
           className={`w-full min-w-0 pl-9 pr-9 py-2.5 text-sm focus:border-opticore-orange focus:ring-2 focus:ring-opticore-orange/25 focus:outline-none bg-card ${
             isFloating
               ? 'rounded-full border border-border/80 shadow-lg backdrop-blur-md py-3'
@@ -133,10 +167,25 @@ export function SearchBar({
 
       {isOpen && filteredLocations.length > 0 && (
         <div
-          className={`absolute top-full left-0 right-0 mt-2 bg-popover shadow-xl border border-border max-h-[min(18rem,50dvh)] overflow-y-auto overscroll-contain z-[100] ${
+          className={`absolute top-full left-0 right-0 mt-2 bg-popover shadow-xl border border-border max-h-[min(22rem,55dvh)] overflow-y-auto overscroll-contain z-[100] ${
             isFloating ? 'rounded-2xl' : 'rounded-lg'
           }`}
         >
+          {browsing ? (
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-popover/95 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground backdrop-blur">
+              <span>
+                All {CATEGORY_WORD[category] ?? 'places'} · {filteredLocations.length}
+              </span>
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setIsOpen(false)}
+                className="normal-case tracking-normal text-opticore-red-2 hover:underline"
+              >
+                Close
+              </button>
+            </div>
+          ) : null}
           {filteredLocations.map((location) => (
             <button
               key={location.id}

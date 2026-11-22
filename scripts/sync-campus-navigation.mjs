@@ -8,6 +8,9 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const campusDir = path.join(root, "Smart-Campus Navigation System");
@@ -49,6 +52,52 @@ function copyCampusPhotosFromSource() {
   console.log(`Copied campus photos → public/campus-photos`);
 }
 
+/**
+ * Phone-sized copies of the campus photos. The originals (2–3 MB, ~4000 px wide) stay in the
+ * source folder; what is served is at most PHOTO_MAX_WIDTH wide and re-compressed, with the same
+ * file name so every catalog URL keeps working. Files already small enough are left alone.
+ */
+const PHOTO_MAX_WIDTH = 1600;
+const PHOTO_SMALL_BYTES = 400 * 1024;
+
+async function optimizePhotosIn(dir) {
+  if (!fs.existsSync(dir)) return;
+  let sharp;
+  try {
+    sharp = require("sharp");
+  } catch {
+    console.warn("sharp is not available; campus photos are served at full size.");
+    return;
+  }
+  let before = 0;
+  let after = 0;
+  let changed = 0;
+  for (const name of fs.readdirSync(dir)) {
+    const file = path.join(dir, name);
+    if (!/\.(jpe?g|png)$/i.test(name) || !fs.statSync(file).isFile()) continue;
+    const input = fs.readFileSync(file);
+    before += input.length;
+    const meta = await sharp(input).metadata().catch(() => null);
+    if (!meta || (input.length <= PHOTO_SMALL_BYTES && (meta.width ?? 0) <= PHOTO_MAX_WIDTH)) {
+      after += input.length;
+      continue;
+    }
+    const pipeline = sharp(input).rotate().resize({ width: PHOTO_MAX_WIDTH, withoutEnlargement: true });
+    const output = /\.png$/i.test(name)
+      ? await pipeline.png({ compressionLevel: 9, palette: true, quality: 85 }).toBuffer()
+      : await pipeline.jpeg({ quality: 78, mozjpeg: true }).toBuffer();
+    if (output.length < input.length) {
+      fs.writeFileSync(file, output);
+      after += output.length;
+      changed++;
+    } else {
+      after += input.length;
+    }
+  }
+  const mb = (n) => (n / 1024 / 1024).toFixed(1);
+  console.log(`Optimized ${changed} campus photos: ${mb(before)} MB → ${mb(after)} MB`);
+}
+
 function readStandaloneAssetRefs(html) {
   const refs = new Set();
   const re = /\/assets\/([^"'?\s]+)/g;
@@ -61,6 +110,7 @@ function readStandaloneAssetRefs(html) {
 
 if (photosOnly) {
   copyCampusPhotosFromSource();
+  await optimizePhotosIn(path.join(publicDir, "campus-photos"));
   process.exit(0);
 }
 
@@ -106,5 +156,7 @@ for (const name of previousRefs) {
     fs.unlinkSync(stale);
   }
 }
+
+await optimizePhotosIn(path.join(publicDir, "campus-photos"));
 
 console.log(`Synced campus navigation → public/${standaloneName}`);

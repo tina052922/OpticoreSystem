@@ -40,6 +40,20 @@ const nextConfig: NextConfig = {
       source: "/campus-navigation-standalone.html",
       headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
     },
+    // Campus navigation assets. Build files carry a content hash, so they never change in place.
+    {
+      source: "/assets/:path*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+    },
+    // The map and photos keep their names; reuse them for a day, refresh quietly for a week.
+    {
+      source: "/maps/:path*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+    },
+    {
+      source: "/campus-photos/:path*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+    },
   ],
 };
 
