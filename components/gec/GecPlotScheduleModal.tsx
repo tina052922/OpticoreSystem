@@ -2,7 +2,7 @@
 
 import { NoInstructorsNotice } from "@/components/evaluator/NoInstructorsNotice";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   evaluatorTimeSlots,
@@ -47,10 +47,19 @@ import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
 import type { Building, Room, ScheduleEntry, Subject } from "@/types/db";
 import {
   buildingNamesForPlotting,
+  plotBuildingKeyForRoom,
   plotBuildingOptionLabel,
   sortedRoomsInBuildingNamed,
 } from "@/lib/evaluator/building-options";
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
+import { apiFetch } from "@/lib/api/client";
+import {
+  busyRoomIdsForMeetings,
+  dedupeMessages,
+  ordinalFloor,
+  rankRoomSuggestions,
+  type MeetingTime,
+} from "@/lib/evaluator/room-suggestions";
 import { plotStartConflicts } from "@/lib/evaluator/plot-start-conflicts";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
@@ -260,6 +269,13 @@ export function GecPlotScheduleModal({
   const missingInstructor = !draft.instructorId;
   const missingRoom = !draft.roomId;
   const missingBuilding = !buildingValue;
+  /** Building and Room open only after Instructor → General subject. */
+  const roomPickReady = Boolean(draft.instructorId && draft.subjectId);
+  const roomPickHint = !draft.instructorId
+    ? "Select instructor first"
+    : !draft.subjectId
+      ? "Select general subject first"
+      : "";
   const missingDay = !meetings.slots[0]?.day;
   const missingTime = !meetings.timeText.trim();
   const plotIncomplete =
@@ -274,18 +290,115 @@ export function GecPlotScheduleModal({
   const incompleteField = `${fieldClass} mt-1 ring-2 ring-red-500 border-red-400 bg-red-50/70`;
   const incompleteFieldBare = `${fieldClass} ring-2 ring-red-500 border-red-400 bg-red-50/70`;
 
+  /** Every meeting being plotted (each day with its own start and duration), as clock times. */
+  const meetingTimes = useMemo<MeetingTime[]>(() => {
+    if (!sub) return [];
+    const resolved = resolvePlotMeetings(meetings, { slots, programMode, maxDur, weekdays: days });
+    if (!resolved.ok) return [];
+    return resolved.meetings
+      .map((m): MeetingTime | null => {
+        const t = timesFromSlotRange(m.startSlotIndex, m.durationSlots, slots);
+        return t ? { day: m.day, startTime: t.startTime, endTime: t.endTime } : null;
+      })
+      .filter((m): m is MeetingTime => m != null);
+  }, [sub, meetings, slots, programMode, maxDur, days]);
+
+  /** Rooms taken on ANY of those meetings: disabled / left out, and never suggested. */
+  const busyRoomIds = useMemo(
+    () =>
+      meetingTimes.length === 0
+        ? new Set<string>()
+        : busyRoomIdsForMeetings({
+            rooms,
+            meetings: meetingTimes,
+            existingBlocks: existingBlocks ?? [],
+            academicPeriodId: draft.academicPeriodId,
+            programMode,
+            excludeId: draft.id,
+          }),
+    [meetingTimes, rooms, existingBlocks, draft.academicPeriodId, programMode, draft.id],
+  );
+  const fullBuildings = useMemo(() => {
+    const full = new Set<string>();
+    if (busyRoomIds.size === 0) return full;
+    for (const b of buildingLabels) {
+      const inB = sortedRoomsInBuildingNamed(rooms, b, buildingsCatalog);
+      if (inB.length > 0 && inB.every((rm) => busyRoomIds.has(rm.id))) full.add(b);
+    }
+    return full;
+  }, [busyRoomIds, buildingLabels, rooms, buildingsCatalog]);
+
   const buildingSearchOptions = useMemo<SearchSelectOption[]>(
     () =>
-      buildingLabels.map((b) => ({
-        value: b,
-        label: plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel),
-      })),
-    [buildingLabels],
+      buildingLabels
+        .filter((b) => !fullBuildings.has(b) || b === buildingValue)
+        .map((b) => ({
+          value: b,
+          label: plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel),
+        })),
+    [buildingLabels, fullBuildings, buildingValue],
   );
   const roomSearchOptions = useMemo<SearchSelectOption[]>(
-    () => roomsInB.map((r) => ({ value: r.id, label: formatRoomOptionLabel(r) })),
-    [roomsInB],
+    () =>
+      roomsInB
+        .filter((r) => !busyRoomIds.has(r.id) || r.id === draft.roomId)
+        .map((r) => ({ value: r.id, label: formatRoomOptionLabel(r) })),
+    [roomsInB, busyRoomIds, draft.roomId],
   );
+
+  /** Where this subject has met before (any term or section): roomId → meetings. */
+  const usageCode = (sub?.code ?? "").trim();
+  const [roomUsage, setRoomUsage] = useState<Map<string, number>>(() => new Map());
+  useEffect(() => {
+    if (!open || !usageCode) {
+      setRoomUsage(new Map());
+      return;
+    }
+    let cancelled = false;
+    apiFetch<{ usage: { roomId: string; count: number }[] }>(
+      `/api/catalog/room-usage?subjectCode=${encodeURIComponent(usageCode)}`,
+      { method: "GET" },
+    )
+      .then((res) => {
+        if (!cancelled) setRoomUsage(new Map((res.usage ?? []).map((u) => [u.roomId, u.count])));
+      })
+      .catch(() => {
+        if (!cancelled) setRoomUsage(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, usageCode]);
+
+  const roomSuggestions = useMemo(() => {
+    if (readOnly || !sub || meetingTimes.length === 0) return [];
+    return rankRoomSuggestions({
+      rooms,
+      usage: roomUsage,
+      subjectCode: usageCode,
+      programId: null,
+      wantLab: (sub.labHours ?? 0) > 0 && (sub.lecHours ?? 0) === 0,
+      busy: busyRoomIds,
+    });
+  }, [readOnly, sub, meetingTimes.length, rooms, roomUsage, usageCode, busyRoomIds]);
+
+  function pickRoom(room: Room) {
+    onBuildingChange(plotBuildingKeyForRoom(room, buildingsCatalog));
+    onDraftChange({ ...draft, roomId: room.id });
+  }
+
+  // Fill the room once per subject when it has met there before and nothing is picked yet.
+  const autoRoomForRef = useRef<string>("");
+  useEffect(() => {
+    if (!open || readOnly || draft.roomId) return;
+    const best = roomSuggestions[0];
+    const key = `${draft.sectionId}|${usageCode}`;
+    if (!best || autoRoomForRef.current === key) return;
+    if ((roomUsage.get(best.room.id) ?? 0) === 0) return;
+    autoRoomForRef.current = key;
+    pickRoom(best.room);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, readOnly, draft.roomId, draft.sectionId, usageCode, roomSuggestions, roomUsage]);
 
   function pickSubject(subjectId: string) {
     if (!subjectId) {
@@ -362,11 +475,8 @@ export function GecPlotScheduleModal({
       setMeetingError(resolved.error);
       return;
     }
-    // Not saved while a day lands on a class that is already plotted.
-    if (startConflicts.length > 0) {
-      setMeetingError(startConflicts[0]!);
-      return;
-    }
+    // Not saved while a day lands on a class that is already plotted (already listed in the issues box).
+    if (startConflicts.length > 0) return;
     onApply(resolved.meetings);
   }
 
@@ -413,11 +523,6 @@ export function GecPlotScheduleModal({
         </div>
 
         <div className="px-5 py-4 space-y-4">
-          {plotIncomplete && !readOnly ? (
-            <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
-              Complete the highlighted fields before this plot can be saved.
-            </p>
-          ) : null}
           {subjectHourBudget && sub?.code && !readOnly ? (
             <SubjectWeeklyHoursBanner
               requiredHours={subjectHourBudget.required}
@@ -432,28 +537,30 @@ export function GecPlotScheduleModal({
             </p>
           ) : null}
 
-          {hasConflict ? (
-            <div
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 flex gap-2 text-[12px] text-red-950"
-              role="alert"
+          <div>
+            <label className={labelClass} htmlFor="gec-plot-instructor">
+              Instructor
+            </label>
+            {/* A select listing every instructor (Prof X first), for every role. */}
+            <select
+              id="gec-plot-instructor"
+              className={missingInstructor && !readOnly ? incompleteField : `${fieldClass} mt-1`}
+              value={draft.instructorId}
+              disabled={readOnly}
+              onChange={(e) => onDraftChange({ ...draft, instructorId: e.target.value })}
             >
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-              <div className="space-y-1">
-                <p className="font-semibold">Scheduling conflict detected</p>
-                <ul className="list-disc pl-4 space-y-0.5">
-                  {conflictDetailLines.length > 0
-                    ? conflictDetailLines.map((line) => <li key={line}>{line}</li>)
-                    : (
-                        <>
-                          {conflictFlags.faculty === "Yes" ? <li>Faculty — instructor double-booked at this time</li> : null}
-                          {conflictFlags.room === "Yes" ? <li>Room — already occupied at this time</li> : null}
-                          {conflictFlags.section === "Yes" ? <li>Section — another class overlaps this time</li> : null}
-                        </>
-                      )}
-                </ul>
-              </div>
-            </div>
-          ) : null}
+              <option value="">Select instructor…</option>
+              <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>Prof X (TBA) — no instructor yet</option>
+              {instructorPlotOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {formatInstructorPlotOptionLabel(opt)}
+                </option>
+              ))}
+            </select>
+            {instructorPlotOptions.length === 0 && !readOnly ? (
+              <NoInstructorsNotice compact gec facultyProfileHref={facultyProfileHref} />
+            ) : null}
+          </div>
 
           <div>
             <label className={labelClass} htmlFor="gec-plot-subject">
@@ -464,10 +571,10 @@ export function GecPlotScheduleModal({
               id="gec-plot-subject"
               className={missingSubject && !readOnly ? incompleteField : `${fieldClass} mt-1`}
               value={draft.subjectId}
-              disabled={readOnly || gecSubjects.length === 0}
+              disabled={readOnly || gecSubjects.length === 0 || !draft.instructorId}
               onChange={(e) => pickSubject(e.target.value)}
             >
-              <option value="">Select general subject…</option>
+              <option value="">{draft.instructorId ? "Select general subject…" : "Select instructor first…"}</option>
               {availableSubjects.length > 0 ? (
                 <optgroup label="Available">
                   {availableSubjects.map((s) => (
@@ -499,112 +606,6 @@ export function GecPlotScheduleModal({
             ) : null}
           </div>
 
-          <div>
-            <label className={labelClass} htmlFor="gec-plot-instructor">
-              Instructor
-            </label>
-            {/* A select listing every instructor (Prof X first), for every role. */}
-            <select
-              id="gec-plot-instructor"
-              className={missingInstructor && !readOnly ? incompleteField : `${fieldClass} mt-1`}
-              value={draft.instructorId}
-              disabled={readOnly}
-              onChange={(e) => onDraftChange({ ...draft, instructorId: e.target.value })}
-            >
-              <option value="">Select instructor…</option>
-              <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>Prof X (TBA) — no instructor yet</option>
-              {instructorPlotOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {formatInstructorPlotOptionLabel(opt)}
-                </option>
-              ))}
-            </select>
-            {instructorPlotOptions.length === 0 && !readOnly ? (
-              <NoInstructorsNotice compact gec facultyProfileHref={facultyProfileHref} />
-            ) : null}
-          </div>
-
-          {!readOnly ? (
-            <PlotRoomSearch
-              rooms={rooms}
-              buildingsCatalog={buildingsCatalog}
-              currentRoomId={draft.roomId}
-              onPick={(b, roomId) => {
-                onBuildingChange(b);
-                onDraftChange({ ...draft, roomId });
-              }}
-            />
-          ) : null}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass} htmlFor="gec-plot-building">
-                Building
-              </label>
-              {searchable ? (
-                <SearchSelect
-                  id="gec-plot-building"
-                  ariaLabel="Building"
-                  className="mt-1"
-                  inputClassName={missingBuilding && !readOnly ? incompleteFieldBare : fieldClass}
-                  placeholder="Type a building…"
-                  options={buildingSearchOptions}
-                  value={buildingValue}
-                  disabled={readOnly || buildingLabels.length === 0}
-                  onChange={pickBuilding}
-                />
-              ) : (
-              <select
-                id="gec-plot-building"
-                className={missingBuilding && !readOnly ? incompleteField : `${fieldClass} mt-1`}
-                value={buildingValue}
-                disabled={readOnly || buildingLabels.length === 0}
-                onChange={(e) => pickBuilding(e.target.value)}
-              >
-                <option value="">Select building…</option>
-                {buildingLabels.map((b) => (
-                  <option key={b} value={b}>
-                    {plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel)}
-                  </option>
-                ))}
-              </select>
-              )}
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="gec-plot-room">
-                Room
-              </label>
-              {searchable ? (
-                <SearchSelect
-                  id="gec-plot-room"
-                  ariaLabel="Room"
-                  className="mt-1"
-                  inputClassName={missingRoom && !readOnly ? incompleteFieldBare : fieldClass}
-                  placeholder={buildingValue ? "Type a room…" : "Select building first"}
-                  options={roomSearchOptions}
-                  value={draft.roomId}
-                  disabled={readOnly || !buildingValue}
-                  onChange={(v) => onDraftChange({ ...draft, roomId: v })}
-                />
-              ) : (
-              <select
-                id="gec-plot-room"
-                className={missingRoom && !readOnly ? incompleteField : `${fieldClass} mt-1`}
-                value={draft.roomId}
-                disabled={readOnly || !buildingValue}
-                onChange={(e) => onDraftChange({ ...draft, roomId: e.target.value })}
-              >
-                <option value="">{buildingValue ? "Select room…" : "Select building first"}</option>
-                {roomsInB.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {formatRoomOptionLabel(r)}
-                  </option>
-                ))}
-              </select>
-              )}
-            </div>
-          </div>
-
           <PlotMeetingSlotsFields
             idPrefix="gec-plot"
             draft={meetings}
@@ -631,13 +632,157 @@ export function GecPlotScheduleModal({
               </span>
             ) : null}
           </p>
-          {startConflicts.length > 0 ? (
-            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800 space-y-0.5">
-              {startConflicts.map((msg) => (
-                <p key={msg}>{msg}</p>
-              ))}
+          {roomSuggestions.length > 0 ? (
+            <div className="rounded-lg border border-emerald-300/50 bg-emerald-50/60 px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-black/75">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-700" aria-hidden />
+                Suggested rooms for {usageCode} (free at this time)
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {roomSuggestions.map(({ room, reason }) => {
+                  const picked = draft.roomId === room.id;
+                  const floor = ordinalFloor(room.floor);
+                  return (
+                    <button
+                      key={room.id}
+                      type="button"
+                      onClick={() => pickRoom(room)}
+                      aria-pressed={picked}
+                      className={`rounded-lg border px-2.5 py-1.5 text-left transition ${
+                        picked ? "border-[#780301] bg-[#780301] text-white" : "border-black/15 bg-white text-black hover:border-emerald-500"
+                      }`}
+                    >
+                      <span className="block text-[12.5px] font-semibold">
+                        {formatRoomOptionLabel(room)}
+                        {floor ? <span className={picked ? "text-white/80" : "text-black/55"}> · {floor}</span> : null}
+                      </span>
+                      <span className={`block text-[11px] ${picked ? "text-white/80" : "text-black/55"}`}>{reason}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
+
+          {!readOnly && roomPickReady ? (
+            <PlotRoomSearch
+              rooms={rooms}
+              buildingsCatalog={buildingsCatalog}
+              busyRoomIds={busyRoomIds}
+              currentRoomId={draft.roomId}
+              onPick={(b, roomId) => {
+                onBuildingChange(b);
+                onDraftChange({ ...draft, roomId });
+              }}
+            />
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass} htmlFor="gec-plot-building">
+                Building
+              </label>
+              {searchable ? (
+                <SearchSelect
+                  id="gec-plot-building"
+                  ariaLabel="Building"
+                  className="mt-1"
+                  inputClassName={missingBuilding && !readOnly ? incompleteFieldBare : fieldClass}
+                  placeholder={roomPickHint || "Type a building…"}
+                  options={buildingSearchOptions}
+                  value={buildingValue}
+                  disabled={readOnly || buildingLabels.length === 0 || !roomPickReady}
+                  onChange={pickBuilding}
+                />
+              ) : (
+              <select
+                id="gec-plot-building"
+                className={missingBuilding && !readOnly ? incompleteField : `${fieldClass} mt-1`}
+                value={buildingValue}
+                disabled={readOnly || buildingLabels.length === 0 || !roomPickReady}
+                onChange={(e) => pickBuilding(e.target.value)}
+              >
+                <option value="">{roomPickHint || "Select building…"}</option>
+                {buildingLabels.map((b) => {
+                  const full = fullBuildings.has(b);
+                  return (
+                    <option key={b} value={b} disabled={full && buildingValue !== b}>
+                      {plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel)}
+                      {full ? " — No free room at this time" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              )}
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="gec-plot-room">
+                Room
+              </label>
+              {searchable ? (
+                <SearchSelect
+                  id="gec-plot-room"
+                  ariaLabel="Room"
+                  className="mt-1"
+                  inputClassName={missingRoom && !readOnly ? incompleteFieldBare : fieldClass}
+                  placeholder={roomPickHint || (buildingValue ? "Type a room…" : "Select building first")}
+                  options={roomSearchOptions}
+                  value={draft.roomId}
+                  disabled={readOnly || !buildingValue || !roomPickReady}
+                  onChange={(v) => onDraftChange({ ...draft, roomId: v })}
+                />
+              ) : (
+              <select
+                id="gec-plot-room"
+                className={missingRoom && !readOnly ? incompleteField : `${fieldClass} mt-1`}
+                value={draft.roomId}
+                disabled={readOnly || !buildingValue || !roomPickReady}
+                onChange={(e) => onDraftChange({ ...draft, roomId: e.target.value })}
+              >
+                <option value="">{roomPickHint || (buildingValue ? "Select room…" : "Select building first")}</option>
+                {roomsInB.map((r) => {
+                  const busy = busyRoomIds.has(r.id);
+                  return (
+                    <option key={r.id} value={r.id} disabled={busy && draft.roomId !== r.id}>
+                      {formatRoomOptionLabel(r)}
+                      {busy ? " — Occupied" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              )}
+            </div>
+          </div>
+
+          {(() => {
+            const issues = readOnly
+              ? []
+              : dedupeMessages([
+                  ...(hasConflict
+                    ? conflictDetailLines.length > 0
+                      ? conflictDetailLines
+                      : [
+                          conflictFlags.faculty === "Yes" ? "The instructor already has a class at this time." : null,
+                          conflictFlags.room === "Yes" ? "The room is already occupied at this time." : null,
+                          conflictFlags.section === "Yes" ? "The section already has a class at this time." : null,
+                        ]
+                    : []),
+                  ...startConflicts,
+                ]);
+            return issues.length > 0 ? (
+              <div role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12px] text-red-900">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <div className="space-y-0.5">
+                  <p className="font-semibold">This plot can’t be saved yet</p>
+                  <ul className="list-disc space-y-0.5 pl-4">
+                    {issues.map((msg) => (
+                      <li key={msg}>{msg}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null;
+          })()}
         </div>
 
         <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white px-5 py-4">
@@ -645,6 +790,9 @@ export function GecPlotScheduleModal({
             <Button type="button" variant="outline" className="mr-auto text-red-800 border-red-200" onClick={onRemove}>
               Remove schedule
             </Button>
+          ) : null}
+          {plotIncomplete && !readOnly ? (
+            <span className="mr-auto text-[11.5px] text-red-700">Complete the highlighted fields.</span>
           ) : null}
           <Button type="button" variant="outline" onClick={onClose}>
             {readOnly ? "Close" : "Cancel"}

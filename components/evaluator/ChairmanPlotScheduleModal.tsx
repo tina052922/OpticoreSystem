@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, ChevronDown, ExternalLink, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ExternalLink, Sparkles, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,9 +85,17 @@ import type { Building, Room, Section } from "@/types/db";
 import type { RowConflictFlags } from "@/lib/evaluator/chairman-plot-row";
 import {
   buildingNamesForPlotting,
+  plotBuildingKeyForRoom,
   plotBuildingOptionLabel,
   sortedRoomsInBuildingNamed,
 } from "@/lib/evaluator/building-options";
+import {
+  busyRoomIdsForMeetings,
+  dedupeMessages,
+  ordinalFloor,
+  rankRoomSuggestions,
+  type MeetingTime,
+} from "@/lib/evaluator/room-suggestions";
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
 import { plotStartConflicts } from "@/lib/evaluator/plot-start-conflicts";
 import { apiFetch } from "@/lib/api/client";
@@ -531,6 +539,13 @@ export function ChairmanPlotScheduleModal({
   const missingInstructor = !draft.instructorId;
   const missingRoom = !draft.roomId;
   const missingBuilding = !buildingValue;
+  /** Building and Room open only after Instructor → Subject: suggestions and free rooms depend on them. */
+  const roomPickReady = Boolean(draft.instructorId && draft.subjectCode);
+  const roomPickHint = !draft.instructorId
+    ? "Select instructor first"
+    : !draft.subjectCode
+      ? "Select subject first"
+      : "";
   const missingDay = !meetings.slots[0]?.day;
   const missingTime = !meetings.timeText.trim();
   /** INS Form 5A has a "No. of Students" column with no other source, so a blank prints a blank. */
@@ -629,39 +644,107 @@ export function ChairmanPlotScheduleModal({
     return busy;
   }, [draft, existingBlocks, academicPeriodId, programCodeForSummary]);
 
+  /** Every meeting being plotted (each day with its own start and duration), as clock times. */
+  const meetingTimes = useMemo<MeetingTime[]>(() => {
+    if (!draft.subjectCode) return [];
+    const resolved = resolvePlotMeetings(meetings, { slots, programMode, maxDur, weekdays: days });
+    if (!resolved.ok) return [];
+    return resolved.meetings
+      .map((m): MeetingTime | null => {
+        const t = timesFromSlotRange(m.startSlotIndex, m.durationSlots, slots);
+        return t ? { day: m.day, startTime: t.startTime, endTime: t.endTime } : null;
+      })
+      .filter((m): m is MeetingTime => m != null);
+  }, [draft.subjectCode, meetings, slots, programMode, maxDur, days]);
+
+  /** Rooms taken on ANY of those meetings: disabled in the Room list and never suggested. */
   const busyRoomIds = useMemo(() => {
-    if (
-      !draft.day ||
-      !draft.subjectCode ||
-      !buildingValue ||
-      existingBlocks.length === 0
-    )
-      return null;
-    const busy = new Set<string>();
-    for (const room of roomsInB) {
-      const candidate = buildCandidateBlock(
-        draft,
-        { roomId: room.id },
-        academicPeriodId,
-        programCodeForSummary,
-        slots,
-        programMode,
-      );
-      if (!candidate) continue;
-      const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
-      if (hits.some((h) => h.type === "room")) {
-        busy.add(room.id);
-      }
+    if (meetingTimes.length === 0) return null;
+    return busyRoomIdsForMeetings({
+      rooms: roomsForEvaluatorGrid,
+      meetings: meetingTimes,
+      existingBlocks,
+      academicPeriodId,
+      programMode,
+      excludeId: draft.id,
+    });
+  }, [meetingTimes, roomsForEvaluatorGrid, existingBlocks, academicPeriodId, programMode, draft.id]);
+
+  /** Buildings with no free room at those times: disabled in the Building list. */
+  const fullBuildings = useMemo(() => {
+    const full = new Set<string>();
+    if (!busyRoomIds || busyRoomIds.size === 0) return full;
+    for (const b of buildingLabelsForGrid) {
+      const inB = sortedRoomsInBuildingNamed(roomsForEvaluatorGrid, b, buildingsCatalog);
+      if (inB.length > 0 && inB.every((rm) => busyRoomIds.has(rm.id))) full.add(b);
     }
-    return busy;
-  }, [
-    draft,
-    existingBlocks,
-    academicPeriodId,
-    programCodeForSummary,
-    roomsInB,
-    buildingValue,
-  ]);
+    return full;
+  }, [busyRoomIds, buildingLabelsForGrid, roomsForEvaluatorGrid, buildingsCatalog]);
+
+  /** Where this subject has met before (any term or section): roomId → meetings. */
+  const usageCode = (subjectSelectValue || draft.subjectCode || "").trim();
+  const [roomUsage, setRoomUsage] = useState<Map<string, number>>(() => new Map());
+  useEffect(() => {
+    if (!open || !usageCode) {
+      setRoomUsage(new Map());
+      return;
+    }
+    let cancelled = false;
+    apiFetch<{ usage: { roomId: string; count: number }[] }>(
+      `/api/catalog/room-usage?subjectCode=${encodeURIComponent(usageCode)}`,
+      { method: "GET" },
+    )
+      .then((r) => {
+        if (!cancelled) setRoomUsage(new Map((r.usage ?? []).map((u) => [u.roomId, u.count])));
+      })
+      .catch(() => {
+        if (!cancelled) setRoomUsage(new Map()); // suggestions just lean on department and room type
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, usageCode]);
+
+  const sectionProgramId = programSections.find((sec) => sec.id === draft.sectionId)?.programId ?? null;
+  const wantLabRoom =
+    lecLabModeValue === "lab" ||
+    Boolean(durationSource && (durationSource.labHours ?? 0) > 0 && (durationSource.lecHours ?? 0) === 0);
+
+  /** Best free rooms for this subject, after Instructor → Subject (and the days / times) are chosen. */
+  const roomSuggestions = useMemo(() => {
+    if (readOnly || !draft.subjectCode || meetingTimes.length === 0) return [];
+    return rankRoomSuggestions({
+      rooms: roomsForEvaluatorGrid,
+      usage: roomUsage,
+      subjectCode: usageCode,
+      programId: sectionProgramId,
+      wantLab: wantLabRoom,
+      busy: busyRoomIds ?? new Set(),
+    });
+  }, [readOnly, draft.subjectCode, meetingTimes.length, roomsForEvaluatorGrid, roomUsage, usageCode, sectionProgramId, wantLabRoom, busyRoomIds]);
+
+  const pickRoom = useCallback(
+    (room: Room) => {
+      onBuildingChange(plotBuildingKeyForRoom(room, buildingsCatalog));
+      onDraftChange({ ...draft, roomId: room.id });
+    },
+    [onBuildingChange, onDraftChange, draft, buildingsCatalog],
+  );
+
+  /*
+   * Fill the room in for the user once per subject, but only when there is real evidence — the
+   * subject has met in that room before — and nothing has been picked yet. They can still change it.
+   */
+  const autoRoomForRef = useRef<string>("");
+  useEffect(() => {
+    if (!open || readOnly || draft.roomId) return;
+    const best = roomSuggestions[0];
+    const key = `${draft.sectionId}|${usageCode}`;
+    if (!best || autoRoomForRef.current === key) return;
+    if ((roomUsage.get(best.room.id) ?? 0) === 0) return;
+    autoRoomForRef.current = key;
+    pickRoom(best.room);
+  }, [open, readOnly, draft.roomId, draft.sectionId, usageCode, roomSuggestions, roomUsage, pickRoom]);
 
   function applyMeetingsChange(next: PlotMeetingsDraft) {
     setMeetings(next);
@@ -701,11 +784,8 @@ export function ChairmanPlotScheduleModal({
       setMeetingError(resolved.error);
       return;
     }
-    // Not saved while a day lands on a class that is already plotted.
-    if (startConflicts.length > 0) {
-      setMeetingError(startConflicts[0]!);
-      return;
-    }
+    // Not saved while a day lands on a class that is already plotted (already listed in the issues box).
+    if (startConflicts.length > 0) return;
     const first = resolved.meetings[0];
     if (first) {
       onDraftChange({
@@ -764,21 +844,6 @@ export function ChairmanPlotScheduleModal({
         </div>
 
         <div className="px-5 py-4 space-y-4">
-          {plotIncomplete && !readOnly ? (
-            <p className="text-[12px] font-medium text-red-800 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="status">
-              Complete the highlighted fields before this plot can be saved.
-            </p>
-          ) : null}
-          {freeTimeNotices.map((msg) => (
-            <p
-              key={msg}
-              className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] font-medium text-amber-950"
-              role="alert"
-            >
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-              <span>{msg}</span>
-            </p>
-          ))}
           {subjectHourBudget && draft.subjectCode && !readOnly ? (
             <SubjectWeeklyHoursBanner
               requiredHours={subjectHourBudget.required}
@@ -786,37 +851,6 @@ export function ChairmanPlotScheduleModal({
               additionalHours={additionalHours}
             />
           ) : null}
-          {hasConflict ? (
-            <div
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 flex gap-2 text-[12px] text-red-950"
-              role="alert"
-            >
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-              <div className="space-y-1">
-                <p className="font-semibold">Scheduling conflict detected</p>
-                <ul className="list-disc pl-4 space-y-0.5">
-                  {conflictDetailLines.length > 0 ? (
-                    conflictDetailLines.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))
-                  ) : (
-                    <>
-                      {conflictFlags.faculty === "Yes" ? (
-                        <li>Faculty — instructor double-booked at this time</li>
-                      ) : null}
-                      {conflictFlags.room === "Yes" ? (
-                        <li>Room — already occupied at this time</li>
-                      ) : null}
-                      {conflictFlags.section === "Yes" ? (
-                        <li>Section — another class overlaps this time</li>
-                      ) : null}
-                    </>
-                  )}
-                </ul>
-              </div>
-            </div>
-          ) : null}
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass} htmlFor="plot-major">
@@ -949,99 +983,6 @@ export function ChairmanPlotScheduleModal({
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="plot-subject">
-              Subject code
-            </label>
-            <select
-              id="plot-subject"
-              className={missingSubject && !readOnly ? incompleteField : `${fieldClass} mt-1`}
-              value={subjectSelectValue}
-              disabled={readOnly || !draft.sectionId}
-              onChange={(e) => {
-                const picked = e.target.value;
-                if (!picked) {
-                  onDraftChange({
-                    ...draft,
-                    subjectCode: "",
-                    lecLabMode: "lec",
-                    students: "",
-                  });
-                  return;
-                }
-                const mode = inferLecLabMode(programCodeForSummary, picked, catalogSubjectRows);
-                const subjectCode = resolveSubjectCodeForLecLabMode(
-                  programCodeForSummary,
-                  picked,
-                  mode,
-                  catalogSubjectRows,
-                );
-                const p = rowForCode(subjectCode);
-                let startSlotIndex = draft.startSlotIndex;
-                if (p) {
-                  const d = plotRowDurationSlots(p, { durationSlots: 1 });
-                  startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots);
-                }
-                setMeetings((prev) => ({
-                  ...prev,
-                  slots: prev.slots.map((s, i) => (i === 0 ? { ...s, durationHours: "1" } : s)),
-                }));
-                onDraftChange({
-                  ...draft,
-                  subjectCode,
-                  lecLabMode: mode,
-                  startSlotIndex,
-                  durationSlots: 1,
-                  /*
-                   * Each subject enrolls separately — irregular students are why this field moved
-                   * off the section — so the figure is re-seeded for the subject now chosen rather
-                   * than inherited from the one before it.
-                   */
-                  students: seedEnrollmentFor({ ...draft, subjectCode }),
-                });
-              }}
-            >
-              <option value="">
-                {!draft.sectionId
-                  ? "Select section first…"
-                  : noSubjectsForSection
-                    ? "No subjects for this section / term"
-                    : "Select subject…"}
-              </option>
-              {availableSubjects.length > 0 ? (
-                <optgroup label="Available">
-                  {availableSubjects.map((s) => (
-                    <option key={s.code} value={s.code}>
-                      {formatPlotSubjectDropdownLabel(s)}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {addAnotherSlotSubjects.length > 0 ? (
-                <optgroup label="Add another time slot (same subject)">
-                  {addAnotherSlotSubjects.map((s) => (
-                    <option key={`split-${s.code}`} value={s.code}>
-                      + {formatPlotSubjectDropdownLabel(s)}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {draft.subjectCode &&
-              !availableSubjects.some(
-                (s) =>
-                  normalizeProspectusCode(s.code) ===
-                  normalizeProspectusCode(subjectSelectValue),
-              ) ? (
-                <option value={subjectSelectValue}>
-                  {formatPlotSubjectDropdownLabel({
-                    code: subjectSelectValue || draft.subjectCode,
-                    title: durationSource?.title,
-                  })}
-                </option>
-              ) : null}
-            </select>
-          </div>
-
-          <div>
             <label className={labelClass} htmlFor="plot-instructor">
               Instructor
             </label>
@@ -1145,81 +1086,99 @@ export function ChairmanPlotScheduleModal({
             ) : null}
           </div>
 
-          {!readOnly ? (
-            <PlotRoomSearch
-              rooms={roomsForEvaluatorGrid}
-              buildingsCatalog={buildingsCatalog}
-              busyRoomIds={busyRoomIds ?? undefined}
-              currentRoomId={draft.roomId}
-              onPick={(b, roomId) => {
-                onBuildingChange(b);
-                onDraftChange({ ...draft, roomId });
-              }}
-            />
-          ) : null}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass} htmlFor="plot-building">
-              Building
+          <div>
+            <label className={labelClass} htmlFor="plot-subject">
+              Subject code
             </label>
-              <select
-                id="plot-building"
-                className={missingBuilding && !readOnly ? incompleteField : `${fieldClass} mt-1`}
-                value={buildingValue}
-                disabled={readOnly || noBuildings}
-                onChange={(e) => {
-                  const b = e.target.value;
-                  onBuildingChange(b);
-                  const keep =
-                    draft.roomId &&
-                    sortedRoomsInBuildingNamed(roomsForEvaluatorGrid, b, buildingsCatalog).some(
-                      (r) => r.id === draft.roomId,
-                    );
-                  if (!keep) onDraftChange({ ...draft, roomId: "" });
-                }}
-              >
-                <option value="">
-                  {noBuildings ? "No buildings configured" : "Select building…"}
-                </option>
-                {buildingLabelsForGrid.map((b) => (
-                  <option key={b} value={b}>
-                    {plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="plot-room">
-                Room
-              </label>
-              <select
-                id="plot-room"
-                className={missingRoom && !readOnly ? incompleteField : `${fieldClass} mt-1`}
-                value={draft.roomId}
-                disabled={readOnly || !buildingValue}
-                onChange={(e) =>
-                  onDraftChange({ ...draft, roomId: e.target.value })
+            <select
+              id="plot-subject"
+              className={missingSubject && !readOnly ? incompleteField : `${fieldClass} mt-1`}
+              value={subjectSelectValue}
+              disabled={readOnly || !draft.sectionId || !draft.instructorId}
+              onChange={(e) => {
+                const picked = e.target.value;
+                if (!picked) {
+                  onDraftChange({
+                    ...draft,
+                    subjectCode: "",
+                    lecLabMode: "lec",
+                    students: "",
+                  });
+                  return;
                 }
-              >
-                <option value="">
-                  {buildingValue ? "Select room…" : "Select building first"}
-                </option>
-                {roomsInB.map((r) => {
-                  const conflict = busyRoomIds?.has(r.id) === true;
-                  return (
-                    <option
-                      key={r.id}
-                      value={r.id}
-                      disabled={conflict && draft.roomId !== r.id}
-                    >
-                      {formatRoomOptionLabel(r)}
-                      {conflict ? " — Occupied" : ""}
+                const mode = inferLecLabMode(programCodeForSummary, picked, catalogSubjectRows);
+                const subjectCode = resolveSubjectCodeForLecLabMode(
+                  programCodeForSummary,
+                  picked,
+                  mode,
+                  catalogSubjectRows,
+                );
+                const p = rowForCode(subjectCode);
+                let startSlotIndex = draft.startSlotIndex;
+                if (p) {
+                  const d = plotRowDurationSlots(p, { durationSlots: 1 });
+                  startSlotIndex = clampPlotStartSlotIndex(startSlotIndex, d, slots);
+                }
+                setMeetings((prev) => ({
+                  ...prev,
+                  slots: prev.slots.map((s, i) => (i === 0 ? { ...s, durationHours: "1" } : s)),
+                }));
+                onDraftChange({
+                  ...draft,
+                  subjectCode,
+                  lecLabMode: mode,
+                  startSlotIndex,
+                  durationSlots: 1,
+                  /*
+                   * Each subject enrolls separately — irregular students are why this field moved
+                   * off the section — so the figure is re-seeded for the subject now chosen rather
+                   * than inherited from the one before it.
+                   */
+                  students: seedEnrollmentFor({ ...draft, subjectCode }),
+                });
+              }}
+            >
+              <option value="">
+                {!draft.sectionId
+                  ? "Select section first…"
+                  : !draft.instructorId
+                    ? "Select instructor first…"
+                    : noSubjectsForSection
+                    ? "No subjects for this section / term"
+                    : "Select subject…"}
+              </option>
+              {availableSubjects.length > 0 ? (
+                <optgroup label="Available">
+                  {availableSubjects.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {formatPlotSubjectDropdownLabel(s)}
                     </option>
-                  );
-                })}
-              </select>
-            </div>
+                  ))}
+                </optgroup>
+              ) : null}
+              {addAnotherSlotSubjects.length > 0 ? (
+                <optgroup label="Add another time slot (same subject)">
+                  {addAnotherSlotSubjects.map((s) => (
+                    <option key={`split-${s.code}`} value={s.code}>
+                      + {formatPlotSubjectDropdownLabel(s)}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {draft.subjectCode &&
+              !availableSubjects.some(
+                (s) =>
+                  normalizeProspectusCode(s.code) ===
+                  normalizeProspectusCode(subjectSelectValue),
+              ) ? (
+                <option value={subjectSelectValue}>
+                  {formatPlotSubjectDropdownLabel({
+                    code: subjectSelectValue || draft.subjectCode,
+                    title: durationSource?.title,
+                  })}
+                </option>
+              ) : null}
+            </select>
           </div>
 
           <PlotMeetingSlotsFields
@@ -1249,20 +1208,156 @@ export function ChairmanPlotScheduleModal({
               </span>
             ) : null}
           </p>
-          {startConflicts.length > 0 || serverConflicts.length > 0 ? (
-            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800 space-y-0.5">
-              <p className="font-semibold">This plot can’t be saved yet:</p>
-              {startConflicts.map((msg) => (
-                <p key={msg}>{msg}</p>
-              ))}
-              {serverConflicts.map((msg) => (
-                <p key={`srv-${msg}`}>{msg}.</p>
-              ))}
-              <p className="text-red-700/80">Change the time, room or instructor.</p>
+          {roomSuggestions.length > 0 ? (
+            <div className="rounded-lg border border-[#ff990a]/30 bg-[#fff8ee] px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-black/75">
+                <Sparkles className="h-3.5 w-3.5 text-[#e68a09]" aria-hidden />
+                Suggested rooms for {usageCode} (free at this time)
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {roomSuggestions.map(({ room, reason }) => {
+                  const picked = draft.roomId === room.id;
+                  const floor = ordinalFloor(room.floor);
+                  return (
+                    <button
+                      key={room.id}
+                      type="button"
+                      onClick={() => pickRoom(room)}
+                      aria-pressed={picked}
+                      className={`rounded-lg border px-2.5 py-1.5 text-left transition ${
+                        picked
+                          ? "border-[#780301] bg-[#780301] text-white"
+                          : "border-black/15 bg-white text-black hover:border-[#ff990a]"
+                      }`}
+                    >
+                      <span className="block text-[12.5px] font-semibold">
+                        {formatRoomOptionLabel(room)}
+                        {floor ? <span className={picked ? "text-white/80" : "text-black/55"}> · {floor}</span> : null}
+                      </span>
+                      <span className={`block text-[11px] ${picked ? "text-white/80" : "text-black/55"}`}>{reason}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          ) : serverChecking ? (
-            <p className="text-[11px] text-black/50">Checking for clashes…</p>
           ) : null}
+
+          {!readOnly && roomPickReady ? (
+            <PlotRoomSearch
+              rooms={roomsForEvaluatorGrid}
+              buildingsCatalog={buildingsCatalog}
+              busyRoomIds={busyRoomIds ?? undefined}
+              currentRoomId={draft.roomId}
+              onPick={(b, roomId) => {
+                onBuildingChange(b);
+                onDraftChange({ ...draft, roomId });
+              }}
+            />
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass} htmlFor="plot-building">
+              Building
+            </label>
+              <select
+                id="plot-building"
+                className={missingBuilding && !readOnly ? incompleteField : `${fieldClass} mt-1`}
+                value={buildingValue}
+                disabled={readOnly || noBuildings || !roomPickReady}
+                onChange={(e) => {
+                  const b = e.target.value;
+                  onBuildingChange(b);
+                  const keep =
+                    draft.roomId &&
+                    sortedRoomsInBuildingNamed(roomsForEvaluatorGrid, b, buildingsCatalog).some(
+                      (r) => r.id === draft.roomId,
+                    );
+                  if (!keep) onDraftChange({ ...draft, roomId: "" });
+                }}
+              >
+                <option value="">
+                  {noBuildings ? "No buildings configured" : roomPickHint || "Select building…"}
+                </option>
+                {buildingLabelsForGrid.map((b) => {
+                  const full = fullBuildings.has(b);
+                  return (
+                    <option key={b} value={b} disabled={full && buildingValue !== b}>
+                      {plotBuildingOptionLabel(b, campusNavigationBuildingOptionLabel)}
+                      {full ? " — No free room at this time" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="plot-room">
+                Room
+              </label>
+              <select
+                id="plot-room"
+                className={missingRoom && !readOnly ? incompleteField : `${fieldClass} mt-1`}
+                value={draft.roomId}
+                disabled={readOnly || !buildingValue || !roomPickReady}
+                onChange={(e) =>
+                  onDraftChange({ ...draft, roomId: e.target.value })
+                }
+              >
+                <option value="">
+                  {roomPickHint || (buildingValue ? "Select room…" : "Select building first")}
+                </option>
+                {roomsInB.map((r) => {
+                  const conflict = busyRoomIds?.has(r.id) === true;
+                  return (
+                    <option
+                      key={r.id}
+                      value={r.id}
+                      disabled={conflict && draft.roomId !== r.id}
+                    >
+                      {formatRoomOptionLabel(r)}
+                      {conflict ? " — Occupied" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+
+          {(() => {
+            // Every problem with this plot, once: overlaps, free-time notices, server clashes.
+            const issues = readOnly
+              ? []
+              : dedupeMessages([
+                  ...(hasConflict
+                    ? conflictDetailLines.length > 0
+                      ? conflictDetailLines
+                      : [
+                          conflictFlags.faculty === "Yes" ? "The instructor already has a class at this time." : null,
+                          conflictFlags.room === "Yes" ? "The room is already occupied at this time." : null,
+                          conflictFlags.section === "Yes" ? "The section already has a class at this time." : null,
+                        ]
+                    : []),
+                  ...startConflicts,
+                  ...serverConflicts,
+                  ...freeTimeNotices,
+                ]);
+            if (issues.length > 0) {
+              return (
+                <div role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12px] text-red-900">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <div className="space-y-0.5">
+                    <p className="font-semibold">This plot can’t be saved yet</p>
+                    <ul className="list-disc space-y-0.5 pl-4">
+                      {issues.map((msg) => (
+                        <li key={msg}>{msg}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              );
+            }
+            return serverChecking ? <p className="text-[11px] text-black/50">Checking for clashes…</p> : null;
+          })()}
 
           <div>
             <label className={labelClass} htmlFor="plot-students">
@@ -1309,6 +1404,9 @@ export function ChairmanPlotScheduleModal({
             >
               Remove schedule
             </Button>
+          ) : null}
+          {plotIncomplete && !readOnly ? (
+            <span className="mr-auto text-[11.5px] text-red-700">Complete the highlighted fields.</span>
           ) : null}
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
