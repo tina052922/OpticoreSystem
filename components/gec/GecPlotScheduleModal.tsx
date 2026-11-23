@@ -54,8 +54,9 @@ import {
 import { PlotRoomSearch } from "@/components/evaluator/PlotRoomSearch";
 import { apiFetch } from "@/lib/api/client";
 import {
+  busyInstructorsForMeetings,
   busyRoomIdsForMeetings,
-  dedupeMessages,
+  dedupeClashMessages,
   ordinalFloor,
   rankRoomSuggestions,
   type MeetingTime,
@@ -302,6 +303,25 @@ export function GecPlotScheduleModal({
       })
       .filter((m): m is MeetingTime => m != null);
   }, [sub, meetings, slots, programMode, maxDur, days]);
+
+  /** Instructors already teaching then: every meeting once set, else the clicked time slot. */
+  const busyInstructorIds = useMemo(() => {
+    const times: MeetingTime[] =
+      meetingTimes.length > 0
+        ? meetingTimes
+        : draft.day && draft.startTime && draft.endTime
+          ? [{ day: draft.day, startTime: draft.startTime, endTime: draft.endTime }]
+          : [];
+    if (times.length === 0) return new Map<string, string | null>();
+    return busyInstructorsForMeetings({
+      instructorIds: instructorPlotOptions.map((o) => o.id),
+      meetings: times,
+      existingBlocks: existingBlocks ?? [],
+      academicPeriodId: draft.academicPeriodId,
+      programMode,
+      excludeId: draft.id,
+    });
+  }, [meetingTimes, draft.day, draft.startTime, draft.endTime, instructorPlotOptions, existingBlocks, draft.academicPeriodId, programMode, draft.id]);
 
   /** Rooms taken on ANY of those meetings: disabled / left out, and never suggested. */
   const busyRoomIds = useMemo(
@@ -551,11 +571,15 @@ export function GecPlotScheduleModal({
             >
               <option value="">Select instructor…</option>
               <option value={GEC_VACANT_INSTRUCTOR_USER_ID}>Prof X (TBA) — no instructor yet</option>
-              {instructorPlotOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {formatInstructorPlotOptionLabel(opt)}
-                </option>
-              ))}
+              {instructorPlotOptions.map((opt) => {
+                const busy = busyInstructorIds.has(opt.id) && draft.instructorId !== opt.id;
+                return (
+                  <option key={opt.id} value={opt.id} disabled={busy}>
+                    {formatInstructorPlotOptionLabel(opt)}
+                    {busy ? " — Busy at this time" : ""}
+                  </option>
+                );
+              })}
             </select>
             {instructorPlotOptions.length === 0 && !readOnly ? (
               <NoInstructorsNotice compact gec facultyProfileHref={facultyProfileHref} />
@@ -757,7 +781,7 @@ export function GecPlotScheduleModal({
           {(() => {
             const issues = readOnly
               ? []
-              : dedupeMessages([
+              : dedupeClashMessages([
                   ...(hasConflict
                     ? conflictDetailLines.length > 0
                       ? conflictDetailLines

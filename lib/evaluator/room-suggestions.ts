@@ -128,3 +128,76 @@ export function dedupeMessages(lines: readonly (string | null | undefined)[]): s
   }
   return out;
 }
+
+const WEEKDAY = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
+
+/** What a clash message is about, when it can tell: the instructor, the room or the section. */
+export function clashKind(message: string): "instructor" | "room" | "section" | null {
+  const m = message.toLowerCase();
+  if (/instructor|faculty|double-booked|teacher/.test(m)) return "instructor";
+  if (/\broom\b|occupied/.test(m)) return "room";
+  if (/\bsection\b/.test(m)) return "section";
+  return null;
+}
+
+/**
+ * The same clash told several ways (the live check, the start-time check and the server each word
+ * it differently) is shown once: the first message per kind (instructor / room / section) and day
+ * wins. Anything else falls back to plain duplicate removal.
+ */
+export function dedupeClashMessages(lines: readonly (string | null | undefined)[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of dedupeMessages(lines)) {
+    const kind = clashKind(line);
+    const day = line.match(WEEKDAY)?.[1]?.toLowerCase() ?? "";
+    if (kind) {
+      const key = `${kind}|${day}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * Instructors already teaching during ANY of the given times: instructor id -> the clashing
+ * entry id (so "View schedule" can highlight it). Prof X / placeholder instructors never clash.
+ */
+export function busyInstructorsForMeetings(args: {
+  instructorIds: readonly string[];
+  meetings: readonly MeetingTime[];
+  existingBlocks: readonly SparseScheduleBlock[];
+  academicPeriodId: string;
+  programMode: ProgramMode;
+  excludeId?: string;
+}): Map<string, string | null> {
+  const busy = new Map<string, string | null>();
+  if (args.meetings.length === 0 || args.existingBlocks.length === 0) return busy;
+  const teaching = new Set(args.existingBlocks.map((b) => b.instructorId).filter((id): id is string => Boolean(id)));
+  for (const id of args.instructorIds) {
+    if (!id || !teaching.has(id)) continue;
+    for (const [i, m] of args.meetings.entries()) {
+      const candidate: SparseScheduleBlock = {
+        id: (args.excludeId ?? 'draft') + '#i' + i,
+        academicPeriodId: args.academicPeriodId,
+        day: m.day,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        instructorId: id,
+        sectionId: null,
+        roomId: null,
+        programMode: args.programMode,
+      };
+      const hit = detectConflictsSparse(candidate, args.existingBlocks as SparseScheduleBlock[], args.excludeId).find(
+        (h) => h.type === 'faculty',
+      );
+      if (hit) {
+        busy.set(id, hit.withEntryId ?? null);
+        break;
+      }
+    }
+  }
+  return busy;
+}

@@ -90,8 +90,9 @@ import {
   sortedRoomsInBuildingNamed,
 } from "@/lib/evaluator/building-options";
 import {
+  busyInstructorsForMeetings,
   busyRoomIdsForMeetings,
-  dedupeMessages,
+  dedupeClashMessages,
   ordinalFloor,
   rankRoomSuggestions,
   type MeetingTime,
@@ -588,36 +589,6 @@ export function ChairmanPlotScheduleModal({
     projectedInstructorHours >= selectedInstructorLoad.cap - 2 + 1e-6;
 
   /** Busy instructor id → the class that clashes, so "View schedule" can point straight at it. */
-  const busyInstructorIds = useMemo(() => {
-    if (!draft.day || !draft.subjectCode || existingBlocks.length === 0)
-      return null;
-    const busy = new Map<string, string | null>();
-    for (const opt of instructorPlotOptions) {
-      if (!opt.id) continue;
-      const candidate = buildCandidateBlock(
-        draft,
-        { instructorId: opt.id },
-        academicPeriodId,
-        programCodeForSummary,
-        slots,
-        programMode,
-      );
-      if (!candidate) continue;
-      const hits = detectConflictsSparse(candidate, existingBlocks, draft.id);
-      const facultyHit = hits.find((h) => h.type === "faculty");
-      if (facultyHit) {
-        busy.set(opt.id, facultyHit.withEntryId ?? null);
-      }
-    }
-    return busy;
-  }, [
-    draft,
-    existingBlocks,
-    academicPeriodId,
-    programCodeForSummary,
-    instructorPlotOptions,
-  ]);
-
   const busyDays = useMemo(() => {
     if (
       !draft.instructorId ||
@@ -656,6 +627,29 @@ export function ChairmanPlotScheduleModal({
       })
       .filter((m): m is MeetingTime => m != null);
   }, [draft.subjectCode, meetings, slots, programMode, maxDur, days]);
+
+  /**
+   * When to check instructors: every meeting once the subject and times are set; before that (the
+   * flow is Instructor → Subject), the time slot that was clicked, e.g. Monday 10:00–10:30.
+   */
+  const instructorCheckTimes = useMemo<MeetingTime[]>(() => {
+    if (meetingTimes.length > 0) return meetingTimes;
+    const slot = draft.day && draft.startSlotIndex >= 0 ? slots[draft.startSlotIndex] : undefined;
+    return slot ? [{ day: draft.day, startTime: slot.startTime, endTime: slot.endTime }] : [];
+  }, [meetingTimes, draft.day, draft.startSlotIndex, slots]);
+
+  /** Busy instructor id → the class that clashes, so "View schedule" can point straight at it. */
+  const busyInstructorIds = useMemo(() => {
+    if (instructorCheckTimes.length === 0) return null;
+    return busyInstructorsForMeetings({
+      instructorIds: instructorPlotOptions.map((o) => o.id),
+      meetings: instructorCheckTimes,
+      existingBlocks,
+      academicPeriodId,
+      programMode,
+      excludeId: draft.id,
+    });
+  }, [instructorCheckTimes, instructorPlotOptions, existingBlocks, academicPeriodId, programMode, draft.id]);
 
   /** Rooms taken on ANY of those meetings: disabled in the Room list and never suggested. */
   const busyRoomIds = useMemo(() => {
@@ -1327,7 +1321,7 @@ export function ChairmanPlotScheduleModal({
             // Every problem with this plot, once: overlaps, free-time notices, server clashes.
             const issues = readOnly
               ? []
-              : dedupeMessages([
+              : dedupeClashMessages([
                   ...(hasConflict
                     ? conflictDetailLines.length > 0
                       ? conflictDetailLines

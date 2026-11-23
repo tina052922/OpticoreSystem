@@ -78,3 +78,54 @@ describe("helpers", () => {
     expect(dedupeMessages(["Room is taken.", "room is taken", "", "Instructor busy"])).toEqual(["Room is taken.", "Instructor busy"]);
   });
 });
+
+import { dedupeClashMessages } from "./room-suggestions";
+
+describe("dedupeClashMessages", () => {
+  it("keeps one message per clash, the first one", () => {
+    expect(
+      dedupeClashMessages([
+        "Christine Joy Tomol is double-booked: overlaps another assignment on Monday 10:00 AM – 12:00 PM.",
+        "Monday 10:00 AM – 11:00 AM overlaps PC-4215 · BSIT-4B (10:00 AM – 12:00 PM) already plotted for this instructor. Pick another start time.",
+        "Instructor is already scheduled on Monday 10:00 AM – 12:00 PM",
+      ]),
+    ).toEqual(["Christine Joy Tomol is double-booked: overlaps another assignment on Monday 10:00 AM – 12:00 PM."]);
+  });
+  it("keeps different clashes and different days", () => {
+    const out = dedupeClashMessages([
+      "Instructor is already scheduled on Monday 10:00 AM – 12:00 PM",
+      "Instructor is already scheduled on Wednesday 10:00 AM – 12:00 PM",
+      "Room COTE 305 is already occupied on Monday 10:00 AM – 11:00 AM",
+      "Only 30 minutes are free before the next class.",
+    ]);
+    expect(out).toHaveLength(4);
+  });
+});
+
+import { busyInstructorsForMeetings } from "./room-suggestions";
+
+describe("busyInstructorsForMeetings", () => {
+  const blocks = [
+    { id: "pc-4215", academicPeriodId: "p", day: "Monday", startTime: "10:00", endTime: "12:00", instructorId: "tomol", sectionId: "4b", roomId: "R1", programMode: "day" as const },
+  ];
+  it("flags an instructor teaching in the clicked half hour, with the clashing class", () => {
+    const busy = busyInstructorsForMeetings({
+      instructorIds: ["tomol", "enoc"],
+      meetings: [{ day: "Monday", startTime: "10:00", endTime: "10:30" }],
+      existingBlocks: blocks,
+      academicPeriodId: "p",
+      programMode: "day",
+    });
+    expect([...busy.entries()]).toEqual([["tomol", "pc-4215"]]);
+  });
+  it("is free on another day", () => {
+    const busy = busyInstructorsForMeetings({
+      instructorIds: ["tomol"],
+      meetings: [{ day: "Tuesday", startTime: "10:00", endTime: "10:30" }],
+      existingBlocks: blocks,
+      academicPeriodId: "p",
+      programMode: "day",
+    });
+    expect(busy.size).toBe(0);
+  });
+});
