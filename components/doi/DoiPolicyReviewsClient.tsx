@@ -2,6 +2,8 @@
 
 import { useActionToast } from "@/components/alerts/useActionToast";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import type { ScheduleLoadJustification } from "@/types/db";
 import { PolicyViolationFaq } from "@/components/evaluator/PolicyViolationFaq";
 
@@ -100,6 +102,9 @@ function RecordCard({
 
 export function DoiPolicyReviewsClient({ rows: initialRows }: { rows: DoiPolicyReviewRowVM[] }) {
   const toast = useActionToast();
+  const router = useRouter();
+  // A justification filed, decided or removed anywhere: re-read the list (the page renders it on the server).
+  useRealtimeEvent("justification.changed", () => router.refresh());
   const [rows, setRows] = useState<DoiPolicyReviewRowVM[]>(initialRows);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [clearingId, setClearingId] = useState<string | null>(null);

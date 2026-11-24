@@ -5,6 +5,8 @@ import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/ap
 import { useSubjectCategoryLabels } from "@/hooks/use-subject-category-labels";
 import { NoInstructorsNotice, facultyProfileHrefForInsBase } from "@/components/evaluator/NoInstructorsNotice";
 import { insRoomLabel } from "@/lib/ins/ins-room-label";
+import { formatTimeRange12h } from "@/lib/time/format-12h";
+import { sendPlotNotice, subscribePlotNotices } from "@/lib/realtime/realtime-client";
 import {
   applyOfferingEnrollmentToRows,
   enrollmentForOffering,
@@ -207,6 +209,33 @@ function rowTimeBounds(
   const times = timesFromSlotRange(startIdx, dur, slots);
   if (!times) return null;
   return { startIdx, startTime: times.startTime, endTime: times.endTime };
+}
+
+/** "BAELELD-GEC-E · Monday 7:00 AM – 8:00 AM", for messages about a class. */
+function describePlotRowWith(
+  row: PlotRow | undefined,
+  programCodeForSummary: string,
+  slots: { label: string; startTime: string; endTime: string }[],
+): string {
+  if (!row) return "The class";
+  const t = rowTimeBounds(row, programCodeForSummary, slots);
+  const time = t ? formatTimeRange12h(t.startTime, t.endTime) : "";
+  return [row.subjectCode || "Class", [row.day, time].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+}
+
+/** Everything a save writes for a row: equal signatures mean the same plot. */
+function plotRowSignature(r: PlotRow): string {
+  return [
+    normalizeScheduleEntryDayForEvaluator(r.day),
+    r.startSlotIndex,
+    r.durationSlots ?? 1,
+    r.sectionId,
+    r.roomId,
+    r.instructorId,
+    r.subjectCode,
+    r.lecLabMode ?? "lec",
+    r.students,
+  ].join("|");
 }
 
 /** Subject + day + start → interval; resources optional (for real-time conflict checks). */
@@ -469,6 +498,23 @@ export function BsitChairmanEvaluatorWorksheet({
    */
   const locallyEditedRowIdsRef = useRef<Set<string>>(new Set());
   /**
+   * Locally edited rows this tab has SAVED, with what was saved and until when a refetch that
+   * disagrees is treated as a stale read. After that, the database wins: a later change by another
+   * user (room, enrollment, time) shows here instead of being hidden by this tab's older edit. An
+   * edit made after the save differs from `sig`, so it is still protected until it is saved too.
+   */
+  const savedEditsRef = useRef<Map<string, { sig: string; until: number }>>(new Map());
+  /**
+   * What the database holds for each row, as this tab last read or wrote it (plot signature).
+   * Autosave sends only rows that differ from it: a row this user did not change is never written,
+   * so a copy that is a moment out of date can never overwrite someone else's newer save.
+   */
+  const dbSigRef = useRef<Map<string, string>>(new Map());
+  /** Set by "Save changes" in the plot window: the next autosave runs at once, not in ~9 s. */
+  const saveSoonRef = useRef(false);
+  /** What "Save changes" did, told once the save is confirmed: to this user, and to the others live. */
+  const pendingSaveNoticesRef = useRef<{ sectionId: string; kind: "plotted" | "edited"; detail: string }[]>([]);
+  /**
    * Rows the user removed in the grid. Hydrate / Realtime must not put them back, and campus
    * conflict scans must not treat them as still occupying a room until DELETE is confirmed.
    */
@@ -535,6 +581,13 @@ export function BsitChairmanEvaluatorWorksheet({
 
   useRealtimeEvent("badge.changed", (event) => {
     if (event.payload?.badge !== "policy_reviews") return;
+    justificationHydrateKeyRef.current = null;
+    setJustificationReloadTick((n) => n + 1);
+  });
+  // Campus-wide too: DOI has no college, so the college-scoped badge event never reaches it.
+  useRealtimeEvent("justification.changed", (event) => {
+    const pid = event.payload?.academicPeriodId;
+    if (pid && academicPeriodId && pid !== academicPeriodId) return;
     justificationHydrateKeyRef.current = null;
     setJustificationReloadTick((n) => n + 1);
   });
@@ -655,6 +708,14 @@ export function BsitChairmanEvaluatorWorksheet({
   const roomsSignatureRef = useRef("");
 
   const lastLoadedProgramIdRef = useRef<string | null>(null);
+  const trailingLoadRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadAllDataRef = useRef<(() => Promise<void>) | null>(null);
+  useEffect(
+    () => () => {
+      if (trailingLoadRef.current) clearTimeout(trailingLoadRef.current);
+    },
+    [],
+  );
   const loadAllData = useCallback(async () => {
     if (!academicPeriodId) return;
 
@@ -665,7 +726,19 @@ export function BsitChairmanEvaluatorWorksheet({
 
     const now = Date.now();
     if (lastFetchAtRef.current > 0 && now - lastFetchAtRef.current < 3000) {
+      // Too soon after the last load: run once when the window ends instead of dropping it, so a
+      // change pushed by another user (removed or edited class) is never missed.
+      if (!trailingLoadRef.current) {
+        trailingLoadRef.current = setTimeout(() => {
+          trailingLoadRef.current = null;
+          void loadAllDataRef.current?.();
+        }, 3000 - (now - lastFetchAtRef.current) + 50);
+      }
       return;
+    }
+    if (trailingLoadRef.current) {
+      clearTimeout(trailingLoadRef.current);
+      trailingLoadRef.current = null;
     }
     lastFetchAtRef.current = now;
 
@@ -813,15 +886,36 @@ export function BsitChairmanEvaluatorWorksheet({
       });
     };
 
+    /**
+     * Rows this tab had already saved before this load. One of them missing from the database now
+     * was removed — by another user, or another tab — so it goes, rather than being kept as an
+     * unsaved plot (which the next autosave would have written back).
+     */
+    const syncedBefore = new Set([...lastSyncedByModeRef.current.day, ...lastSyncedByModeRef.current.night]);
     const mergeHydrate = (prev: PlotRow[], nextRows: PlotRow[]): PlotRow[] => {
       const deleted = pendingDeletedIdsRef.current;
       const nextKeep = nextRows.filter((r) => !deleted.has(r.id));
       const dbIds = new Set(nextKeep.map((r) => r.id));
-      const pending = prev.filter((r) => !dbIds.has(r.id) && !r.lockedByDoiAt && !deleted.has(r.id));
       const guard = postPersistUiMergeRef.current;
       const now = Date.now();
+      // Saved moments ago: a read that misses it is stale, not a removal.
+      const justSaved = (id: string) => Boolean(guard && now < guard.until && guard.ids.has(id));
+      const goneFromDb = (r: PlotRow) => !dbIds.has(r.id) && !deleted.has(r.id);
+      const removedElsewhere = prev.filter((r) => goneFromDb(r) && syncedBefore.has(r.id) && !justSaved(r.id));
+      for (const r of removedElsewhere) locallyEditedRowIdsRef.current.delete(r.id);
+      if (removedElsewhere.length > 0) forgetEvaluatorSnapshotRows(removedElsewhere.map((r) => r.id));
+      const pending = prev.filter(
+        (r) => goneFromDb(r) && !r.lockedByDoiAt && (!syncedBefore.has(r.id) || justSaved(r.id)),
+      );
       const mergedDb = nextKeep.map((nr) => {
         const local = prev.find((p) => p.id === nr.id);
+        const saved = savedEditsRef.current.get(nr.id);
+        if (local && saved && now >= saved.until && plotRowSignature(local) === saved.sig) {
+          // Saved a while ago and the database now says otherwise: someone else changed it since.
+          savedEditsRef.current.delete(nr.id);
+          locallyEditedRowIdsRef.current.delete(nr.id);
+          return nr;
+        }
         if (local && !local.lockedByDoiAt && locallyEditedRowIdsRef.current.has(nr.id)) {
           const samePlot =
             normalizeScheduleEntryDayForEvaluator(local.day) === normalizeScheduleEntryDayForEvaluator(nr.day) &&
@@ -876,6 +970,7 @@ export function BsitChairmanEvaluatorWorksheet({
     const nightNext = mapToPlotRows(filterByProgramMode(relevant, "night"), "night");
 
     didHydrateFromDbRef.current = true;
+    dbSigRef.current = new Map([...dayNext, ...nightNext].map((r) => [r.id, plotRowSignature(r)]));
     lastSyncedByModeRef.current.day = new Set(dayNext.map((r) => r.id));
     lastSyncedByModeRef.current.night = new Set(nightNext.map((r) => r.id));
     const fetchedIds = new Set((entries as ScheduleEntry[]).map((e) => e.id));
@@ -2199,6 +2294,15 @@ export function BsitChairmanEvaluatorWorksheet({
        * without the mark a refetch landing before the next save would pull them back to the figure
        * the database still holds, leaving one offering showing two counts.
        */
+      // "Save changes": write it now, so other users get the new data right away.
+      saveSoonRef.current = true;
+      if (draft.sectionId) {
+        pendingSaveNoticesRef.current.push({
+          sectionId: draft.sectionId,
+          kind: rows.some((r) => r.id === draft.id) ? "edited" : "plotted",
+          detail: describePlotRowWith(draft, programCodeForSummary, slotsForMode),
+        });
+      }
       setRows((prev) => {
         const next = applyOfferingEnrollmentToRows(
           prev,
@@ -2214,7 +2318,7 @@ export function BsitChairmanEvaluatorWorksheet({
         return next;
       });
     },
-    [rows, schedulePublished, viewOnly, commitRowPatch, updateRow, subjects, programCodeForSummary, toast],
+    [rows, schedulePublished, viewOnly, commitRowPatch, updateRow, subjects, programCodeForSummary, slotsForMode, toast],
   );
 
   /**
@@ -2223,6 +2327,34 @@ export function BsitChairmanEvaluatorWorksheet({
    * Each goes through `removeRow`, so one failure rolls its own row back and leaves the rest
    * removed — the same behaviour as clicking the ✕ on each cell, without the hunting.
    */
+  /**
+   * Removals the server has confirmed, told in one message ("Removed from the database") a moment
+   * after the last one — "Remove all 3" says it once, not three times.
+   */
+  const confirmedRemovalsRef = useRef<string[]>([]);
+  const confirmedRemovalsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function describePlotRow(row: PlotRow | undefined): string {
+    return describePlotRowWith(row, programCodeForSummary, slotsForMode);
+  }
+  function announceRemoval(row: PlotRow | undefined) {
+    const detail = describePlotRow(row);
+    confirmedRemovalsRef.current.push(detail);
+    if (row?.sectionId && academicPeriodId) {
+      sendPlotNotice({ academicPeriodId, sectionId: row.sectionId, kind: "removed", detail, entryIds: [row.id] });
+    }
+    if (confirmedRemovalsTimerRef.current) clearTimeout(confirmedRemovalsTimerRef.current);
+    confirmedRemovalsTimerRef.current = setTimeout(() => {
+      const done = confirmedRemovalsRef.current;
+      confirmedRemovalsRef.current = [];
+      confirmedRemovalsTimerRef.current = null;
+      if (done.length === 0) return;
+      toast.success(
+        done.length === 1 ? "Removed from the database" : `${done.length} meetings removed from the database`,
+        `${done.slice(0, 3).join("; ")}${done.length > 3 ? ` (+${done.length - 3} more)` : ""}. Other users' schedulers update automatically.`,
+      );
+    }, 150);
+  }
+
   function removeRows(ids: readonly string[]) {
     for (const id of ids) removeRow(id);
   }
@@ -2246,6 +2378,7 @@ export function BsitChairmanEvaluatorWorksheet({
       try {
         await apiFetch(`/api/catalog/schedule-entries/${id}`, { method: "DELETE" });
         forgetEvaluatorSnapshotRows([id]);
+        announceRemoval(existing);
         lastSyncedByModeRef.current.day.delete(id);
         lastSyncedByModeRef.current.night.delete(id);
         setAllTermScheduleEntries((prev) => prev.filter((e) => e.id !== id));
@@ -2254,6 +2387,7 @@ export function BsitChairmanEvaluatorWorksheet({
         const status = e instanceof ApiClientError ? e.status : 0;
         if (status === 404) {
           forgetEvaluatorSnapshotRows([id]);
+          announceRemoval(existing);
           lastSyncedByModeRef.current.day.delete(id);
           lastSyncedByModeRef.current.night.delete(id);
           setAllTermScheduleEntries((prev) => prev.filter((e) => e.id !== id));
@@ -2283,9 +2417,43 @@ export function BsitChairmanEvaluatorWorksheet({
     setNightRows([]);
   }, [academicPeriodId]);
 
+  loadAllDataRef.current = loadAllData;
+
   const reloadScheduleFromDb = useCallback(async () => {
     await loadAllData();
   }, [loadAllData]);
+
+  /**
+   * Someone else finished a change on the section open here: say who and what. The data itself
+   * arrives through the schedule refetch that the same change triggers.
+   */
+  useEffect(() => {
+    if (!academicPeriodId) return;
+    return subscribePlotNotices(academicPeriodId, (n) => {
+      // A removed class leaves this grid with the message, not a moment later with the refetch.
+      const gone = n.kind === "removed" ? new Set(n.entryIds ?? []) : null;
+      if (gone && gone.size > 0) {
+        for (const id of gone) {
+          locallyEditedRowIdsRef.current.delete(id);
+          savedEditsRef.current.delete(id);
+          dbSigRef.current.delete(id);
+          lastSyncedByModeRef.current.day.delete(id);
+          lastSyncedByModeRef.current.night.delete(id);
+        }
+        forgetEvaluatorSnapshotRows([...gone]);
+        setDayRows((prev) => (prev.some((r) => gone.has(r.id)) ? prev.filter((r) => !gone.has(r.id)) : prev));
+        setNightRows((prev) => (prev.some((r) => gone.has(r.id)) ? prev.filter((r) => !gone.has(r.id)) : prev));
+        setAllTermScheduleEntries((prev) =>
+          prev.some((e) => gone.has(e.id)) ? prev.filter((e) => !gone.has(e.id)) : prev,
+        );
+      }
+      // An edit or a new plot: fetch it now, so the grid changes with the message.
+      if (n.kind !== "removed") void loadAllDataRef.current?.();
+      if (!selectedSectionId || n.sectionId !== selectedSectionId) return;
+      const what = n.kind === "removed" ? "Class removed" : n.kind === "plotted" ? "Class plotted" : "Class updated";
+      toast.info(`${what} by ${n.roleLabel} (${n.name})`, `${n.detail || "A class in this section"}. Your schedule has been updated.`);
+    });
+  }, [academicPeriodId, selectedSectionId, toast]);
 
   /** GEC / hub / other-role saves: pull fresh `ScheduleEntry` rows so campus-wide conflict checks stay accurate. */
   useScheduleEntryCrossReload(reloadScheduleFromDb, {
@@ -2501,6 +2669,9 @@ export function BsitChairmanEvaluatorWorksheet({
         const skipped: Array<{ rowId: string; sectionId: string; subjectCode: string; reason: string }> = [];
         for (const row of rows) {
           if (row.lockedByDoiAt) continue;
+          // Unchanged since it was read from (or written to) the database: nothing to save, and
+          // saving it anyway could put back values someone else has changed since.
+          if (dbSigRef.current.get(row.id) === plotRowSignature(row)) continue;
           if (!row.sectionId || !row.subjectCode) {
             skipped.push({
               rowId: row.id,
@@ -2722,7 +2893,22 @@ export function BsitChairmanEvaluatorWorksheet({
 
         if (upserts.length > 0) {
           try {
-            await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: upserts });
+            const saved = await apiFetch<{ removedIds?: string[] }>("/api/catalog/schedule-entries-upsert", {
+              method: "POST",
+              body: upserts,
+            });
+            // Someone else removed these while they were open here: drop them, never save them back.
+            const gone = saved?.removedIds ?? [];
+            if (gone.length > 0) {
+              const goneSet = new Set(gone);
+              for (const id of gone) locallyEditedRowIdsRef.current.delete(id);
+              forgetEvaluatorSnapshotRows(gone);
+              setRows((prev) => prev.filter((r) => !goneSet.has(r.id)));
+              toast.info(
+                gone.length === 1 ? "Class removed by another user" : `${gone.length} classes removed by another user`,
+                "They were removed from the database by someone else, so they were not saved back.",
+              );
+            }
           } catch (e: any) {
             reportSaveFailure(e, source, "Upsert failed");
             return;
@@ -2738,6 +2924,29 @@ export function BsitChairmanEvaluatorWorksheet({
             until: Date.now() + 15_000,
             ids: new Set(upserts.map((u) => u.id)),
           };
+          // Changes from the plot window: confirm to this user, and tell the others watching live.
+          const notices = pendingSaveNoticesRef.current;
+          pendingSaveNoticesRef.current = [];
+          if (notices.length > 0) {
+            const edited = notices.some((n) => n.kind === "edited");
+            toast.success(
+              edited ? "Changes saved" : "Schedule plotted",
+              `${notices.map((n) => n.detail).slice(0, 3).join("; ")}. Updated in the database — other users' schedulers show it now.`,
+            );
+            lastAutosaveToastAtRef.current = Date.now();
+            for (const n of notices) {
+              sendPlotNotice({ academicPeriodId, sectionId: n.sectionId, kind: n.kind, detail: n.detail });
+            }
+          }
+          const savedIds = new Set(upserts.map((u) => u.id));
+          for (const row of rows) {
+            if (savedIds.has(row.id)) dbSigRef.current.set(row.id, plotRowSignature(row));
+          }
+          for (const row of rows) {
+            if (savedIds.has(row.id) && locallyEditedRowIdsRef.current.has(row.id)) {
+              savedEditsRef.current.set(row.id, { sig: plotRowSignature(row), until: Date.now() + 15_000 });
+            }
+          }
           window.setTimeout(() => {
             const g = postPersistUiMergeRef.current;
             if (g && Date.now() >= g.until) postPersistUiMergeRef.current = null;
@@ -2820,10 +3029,12 @@ export function BsitChairmanEvaluatorWorksheet({
     if (viewOnly || schedulePublished) return;
     if (!academicPeriodId) return;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    const delay = saveSoonRef.current ? 500 : 9000;
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
+      saveSoonRef.current = false;
       void performSchedulePersist("autosave");
-    }, 9000);
+    }, delay);
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
@@ -2985,6 +3196,8 @@ export function BsitChairmanEvaluatorWorksheet({
         onApplyPlot={applyPlotFromModal}
         onRemoveRow={removeRow}
         onRequestRemoveRow={(row) => setRemoveTargetRow(row)}
+        removingRow={removeTargetRow}
+        onRemoveDenied={() => setRemoveTargetRow(null)}
         majorOptions={majorOptions}
         insFormBasePath={insFormBasePath}
         plottingActions={{

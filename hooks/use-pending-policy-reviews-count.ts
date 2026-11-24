@@ -37,9 +37,10 @@ export function usePendingPolicyReviewsCount(args?: { collegeId?: string | null;
   }, [load]);
 
   useRealtimeEvent(
-    "badge.changed",
+    ["badge.changed", "justification.changed"],
     (event) => {
-      if (event.payload?.badge !== "policy_reviews") return;
+      // The badge event is college-scoped; justification.changed is campus-wide, so DOI gets it too.
+      if (event.name === "badge.changed" && event.payload?.badge !== "policy_reviews") return;
       void load({ forceRefresh: true });
     },
     { enabled: args?.enabled ?? true },

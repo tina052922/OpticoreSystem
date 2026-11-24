@@ -30,7 +30,9 @@ export type RealtimeEventName =
   | "notification.changed"
   | "badge.changed"
   | "config.changed"
-  | "period.changed";
+  | "period.changed"
+  /** A teaching-load justification was filed, decided by DOI, or removed. */
+  | "justification.changed";
 
 /** Must stay in sync with `BadgeKind` in the backend's `realtime/events.ts`. */
 export type RealtimeBadgeKind =
@@ -63,6 +65,30 @@ export type PlotLock = {
   name: string;
   roleLabel: string;
   since: string;
+  /** What they are doing (missing from an older backend). */
+  activity?: PlotActivity;
+};
+
+/** "Removing" + "BAELELD-GEC-MMW · Wednesday 7:00 AM – 8:00 AM", and the classes it is about. */
+export type PlotActivity = {
+  kind: "plotting" | "editing" | "removing";
+  detail: string;
+  entryIds: string[];
+};
+
+/** Someone finished a change on a section: "Class updated by CAS Admin (Name)". */
+export type PlotNotice = {
+  academicPeriodId: string;
+  sectionId: string;
+  kind: "plotted" | "edited" | "removed";
+  /** "CC-111 · Monday 7:00 AM – 8:00 AM". */
+  detail: string;
+  /** The classes it is about (missing from an older backend). */
+  entryIds?: string[];
+  userId: string;
+  name: string;
+  roleLabel: string;
+  at: string;
 };
 
 export type PlotLockResult = { ok: true } | { ok: false; holder: PlotLock };
@@ -70,6 +96,7 @@ export type PlotLockResult = { ok: true } | { ok: false; holder: PlotLock };
 type Handler = (event: RealtimeEvent) => void;
 type StatusHandler = (status: RealtimeStatus) => void;
 type PresenceHandler = (locks: PlotLock[]) => void;
+type NoticeHandler = (notice: PlotNotice) => void;
 
 const EVENT_NAMES = new Set<RealtimeEventName>([
   "schedule.changed",
@@ -79,6 +106,7 @@ const EVENT_NAMES = new Set<RealtimeEventName>([
   "badge.changed",
   "config.changed",
   "period.changed",
+  "justification.changed",
 ]);
 
 const SOCKET_PATH = "/api/realtime/io";
@@ -91,8 +119,9 @@ const handlers = new Set<Handler>();
 const statusHandlers = new Set<StatusHandler>();
 const presenceHandlers = new Map<string, Set<PresenceHandler>>();
 const presenceByPeriod = new Map<string, PlotLock[]>();
+const noticeHandlers = new Map<string, Set<NoticeHandler>>();
 /** Locks this tab holds, re-asked for after a reconnect. */
-const heldLocks = new Map<string, { academicPeriodId: string; sectionId: string }>();
+const heldLocks = new Map<string, { academicPeriodId: string; sectionId: string; activity?: PlotActivity }>();
 
 let socket: Socket | null = null;
 let status: RealtimeStatus = "idle";
@@ -231,6 +260,17 @@ function ensureConnection() {
     if (data?.academicPeriodId && Array.isArray(data.locks)) publishPresence(data.academicPeriodId, data.locks);
   });
 
+  s.on("plot.notice", (n: PlotNotice | undefined) => {
+    if (!n?.academicPeriodId) return;
+    for (const fn of [...(noticeHandlers.get(n.academicPeriodId) ?? [])]) {
+      try {
+        fn(n);
+      } catch (err) {
+        console.error("[realtime] notice handler threw", err);
+      }
+    }
+  });
+
   s.onAny((name: string, data: { payload?: RealtimeEventPayload } | undefined) => {
     if (!EVENT_NAMES.has(name as RealtimeEventName)) return;
     emit({ name: name as RealtimeEventName, payload: data?.payload });
@@ -306,9 +346,13 @@ export function watchPlotPresence(academicPeriodId: string, handler: PresenceHan
  * Ask to plot on a section. Resolves `{ ok: false, holder }` when someone else already is; resolves
  * `{ ok: true }` when the connection cannot answer in time, so plotting never waits on realtime.
  */
-export function requestPlotLock(academicPeriodId: string, sectionId: string): Promise<PlotLockResult> {
+export function requestPlotLock(
+  academicPeriodId: string,
+  sectionId: string,
+  activity?: PlotActivity,
+): Promise<PlotLockResult> {
   if (typeof window === "undefined" || !academicPeriodId || !sectionId) return Promise.resolve({ ok: true });
-  const entry = { academicPeriodId, sectionId };
+  const entry = { academicPeriodId, sectionId, activity };
   ensureConnection();
   const s = socket;
   if (!s?.connected) {
@@ -331,6 +375,46 @@ export function requestPlotLock(academicPeriodId: string, sectionId: string): Pr
       },
     );
   });
+}
+
+/** Says what this window is now doing on a section it holds (e.g. the subject was picked). */
+export function updatePlotLockActivity(academicPeriodId: string, sectionId: string, activity: PlotActivity): void {
+  const key = lockKey(academicPeriodId, sectionId);
+  const held = heldLocks.get(key);
+  if (!held) return;
+  const next = { ...held, activity };
+  heldLocks.set(key, next);
+  if (socket?.connected) socket.emit("plot.lock", next);
+}
+
+/** Hear about changes others finish in a term. Also follows the term's presence (same room). */
+export function subscribePlotNotices(academicPeriodId: string, handler: NoticeHandler): () => void {
+  if (typeof window === "undefined" || !academicPeriodId) return () => {};
+  let set = noticeHandlers.get(academicPeriodId);
+  if (!set) {
+    set = new Set();
+    noticeHandlers.set(academicPeriodId, set);
+  }
+  set.add(handler);
+  const stopWatching = watchPlotPresence(academicPeriodId, () => {});
+  return () => {
+    const cur = noticeHandlers.get(academicPeriodId);
+    cur?.delete(handler);
+    if (cur && cur.size === 0) noticeHandlers.delete(academicPeriodId);
+    stopWatching();
+  };
+}
+
+/** Tell the others a change on a section is done (after the server confirmed it). */
+export function sendPlotNotice(notice: {
+  academicPeriodId: string;
+  sectionId: string;
+  kind: PlotNotice["kind"];
+  detail: string;
+  entryIds?: string[];
+}): void {
+  if (!notice.academicPeriodId || !notice.sectionId) return;
+  if (socket?.connected) socket.emit("plot.notice", notice);
 }
 
 /** Done plotting on a section (window closed). */

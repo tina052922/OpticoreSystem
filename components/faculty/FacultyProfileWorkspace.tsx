@@ -1,5 +1,6 @@
 "use client";
 
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import { ShowMoreRows, useIncrementalList } from "@/hooks/use-incremental-list";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -698,6 +699,9 @@ export function FacultyProfileWorkspace({
   }, [scope, selectedPeriodId]);
 
   useEffect(() => loadJustifications(), [loadJustifications]);
+  useRealtimeEvent("justification.changed", () => {
+    loadJustifications();
+  });
 
   async function saveFacultyEdits(userId: string) {
     if (!collegeId) return;

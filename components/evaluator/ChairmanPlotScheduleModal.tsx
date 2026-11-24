@@ -186,7 +186,6 @@ export type ChairmanPlotScheduleModalProps = {
   timeSlots?: HourSlot[];
   programMode?: ProgramMode;
   onApply: (meetings: ResolvedPlotMeeting[]) => void;
-  onRemove?: () => void;
   /** INS Forms Generator for this role (e.g. `/chairman/ins`), for "View schedule" on a busy instructor. */
   insFormBasePath?: string;
 };
@@ -224,7 +223,6 @@ export function ChairmanPlotScheduleModal({
   timeSlots,
   programMode = "day",
   onApply,
-  onRemove,
   insFormBasePath = "/chairman/ins",
 }: ChairmanPlotScheduleModalProps) {
   const slots = timeSlots ?? evaluatorTimeSlots(programMode);
@@ -524,7 +522,6 @@ export function ChairmanPlotScheduleModal({
     ? sortedRoomsInBuildingNamed(roomsForEvaluatorGrid, buildingValue, buildingsCatalog)
     : [];
 
-  const noSections = programSections.length === 0;
   const noInstructors = instructorPlotOptions.length === 0;
   const noBuildings = buildingLabelsForGrid.length === 0;
   const noSubjectsForSection =
@@ -949,46 +946,22 @@ export function ChairmanPlotScheduleModal({
             <label className={labelClass} htmlFor="plot-section">
               Section
             </label>
-            <select
+            {/*
+              Fixed: the section is chosen on the Subject Scheduler page (Department → Section) before
+              the grid opens, and is never picked again here — plotting into another section from this
+              window would put the class on a grid the person is not looking at.
+            */}
+            <div
               id="plot-section"
-              className={missingSection && !readOnly ? incompleteField : `${fieldClass} mt-1`}
-              value={draft.sectionId}
-              disabled={readOnly || noSections}
-              onChange={(e) => {
-                const sectionId = e.target.value;
-                const name =
-                  programSections.find((s) => s.id === sectionId)?.name ?? "";
-                const yl = yearLevelFromSchedulingSectionName(name);
-                let subjectCode = draft.subjectCode;
-                if (subjectCode && yl != null) {
-                  const s = rowForCode(subjectCode);
-                  const sem = termProspectusSemester;
-                  // An unknown subject is kept: only a row that actually disagrees clears the pick.
-                  if (s && (s.yearLevel !== yl || (sem != null && s.semester !== sem))) {
-                    subjectCode = "";
-                  }
-                }
-                onDraftChange({
-                  ...draft,
-                  sectionId,
-                  subjectCode,
-                  // Enrollment belongs to the offering, so it follows the pick rather than
-                  // lingering from the section that was selected a moment ago.
-                  students: seedEnrollmentFor({ ...draft, sectionId, subjectCode }),
-                });
-              }}
+              role="textbox"
+              aria-readonly="true"
+              className="mt-1 flex w-full min-h-10 cursor-default items-center rounded-lg border border-black/15 bg-black/4 px-3 text-sm text-black/80"
             >
-              <option value="">
-                {noSections
-                  ? "No sections for this program"
-                  : "Select section…"}
-              </option>
-              {programSections.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              {draft.sectionId
+                ? (programSections.find((s) => s.id === draft.sectionId)?.name ?? "This section")
+                : "Choose a section on the Subject Scheduler page first"}
+            </div>
+            <p className="text-[10px] text-black/45 mt-0.5">Set by the section chosen on the Subject Scheduler page.</p>
           </div>
 
           <div>
@@ -1409,16 +1382,6 @@ export function ChairmanPlotScheduleModal({
         </div>
 
         <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white px-5 py-4">
-          {!isNewPlot && onRemove && !readOnly ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="mr-auto text-red-800 border-red-200"
-              onClick={onRemove}
-            >
-              Remove schedule
-            </Button>
-          ) : null}
           {plotIncomplete && !readOnly ? (
             <span className="mr-auto text-[11.5px] text-red-700">Complete the highlighted fields.</span>
           ) : null}

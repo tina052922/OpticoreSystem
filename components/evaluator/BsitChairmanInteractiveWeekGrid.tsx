@@ -45,7 +45,8 @@ import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
 import type { InstructorPlotOption } from "@/lib/evaluator/instructor-employee-id";
 import type { Building, Room, Section } from "@/types/db";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
-import { plotLockLabel, useSectionPlotLock } from "@/hooks/use-section-plot-lock";
+import { useOpticoreToast } from "@/components/alerts/OpticoreToastProvider";
+import { plotLockLabel, plotLockTag, useSectionPlotLock, type PlotActivity } from "@/hooks/use-section-plot-lock";
 import {
   buildingNamesForPlotting,
   plotBuildingKeyForRoom,
@@ -141,7 +142,14 @@ type ModalSession = {
   buildingValue: string;
   isNew: boolean;
   anchor: CellAnchor;
+  /** The class as it was when the window opened (or last refreshed), to tell edits from updates. */
+  baseSig?: string;
 };
+
+/** The fields the plot window edits: equal signatures mean the same plot. */
+function modalRowSignature(r: PlotRow): string {
+  return [r.day, r.startSlotIndex, r.durationSlots ?? 1, r.sectionId, r.roomId, r.instructorId, r.subjectCode, r.lecLabMode ?? "lec", r.students].join("|");
+}
 
 /** Primary schedule actions grouped in the grid header (UI only — handlers live in the worksheet). */
 export type ChairmanGridPlottingActions = {
@@ -201,6 +209,13 @@ export type BsitChairmanInteractiveWeekGridProps = {
    * Falls back to {@link onRemoveRow} when not supplied, which is the old straight-to-delete path.
    */
   onRequestRemoveRow?: (row: PlotRow) => void;
+  /**
+   * The class whose Remove window is open (owned by the worksheet). While set, this user holds the
+   * section's lock and the others see "Removing — DOI (Name): CC-111 · Wednesday 7:00 AM – 8:00 AM".
+   */
+  removingRow?: PlotRow | null;
+  /** Someone else got the section first: close the Remove window. */
+  onRemoveDenied?: () => void;
   insFormBasePath?: string;
   /** Run conflict check + Save schedule beside Generate INS Form. */
   plottingActions?: ChairmanGridPlottingActions;
@@ -310,6 +325,8 @@ export function BsitChairmanInteractiveWeekGrid({
   onApplyPlot,
   onRemoveRow,
   onRequestRemoveRow,
+  removingRow = null,
+  onRemoveDenied,
   insFormBasePath = "/chairman/ins",
   plottingActions,
   gridFooter,
@@ -330,17 +347,47 @@ export function BsitChairmanInteractiveWeekGrid({
    * read-only here ("Plotting — COTE Admin (Name)"); opening the window takes it for this user.
    */
   const [lockNotice, setLockNotice] = useState<string | null>(null);
+  const toast = useOpticoreToast();
+  /** "BAELELD-GEC-MMW · Wednesday 7:00 AM – 8:00 AM" (or the cell's day and time for a new plot). */
+  const describeRow = useCallback(
+    (row: PlotRow): string => {
+      const bounds = rowTimeBounds(row, programCodeForSummary, slots);
+      const time = bounds
+        ? formatTimeRangeFromSlots(bounds.startIdx, bounds.dur, slots)
+        : row.startSlotIndex >= 0
+          ? (slots[row.startSlotIndex]?.label ?? "")
+          : "";
+      const when = [row.day, time].filter(Boolean).join(" ");
+      return [row.subjectCode, when].filter(Boolean).join(" · ");
+    },
+    [programCodeForSummary, slots],
+  );
+  const lockActivity = useMemo((): PlotActivity | undefined => {
+    if (removingRow) return { kind: "removing", detail: describeRow(removingRow), entryIds: [removingRow.id] };
+    if (!modal) return undefined;
+    return {
+      kind: modal.isNew ? "plotting" : "editing",
+      detail: describeRow(modal.draft),
+      entryIds: modal.isNew ? [] : [modal.draft.id],
+    };
+  }, [removingRow, modal, describeRow]);
   const { holder: plotHolder } = useSectionPlotLock({
     academicPeriodId,
-    sectionId: modal?.draft.sectionId || selectedSectionId,
-    active: modal != null && !schedulePublished && !modal.draft.lockedByDoiAt,
+    sectionId: removingRow?.sectionId || modal?.draft.sectionId || selectedSectionId,
+    active:
+      !schedulePublished &&
+      (Boolean(removingRow) || (modal != null && !modal.draft.lockedByDoiAt)),
+    activity: lockActivity,
     onDenied: (h) => {
       setModal(null);
       setHighlightedCell(null);
+      if (removingRow) onRemoveDenied?.();
       setLockNotice(`${plotLockLabel(h)} on this section — try again when they finish.`);
     },
   });
   const plotBlocked = schedulePublished || Boolean(plotHolder);
+  /** Classes the other person is editing or removing right now: marked on the grid. */
+  const heldEntryIds = useMemo(() => new Set(plotHolder?.activity?.entryIds ?? []), [plotHolder]);
 
   /** Keep cell highlight aligned while day/time change inside the modal. */
   useEffect(() => {
@@ -448,11 +495,13 @@ export function BsitChairmanInteractiveWeekGrid({
         roomBuildingByRowId[row.id] ?? (pickedRoom ? plotBuildingKeyForRoom(pickedRoom, buildingsCatalog) : "");
       setLockNotice(null);
       setHighlightedCell(anchor);
+      const draft = normalizePlotRow({ ...row }, programCodeForSummary, catalogSubjectRows);
       setModal({
-        draft: normalizePlotRow({ ...row }, programCodeForSummary, catalogSubjectRows),
+        draft,
         buildingValue,
         isNew,
         anchor,
+        baseSig: modalRowSignature(draft),
       });
     },
     [plotBlocked, roomById, roomBuildingByRowId, programCodeForSummary, catalogSubjectRows],
@@ -477,6 +526,49 @@ export function BsitChairmanInteractiveWeekGrid({
     },
     [plotBlocked, selectedSectionId, programCodeForSummary, catalogSubjectRows],
   );
+
+  /**
+   * Someone else saved this class while its window is open here: show their values, not the ones
+   * the window opened with (saving those would undo their change). Untouched → refreshed in place;
+   * already edited here → kept, with a note; removed → the window closes.
+   */
+  useEffect(() => {
+    if (!modal || modal.isNew || !modal.baseSig) return;
+    const live = rows.find((r) => r.id === modal.draft.id);
+    if (!live) {
+      setModal(null);
+      setHighlightedCell(null);
+      setLockNotice("This class was removed by another user while it was open.");
+      toast.info("Removed by another user", "The class you had open was removed, so its window was closed.");
+      return;
+    }
+    const fresh = normalizePlotRow({ ...live }, programCodeForSummary, catalogSubjectRows);
+    const freshSig = modalRowSignature(fresh);
+    if (freshSig === modal.baseSig) return;
+    const untouched = modalRowSignature(modal.draft) === modal.baseSig;
+    const pickedRoom = fresh.roomId ? roomById.get(fresh.roomId) : undefined;
+    setModal((m) =>
+      m && m.draft.id === fresh.id
+        ? untouched
+          ? {
+              ...m,
+              draft: fresh,
+              buildingValue: pickedRoom ? plotBuildingKeyForRoom(pickedRoom, buildingsCatalog) : m.buildingValue,
+              baseSig: freshSig,
+            }
+          : { ...m, baseSig: freshSig }
+        : m,
+    );
+    // A toast: the window is open, so a note on the page behind it would not be seen.
+    if (untouched) {
+      toast.info("Updated by another user", "This class was just changed — the window now shows the latest values.");
+    } else {
+      toast.info(
+        "Updated by another user",
+        "This class was just changed. Your unsaved edits are kept; saving them replaces the other user's values.",
+      );
+    }
+  }, [rows, modal, programCodeForSummary, catalogSubjectRows, roomById, buildingsCatalog, toast]);
 
   const closeModal = useCallback(() => {
     setModal(null);
@@ -522,12 +614,6 @@ export function BsitChairmanInteractiveWeekGrid({
     },
     [modal, onApplyPlot, closeModal, programCodeForSummary, catalogSubjectRows],
   );
-
-  const handleRemove = useCallback(() => {
-    if (!modal || modal.isNew) return;
-    onRemoveRow(modal.draft.id);
-    closeModal();
-  }, [modal, onRemoveRow, closeModal]);
 
   const modalConflictFlags = modal ? conflictForRow(modal.draft) : { faculty: "—", room: "—", section: "—" };
   const modalConflictLines = modal && conflictDetailForRow ? conflictDetailForRow(modal.draft) : [];
@@ -613,8 +699,13 @@ export function BsitChairmanInteractiveWeekGrid({
             <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
           </span>
           <span>
-            <strong className="font-semibold">{plotLockLabel(plotHolder)}</strong> — this section is view-only until
-            they close the plot window.
+            <strong className="font-semibold">{plotLockLabel(plotHolder)}</strong>
+            {plotHolder.activity?.detail ? (
+              <>
+                : <span className="font-semibold">{plotHolder.activity.detail}</span>
+              </>
+            ) : null}{" "}
+            — this section is view-only until they finish.
           </span>
         </p>
       ) : lockNotice && selectedSectionId ? (
@@ -780,8 +871,15 @@ export function BsitChairmanInteractiveWeekGrid({
                                 }}
                                 role="button"
                                 tabIndex={plotBlocked || r.lockedByDoiAt ? -1 : 0}
-                                className={`relative h-full ${plotBlocked || r.lockedByDoiAt ? "pointer-events-none opacity-70" : ""}`}
+                                className={`relative h-full ${plotBlocked || r.lockedByDoiAt ? "pointer-events-none opacity-70" : ""} ${
+                                  heldEntryIds.has(r.id) ? "rounded ring-2 ring-sky-500 ring-offset-1" : ""
+                                }`}
                               >
+                                {plotHolder && heldEntryIds.has(r.id) ? (
+                                  <span className="absolute bottom-0.5 right-0.5 z-10 animate-pulse rounded bg-sky-600 px-1 py-px text-[8px] font-semibold text-white">
+                                    {plotLockTag(plotHolder)}
+                                  </span>
+                                ) : null}
                                 {!plotBlocked && !r.lockedByDoiAt ? (
                                   <button
                                     type="button"
@@ -887,7 +985,6 @@ export function BsitChairmanInteractiveWeekGrid({
         timeSlots={slots}
         programMode={programMode}
         onApply={handleApply}
-        onRemove={modal && !modal.isNew ? handleRemove : undefined}
       />
     </div>
   );

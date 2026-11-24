@@ -18,7 +18,14 @@ describe("client idempotency helpers", () => {
     expect(shouldRetryWrite({ status: 409, code: "IDEMPOTENCY_IN_PROGRESS" }, 1)).toBe(true);
     expect(shouldRetryWrite({ status: 409, code: "CONFLICT" }, 0)).toBe(false);
     expect(shouldRetryWrite({ status: 500 }, 0)).toBe(false);
-    expect(shouldRetryWrite({ status: 0 }, 2)).toBe(false);
+    expect(shouldRetryWrite({ status: 0 }, 4)).toBe(false);
+    // The /api proxy could not reach the backend (restarting): its plain-text 500, or a 502-504.
+    expect(shouldRetryWrite({ status: 500, code: "HTTP_ERROR" }, 0)).toBe(true);
+    expect(shouldRetryWrite({ status: 502 }, 1)).toBe(true);
+    expect(shouldRetryWrite({ status: 503 }, 3)).toBe(true);
+    expect(shouldRetryWrite({ status: 504 }, 4)).toBe(false);
+    // The backend's own errors are JSON with a code: a real answer, never resent.
+    expect(shouldRetryWrite({ status: 500, code: "UNKNOWN_ERROR" }, 0)).toBe(false);
   });
 
   it("collapses identical JSON writes but never uploads", () => {

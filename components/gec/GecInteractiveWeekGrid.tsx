@@ -53,7 +53,7 @@ import {
 } from "@/lib/evaluator/building-options";
 import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import { scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
-import { plotLockLabel, useSectionPlotLock } from "@/hooks/use-section-plot-lock";
+import { plotLockLabel, plotLockTag, useSectionPlotLock, type PlotActivity } from "@/hooks/use-section-plot-lock";
 
 function hhmm(t: string): string {
   return normalizeSlotHHMM(t);
@@ -279,10 +279,23 @@ export function GecInteractiveWeekGrid({
    * chair, or another Service Chair), it is read-only here; opening the window takes it.
    */
   const [lockNotice, setLockNotice] = useState<string | null>(null);
+  const lockActivity = useMemo((): PlotActivity | undefined => {
+    if (!modal) return undefined;
+    const d = modal.draft;
+    const code = subjectById.get(d.subjectId)?.code ?? "";
+    const time = d.startTime && d.endTime ? formatTimeRange12h(d.startTime, d.endTime) : "";
+    const when = [d.day, time].filter(Boolean).join(" ");
+    return {
+      kind: modal.isNew ? "plotting" : "editing",
+      detail: [code, when].filter(Boolean).join(" · "),
+      entryIds: modal.isNew ? [] : [modal.entryId],
+    };
+  }, [modal, subjectById]);
   const { holder: plotHolder } = useSectionPlotLock({
     academicPeriodId,
     sectionId,
     active: modal != null && !modal.readOnly,
+    activity: lockActivity,
     onDenied: (h) => {
       // A new plot made its empty class before asking: drop it, nothing was plotted.
       if (modal?.isNew) onRemovePendingEntry?.(modal.entryId);
@@ -292,6 +305,7 @@ export function GecInteractiveWeekGrid({
     },
   });
   const canEdit = canEditVacant && !plotHolder;
+  const heldEntryIds = useMemo(() => new Set(plotHolder?.activity?.entryIds ?? []), [plotHolder]);
 
   /** Every class plotted this term (any section), for the plot window's start-time clash check. */
   const plottedBlocks = useMemo(
@@ -506,12 +520,6 @@ export function GecInteractiveWeekGrid({
     [modal, onPatchEntry, onAddVacantMeetings, setRoomBuildingByEntryId, closeModal, slots],
   );
 
-  const handleRemove = useCallback(() => {
-    if (!modal || modal.readOnly) return;
-    onRemovePendingEntry?.(modal.entryId);
-    closeModal();
-  }, [modal, onRemovePendingEntry, closeModal]);
-
   /**
    * Cancel / ✕ / Esc / clicking outside.
    *
@@ -617,8 +625,13 @@ export function GecInteractiveWeekGrid({
             <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
           </span>
           <span>
-            <strong className="font-semibold">{plotLockLabel(plotHolder)}</strong> — this section is view-only until
-            they close the plot window.
+            <strong className="font-semibold">{plotLockLabel(plotHolder)}</strong>
+            {plotHolder.activity?.detail ? (
+              <>
+                : <span className="font-semibold">{plotHolder.activity.detail}</span>
+              </>
+            ) : null}{" "}
+            — this section is view-only until they finish.
           </span>
         </p>
       ) : lockNotice && sectionId ? (
@@ -812,6 +825,11 @@ export function GecInteractiveWeekGrid({
                                   }
                                 }}
                               >
+                                {plotHolder && heldEntryIds.has(e.id) ? (
+                                  <span className="absolute bottom-0.5 right-0.5 z-10 animate-pulse rounded bg-sky-600 px-1 py-px text-[8px] font-semibold text-white">
+                                    {plotLockTag(plotHolder)}
+                                  </span>
+                                ) : null}
                                 {canEdit && isVacant ? (
                                   <button
                                     type="button"
@@ -926,7 +944,6 @@ export function GecInteractiveWeekGrid({
             : undefined
         }
         onApply={handleApply}
-        onRemove={modal && !modal.readOnly ? handleRemove : undefined}
         subjectHourBudget={
           modal?.draft.subjectId && modal.draft.sectionId
             ? (() => {

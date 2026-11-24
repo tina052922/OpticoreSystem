@@ -8,7 +8,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChairmanPageHeader } from "@/components/ChairmanPageHeader";
-import { ProgramModeToggle } from "@/components/scheduling/ProgramModeToggle";
 import { Button } from "@/components/ui/button";
 import { dedupeLegacyItLabsForCampusNavigation } from "@/lib/campus/campus-navigation-room-dedupe";
 import {
@@ -1230,7 +1229,8 @@ export function CentralHubEvaluatorView({
             {hubAccessMode === "collegeAdmin" ? (
               <NotifyGecReadyButton academicPeriodId={academicPeriodId} periodLabel={currentPeriod?.name ?? null} />
             ) : null}
-            <ProgramModeToggle size="sm" />
+            {/* No Day / Evening toggle: each section's program is set in Programs & Sections, and the
+                scheduler follows the selected section. */}
           </div>
         </div>
 

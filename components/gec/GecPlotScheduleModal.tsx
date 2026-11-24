@@ -111,7 +111,6 @@ export type GecPlotScheduleModalProps = {
   pickedSubjectId: string | null;
   onApplyPickedSummary?: () => void;
   onApply: (meetings: ResolvedPlotMeeting[]) => void;
-  onRemove?: () => void;
   subjectHourBudget?: { required: number; alreadyPlotted: number } | null;
   /** Classes already plotted this term, to stop a start that lands on one. */
   existingBlocks?: SparseScheduleBlock[];
@@ -157,7 +156,6 @@ export function GecPlotScheduleModal({
   pickedSubjectId,
   onApplyPickedSummary,
   onApply,
-  onRemove,
   subjectHourBudget = null,
   existingBlocks = EMPTY_BLOCKS,
   labelForEntry,
@@ -830,11 +828,6 @@ export function GecPlotScheduleModal({
         </div>
 
         <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white px-5 py-4">
-          {onRemove && !readOnly ? (
-            <Button type="button" variant="outline" className="mr-auto text-red-800 border-red-200" onClick={onRemove}>
-              Remove schedule
-            </Button>
-          ) : null}
           {plotIncomplete && !readOnly ? (
             <span className="mr-auto text-[11.5px] text-red-700">Complete the highlighted fields.</span>
           ) : null}

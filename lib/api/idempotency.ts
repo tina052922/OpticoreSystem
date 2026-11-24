@@ -9,7 +9,7 @@
 export const IDEMPOTENCY_HEADER = "Idempotency-Key";
 
 /** How many extra tries a write gets after a network failure or an "in progress" 409. */
-export const WRITE_RETRY_LIMIT = 2;
+export const WRITE_RETRY_LIMIT = 4;
 
 export function newIdempotencyKey(): string {
   const c = (globalThis as { crypto?: Crypto }).crypto;
@@ -23,19 +23,28 @@ export function isWriteMethod(method: string): boolean {
   return m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE";
 }
 
+/** A proxy (Next's /api rewrite, a load balancer) could not reach the backend: down or restarting. */
+const PROXY_FAILURE = new Set([502, 503, 504]);
+
 /**
  * Whether a failed write may be sent again with the same key: the request never got an answer
- * (status 0), or the server is still running the first copy (409 IDEMPOTENCY_IN_PROGRESS).
+ * (status 0), the proxy in front of the backend could not reach it (502/503/504, or a 500 with no
+ * JSON body — Next's rewrite answers "socket hang up" that way, while the backend's own errors are
+ * always JSON), or the server is still running the first copy (409 IDEMPOTENCY_IN_PROGRESS).
+ * The same Idempotency-Key makes a resend safe: a write that did land is never saved twice.
  * Anything else is a real answer and is returned to the caller.
  */
 export function shouldRetryWrite(err: { status?: number; code?: string } | null | undefined, attempt: number): boolean {
   if (!err || attempt >= WRITE_RETRY_LIMIT) return false;
-  return err.status === 0 || (err.status === 409 && err.code === "IDEMPOTENCY_IN_PROGRESS");
+  if (err.status === 0) return true;
+  if (err.status !== undefined && PROXY_FAILURE.has(err.status)) return true;
+  if (err.status === 500 && err.code === "HTTP_ERROR") return true;
+  return err.status === 409 && err.code === "IDEMPOTENCY_IN_PROGRESS";
 }
 
-/** Wait before retry `attempt` (0-based): 400 ms, then 1 s. */
+/** Wait before retry `attempt` (0-based): 0.4 s, 1 s, 2 s, 4 s — long enough for a backend restart. */
 export function writeRetryDelayMs(attempt: number): number {
-  return attempt === 0 ? 400 : 1000;
+  return [400, 1000, 2000, 4000][attempt] ?? 4000;
 }
 
 /**

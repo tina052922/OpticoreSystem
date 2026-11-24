@@ -2,6 +2,7 @@
 
 import { useActionToast } from "@/components/alerts/useActionToast";
 import { useEffect, useMemo, useState } from "react";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import { apiFetch } from "@/lib/api/client";
 import type { ScheduleLoadJustification } from "@/types/db";
 import { useSemesterFilterOptional } from "@/contexts/SemesterFilterContext";
@@ -26,6 +27,9 @@ export function FacultyLoadJustificationRecord({
   const semester = useSemesterFilterOptional();
   const periodId = semester?.selectedPeriodId ?? "";
   const [rows, setRows] = useState<ScheduleLoadJustification[]>([]);
+  /** Bumped when a justification changes anywhere, so the record below is read again. */
+  const [liveTick, setLiveTick] = useState(0);
+  useRealtimeEvent("justification.changed", () => setLiveTick((n) => n + 1));
   const [loading, setLoading] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [clearingId, setClearingId] = useState<string | null>(null);
@@ -80,7 +84,7 @@ export function FacultyLoadJustificationRecord({
     return () => {
       cancelled = true;
     };
-  }, [facultyUserId, collegeId, periodId]);
+  }, [facultyUserId, collegeId, periodId, liveTick]);
 
   const latest = rows[0] ?? null;
   const periodLabel = semester?.selectedPeriod?.name ?? "this term";

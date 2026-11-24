@@ -231,6 +231,22 @@ export function GecCentralHubEvaluatorClient({
   const [gecGaByIssueKey, setGecGaByIssueKey] = useState<Record<string, GASuggestion[]>>({});
   /** Local rows not yet in Supabase — same “Add schedule row” flow as Program Chairperson (`BsitChairmanEvaluatorWorksheet`). */
   const [extraEntries, setExtraEntries] = useState<ScheduleEntry[]>([]);
+
+  /** Classes someone else removed while they were open here: the server refused them; drop them. */
+  const dropRemovedElsewhere = useCallback(
+    (res: { removedIds?: string[] } | undefined) => {
+      const gone = new Set(res?.removedIds ?? []);
+      if (gone.size === 0) return;
+      setEntries((prev) => prev.filter((e) => !gone.has(e.id)));
+      setExtraEntries((prev) => prev.filter((e) => !gone.has(e.id)));
+      setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !gone.has(id))));
+      toast.info(
+        gone.size === 1 ? "Class removed by another user" : `${gone.size} classes removed by another user`,
+        "They were removed from the database by someone else, so they were not saved back.",
+      );
+    },
+    [toast],
+  );
   const skipPeriodEntryFetchRef = useRef(true);
   const pendingDeletedIdsRef = useRef<Set<string>>(new Set());
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -334,6 +350,13 @@ export function GecCentralHubEvaluatorClient({
     void load();
   }, [load]);
 
+  /** A justification filed, decided by DOI or removed: re-read this term's list. */
+  const [justificationLiveTick, setJustificationLiveTick] = useState(0);
+  useRealtimeEvent("justification.changed", (event) => {
+    const pid = event.payload?.academicPeriodId;
+    if (pid && academicPeriodId && pid !== academicPeriodId) return;
+    setJustificationLiveTick((n) => n + 1);
+  });
   useRealtimeEvent(["schedule.published", "schedule.unpublished"], (event) => {
     const pid = typeof event.payload?.academicPeriodId === "string" ? event.payload.academicPeriodId : "";
     if (!pid || pid !== academicPeriodId) return;
@@ -552,7 +575,7 @@ export function GecCentralHubEvaluatorClient({
     return () => {
       cancelled = true;
     };
-  }, [academicPeriodId]);
+  }, [academicPeriodId, justificationLiveTick]);
 
   const termPublishLocked = useMemo(
     () =>
@@ -667,7 +690,9 @@ export function GecCentralHubEvaluatorClient({
         }
         if (toSave.length === 0) return;
         try {
-          await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
+          dropRemovedElsewhere(
+            await apiFetch<{ removedIds?: string[] }>("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave }),
+          );
           setLastDraftSaveAt(new Date());
           const now = Date.now();
           // Only on the Subject Scheduler: a save that finishes after the user left stays silent.
@@ -689,6 +714,7 @@ export function GecCentralHubEvaluatorClient({
     };
   }, [
     canEditVacant,
+    dropRemovedElsewhere,
     academicPeriodId,
     collegeParam,
     edits,
@@ -732,7 +758,9 @@ export function GecCentralHubEvaluatorClient({
           }
           if (toSave.length === 0) return;
           try {
-            await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
+            dropRemovedElsewhere(
+              await apiFetch<{ removedIds?: string[] }>("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave }),
+            );
             setLastDraftSaveAt(new Date());
             if (onSubjectSchedulerPage()) toast.success("Draft saved automatically");
           } catch (e) {
@@ -748,6 +776,7 @@ export function GecCentralHubEvaluatorClient({
     return () => window.removeEventListener("online", onOnline);
   }, [
     canEditVacant,
+    dropRemovedElsewhere,
     academicPeriodId,
     collegeParam,
     edits,
@@ -1237,7 +1266,9 @@ export function GecCentralHubEvaluatorClient({
         needsJust && justificationText.trim().length < JUSTIFICATION_MIN_LENGTH;
       const submittedJustifications: RecordedJustification[] = [];
 
-      await apiFetch("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave });
+      dropRemovedElsewhere(
+        await apiFetch<{ removedIds?: string[] }>("/api/catalog/schedule-entries-upsert", { method: "POST", body: toSave }),
+      );
 
       if (needsJust && !needsReason) {
         const { user } = await authApi.me();

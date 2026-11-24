@@ -2,6 +2,8 @@
 
 import { useActionToast } from "@/components/alerts/useActionToast";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import type { ScheduleLoadJustification } from "@/types/db";
 import { PolicyViolationFaq } from "@/components/evaluator/PolicyViolationFaq";
 
@@ -13,11 +15,19 @@ export type CollegePolicyReviewRowVM = ScheduleLoadJustification & {
 
 export function CollegePolicyReviewsClient({
   rows: initialRows,
+  realtimeCollegeId,
 }: {
   rows: CollegePolicyReviewRowVM[];
   realtimeCollegeId?: string | null;
 }) {
   const toast = useActionToast();
+  const router = useRouter();
+  // This college's justifications changed (filed, decided by DOI, removed): re-read the list.
+  useRealtimeEvent("justification.changed", (event) => {
+    const college = event.payload?.collegeId;
+    if (college && realtimeCollegeId && college !== realtimeCollegeId) return;
+    router.refresh();
+  });
   const [rows, setRows] = useState(initialRows);
 
   useEffect(() => {
