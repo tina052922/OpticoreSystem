@@ -104,6 +104,8 @@ export type GecPlotScheduleModalProps = {
   onDurationSlotsChange: (slots: number) => void;
   /** GEC subject ids already plotted in this section (allows “add another slot”). */
   plottedGecSubjectIds: Set<string>;
+  /** General subjects whose required weekly hours are all plotted in this section: disabled in the list. */
+  fullyPlottedSubjects?: ReadonlyMap<string, { plotted: number; required: number }>;
   readOnly: boolean;
   isNewPlot: boolean;
   anchorLabel: string;
@@ -149,6 +151,7 @@ export function GecPlotScheduleModal({
   durationSlots,
   onDurationSlotsChange,
   plottedGecSubjectIds,
+  fullyPlottedSubjects,
   readOnly,
   isNewPlot,
   anchorLabel,
@@ -614,20 +617,29 @@ export function GecPlotScheduleModal({
               <option value="">{draft.instructorId ? "Select general subject…" : "Select instructor first…"}</option>
               {availableSubjects.length > 0 ? (
                 <optgroup label="Available">
-                  {availableSubjects.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.code} — {s.title}
-                    </option>
-                  ))}
+                  {availableSubjects.map((s) => {
+                    const done = s.id === draft.subjectId ? undefined : fullyPlottedSubjects?.get(s.id);
+                    return (
+                      <option key={s.id} value={s.id} disabled={Boolean(done)}>
+                        {s.code} — {s.title}
+                        {done ? ` — Done plotting (${done.plotted}/${done.required} h)` : ""}
+                      </option>
+                    );
+                  })}
                 </optgroup>
               ) : null}
               {addAnotherSlotSubjects.length > 0 ? (
                 <optgroup label="Add another time slot (same subject)">
-                  {addAnotherSlotSubjects.map((s) => (
-                    <option key={`split-${s.id}`} value={s.id}>
-                      + {s.code} — {s.title}
-                    </option>
-                  ))}
+                  {addAnotherSlotSubjects.map((s) => {
+                    const done = fullyPlottedSubjects?.get(s.id);
+                    return (
+                      <option key={`split-${s.id}`} value={s.id} disabled={Boolean(done)}>
+                        {done ? "" : "+ "}
+                        {s.code} — {s.title}
+                        {done ? ` — Done plotting (${done.plotted}/${done.required} h)` : ""}
+                      </option>
+                    );
+                  })}
                 </optgroup>
               ) : null}
             </select>

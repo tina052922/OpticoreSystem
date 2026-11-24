@@ -33,9 +33,15 @@ describe("isFacultyRosterUser", () => {
     expect(isFacultyRosterUser(instructor(" Rejected "))).toBe(false);
   });
 
-  it("does not put non-teaching admin accounts on the faculty roster", () => {
-    for (const role of ["college_admin", "doi_admin", "student"] as const) {
+  it("does not put non-teaching accounts on the faculty roster", () => {
+    for (const role of ["doi_admin", "student"] as const) {
       expect(isFacultyRosterUser({ role, instructorValidation: "active" })).toBe(false);
+    }
+  });
+
+  it("lists College Admins, who may teach their college's classes", () => {
+    for (const role of ["college_admin", "cas_admin"] as const) {
+      expect(isFacultyRosterUser({ role, instructorValidation: null })).toBe(true);
     }
   });
 

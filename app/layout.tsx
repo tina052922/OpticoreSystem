@@ -10,7 +10,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "OptiCore – CTU Argao",
   description: "OptiCore: Campus Intelligence System – CTU Argao",
-  icons: { icon: "/login/ctu-logo.svg" },
+  // The CTU seal: app/icon.png (browser tab) and app/apple-icon.png (home-screen shortcut).
 };
 
 export const viewport: Viewport = {

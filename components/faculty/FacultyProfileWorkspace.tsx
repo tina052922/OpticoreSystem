@@ -1,5 +1,6 @@
 "use client";
 
+import { isCollegeAdminRole } from "@/lib/auth/instructor-validation";
 import { useRealtimeEvent } from "@/hooks/use-realtime-event";
 import { ShowMoreRows, useIncrementalList } from "@/hooks/use-incremental-list";
 import { scrollIntoAppView } from "@/lib/ui/scroll-into-app-view";
@@ -158,6 +159,8 @@ type ListRow = {
     role?: string | null;
     /** General Subject / Both instructor's service area. */
     serviceAreaId?: string | null;
+    /** Their college: names a College Admin's tag ("COTE Admin"). */
+    collegeId?: string | null;
     instructorValidation?: string | null;
     /** Account state, so editing can say whether this faculty can sign in. */
     email?: string | null;
@@ -422,7 +425,8 @@ export function FacultyProfileWorkspace({
      * student on campus just to throw them away.
      */
     // Chairpersons teach too: every Program / GEC Chairperson is on their department's faculty list.
-    const userQuery = new URLSearchParams({ role: "instructor,chairman_admin,gec_chairman" });
+    // So may a College Admin: listed with their own college's faculty.
+    const userQuery = new URLSearchParams({ role: "instructor,chairman_admin,gec_chairman,college_admin,cas_admin" });
     if (scopeParam) userQuery.set("collegeId", scopeParam);
     setLoadingList(true);
 
@@ -506,6 +510,7 @@ export function FacultyProfileWorkspace({
           employeeId: u.employeeId,
           role: u.role ?? null,
           serviceAreaId: (u as { serviceAreaId?: string | null }).serviceAreaId ?? null,
+          collegeId: (u as { collegeId?: string | null }).collegeId ?? null,
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
           instructorValidation: u.instructorValidation ?? null,
@@ -580,6 +585,7 @@ export function FacultyProfileWorkspace({
           employeeId: u.employeeId,
           role: u.role ?? null,
           serviceAreaId: (u as { serviceAreaId?: string | null }).serviceAreaId ?? null,
+          collegeId: (u as { collegeId?: string | null }).collegeId ?? null,
           chairmanProgramId: u.chairmanProgramId ?? null,
           facultyCategory: u.facultyCategory ?? null,
           instructorValidation: u.instructorValidation ?? null,
@@ -882,7 +888,9 @@ export function FacultyProfileWorkspace({
     const editingRowNow = editingUserId ? rows.find((r) => r.user.id === editingUserId) : undefined;
     /** A chairperson's sign-in and account are managed under College Admins & Chairpersons; here, the profile only. */
     const editingChairman =
-      editingRowNow?.user.role === "chairman_admin" || editingRowNow?.user.role === "gec_chairman";
+      editingRowNow?.user.role === "chairman_admin" ||
+      editingRowNow?.user.role === "gec_chairman" ||
+      isCollegeAdminRole(editingRowNow?.user.role);
     const storedEmail = editingRowNow && hasFacultySignIn(editingRowNow.user.email)
       ? String(editingRowNow.user.email ?? "").trim().toLowerCase()
       : "";
@@ -1203,10 +1211,44 @@ export function FacultyProfileWorkspace({
     return m;
   }, [programs]);
 
+  /** College id → code ("COTE"), for a College Admin's tag. Loaded once and cached. */
+  const [collegeCodeById, setCollegeCodeById] = useState<Map<string, string>>(() => new Map());
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { apiFetch } = await import("@/lib/api/client");
+        const data = await apiFetch<{ colleges: { id: string; code?: string | null; name?: string | null }[] }>(
+          "/api/catalog/colleges",
+          { method: "GET", cacheTtlMs: 10 * 60_000 },
+        );
+        if (!cancelled) {
+          setCollegeCodeById(new Map((data.colleges ?? []).map((c) => [c.id, (c.code || c.name || "").trim()])));
+        }
+      } catch {
+        /* the tag falls back to "College Admin" */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** "COTE Admin" (or "College Admin" when the college is not known). */
+  function collegeAdminTag(user: ListRow["user"]): string {
+    const code = user.collegeId ? collegeCodeById.get(user.collegeId) : undefined;
+    return code ? `${code} Admin` : "College Admin";
+  }
+
   /** Department shown per row: the instructor's own program, else the page scope. */
   function departmentLabelFor(row: ListRow): string {
     const own = (row.user.chairmanProgramId ?? "").trim();
     if (own) return programLabelById.get(own) ?? own;
+    // A College Admin teaches in any department of their college.
+    if (isCollegeAdminRole(row.user.role)) {
+      const code = row.user.collegeId ? collegeCodeById.get(row.user.collegeId) : undefined;
+      return code ? `${code} — all departments` : "All departments";
+    }
     return programLabel && programLabel !== "\u2014" ? programLabel : "Unassigned";
   }
 
@@ -1746,6 +1788,11 @@ export function FacultyProfileWorkspace({
                                   Chairperson
                                 </span>
                               ) : null}
+                              {isCollegeAdminRole(user.role) ? (
+                                <span className="inline-flex items-center rounded-md bg-[#780301]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#780301]">
+                                  {collegeAdminTag(user)}
+                                </span>
+                              ) : null}
                             </div>
                           </td>
                           <td className="px-3 py-2.5 max-w-[200px]">
@@ -1822,8 +1869,8 @@ export function FacultyProfileWorkspace({
                                 >
                                   Edit
                                 </Button>
-                                {/* A chairperson's account is managed under College Admins & Chairpersons, not here. */}
-                                {user.role !== "chairman_admin" && user.role !== "gec_chairman" ? (
+                                {/* A chairperson's or College Admin's account is managed under College Admins & Chairpersons, not here. */}
+                                {user.role !== "chairman_admin" && user.role !== "gec_chairman" && !isCollegeAdminRole(user.role) ? (
                                   <Button
                                     type="button"
                                     size="sm"

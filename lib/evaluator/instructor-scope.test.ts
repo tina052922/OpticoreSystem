@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { filterInstructorsForDepartment, filterInstructorsForGec, isInstructorInDepartment } from "./instructor-scope";
+import {
+  filterInstructorsForDepartment,
+  filterInstructorsForGec,
+  filterInstructorsForProgramPlot,
+  isInstructorInDepartment,
+  sortDepartmentThenGec,
+} from "./instructor-scope";
 
 const bsit = { id: "u1", chairmanProgramId: "prog-bsit", facultyCategory: "program" };
 const bitAuto = { id: "u2", chairmanProgramId: "prog-bit-auto", facultyCategory: "program" };
@@ -164,5 +170,36 @@ describe("filterInstructorsForProgramPlot — program plotting sees its faculty 
   });
   it("keeps the GEC Chairperson's list to GEC instructors only", () => {
     expect(filterInstructorsForGec(all).map((u) => u.id)).toEqual(["u-gec"]);
+  });
+});
+
+describe("College Admins on the plot instructor list", () => {
+  const cote = "college-cote";
+  const users = [
+    { id: "bsit-1", chairmanProgramId: "bsit", collegeId: cote, role: "instructor" },
+    { id: "cote-admin", chairmanProgramId: null, collegeId: cote, role: "college_admin" },
+    { id: "cas-admin", chairmanProgramId: null, collegeId: "college-cas", role: "college_admin" },
+    { id: "gec-1", chairmanProgramId: null, collegeId: "college-cas", role: "instructor", facultyCategory: "gec" },
+  ];
+
+  it("offers the COTE Admin for a COTE department (BSIT, BIT…) and never another college's admin", () => {
+    const ids = filterInstructorsForProgramPlot(users, "bsit", new Set(), cote).map((u) => u.id);
+    expect(ids).toContain("cote-admin");
+    expect(ids).not.toContain("cas-admin");
+    expect(ids).toEqual(expect.arrayContaining(["bsit-1", "gec-1"]));
+  });
+
+  it("leaves College Admins out when the department's college is not known", () => {
+    const ids = filterInstructorsForProgramPlot(users, "bsit").map((u) => u.id);
+    expect(ids).not.toContain("cote-admin");
+    expect(ids).not.toContain("cas-admin");
+  });
+
+  it("lists the department's faculty, then the College Admin, then GEC instructors", () => {
+    const sorted = sortDepartmentThenGec(
+      filterInstructorsForProgramPlot(users, "bsit", new Set(), cote).map((u) => ({ ...u, name: u.id })),
+      "bsit",
+    ).map((u) => u.id);
+    expect(sorted).toEqual(["bsit-1", "cote-admin", "gec-1"]);
   });
 });

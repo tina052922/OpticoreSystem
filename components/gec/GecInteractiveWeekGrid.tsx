@@ -474,6 +474,33 @@ export function GecInteractiveWeekGrid({
     [canEdit, onCreateVacantAtCell],
   );
 
+  /**
+   * General subjects done plotting in this section: every required weekly hour is on the grid (the
+   * class being edited left out). Shown but disabled in the plot window's subject list.
+   */
+  const fullyPlottedSubjectsForModal = useMemo(() => {
+    const done = new Map<string, { plotted: number; required: number }>();
+    const plottedById = new Map<string, number>();
+    for (const e of sectionRows) {
+      if (!e.subjectId || e.id === modal?.entryId) continue;
+      plottedById.set(e.subjectId, (plottedById.get(e.subjectId) ?? 0) + inferDurationSlotsFromTimes(e.startTime, e.endTime));
+    }
+    for (const [subjectId, plotted] of plottedById) {
+      const sub = subjectById.get(subjectId);
+      if (!sub?.code) continue;
+      const required = requiredWeeklyContactHours({
+        programCode,
+        subjectCode: sub.code,
+        lecUnits: sub.lecUnits,
+        labUnits: sub.labUnits,
+        lecHours: sub.lecHours,
+        labHours: sub.labHours,
+      });
+      if (required > 0 && plotted + 1e-6 >= required) done.set(subjectId, { plotted, required });
+    }
+    return done;
+  }, [sectionRows, modal?.entryId, subjectById, programCode]);
+
   const closeModal = useCallback(() => {
     setModal(null);
     setHighlightedCell(null);
@@ -912,6 +939,7 @@ export function GecInteractiveWeekGrid({
           setModal((m) => (m ? { ...m, durationSlots: nextDur } : m))
         }
         plottedGecSubjectIds={plottedGecSubjectIds}
+        fullyPlottedSubjects={fullyPlottedSubjectsForModal}
         readOnly={modal?.readOnly ?? true}
         isNewPlot={modal?.isNew ?? false}
         anchorLabel={anchorLabel}

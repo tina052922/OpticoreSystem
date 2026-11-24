@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeProspectusCode } from "@/lib/chairman/bsit-prospectus";
 import {
   useMemo,
   useCallback,
@@ -570,6 +571,19 @@ export function BsitChairmanInteractiveWeekGrid({
     }
   }, [rows, modal, programCodeForSummary, catalogSubjectRows, roomById, buildingsCatalog, toast]);
 
+  /** Hours already plotted in the open window's section, per subject (the class being edited left out). */
+  const plottedHoursByCodeForModal = useMemo(() => {
+    const m = new Map<string, number>();
+    const sectionId = modal?.draft.sectionId ?? "";
+    if (!sectionId) return m;
+    for (const r of rows) {
+      if (r.sectionId !== sectionId || !r.subjectCode || r.id === modal?.draft.id) continue;
+      const key = normalizeProspectusCode(r.subjectCode);
+      m.set(key, (m.get(key) ?? 0) + plottedDurationHours(r.durationSlots));
+    }
+    return m;
+  }, [rows, modal?.draft.sectionId, modal?.draft.id]);
+
   const closeModal = useCallback(() => {
     setModal(null);
     setHighlightedCell(null);
@@ -946,6 +960,7 @@ export function BsitChairmanInteractiveWeekGrid({
         existingBlocks={existingBlocksForModal}
         labelForEntry={conflictSubjectLabel}
         instructorLoadById={instructorLoadById}
+        plottedHoursByCode={plottedHoursByCodeForModal}
         subjectHourBudget={
           modal?.draft.sectionId && modal.draft.subjectCode
             ? (() => {

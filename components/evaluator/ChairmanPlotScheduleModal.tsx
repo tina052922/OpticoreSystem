@@ -1,5 +1,6 @@
 "use client";
 
+import { requiredWeeklyContactHours } from "@/lib/scheduling/subject-semester-hours";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, ChevronDown, ExternalLink, Sparkles, X } from "lucide-react";
 import {
@@ -179,6 +180,11 @@ export type ChairmanPlotScheduleModalProps = {
   plottedEnrollment?: ReadonlyMap<string, number>;
   /** Required weekly contact vs hours already plotted for this section + subject (excluding this draft). */
   subjectHourBudget?: { required: number; alreadyPlotted: number } | null;
+  /**
+   * Hours already plotted in this section per subject code (normalized), not counting the class
+   * being edited. A subject whose required weekly hours are all plotted is disabled in the list.
+   */
+  plottedHoursByCode?: ReadonlyMap<string, number>;
   readOnly: boolean;
   isNewPlot: boolean;
   anchorLabel: string;
@@ -208,6 +214,7 @@ export function ChairmanPlotScheduleModal({
   sectionNameById,
   termProspectusSemester,
   plottedCodesBySectionId,
+  plottedHoursByCode,
   plottedEnrollment,
   conflictFlags,
   conflictDetailLines = [],
@@ -492,6 +499,45 @@ export function ChairmanPlotScheduleModal({
     plottedCodesBySectionId,
     subjectSelectValue,
   ]);
+
+  /**
+   * Subjects already done plotting in this section: every required weekly hour is on the grid (both
+   * parts of a Lec/Lab pair). Shown, but disabled — picking one could only go over its hours. The
+   * subject of the class being edited is never disabled.
+   */
+  const fullyPlottedSubjects = useMemo(() => {
+    const full = new Map<string, { plotted: number; required: number }>();
+    if (!plottedHoursByCode || plottedHoursByCode.size === 0) return full;
+    for (const s of rawSubjectOptions) {
+      const key = normalizeProspectusCode(s.code);
+      if (key === normalizeProspectusCode(subjectSelectValue) || key === normalizeProspectusCode(draft.subjectCode)) {
+        continue;
+      }
+      const pair = getLecLabPair(programCodeForSummary, s.code, catalogSubjectRows);
+      const codes = [...new Set([pair.lecCode, pair.labCode, s.code].filter((c): c is string => Boolean(c)))];
+      let plotted = 0;
+      let required = 0;
+      let done = true;
+      for (const code of codes) {
+        const row = rowForCode(code);
+        const need = requiredWeeklyContactHours({
+          programCode: programCodeForSummary,
+          subjectCode: code,
+          lecUnits: row?.lecUnits,
+          labUnits: row?.labUnits,
+          lecHours: row?.lecHours,
+          labHours: row?.labHours,
+        });
+        const have = plottedHoursByCode.get(normalizeProspectusCode(code)) ?? 0;
+        if (need <= 0) continue;
+        required += need;
+        plotted += have;
+        if (have + 1e-6 < need) done = false;
+      }
+      if (required > 0 && done) full.set(key, { plotted, required });
+    }
+    return full;
+  }, [plottedHoursByCode, rawSubjectOptions, subjectSelectValue, draft.subjectCode, programCodeForSummary, catalogSubjectRows, rowForCode]);
 
   const lecLabModes = draft.subjectCode
     ? lecLabModesAvailable(programCodeForSummary, draft.subjectCode, catalogSubjectRows)
@@ -1131,20 +1177,29 @@ export function ChairmanPlotScheduleModal({
               </option>
               {availableSubjects.length > 0 ? (
                 <optgroup label="Available">
-                  {availableSubjects.map((s) => (
-                    <option key={s.code} value={s.code}>
-                      {formatPlotSubjectDropdownLabel(s)}
-                    </option>
-                  ))}
+                  {availableSubjects.map((s) => {
+                    const done = fullyPlottedSubjects.get(normalizeProspectusCode(s.code));
+                    return (
+                      <option key={s.code} value={s.code} disabled={Boolean(done)}>
+                        {formatPlotSubjectDropdownLabel(s)}
+                        {done ? ` — Done plotting (${done.plotted}/${done.required} h)` : ""}
+                      </option>
+                    );
+                  })}
                 </optgroup>
               ) : null}
               {addAnotherSlotSubjects.length > 0 ? (
                 <optgroup label="Add another time slot (same subject)">
-                  {addAnotherSlotSubjects.map((s) => (
-                    <option key={`split-${s.code}`} value={s.code}>
-                      + {formatPlotSubjectDropdownLabel(s)}
-                    </option>
-                  ))}
+                  {addAnotherSlotSubjects.map((s) => {
+                    const done = fullyPlottedSubjects.get(normalizeProspectusCode(s.code));
+                    return (
+                      <option key={`split-${s.code}`} value={s.code} disabled={Boolean(done)}>
+                        {done ? "" : "+ "}
+                        {formatPlotSubjectDropdownLabel(s)}
+                        {done ? ` — Done plotting (${done.plotted}/${done.required} h)` : ""}
+                      </option>
+                    );
+                  })}
                 </optgroup>
               ) : null}
               {draft.subjectCode &&

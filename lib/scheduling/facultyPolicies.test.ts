@@ -316,3 +316,28 @@ describe("weekly contact reference bound (resident 40 vs non-resident 49)", () =
     expect(rows[0].violations.some((v) => v.code === "WEEKLY_CONTACT_OVER_NON_RESIDENT_MAX")).toBe(true);
   });
 });
+
+describe("Day and Evening make one load", () => {
+  it("asks for a justification when Day + Evening hours together pass the cap, though neither does alone", () => {
+    // 15 h of Day classes + 12 h of Evening classes = 27 h: over the 24 h standard load.
+    const dayEntries = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map((day, i) =>
+      makeEntry(`d${i}`, "07:00", "10:00", day),
+    );
+    const eveningEntries = ["Monday", "Tuesday", "Wednesday", "Thursday"].map((day, i) => ({
+      ...makeEntry(`n${i}`, "17:00", "20:00", day),
+      programMode: "night" as const,
+    }));
+    const entries = [...dayEntries, ...eveningEntries];
+    const subjects = new Map<string, Subject>([[subjectId, baseSubject]]);
+    const users = new Map<string, User>([[instructorId, { id: instructorId, role: "instructor" } as User]]);
+    const profiles = new Map<string, FacultyProfile>([[instructorId, profile("Resident", null)]]);
+
+    const dayOnly = evaluateFacultyLoadsForCollege(entries, subjects, users, profiles, "c1", () => null, undefined, "day");
+    expect(dayOnly.rows[0]!.weeklyTotalContactHours).toBeCloseTo(15, 5);
+    expect(rowNeedsTeachingLoadJustification(dayOnly.rows[0]!)).toBe(false);
+
+    const both = evaluateFacultyLoadsForCollege(entries, subjects, users, profiles, "c1", () => null);
+    expect(both.rows[0]!.weeklyTotalContactHours).toBeCloseTo(27, 5);
+    expect(rowNeedsTeachingLoadJustification(both.rows[0]!)).toBe(true);
+  });
+});

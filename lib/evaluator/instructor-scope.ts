@@ -20,7 +20,24 @@ export type InstructorScopeUser = {
   id: string;
   chairmanProgramId?: string | null;
   facultyCategory?: string | null;
+  role?: string | null;
+  collegeId?: string | null;
 };
+
+/**
+ * A College Admin who may teach this department's classes: they have no department of their own and
+ * belong to every department of their college — the COTE Admin is offered for BSIT and BIT, never
+ * for another college's programs.
+ */
+export function isCollegeAdminOfDepartment(
+  user: InstructorScopeUser,
+  departmentCollegeId: string | null | undefined,
+): boolean {
+  const role = user.role ?? "";
+  if (role !== "college_admin" && role !== "cas_admin") return false;
+  const college = (departmentCollegeId ?? "").trim();
+  return Boolean(college) && (user.collegeId ?? "").trim() === college;
+}
 
 /**
  * True when this instructor belongs to the department: their home department is it, whatever their
@@ -72,11 +89,20 @@ export function filterInstructorsForProgramPlot<T extends InstructorScopeUser>(
   users: readonly T[],
   programId: string | null | undefined,
   alreadyPlottedIds: ReadonlySet<string> = new Set(),
+  /** The department's college: its College Admin is offered too (they may teach). */
+  departmentCollegeId?: string | null,
 ): T[] {
   const department = (programId ?? "").trim();
-  if (!department) return [...users];
-  return users.filter(
-    (u) => isInstructorInDepartment(u, department) || isGecInstructorUser(u) || alreadyPlottedIds.has(u.id),
+  const isAdmin = (u: T) => u.role === "college_admin" || u.role === "cas_admin";
+  if (!department) {
+    // No department: College Admins only from the given college (when one is given).
+    const college = (departmentCollegeId ?? "").trim();
+    return users.filter((u) => !isAdmin(u) || !college || isCollegeAdminOfDepartment(u, college) || alreadyPlottedIds.has(u.id));
+  }
+  return users.filter((u) =>
+    isAdmin(u)
+      ? isCollegeAdminOfDepartment(u, departmentCollegeId) || alreadyPlottedIds.has(u.id)
+      : isInstructorInDepartment(u, department) || isGecInstructorUser(u) || alreadyPlottedIds.has(u.id),
   );
 }
 
@@ -89,8 +115,20 @@ export function sortDepartmentThenGec<T extends InstructorScopeUser & { name?: s
   programId?: string | null,
 ): T[] {
   const department = (programId ?? "").trim();
+  const isAdmin = (u: T) => u.role === "college_admin" || u.role === "cas_admin";
+  // Department faculty, then the college's admin (who may teach), then GEC instructors.
   const rank = (u: T) =>
-    department ? (isInstructorInDepartment(u, department) ? 0 : 1) : isGecInstructorUser(u) ? 1 : 0;
+    department
+      ? isInstructorInDepartment(u, department) && !isAdmin(u)
+        ? 0
+        : isAdmin(u)
+          ? 1
+          : 2
+      : isGecInstructorUser(u)
+        ? 2
+        : isAdmin(u)
+          ? 1
+          : 0;
   return [...users].sort((a, b) => {
     const d = rank(a) - rank(b);
     if (d !== 0) return d;

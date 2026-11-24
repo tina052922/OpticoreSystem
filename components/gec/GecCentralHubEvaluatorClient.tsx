@@ -1118,6 +1118,88 @@ export function GecCentralHubEvaluatorClient({
     });
   }, [searchParams, loading, conflictIds]);
 
+  /**
+   * Ask for the DOI justification as soon as a plot puts an instructor over the maximum preparations
+   * or weekly hours — not only when "Save" is pressed (autosave never asked). Only the instructors
+   * on plots changed here count; each is asked once per load (Cancel does not re-open it until their
+   * preparations or hours change). The modal's Save records it through `saveVacantEdits`.
+   */
+  const liveJustificationPromptedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!canEditVacant || !academicPeriodId || justModalOpen) return;
+    if (loadJustificationsLoading || loadJustificationsError) return;
+    const touched = new Set<string>();
+    for (const e of mergedEntries) {
+      const id = (e.instructorId ?? "").trim();
+      if (!id || id === GEC_VACANT_INSTRUCTOR_USER_ID) continue;
+      if (edits[e.id] || pendingNewEntryIds.has(e.id)) touched.add(id);
+    }
+    if (touched.size === 0) return;
+    const policy = evaluateFacultyLoadsForCollege(
+      mergedEntries.filter(
+        (e) =>
+          e.academicPeriodId === academicPeriodId &&
+          e.instructorId &&
+          e.instructorId !== GEC_VACANT_INSTRUCTOR_USER_ID,
+      ),
+      subjectById,
+      userById,
+      facultyProfileByUserId,
+      plotCollegeId || grantScopeCollegeId || collegeParam || "",
+      (sid) => {
+        const sec = sectionById.get(sid);
+        const pr = sec ? programById.get(sec.programId) : null;
+        return pr?.collegeId ?? null;
+      },
+      policyConstants,
+      undefined,
+    );
+    const covered = coveredFacultyIds(
+      loadJustifications,
+      policy.rows.map((row) => ({
+        instructorId: row.instructorId,
+        weeklyTotalContactHours: row.weeklyTotalContactHours,
+        preparations: row.preparations,
+      })),
+      academicPeriodId,
+    );
+    const fresh = policy.rows.filter(
+      (row) =>
+        touched.has(row.instructorId) &&
+        rowNeedsTeachingLoadJustification(row) &&
+        !covered.has(row.instructorId) &&
+        !liveJustificationPromptedRef.current.has(
+          `${academicPeriodId}|${row.instructorId}|${row.preparations}|${row.weeklyTotalContactHours}`,
+        ),
+    );
+    if (fresh.length === 0) return;
+    for (const row of fresh) {
+      liveJustificationPromptedRef.current.add(
+        `${academicPeriodId}|${row.instructorId}|${row.preparations}|${row.weeklyTotalContactHours}`,
+      );
+    }
+    setJustModalOpen(true);
+  }, [
+    canEditVacant,
+    academicPeriodId,
+    justModalOpen,
+    loadJustificationsLoading,
+    loadJustificationsError,
+    mergedEntries,
+    edits,
+    pendingNewEntryIds,
+    subjectById,
+    userById,
+    facultyProfileByUserId,
+    plotCollegeId,
+    grantScopeCollegeId,
+    collegeParam,
+    sectionById,
+    programById,
+    policyConstants,
+    loadJustifications,
+  ]);
+
   async function saveVacantEdits() {
     if (sectionIdFilter && gecSectionMode !== programMode) {
       toast.error("Switching program", "One moment — the scheduler is switching to this section's program.");
@@ -1190,10 +1272,11 @@ export function GecCentralHubEvaluatorClient({
         }
       }
 
-      const byId = new Map(modeMergedEntries.map((e) => [e.id, e]));
+      // Every program (Day and Evening): conflicts are per program below, loads add up across both.
+      const byId = new Map(mergedEntries.map((e) => [e.id, e]));
       for (const e of toSave) byId.set(e.id, e);
       const conflictScan = scanAllSparseScheduleConflicts(
-        [...byId.values()]
+        filterByProgramMode([...byId.values()], programMode)
           .filter((e) => e.academicPeriodId === academicPeriodId)
           .map((e) => scheduleEntryToSparseBlock(e))
           .filter((b): b is NonNullable<typeof b> => b != null),
@@ -1210,11 +1293,12 @@ export function GecCentralHubEvaluatorClient({
         return;
       }
 
-      const hypothetical = filterByProgramMode(
-        [...byId.values()].filter(
-          (e) => e.instructorId && e.instructorId !== GEC_VACANT_INSTRUCTOR_USER_ID,
-        ),
-        programMode,
+      // A faculty's load is Day + Evening together — the totals the Summary of Teaching Load shows.
+      const hypothetical = [...byId.values()].filter(
+        (e) =>
+          e.academicPeriodId === academicPeriodId &&
+          e.instructorId &&
+          e.instructorId !== GEC_VACANT_INSTRUCTOR_USER_ID,
       );
       const collegeIdForPolicy = plotCollegeId || grantScopeCollegeId || collegeParam;
       const policy = evaluateFacultyLoadsForCollege(
@@ -1229,7 +1313,7 @@ export function GecCentralHubEvaluatorClient({
           return pr?.collegeId ?? null;
         },
         policyConstants,
-        programMode,
+        undefined,
       );
       /*
        * Only the instructors this save puts hours on can require a justification.

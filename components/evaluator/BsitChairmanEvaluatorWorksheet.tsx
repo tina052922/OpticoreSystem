@@ -53,7 +53,7 @@ import { runRuleBasedGeneticAlgorithm } from "@/lib/scheduling/ruleBasedGA";
 import { formatGaSuggestionShortLabel } from "@/lib/scheduling/conflict-suggestion-label";
 import { slotDurationHours } from "@/lib/scheduling/time";
 import type { Building, FacultyProfile, Program, Room, ScheduleEntry, ScheduleLoadJustification, Section, Subject, User } from "@/types/db";
-import { isFacultyStaffRole, isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
+import { isCollegeAdminRole, isFacultyStaffRole, isPlottableFacultyUser } from "@/lib/auth/instructor-validation";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import {
@@ -318,7 +318,9 @@ function buildWorksheetPolicyScheduleEntries(args: {
     if (e.academicPeriodId !== academicPeriodId) continue;
     if (pendingDeletedIds?.has(e.id)) continue;
     if (worksheetIds.has(e.id)) continue;
-    if (resolveProgramMode(e) !== programMode) continue;
+    // Day AND Evening: a faculty's load is one load (hours and preparations add up across both),
+    // the same totals the Summary of Teaching Load reports. Counting one program at a time let
+    // 20 h Day + 10 h Evening pass a 24 h cap without asking for a justification.
     byId.set(e.id, e);
   }
 
@@ -790,10 +792,13 @@ export function BsitChairmanEvaluatorWorksheet({
 
       const allUsers = (bundle.users ?? []) as User[];
       // The college's faculty, plus GEC instructors from anywhere: they are campus-wide.
+      // A College Admin may teach too, but only their own college's classes.
       const collegeFac = allUsers.filter(
         (u) =>
           isPlottableFacultyUser(u) &&
-          (!chairmanCollegeId || u.collegeId === chairmanCollegeId || isGecInstructorUser(u)),
+          (isCollegeAdminRole(u.role)
+            ? Boolean(chairmanCollegeId) && u.collegeId === chairmanCollegeId
+            : !chairmanCollegeId || u.collegeId === chairmanCollegeId || isGecInstructorUser(u)),
       );
       const instrIds = [...new Set(entries.map((e) => e.instructorId).filter(Boolean))] as string[];
       /**
@@ -808,7 +813,7 @@ export function BsitChairmanEvaluatorWorksheet({
        * sections take general education subjects too) — never a sibling department's faculty.
        * College Admin and DOI work across departments, so `lockedDepartmentId` is blank for them.
        */
-      const campusFac = filterInstructorsForProgramPlot(collegeFac, lockedDepartmentId, new Set(instrIds));
+      const campusFac = filterInstructorsForProgramPlot(collegeFac, lockedDepartmentId, new Set(instrIds), chairmanCollegeId);
       const rowFac = allUsers.filter(
         (u) => instrIds.includes(u.id) && isFacultyStaffRole(u.role),
       );
@@ -1035,12 +1040,19 @@ export function BsitChairmanEvaluatorWorksheet({
   const instructorPlotOptions = useMemo((): InstructorPlotOption[] => {
     const keep = new Set(plotRowInstructorIds);
     // This program's faculty first, then every GEC instructor (marked "(GEC)").
-    const programFaculty = sortDepartmentThenGec(filterInstructorsForProgramPlot(dbInstructors, programId, keep), programId);
+    // The department's college, so its College Admin (who may teach) is offered for its sections only.
+    const departmentCollegeId = programsCatalog.find((p) => p.id === programId)?.collegeId ?? chairmanCollegeId;
+    const programFaculty = sortDepartmentThenGec(
+      filterInstructorsForProgramPlot(dbInstructors, programId, keep, departmentCollegeId),
+      programId,
+    );
     const base = usersToInstructorPlotOptions(programFaculty, facultyProfileByUserId).map((opt) => {
       const u = programFaculty.find((row) => row.id === opt.id);
       const badge =
         u?.role === "gec_chairman"
           ? "Service Chair"
+          : u && isCollegeAdminRole(u.role)
+            ? "College Admin"
           : u && isGecInstructorUser(u)
             ? facultyCategoryBadge(u.facultyCategory)
             : "";
@@ -1062,7 +1074,7 @@ export function BsitChairmanEvaluatorWorksheet({
       },
       ...merged,
     ];
-  }, [dbInstructors, programId, plotRowInstructorIds, facultyProfileByUserId]);
+  }, [dbInstructors, programId, plotRowInstructorIds, facultyProfileByUserId, programsCatalog, chairmanCollegeId]);
 
   /** Week preview / conflict UI: full name (Faculty Profile when set). */
   const instructorDisplayById = useMemo(() => {
@@ -1755,7 +1767,8 @@ export function BsitChairmanEvaluatorWorksheet({
       chairmanCollegeId,
       (sid) => sectionToCollegeId(sid),
       policyConstants,
-      programMode,
+      // Both programs: see buildWorksheetPolicyScheduleEntries.
+      undefined,
     );
   }, [
     mergedEntriesForCollegePolicy,
@@ -1766,7 +1779,6 @@ export function BsitChairmanEvaluatorWorksheet({
     profileByUserId,
     sectionToCollegeId,
     policyConstants,
-    programMode,
   ]);
 
   useEffect(() => {
@@ -1819,16 +1831,26 @@ export function BsitChairmanEvaluatorWorksheet({
     [campusWidePrograms, collegeWidePrograms, chairmanCollegeId, chairmanProgramId, programId, userById],
   );
 
+  /**
+   * Instructors plotted in this scheduler, whatever their home department or college (a GEC
+   * instructor, a Service Chair, a College Admin). Whoever puts hours on them is asked for the
+   * justification when that takes them over the limit — not only their own department.
+   */
+  const plottedHereIds = useMemo(
+    () => new Set(rows.map((r) => (r.instructorId ?? "").trim()).filter(Boolean)),
+    [rows],
+  );
+
   /** Violators who still need a DOI justification record (drives FAQ, form, and red cell outline). */
   const unjustifiedPolicyRows = useMemo(
     () =>
       policyRows.rows.filter(
         (r) =>
-          isOwnInstructor(r.instructorId) &&
+          (isOwnInstructor(r.instructorId) || plottedHereIds.has(r.instructorId)) &&
           rowNeedsTeachingLoadJustification(r) &&
           !recordedFacultyIds.has(r.instructorId),
       ),
-    [policyRows.rows, recordedFacultyIds, isOwnInstructor],
+    [policyRows.rows, recordedFacultyIds, isOwnInstructor, plottedHereIds],
   );
 
   const showJustification = unjustifiedPolicyRows.length > 0;
@@ -1966,7 +1988,8 @@ export function BsitChairmanEvaluatorWorksheet({
       chairmanCollegeId,
       (sid) => sectionToCollegeId(sid),
       policyConstants,
-      programMode,
+      // Both programs: see buildWorksheetPolicyScheduleEntries.
+      undefined,
     );
     } catch (e) {
       console.error("[justification] load recount failed", e);
@@ -2197,7 +2220,8 @@ export function BsitChairmanEvaluatorWorksheet({
         chairmanCollegeId,
         (sid) => sectionToCollegeId(sid),
         policyConstants,
-        programMode,
+        // Both programs: see buildWorksheetPolicyScheduleEntries.
+        undefined,
       );
       const hit = pol.rows.find(
         (x) => x.instructorId === candidate.instructorId && rowNeedsTeachingLoadJustification(x),

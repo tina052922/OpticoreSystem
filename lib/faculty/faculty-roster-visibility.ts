@@ -1,4 +1,4 @@
-import { normalizeInstructorValidation } from "@/lib/auth/instructor-validation";
+import { isCollegeAdminRole, normalizeInstructorValidation } from "@/lib/auth/instructor-validation";
 import { isGecFacultyCategory } from "@/lib/faculty/faculty-category";
 import type { User } from "@/types/db";
 
@@ -20,8 +20,9 @@ export type RosterUser = Pick<User, "role"> & {
  * A rejected registration is not faculty and stays out.
  */
 export function isFacultyRosterUser(user: RosterUser): boolean {
-  // Program and GEC Chairpersons teach and are listed with their department's faculty.
-  if (user.role === "chairman_admin" || user.role === "gec_chairman") return true;
+  // Program and GEC Chairpersons teach and are listed with their department's faculty; a College
+  // Admin may teach too and is listed with their college's faculty (every department of it).
+  if (user.role === "chairman_admin" || user.role === "gec_chairman" || isCollegeAdminRole(user.role)) return true;
   if (user.role !== "instructor") return false;
   return normalizeInstructorValidation(user.instructorValidation) !== "rejected";
 }
@@ -66,6 +67,8 @@ export function isFacultyVisibleToRosterViewer(
   const teachesGec = isGecFacultyCategory(user.facultyCategory) || user.role === "gec_chairman";
   const home = (user.chairmanProgramId ?? "").trim();
   if (viewer.gecOnly) {
+    // A College Admin teaches their college's program classes, not general subjects.
+    if (isCollegeAdminRole(user.role)) return false;
     if (!teachesGec) return false;
     const mine = (viewer.serviceAreaId ?? "").trim();
     const theirs = ((user as { serviceAreaId?: string | null }).serviceAreaId ?? "").trim();

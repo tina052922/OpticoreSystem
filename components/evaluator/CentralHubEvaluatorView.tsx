@@ -564,7 +564,7 @@ export function CentralHubEvaluatorView({
     const programId = editEntry ? sectionById.get(editEntry.sectionId)?.programId ?? null : null;
     const keep = new Set(editEntry?.instructorId ? [editEntry.instructorId] : []);
     const inScope = plottable.filter((u) => u.collegeId === editCollegeId || isGecInstructorUser(u) || keep.has(u.id));
-    return sortDepartmentThenGec(filterInstructorsForProgramPlot(inScope, programId, keep), programId);
+    return sortDepartmentThenGec(filterInstructorsForProgramPlot(inScope, programId, keep, editCollegeId), programId);
   }, [users, editCollegeId, editEntry, sectionById]);
 
   const collegeNameById = useMemo(() => {
