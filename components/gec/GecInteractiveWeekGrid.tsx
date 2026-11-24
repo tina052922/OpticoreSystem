@@ -53,6 +53,7 @@ import {
 } from "@/lib/evaluator/building-options";
 import { insRoomLabel } from "@/lib/ins/ins-room-label";
 import { scheduleEntryToSparseBlock } from "@/lib/scheduling/conflicts";
+import { plotLockLabel, useSectionPlotLock } from "@/hooks/use-section-plot-lock";
 
 function hhmm(t: string): string {
   return normalizeSlotHHMM(t);
@@ -273,6 +274,25 @@ export function GecInteractiveWeekGrid({
   const [highlightedCell, setHighlightedCell] = useState<CellAnchor | null>(null);
   const [modal, setModal] = useState<ModalSession | null>(null);
 
+  /**
+   * Live plotting lock: while someone else has the plot window open on this section (its program
+   * chair, or another Service Chair), it is read-only here; opening the window takes it.
+   */
+  const [lockNotice, setLockNotice] = useState<string | null>(null);
+  const { holder: plotHolder } = useSectionPlotLock({
+    academicPeriodId,
+    sectionId,
+    active: modal != null && !modal.readOnly,
+    onDenied: (h) => {
+      // A new plot made its empty class before asking: drop it, nothing was plotted.
+      if (modal?.isNew) onRemovePendingEntry?.(modal.entryId);
+      setModal(null);
+      setHighlightedCell(null);
+      setLockNotice(`${plotLockLabel(h)} on this section — try again when they finish.`);
+    },
+  });
+  const canEdit = canEditVacant && !plotHolder;
+
   /** Every class plotted this term (any section), for the plot window's start-time clash check. */
   const plottedBlocks = useMemo(
     () =>
@@ -411,10 +431,11 @@ export function GecInteractiveWeekGrid({
       if (!isGec) return;
       const isVacant = vacantGecSourceIds.has(e.id);
       if (!isVacant) return;
-      const readOnly = !canEditVacant;
+      const readOnly = !canEdit;
       const pickedRoom = e.roomId ? roomById.get(e.roomId) : undefined;
       const buildingValue =
         roomBuildingByEntryId[e.id] ?? (pickedRoom ? plotBuildingKeyForRoom(pickedRoom, buildingsCatalog) : "");
+      setLockNotice(null);
       setHighlightedCell(anchor);
       const isNew = pendingNewEntryIds.has(e.id);
       setModal({
@@ -428,15 +449,15 @@ export function GecInteractiveWeekGrid({
         anchor,
       });
     },
-    [canEditVacant, vacantGecSourceIds, roomById, roomBuildingByEntryId, pendingNewEntryIds, subjectById],
+    [canEdit, vacantGecSourceIds, roomById, roomBuildingByEntryId, pendingNewEntryIds, subjectById],
   );
 
   const openModalForEmptyCell = useCallback(
     (day: BsitEvaluatorWeekday, slotIdx: number) => {
-      if (!canEditVacant) return;
+      if (!canEdit) return;
       onCreateVacantAtCell(day, slotIdx);
     },
-    [canEditVacant, onCreateVacantAtCell],
+    [canEdit, onCreateVacantAtCell],
   );
 
   const closeModal = useCallback(() => {
@@ -586,6 +607,26 @@ export function GecInteractiveWeekGrid({
         </div>
       </div>
 
+      {sectionId && plotHolder ? (
+        <p
+          role="status"
+          className="mb-4 flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[12px] text-sky-950"
+        >
+          <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
+          </span>
+          <span>
+            <strong className="font-semibold">{plotLockLabel(plotHolder)}</strong> — this section is view-only until
+            they close the plot window.
+          </span>
+        </p>
+      ) : lockNotice && sectionId ? (
+        <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-950">
+          {lockNotice}
+        </p>
+      ) : null}
+
       {unplacedRows.length > 0 ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           <p className="text-[11px] font-semibold text-amber-950">Incomplete vacant GEC plots — click to finish</p>
@@ -596,7 +637,7 @@ export function GecInteractiveWeekGrid({
                 <li key={e.id}>
                   <button
                     type="button"
-                    disabled={!canEditVacant}
+                    disabled={!canEdit}
                     className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-[11px] font-medium text-amber-950 hover:bg-amber-50 disabled:opacity-50"
                     onClick={() =>
                       openModalForEntry(e, {
@@ -679,7 +720,7 @@ export function GecInteractiveWeekGrid({
                       >
                         <button
                           type="button"
-                          disabled={!canEditVacant}
+                          disabled={!canEdit}
                           className="w-full h-full min-h-[40px] rounded border border-dashed border-black/20 text-black/30 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50/50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-0.5 transition-colors"
                           aria-label={`Plot vacant GEC on ${day} at ${slot.label}`}
                           onClick={() => openModalForEmptyCell(day, slotIdx)}
@@ -771,7 +812,7 @@ export function GecInteractiveWeekGrid({
                                   }
                                 }}
                               >
-                                {canEditVacant && isVacant ? (
+                                {canEdit && isVacant ? (
                                   <button
                                     type="button"
                                     className="absolute top-0.5 right-0.5 rounded p-0.5 text-red-800 hover:bg-red-100"

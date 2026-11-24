@@ -1,30 +1,27 @@
 "use client";
 
 /**
- * Singleton SSE client for server-pushed invalidation signals.
+ * Singleton Socket.IO client for server-pushed invalidation signals and live plotting presence.
  *
  * Design
  * ──────
- *   • ONE connection per tab, shared by every hook/component. `EventSource`
- *     costs a server socket, so opening one per consumer would multiply
- *     backend connections by the number of mounted views — the exact problem
- *     the polling refactor set out to fix.
- *   • Auth rides on the existing HTTP-only cookies (`withCredentials`). No
- *     token is read from or written to JS, matching `lib/api/client.ts`.
- *   • Events carry only opaque ids. Handlers translate them into cache
- *     invalidation + refetch; they never render event payloads as data.
- *   • The connection is lazy: it opens on first subscribe and closes when the
- *     last subscriber leaves, so unauthenticated pages hold nothing open.
- *
- * Reconnection
- * ────────────
- * `EventSource` retries automatically, but it does NOT back off, so a backend
- * outage turns every client into a tight reconnect loop. We manage retries
- * ourselves with exponential backoff + jitter, and pause entirely while the
- * tab is hidden or the browser reports offline.
+ *   • ONE connection per tab, shared by every hook/component. It opens on the first subscriber and
+ *     closes after the last one leaves, so signed-out pages hold nothing open.
+ *   • Sign-in: the socket presents a one-minute ticket from `GET /api/realtime/socket-ticket`
+ *     (cookie-authenticated through the normal API), fetched again on every (re)connect. No token is
+ *     read from or written to JS.
+ *   • Path `/api/realtime/io`, so it goes through the same `/api` rewrite as every request
+ *     (long-polling there). Set `NEXT_PUBLIC_REALTIME_URL` to the backend's own URL to connect
+ *     directly and use WebSockets.
+ *   • Events carry only opaque ids. Handlers translate them into cache invalidation + refetch; they
+ *     never render event payloads as data. Plotting locks are the one exception: they carry the
+ *     holder's name and role label, shown as "Plotting — COTE Admin (Name)".
+ *   • Socket.IO reconnects with exponential backoff + jitter on its own; a refused sign-in (expired
+ *     session) is retried here on the same backoff.
  */
 
-import { API_BASE_URL } from "@/lib/api/client";
+import { io, type Socket } from "socket.io-client";
+import { API_BASE_URL, apiFetch } from "@/lib/api/client";
 
 export type RealtimeEventName =
   | "schedule.changed"
@@ -57,10 +54,24 @@ export type RealtimeEvent = {
 
 export type RealtimeStatus = "idle" | "connecting" | "open" | "reconnecting";
 
+/** Someone with the plot window open on a section (see the backend's `realtime/socket.ts`). */
+export type PlotLock = {
+  academicPeriodId: string;
+  sectionId: string;
+  socketId: string;
+  userId: string;
+  name: string;
+  roleLabel: string;
+  since: string;
+};
+
+export type PlotLockResult = { ok: true } | { ok: false; holder: PlotLock };
+
 type Handler = (event: RealtimeEvent) => void;
 type StatusHandler = (status: RealtimeStatus) => void;
+type PresenceHandler = (locks: PlotLock[]) => void;
 
-const EVENT_NAMES: RealtimeEventName[] = [
+const EVENT_NAMES = new Set<RealtimeEventName>([
   "schedule.changed",
   "schedule.published",
   "schedule.unpublished",
@@ -68,24 +79,29 @@ const EVENT_NAMES: RealtimeEventName[] = [
   "badge.changed",
   "config.changed",
   "period.changed",
-];
+]);
 
+const SOCKET_PATH = "/api/realtime/io";
 const BASE_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 30_000;
+/** A lock request that gets no answer (server without sockets, connection down) does not block plotting. */
+const LOCK_ACK_MS = 4_000;
 
 const handlers = new Set<Handler>();
 const statusHandlers = new Set<StatusHandler>();
+const presenceHandlers = new Map<string, Set<PresenceHandler>>();
+const presenceByPeriod = new Map<string, PlotLock[]>();
+/** Locks this tab holds, re-asked for after a reconnect. */
+const heldLocks = new Map<string, { academicPeriodId: string; sectionId: string }>();
 
-let source: EventSource | null = null;
+let socket: Socket | null = null;
+let status: RealtimeStatus = "idle";
 let retryAttempt = 0;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
-let status: RealtimeStatus = "idle";
-/** Server-assigned id for THIS tab's connection; sent with writes to skip self-echo. */
-let connectionId: string | null = null;
 
-/** Read by `apiFetch` so a tab doesn't get pushed an event for its own write. */
+/** Server-assigned id for THIS tab's connection; sent with writes to skip self-echo. */
 export function getRealtimeConnectionId(): string | null {
-  return connectionId;
+  return socket?.connected ? (socket.id ?? null) : null;
 }
 
 export function getRealtimeStatus(): RealtimeStatus {
@@ -115,6 +131,42 @@ function emit(event: RealtimeEvent) {
   }
 }
 
+function publishPresence(periodId: string, locks: PlotLock[]) {
+  presenceByPeriod.set(periodId, locks);
+  for (const fn of [...(presenceHandlers.get(periodId) ?? [])]) {
+    try {
+      fn(locks);
+    } catch (err) {
+      console.error("[realtime] presence handler threw", err);
+    }
+  }
+}
+
+function consumerCount(): number {
+  let n = handlers.size;
+  for (const set of presenceHandlers.values()) n += set.size;
+  return n;
+}
+
+async function fetchTicket(): Promise<string | null> {
+  try {
+    const res = await apiFetch<{ ticket?: string }>("/api/realtime/socket-ticket", { method: "GET" });
+    return typeof res?.ticket === "string" ? res.ticket : null;
+  } catch {
+    return null;
+  }
+}
+
+function lockKey(periodId: string, sectionId: string) {
+  return `${periodId}|${sectionId}`;
+}
+
+function watchOnServer(periodId: string) {
+  socket?.emit("presence.watch", { academicPeriodId: periodId }, (res: { locks?: PlotLock[] } | undefined) => {
+    if (Array.isArray(res?.locks)) publishPresence(periodId, res.locks);
+  });
+}
+
 function clearRetry() {
   if (retryTimer) {
     clearTimeout(retryTimer);
@@ -122,128 +174,97 @@ function clearRetry() {
   }
 }
 
-function scheduleReconnect() {
+function retryLater() {
   clearRetry();
-  if (handlers.size === 0) return;
-
-  // Exponential backoff with jitter: prevents a synchronized stampede when a
-  // restarted backend drops every client at once.
+  if (consumerCount() === 0) return;
   const delay = Math.min(BASE_RETRY_MS * 2 ** retryAttempt, MAX_RETRY_MS);
-  const jittered = delay * (0.5 + Math.random() * 0.5);
   retryAttempt += 1;
   setStatus("reconnecting");
-
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    openConnection();
-  }, jittered);
+    socket?.connect();
+  }, delay * (0.5 + Math.random() * 0.5));
+}
+
+function ensureConnection() {
+  if (typeof window === "undefined") return;
+  if (socket) {
+    if (!socket.connected && !socket.active) socket.connect();
+    return;
+  }
+  const base = (process.env.NEXT_PUBLIC_REALTIME_URL || API_BASE_URL || "").replace(/\/+$/, "");
+  const s = io(base || undefined, {
+    path: SOCKET_PATH,
+    // Next's /api rewrite redirects a trailing slash away; the server expects none.
+    addTrailingSlash: false,
+    withCredentials: true,
+    autoConnect: false,
+    reconnectionDelay: BASE_RETRY_MS,
+    reconnectionDelayMax: MAX_RETRY_MS,
+    randomizationFactor: 0.5,
+    auth: (cb) => {
+      void fetchTicket().then((ticket) => cb(ticket ? { ticket } : {}));
+    },
+  });
+  socket = s;
+  setStatus("connecting");
+
+  s.on("connect", () => {
+    retryAttempt = 0;
+    clearRetry();
+    setStatus("open");
+    for (const periodId of presenceHandlers.keys()) watchOnServer(periodId);
+    for (const l of heldLocks.values()) s.emit("plot.lock", l);
+  });
+
+  s.on("disconnect", () => {
+    if (consumerCount() > 0) setStatus("reconnecting");
+  });
+
+  s.on("connect_error", () => {
+    // A refused sign-in is not retried by Socket.IO itself; transport errors are.
+    if (!s.active) retryLater();
+    else setStatus("reconnecting");
+  });
+
+  s.on("plot.presence", (data: { academicPeriodId?: string; locks?: PlotLock[] } | undefined) => {
+    if (data?.academicPeriodId && Array.isArray(data.locks)) publishPresence(data.academicPeriodId, data.locks);
+  });
+
+  s.onAny((name: string, data: { payload?: RealtimeEventPayload } | undefined) => {
+    if (!EVENT_NAMES.has(name as RealtimeEventName)) return;
+    emit({ name: name as RealtimeEventName, payload: data?.payload });
+  });
+
+  s.connect();
 }
 
 function closeConnection() {
   clearRetry();
-  if (source) {
-    source.close();
-    source = null;
+  if (socket) {
+    socket.removeAllListeners();
+    socket.offAny();
+    socket.disconnect();
+    socket = null;
   }
-  connectionId = null;
   setStatus("idle");
 }
 
-function openConnection() {
-  if (typeof window === "undefined") return;
-  if (source || handlers.size === 0) return;
-  // Don't burn retries while offline; the `online` listener re-opens.
-  if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    setStatus("reconnecting");
-    return;
-  }
-
-  setStatus(retryAttempt === 0 ? "connecting" : "reconnecting");
-
-  const url = `${API_BASE_URL}/api/realtime/stream`;
-  const es = new EventSource(url, { withCredentials: true });
-  source = es;
-
-  es.addEventListener("connected", (ev) => {
-    retryAttempt = 0;
-    try {
-      connectionId = JSON.parse((ev as MessageEvent).data)?.connectionId ?? null;
-    } catch {
-      connectionId = null;
-    }
-    setStatus("open");
-  });
-
-  for (const name of EVENT_NAMES) {
-    es.addEventListener(name, (ev) => {
-      let payload: RealtimeEventPayload | undefined;
-      try {
-        payload = JSON.parse((ev as MessageEvent).data)?.payload;
-      } catch {
-        payload = undefined;
-      }
-      emit({ name, payload });
-    });
-  }
-
-  es.onerror = () => {
-    // EventSource fires `error` for both transient drops and hard failures and
-    // would silently retry without backoff — take over explicitly.
-    if (source === es) {
-      es.close();
-      source = null;
-      connectionId = null;
-    }
-    scheduleReconnect();
-  };
+function closeIfUnused() {
+  if (consumerCount() === 0 && heldLocks.size === 0) closeConnection();
 }
-
-function ensureLifecycleListeners() {
-  if (typeof window === "undefined" || lifecycleBound) return;
-  lifecycleBound = true;
-
-  // A dropped connection while hidden should recover the moment we return.
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
-    if (handlers.size === 0) return;
-    if (!source) {
-      retryAttempt = 0;
-      openConnection();
-    }
-  });
-
-  window.addEventListener("online", () => {
-    if (handlers.size === 0 || source) return;
-    retryAttempt = 0;
-    openConnection();
-  });
-
-  window.addEventListener("offline", () => {
-    if (!source) return;
-    source.close();
-    source = null;
-    connectionId = null;
-    setStatus("reconnecting");
-  });
-}
-
-let lifecycleBound = false;
 
 /**
  * Subscribe to realtime events. Returns an unsubscribe function.
- * The underlying connection opens on the first subscriber and closes after the
- * last one unsubscribes.
+ * The underlying connection opens on the first subscriber and closes after the last one leaves.
  */
 export function subscribeRealtime(handler: Handler): () => void {
   if (typeof window === "undefined") return () => {};
-
   handlers.add(handler);
-  ensureLifecycleListeners();
-  if (!source) openConnection();
-
+  ensureConnection();
   return () => {
     handlers.delete(handler);
-    if (handlers.size === 0) closeConnection();
+    closeIfUnused();
   };
 }
 
@@ -256,8 +277,75 @@ export function subscribeRealtimeStatus(handler: StatusHandler): () => void {
   };
 }
 
+/** Follow who is plotting in a term. The handler gets the current list now and on every change. */
+export function watchPlotPresence(academicPeriodId: string, handler: PresenceHandler): () => void {
+  if (typeof window === "undefined" || !academicPeriodId) return () => {};
+  let set = presenceHandlers.get(academicPeriodId);
+  const first = !set;
+  if (!set) {
+    set = new Set();
+    presenceHandlers.set(academicPeriodId, set);
+  }
+  set.add(handler);
+  handler(presenceByPeriod.get(academicPeriodId) ?? []);
+  ensureConnection();
+  if (first && socket?.connected) watchOnServer(academicPeriodId);
+  return () => {
+    const cur = presenceHandlers.get(academicPeriodId);
+    cur?.delete(handler);
+    if (cur && cur.size === 0) {
+      presenceHandlers.delete(academicPeriodId);
+      presenceByPeriod.delete(academicPeriodId);
+      socket?.emit("presence.unwatch", { academicPeriodId });
+    }
+    closeIfUnused();
+  };
+}
+
+/**
+ * Ask to plot on a section. Resolves `{ ok: false, holder }` when someone else already is; resolves
+ * `{ ok: true }` when the connection cannot answer in time, so plotting never waits on realtime.
+ */
+export function requestPlotLock(academicPeriodId: string, sectionId: string): Promise<PlotLockResult> {
+  if (typeof window === "undefined" || !academicPeriodId || !sectionId) return Promise.resolve({ ok: true });
+  const entry = { academicPeriodId, sectionId };
+  ensureConnection();
+  const s = socket;
+  if (!s?.connected) {
+    // Taken when the connection comes up (see "connect"); the server referees then.
+    heldLocks.set(lockKey(academicPeriodId, sectionId), entry);
+    return Promise.resolve({ ok: true });
+  }
+  return new Promise((resolve) => {
+    s.timeout(LOCK_ACK_MS).emit(
+      "plot.lock",
+      entry,
+      (err: Error | null, res: { ok?: boolean; holder?: PlotLock } | undefined) => {
+        if (err || !res) {
+          heldLocks.set(lockKey(academicPeriodId, sectionId), entry);
+          return resolve({ ok: true });
+        }
+        if (res.ok === false && res.holder) return resolve({ ok: false, holder: res.holder });
+        heldLocks.set(lockKey(academicPeriodId, sectionId), entry);
+        resolve({ ok: true });
+      },
+    );
+  });
+}
+
+/** Done plotting on a section (window closed). */
+export function releasePlotLock(academicPeriodId: string, sectionId: string): void {
+  if (!academicPeriodId || !sectionId) return;
+  const key = lockKey(academicPeriodId, sectionId);
+  if (!heldLocks.delete(key)) return;
+  socket?.emit("plot.unlock", { academicPeriodId, sectionId });
+  closeIfUnused();
+}
+
 /** Force-drop the connection. Call on logout so the next user reconnects fresh. */
 export function resetRealtime(): void {
   retryAttempt = 0;
+  heldLocks.clear();
+  presenceByPeriod.clear();
   closeConnection();
 }

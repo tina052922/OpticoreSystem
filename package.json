@@ -8,7 +8,7 @@
   },
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
-    "dev": "next dev -p 3000", 
+    "dev": "next dev -p 3000",
     "dev:free": "kill-port 3000",
     "dev:restart": "kill-port 3000 && next dev -p 3000",
     "build:campus-nav": "node scripts/sync-campus-navigation.mjs",
@@ -34,6 +34,7 @@
     "react-dom": "18.3.1",
     "react-hot-toast": "^2.6.0",
     "recharts": "^2.15.2",
+    "socket.io-client": "4.8.1",
     "tailwind-merge": "^3.2.0"
   },
   "devDependencies": {

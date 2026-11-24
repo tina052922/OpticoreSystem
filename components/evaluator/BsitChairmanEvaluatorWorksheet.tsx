@@ -89,7 +89,11 @@ import type { ProgramMode } from "@/lib/scheduling/program-mode";
 import { termIsDoiPublished, DOI_SCHEDULE_LOCKED_MESSAGE } from "@/lib/scheduling/term-doi-lock";
 import { useProgramMode } from "@/contexts/ProgramModeContext";
 import { SectionProgramBanner, sectionProgramMode } from "@/components/scheduling/SectionProgramBanner";
-import { readEvaluatorBackupSnapshot, writeEvaluatorSessionSnapshot } from "@/lib/opticore-evaluator-session-sync";
+import {
+  forgetEvaluatorSnapshotRows,
+  readEvaluatorBackupSnapshot,
+  writeEvaluatorSessionSnapshot,
+} from "@/lib/opticore-evaluator-session-sync";
 import type { ChairmanPolicySnapshot } from "@/components/evaluator/ChairmanEvaluatorLoadPanel";
 import { dispatchInsCatalogReload } from "@/lib/ins/ins-catalog-reload";
 import { useScheduleEntryCrossReload } from "@/hooks/use-schedule-entry-cross-reload";
@@ -2241,6 +2245,7 @@ export function BsitChairmanEvaluatorWorksheet({
     void (async () => {
       try {
         await apiFetch(`/api/catalog/schedule-entries/${id}`, { method: "DELETE" });
+        forgetEvaluatorSnapshotRows([id]);
         lastSyncedByModeRef.current.day.delete(id);
         lastSyncedByModeRef.current.night.delete(id);
         setAllTermScheduleEntries((prev) => prev.filter((e) => e.id !== id));
@@ -2248,6 +2253,7 @@ export function BsitChairmanEvaluatorWorksheet({
       } catch (e: unknown) {
         const status = e instanceof ApiClientError ? e.status : 0;
         if (status === 404) {
+          forgetEvaluatorSnapshotRows([id]);
           lastSyncedByModeRef.current.day.delete(id);
           lastSyncedByModeRef.current.night.delete(id);
           setAllTermScheduleEntries((prev) => prev.filter((e) => e.id !== id));
@@ -2363,6 +2369,7 @@ export function BsitChairmanEvaluatorWorksheet({
         durationSlots: r.durationSlots,
         day: r.day,
         programMode,
+        synced: lastSyncedByModeRef.current[programMode].has(r.id),
       })),
       updatedAt: new Date().toISOString(),
     });
@@ -2390,11 +2397,14 @@ export function BsitChairmanEvaluatorWorksheet({
     if (backup.academicPeriodId !== academicPeriodId) return;
     if (backup.collegeId !== chairmanCollegeId) return;
     if (backup.programId !== chairmanProgramId) return;
-    if (didHydrateFromDbRef.current && rows.length === 0 && backup.rows.length > 0) {
+    if ((backup.programMode ?? "day") !== programMode) return;
+    // Only plots that never reached the server: a saved one missing now was removed (maybe by someone else).
+    const unsaved = backup.rows.filter((r) => !r.synced);
+    if (didHydrateFromDbRef.current && rows.length === 0 && unsaved.length > 0) {
       if (pendingDeletedIdsRef.current.size > 0) return;
       if (lastSyncedByModeRef.current[programMode].size > 0) return;
       setRows(
-        backup.rows.map((r) =>
+        unsaved.map((r) =>
           normalizePlotRow(
             {
               id: r.id,
@@ -2413,12 +2423,12 @@ export function BsitChairmanEvaluatorWorksheet({
           ),
         ),
       );
-      for (const r of backup.rows) {
+      for (const r of unsaved) {
         locallyEditedRowIdsRef.current.add(r.id);
       }
       toast.info("Recovered unsaved draft", "Restored your last local backup after an interruption.");
     }
-  }, [academicPeriodId, chairmanCollegeId, chairmanProgramId, rows.length, toast]);
+  }, [academicPeriodId, chairmanCollegeId, chairmanProgramId, rows.length, programMode, toast]);
 
   /**
    * Writes worksheet rows to `ScheduleEntry` (same source as INS Faculty / Section / Room).
@@ -2582,6 +2592,7 @@ export function BsitChairmanEvaluatorWorksheet({
             for (const id of removedIds) {
               await apiFetch(`/api/catalog/schedule-entries/${id}`, { method: "DELETE" });
             }
+            forgetEvaluatorSnapshotRows(removedIds);
             for (const id of removedIds) {
               locallyEditedRowIdsRef.current.delete(id);
               lastSyncedByModeRef.current.day.delete(id);

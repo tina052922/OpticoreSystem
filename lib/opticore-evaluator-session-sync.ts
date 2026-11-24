@@ -18,6 +18,8 @@ export type BsitEvaluatorPlotRowSnapshot = {
   durationSlots?: number;
   day: string;
   programMode?: "day" | "night";
+  /** Already saved to the server: a backup never restores it (missing there means it was removed). */
+  synced?: boolean;
 };
 
 export type EvaluatorSessionSnapshotV1 = {
@@ -68,5 +70,28 @@ export function writeEvaluatorSessionSnapshot(snap: EvaluatorSessionSnapshotV1) 
     localStorage.setItem(EVALUATOR_LOCAL_STORAGE_KEY, JSON.stringify(snap));
   } catch {
     /* quota / private mode */
+  }
+}
+
+/**
+ * A removed class must never come back from a backup: drops these rows from both snapshots.
+ * Called once the server confirms the delete.
+ */
+export function forgetEvaluatorSnapshotRows(ids: readonly string[]) {
+  if (typeof window === "undefined" || ids.length === 0) return;
+  const gone = new Set(ids);
+  for (const [storage, key] of [
+    [sessionStorage, EVALUATOR_SESSION_STORAGE_KEY],
+    [localStorage, EVALUATOR_LOCAL_STORAGE_KEY],
+  ] as const) {
+    try {
+      const raw = storage.getItem(key);
+      if (!raw) continue;
+      const v = JSON.parse(raw) as EvaluatorSessionSnapshotV1;
+      if (!Array.isArray(v?.rows) || !v.rows.some((r) => gone.has(r.id))) continue;
+      storage.setItem(key, JSON.stringify({ ...v, rows: v.rows.filter((r) => !gone.has(r.id)) }));
+    } catch {
+      /* quota / private mode */
+    }
   }
 }

@@ -45,6 +45,7 @@ import type { ResolvedPlotMeeting } from "@/lib/evaluator/plot-meetings";
 import type { InstructorPlotOption } from "@/lib/evaluator/instructor-employee-id";
 import type { Building, Room, Section } from "@/types/db";
 import type { SparseScheduleBlock } from "@/lib/scheduling/conflicts";
+import { plotLockLabel, useSectionPlotLock } from "@/hooks/use-section-plot-lock";
 import {
   buildingNamesForPlotting,
   plotBuildingKeyForRoom,
@@ -324,6 +325,23 @@ export function BsitChairmanInteractiveWeekGrid({
   const [highlightedCell, setHighlightedCell] = useState<CellAnchor | null>(null);
   const [modal, setModal] = useState<ModalSession | null>(null);
 
+  /**
+   * Live plotting lock: while someone else has the plot window open on this section, it is
+   * read-only here ("Plotting — COTE Admin (Name)"); opening the window takes it for this user.
+   */
+  const [lockNotice, setLockNotice] = useState<string | null>(null);
+  const { holder: plotHolder } = useSectionPlotLock({
+    academicPeriodId,
+    sectionId: modal?.draft.sectionId || selectedSectionId,
+    active: modal != null && !schedulePublished && !modal.draft.lockedByDoiAt,
+    onDenied: (h) => {
+      setModal(null);
+      setHighlightedCell(null);
+      setLockNotice(`${plotLockLabel(h)} on this section — try again when they finish.`);
+    },
+  });
+  const plotBlocked = schedulePublished || Boolean(plotHolder);
+
   /** Keep cell highlight aligned while day/time change inside the modal. */
   useEffect(() => {
     if (!modal || !modal.draft.day || modal.draft.startSlotIndex < 0) return;
@@ -424,10 +442,11 @@ export function BsitChairmanInteractiveWeekGrid({
 
   const openModalForRow = useCallback(
     (row: PlotRow, anchor: CellAnchor, isNew: boolean) => {
-      if (schedulePublished || row.lockedByDoiAt) return;
+      if (plotBlocked || row.lockedByDoiAt) return;
       const pickedRoom = row.roomId ? roomById.get(row.roomId) : undefined;
       const buildingValue =
         roomBuildingByRowId[row.id] ?? (pickedRoom ? plotBuildingKeyForRoom(pickedRoom, buildingsCatalog) : "");
+      setLockNotice(null);
       setHighlightedCell(anchor);
       setModal({
         draft: normalizePlotRow({ ...row }, programCodeForSummary, catalogSubjectRows),
@@ -436,12 +455,12 @@ export function BsitChairmanInteractiveWeekGrid({
         anchor,
       });
     },
-    [schedulePublished, roomById, roomBuildingByRowId, programCodeForSummary, catalogSubjectRows],
+    [plotBlocked, roomById, roomBuildingByRowId, programCodeForSummary, catalogSubjectRows],
   );
 
   const openModalForEmptyCell = useCallback(
     (day: BsitEvaluatorWeekday, slotIdx: number) => {
-      if (schedulePublished || !selectedSectionId) return;
+      if (plotBlocked || !selectedSectionId) return;
       const draft: PlotRow = normalizePlotRow(
         {
           ...emptyPlotRow(),
@@ -452,10 +471,11 @@ export function BsitChairmanInteractiveWeekGrid({
         programCodeForSummary,
         catalogSubjectRows,
       );
+      setLockNotice(null);
       setHighlightedCell({ day, slotIdx });
       setModal({ draft, buildingValue: "", isNew: true, anchor: { day, slotIdx } });
     },
-    [schedulePublished, selectedSectionId, programCodeForSummary, catalogSubjectRows],
+    [plotBlocked, selectedSectionId, programCodeForSummary, catalogSubjectRows],
   );
 
   const closeModal = useCallback(() => {
@@ -583,6 +603,26 @@ export function BsitChairmanInteractiveWeekGrid({
         </div>
       </div>
 
+      {selectedSectionId && plotHolder ? (
+        <p
+          role="status"
+          className="mb-4 flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[12px] text-sky-950"
+        >
+          <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
+          </span>
+          <span>
+            <strong className="font-semibold">{plotLockLabel(plotHolder)}</strong> — this section is view-only until
+            they close the plot window.
+          </span>
+        </p>
+      ) : lockNotice && selectedSectionId ? (
+        <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-950">
+          {lockNotice}
+        </p>
+      ) : null}
+
       {!selectedSectionId ? (
         <p className="text-[12px] text-black/60 bg-black/[0.03] border border-black/10 rounded-lg px-3 py-3 mb-4">
           Select a <strong>section</strong> to open the plotting workspace. Empty selection does not show all sections.
@@ -601,7 +641,7 @@ export function BsitChairmanInteractiveWeekGrid({
               <li key={row.id}>
                 <button
                   type="button"
-                  disabled={schedulePublished || Boolean(row.lockedByDoiAt)}
+                  disabled={plotBlocked || Boolean(row.lockedByDoiAt)}
                   className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-[11px] font-medium text-amber-950 hover:bg-amber-50 disabled:opacity-50"
                   onClick={() => {
                       const anchor: CellAnchor = {
@@ -677,7 +717,7 @@ export function BsitChairmanInteractiveWeekGrid({
                       >
                         <button
                           type="button"
-                          disabled={schedulePublished || !selectedSectionId}
+                          disabled={plotBlocked || !selectedSectionId}
                           className="w-full h-full min-h-[40px] rounded border border-dashed border-black/20 text-black/30 hover:border-[#ff990a] hover:text-[#ff990a] hover:bg-[#ff990a]/5 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-0.5 transition-colors"
                           aria-label={`Plot schedule on ${day} at ${slot.label}`}
                           onClick={() => openModalForEmptyCell(day, slotIdx)}
@@ -739,10 +779,10 @@ export function BsitChairmanInteractiveWeekGrid({
                                   }
                                 }}
                                 role="button"
-                                tabIndex={schedulePublished || r.lockedByDoiAt ? -1 : 0}
-                                className={`relative h-full ${schedulePublished || r.lockedByDoiAt ? "pointer-events-none opacity-70" : ""}`}
+                                tabIndex={plotBlocked || r.lockedByDoiAt ? -1 : 0}
+                                className={`relative h-full ${plotBlocked || r.lockedByDoiAt ? "pointer-events-none opacity-70" : ""}`}
                               >
-                                {!schedulePublished && !r.lockedByDoiAt ? (
+                                {!plotBlocked && !r.lockedByDoiAt ? (
                                   <button
                                     type="button"
                                     className="absolute top-0.5 right-0.5 z-10 rounded p-0.5 text-red-800 hover:bg-red-100"
