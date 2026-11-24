@@ -16,14 +16,12 @@ export function PlotRoomSearch({
   rooms,
   buildingsCatalog,
   busyRoomIds,
-  currentRoomId,
   disabled,
   onPick,
 }: {
   rooms: readonly Room[];
   buildingsCatalog?: readonly Building[];
   busyRoomIds?: ReadonlySet<string>;
-  currentRoomId?: string;
   disabled?: boolean;
   onPick: (buildingName: string, roomId: string) => void;
 }) {
@@ -37,7 +35,7 @@ export function PlotRoomSearch({
   );
   const open = query.trim().length > 0;
 
-  const isBusy = (id: string) => busyRoomIds?.has(id) === true && id !== currentRoomId;
+  const isBusy = (id: string) => busyRoomIds?.has(id) === true;
 
   function pick(i: number) {
     const hit = hits[i];

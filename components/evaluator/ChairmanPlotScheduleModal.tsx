@@ -675,6 +675,21 @@ export function ChairmanPlotScheduleModal({
     return full;
   }, [busyRoomIds, buildingLabelsForGrid, roomsForEvaluatorGrid, buildingsCatalog]);
 
+  /**
+   * A room picked earlier that is taken at the times now set (days or start changed after picking)
+   * is cleared, so the search and the Room list agree: an occupied room is never the choice.
+   */
+  const [roomTakenNote, setRoomTakenNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (readOnly || !draft.roomId || !busyRoomIds?.has(draft.roomId)) return;
+    const room = roomsForEvaluatorGrid.find((r) => r.id === draft.roomId);
+    setRoomTakenNote(room ? formatRoomOptionLabel(room) : "The room you picked");
+    onDraftChange({ ...draft, roomId: "" });
+  }, [readOnly, draft, busyRoomIds, roomsForEvaluatorGrid, onDraftChange]);
+  useEffect(() => {
+    if (draft.roomId) setRoomTakenNote(null);
+  }, [draft.roomId]);
+
   /** Where this subject has met before (any term or section): roomId → meetings. */
   const usageCode = (subjectSelectValue || draft.subjectCode || "").trim();
   const [roomUsage, setRoomUsage] = useState<Map<string, number>>(() => new Map());
@@ -1241,12 +1256,17 @@ export function ChairmanPlotScheduleModal({
               rooms={roomsForEvaluatorGrid}
               buildingsCatalog={buildingsCatalog}
               busyRoomIds={busyRoomIds ?? undefined}
-              currentRoomId={draft.roomId}
               onPick={(b, roomId) => {
                 onBuildingChange(b);
                 onDraftChange({ ...draft, roomId });
               }}
             />
+          ) : null}
+
+          {!readOnly && roomTakenNote && !draft.roomId ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+              {roomTakenNote} is occupied at this time, so it was cleared. Pick another room.
+            </p>
           ) : null}
 
           <div className="grid grid-cols-2 gap-3">
@@ -1306,7 +1326,7 @@ export function ChairmanPlotScheduleModal({
                     <option
                       key={r.id}
                       value={r.id}
-                      disabled={conflict && draft.roomId !== r.id}
+                      disabled={conflict}
                     >
                       {formatRoomOptionLabel(r)}
                       {conflict ? " — Occupied" : ""}

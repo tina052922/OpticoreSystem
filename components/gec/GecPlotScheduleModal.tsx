@@ -348,6 +348,21 @@ export function GecPlotScheduleModal({
     return full;
   }, [busyRoomIds, buildingLabels, rooms, buildingsCatalog]);
 
+  /**
+   * A room picked earlier that is taken at the times now set is cleared, so the search and the Room
+   * list agree: an occupied room is never the choice.
+   */
+  const [roomTakenNote, setRoomTakenNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (readOnly || !draft.roomId || !busyRoomIds.has(draft.roomId)) return;
+    const room = rooms.find((r) => r.id === draft.roomId);
+    setRoomTakenNote(room ? formatRoomOptionLabel(room) : "The room you picked");
+    onDraftChange({ ...draft, roomId: "" });
+  }, [readOnly, draft, busyRoomIds, rooms, onDraftChange]);
+  useEffect(() => {
+    if (draft.roomId) setRoomTakenNote(null);
+  }, [draft.roomId]);
+
   const buildingSearchOptions = useMemo<SearchSelectOption[]>(
     () =>
       buildingLabels
@@ -361,9 +376,9 @@ export function GecPlotScheduleModal({
   const roomSearchOptions = useMemo<SearchSelectOption[]>(
     () =>
       roomsInB
-        .filter((r) => !busyRoomIds.has(r.id) || r.id === draft.roomId)
+        .filter((r) => !busyRoomIds.has(r.id))
         .map((r) => ({ value: r.id, label: formatRoomOptionLabel(r) })),
-    [roomsInB, busyRoomIds, draft.roomId],
+    [roomsInB, busyRoomIds],
   );
 
   /** Where this subject has met before (any term or section): roomId → meetings. */
@@ -693,12 +708,17 @@ export function GecPlotScheduleModal({
               rooms={rooms}
               buildingsCatalog={buildingsCatalog}
               busyRoomIds={busyRoomIds}
-              currentRoomId={draft.roomId}
               onPick={(b, roomId) => {
                 onBuildingChange(b);
                 onDraftChange({ ...draft, roomId });
               }}
             />
+          ) : null}
+
+          {!readOnly && roomTakenNote && !draft.roomId ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+              {roomTakenNote} is occupied at this time, so it was cleared. Pick another room.
+            </p>
           ) : null}
 
           <div className="grid grid-cols-2 gap-3">
@@ -767,7 +787,7 @@ export function GecPlotScheduleModal({
                 {roomsInB.map((r) => {
                   const busy = busyRoomIds.has(r.id);
                   return (
-                    <option key={r.id} value={r.id} disabled={busy && draft.roomId !== r.id}>
+                    <option key={r.id} value={r.id} disabled={busy}>
                       {formatRoomOptionLabel(r)}
                       {busy ? " — Occupied" : ""}
                     </option>
