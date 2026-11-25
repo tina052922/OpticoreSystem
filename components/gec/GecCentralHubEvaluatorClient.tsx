@@ -1,5 +1,6 @@
 "use client";
 
+import { casCollegeIdFrom } from "@/lib/faculty/cas-faculty";
 import { onSubjectSchedulerPage } from "@/lib/subject-scheduler-route";
 import { isPlaceholderInstructorId } from "@/lib/scheduling/placeholder-instructor";
 
@@ -69,7 +70,6 @@ import {
   GEC_VACANT_INSTRUCTOR_USER_ID,
   isGecCurriculumScheduleEntry,
   isGecCurriculumSubjectCode,
-  isGecVacantScheduleEntry,
   isServiceAreaSubject,
   setActiveServiceAreaCode,
   setAnyGeneralSubjectScope,
@@ -607,17 +607,12 @@ export function GecCentralHubEvaluatorClient({
       if (programId && sec?.programId !== programId) continue;
       if (sectionIdFilter && e.sectionId !== sectionIdFilter) continue;
       /*
-       * Editable here: a general subject that is still Prof X (TBA), or that has a General / "both"
-       * instructor — i.e. one a Service Chair plotted (the server allows exactly this). A general
-       * subject the Program Chairperson gave to a program-only instructor stays locked.
+       * Editable here: EVERY general (CAS) subject of the section — vacant (Prof X) or plotted, whoever
+       * teaches it, including one a Program Chairperson gave to a program instructor (that instructor
+       * may be kept; a new one must be a General Subject instructor — the server checks the same).
+       * Program subjects (majors) stay locked: they belong to their own department.
        */
-      if (isGecVacantScheduleEntry(e, subjectById)) ids.add(e.id);
-      else if (
-        isGecCurriculumScheduleEntry(e, subjectById) &&
-        (isGecInstructorUser(userById.get(e.instructorId)) || userById.get(e.instructorId)?.role === "gec_chairman")
-      ) {
-        ids.add(e.id);
-      }
+      if (isGecCurriculumScheduleEntry(e, subjectById)) ids.add(e.id);
     }
     for (const e of extraEntries) ids.add(e.id);
     return ids;
@@ -633,7 +628,6 @@ export function GecCentralHubEvaluatorClient({
     programById,
     subjectById,
     serviceAreaCode,
-    userById,
   ]);
 
   /** Rows that started as vacant GEC placeholders (DB origin + newly added local rows). */
@@ -915,20 +909,16 @@ export function GecCentralHubEvaluatorClient({
     void serviceAreaCode; // recompute once the Service Chair's area has loaded
     if (!plotCollegeId) return [];
     /**
-     * GEC instructors only.
-     *
-     * This list used to hold every plottable faculty in the college and merely sort the GEC ones
-     * first, so a GEC chairperson could assign a departmental instructor to a general education slot —
-     * and that instructor's own chairperson would then find their time taken by a plot they had no
-     * part in. Anyone already on a plotted row is kept so existing rows stay readable.
+     * General Subject instructors (campus-wide) plus ALL of CAS's faculty — instructors, Program
+     * Chairs and the CAS Admin — the same list the CAS Admin and CAS Program Chairs get (see
+     * lib/faculty/cas-faculty). Other colleges' departmental instructors stay out: their time is
+     * their own chairperson's to plot. Anyone already on a plotted row is kept so rows stay readable.
      */
-    const pool = filterInstructorsForGec(
-      // Not narrowed by college on purpose: general education is taught campus-wide, so a GEC
-      // instructor is available to any college's sections. Scoping them to the section's college
-      // meant a GEC instructor recorded under one college could not be plotted into another.
-      users.filter((u) => isPlottableFacultyUser(u)),
-      new Set(entryInstructorIdsForPlotMerge),
-    ).sort((a, b) => {
+    const casCollegeId = casCollegeIdFrom(colleges);
+    const plottable = users.filter((u) => isPlottableFacultyUser(u));
+    const gecPool = filterInstructorsForGec(plottable, new Set(entryInstructorIdsForPlotMerge));
+    const casFaculty = casCollegeId ? plottable.filter((u) => u.collegeId === casCollegeId) : [];
+    const pool = [...new Map([...gecPool, ...casFaculty].map((u) => [u.id, u])).values()].sort((a, b) => {
       const ag = isGecInstructorUser(a) || a.role === "gec_chairman" ? 0 : 1;
       const bg = isGecInstructorUser(b) || b.role === "gec_chairman" ? 0 : 1;
       if (ag !== bg) return ag - bg;
@@ -937,6 +927,8 @@ export function GecCentralHubEvaluatorClient({
     const base = usersToInstructorPlotOptions(pool, facultyProfileByUserId).map((opt) => {
       const u = pool.find((row) => row.id === opt.id);
       if (u?.role === "gec_chairman") return { ...opt, fullName: `${opt.fullName} (Service Chair)` };
+      if (u?.role === "college_admin" || u?.role === "cas_admin") return { ...opt, fullName: `${opt.fullName} (CAS Admin)` };
+      if (u?.role === "chairman_admin") return { ...opt, fullName: `${opt.fullName} (Chairperson)` };
       if (!u || !isGecInstructorUser(u)) return opt;
       return { ...opt, fullName: `${opt.fullName} (${facultyCategoryBadge(u.facultyCategory)})` };
     });
@@ -947,7 +939,7 @@ export function GecCentralHubEvaluatorClient({
       entryInstructorIdsForPlotMerge,
       facultyProfileByUserId,
     ).filter((o) => !isPlaceholderInstructorId(o.id));
-  }, [users, plotCollegeId, entryInstructorIdsForPlotMerge, facultyProfileByUserId, serviceAreaCode]);
+  }, [users, colleges, plotCollegeId, entryInstructorIdsForPlotMerge, facultyProfileByUserId, serviceAreaCode]);
 
   /** Every room in Buildings & Rooms — GEC plotting is not limited to one college's buildings. */
   const roomsForPlotting = useMemo(() => allPlotRooms(rooms), [rooms]);

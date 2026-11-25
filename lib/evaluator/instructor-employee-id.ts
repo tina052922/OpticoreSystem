@@ -32,10 +32,14 @@ export function usersToInstructorPlotOptions(
   const out: InstructorPlotOption[] = [];
   for (const u of users) {
     const eid = (u.employeeId ?? "").trim();
-    // Chair accounts (Service Chairs, Program Chairs) are created by DOI without an Employee ID, but
-    // they teach too: list them anyway. Instructors still need one.
-    const isChair = u.role === "gec_chairman" || u.role === "chairman_admin";
-    if (!eid && !isChair) continue;
+    // Chair and College Admin accounts (Service Chairs, Program Chairs, College Admins) are created by
+    // DOI without an Employee ID, but they teach too: list them anyway. Instructors still need one.
+    const createdByDoi =
+      u.role === "gec_chairman" ||
+      u.role === "chairman_admin" ||
+      u.role === "college_admin" ||
+      u.role === "cas_admin";
+    if (!eid && !createdByDoi) continue;
     const fp = profileByUserId?.get(u.id);
     const fullName = evaluatorInstructorFullName(u, fp ?? null);
     out.push({

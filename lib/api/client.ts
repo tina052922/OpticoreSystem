@@ -524,6 +524,14 @@ async function apiFetchUncached<T>(
       // Retry on the uncached path — the caller already owns the cache entry.
       return apiFetchUncached<T>(path, { ...options, retryOn401: false });
     }
+    if (!IS_SERVER) {
+      /*
+       * The refresh can fail only because ANOTHER TAB of this browser refreshed first (the refresh
+       * token is single-use): that tab has already stored the new session in the shared cookies.
+       * One more try picks it up instead of treating this as signed out.
+       */
+      return apiFetchUncached<T>(path, { ...options, retryOn401: false });
+    }
   }
 
   const payload = await readJsonSafely(res);

@@ -1,5 +1,6 @@
 "use client";
 
+import { isCasCollege } from "@/lib/faculty/cas-faculty";
 import { onSubjectSchedulerPage } from "@/lib/subject-scheduler-route";
 import { apiFetch, authApi, recordScheduleWrite, ApiClientError } from "@/lib/api/client";
 import { useSubjectCategoryLabels } from "@/hooks/use-subject-category-labels";
@@ -806,8 +807,11 @@ export function BsitChairmanEvaluatorWorksheet({
        * college must not appear in the instructor picker. College Admin and DOI keep the wider list:
        * they work across departments, and `lockedDepartmentId` is blank for them.
        */
+      // CAS teaches across its programs: a CAS Program Chairperson gets all of CAS's faculty, the same
+      // list as the CAS Admin and the Service Chairs (lib/faculty/cas-faculty).
+      const casChair = isCasCollege(chairmanCollegeId, (bundle.colleges ?? []) as { id: string; code: string }[]);
       const lockedDepartmentId =
-        collegeWidePrograms || campusWidePrograms ? null : chairmanProgramId;
+        collegeWidePrograms || campusWidePrograms || casChair ? null : chairmanProgramId;
       /*
        * A Program Chairperson sees their own department's faculty plus every GEC instructor (their
        * sections take general education subjects too) — never a sibling department's faculty.
@@ -1042,8 +1046,10 @@ export function BsitChairmanEvaluatorWorksheet({
     // This program's faculty first, then every GEC instructor (marked "(GEC)").
     // The department's college, so its College Admin (who may teach) is offered for its sections only.
     const departmentCollegeId = programsCatalog.find((p) => p.id === programId)?.collegeId ?? chairmanCollegeId;
+    // A CAS section is offered all of CAS's faculty, not one department's (lib/faculty/cas-faculty).
+    const casSection = isCasCollege(departmentCollegeId, collegesCatalog);
     const programFaculty = sortDepartmentThenGec(
-      filterInstructorsForProgramPlot(dbInstructors, programId, keep, departmentCollegeId),
+      filterInstructorsForProgramPlot(dbInstructors, casSection ? null : programId, keep, departmentCollegeId),
       programId,
     );
     const base = usersToInstructorPlotOptions(programFaculty, facultyProfileByUserId).map((opt) => {
@@ -1074,7 +1080,7 @@ export function BsitChairmanEvaluatorWorksheet({
       },
       ...merged,
     ];
-  }, [dbInstructors, programId, plotRowInstructorIds, facultyProfileByUserId, programsCatalog, chairmanCollegeId]);
+  }, [dbInstructors, programId, plotRowInstructorIds, facultyProfileByUserId, programsCatalog, chairmanCollegeId, collegesCatalog]);
 
   /** Week preview / conflict UI: full name (Faculty Profile when set). */
   const instructorDisplayById = useMemo(() => {
