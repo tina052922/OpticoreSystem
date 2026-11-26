@@ -37,6 +37,7 @@ export function CasChairsPanel({
   accounts,
   onChanged,
   fixedCollegeId,
+  serviceChairsOnly = false,
 }: {
   colleges: College[];
   programs: Program[];
@@ -44,6 +45,11 @@ export function CasChairsPanel({
   onChanged: () => Promise<void> | void;
   /** CAS College Admin: their own college is CAS; no picker. */
   fixedCollegeId?: string | null;
+  /**
+   * Service Chairs only (the CAS Admin's Chairperson Assignment page, where Program Chairs are
+   * managed above): the list and the form are about Service Chairs and their areas.
+   */
+  serviceChairsOnly?: boolean;
 }) {
   const toast = useActionToast();
   const [areas, setAreas] = useState<ServiceArea[]>([]);
@@ -81,10 +87,13 @@ export function CasChairsPanel({
         .filter(
           (a) =>
             a.role === "gec_chairman" ||
-            (a.role === "chairman_admin" && a.chairmanProgramId && casProgramIds.has(a.chairmanProgramId)),
+            (!serviceChairsOnly &&
+              a.role === "chairman_admin" &&
+              a.chairmanProgramId &&
+              casProgramIds.has(a.chairmanProgramId)),
         )
         .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "gec_chairman" ? -1 : 1)),
-    [accounts, casProgramIds],
+    [accounts, casProgramIds, serviceChairsOnly],
   );
   const takenAreaIds = new Set(chairs.filter((c) => c.role === "gec_chairman").map((c) => c.serviceAreaId ?? ""));
   const takenProgramIds = new Set(
@@ -241,11 +250,19 @@ export function CasChairsPanel({
 
   return (
     <div className="space-y-6">
-      <p className="text-[13px] text-black/65 leading-relaxed">
-        CAS chairs only. A <b>Service Chair</b> heads a general-subject area and plots those subjects into
-        vacant slots of every college (like the former GEC Chairperson). A <b>Program Chair</b> heads one CAS
-        program. Both stay under CAS.
-      </p>
+      {serviceChairsOnly ? (
+        <p className="text-[13px] text-black/65 leading-relaxed">
+          A <b>Service Chair</b> heads a general-subject area (Humanities and Social Sciences, Natural Sciences
+          and Mathematics, PE and Sports, …) and plots those subjects into every college&apos;s sections. One
+          Service Chair per area.
+        </p>
+      ) : (
+        <p className="text-[13px] text-black/65 leading-relaxed">
+          CAS chairs only. A <b>Service Chair</b> heads a general-subject area and plots those subjects into
+          vacant slots of every college (like the former GEC Chairperson). A <b>Program Chair</b> heads one CAS
+          program. Both stay under CAS.
+        </p>
+      )}
       {areasWarning ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">{areasWarning}</p>
       ) : null}
@@ -341,8 +358,16 @@ export function CasChairsPanel({
 
       {/* ── Add / edit chair ──────────────────────────────────────────── */}
       <div id="cas-chair-form" className="bg-white rounded-xl shadow-[0px_4px_4px_rgba(0,0,0,0.12)] p-5 space-y-4 scroll-mt-4">
-        <div className="text-[16px] font-semibold">{editingId ? "Edit CAS chair" : "Add CAS chair"}</div>
-        <div className="flex flex-wrap gap-4 text-sm">
+        <div className="text-[16px] font-semibold">
+          {serviceChairsOnly
+            ? editingId
+              ? "Edit Service Chair"
+              : "Add Service Chair"
+            : editingId
+              ? "Edit CAS chair"
+              : "Add CAS chair"}
+        </div>
+        <div className={`flex flex-wrap gap-4 text-sm ${serviceChairsOnly ? "hidden" : ""}`}>
           {(
             [
               ["service", "Service Chair"],
@@ -470,7 +495,7 @@ export function CasChairsPanel({
               {chairs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-black/50">
-                    No CAS chairs yet.
+                    {serviceChairsOnly ? "No Service Chairs yet." : "No CAS chairs yet."}
                   </td>
                 </tr>
               ) : (

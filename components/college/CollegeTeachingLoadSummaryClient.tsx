@@ -281,6 +281,11 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
     setCategoryId(ALL_CATEGORIES);
   }, [pickedCollegeId]);
 
+  // A department with no table any more (another term, say) falls back to "All departments".
+  useEffect(() => {
+    if (categoryId && !groups.some((g) => g.programId === categoryId)) setCategoryId(ALL_CATEGORIES);
+  }, [groups, categoryId]);
+
   const pickedCollege = colleges.find((c) => c.id === pickedCollegeId);
 
   const documentCollegeName = campusWide
@@ -420,52 +425,45 @@ export function CollegeTeachingLoadSummaryClient({ campusWide = false }: { campu
             <div className="text-[14px] font-bold">{semesterLabel}</div>
           </div>
         ) : null}
-        {campusWide ? (
-          <label className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
-            College
-            <select
-              className="h-9 min-w-[240px] rounded-md border border-black/15 bg-white px-2 text-[13px] font-normal"
-              value={pickedCollegeId}
-              onChange={(e) => setPickedCollegeId(e.target.value)}
-            >
-              <option value={ALL_COLLEGES}>All colleges</option>
-              {[...colleges]
-                .sort((a, b) => (a.code || a.name || "").localeCompare(b.code || b.name || ""))
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.code && c.name ? `${c.code} — ${c.name}` : c.name || c.code || c.id}
-                  </option>
-                ))}
-            </select>
-          </label>
-        ) : null}
-        {groups.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setCategoryId(ALL_CATEGORIES)}
-              className={`h-8 px-3 rounded-md text-[12px] font-semibold border ${
-                categoryId === ALL_CATEGORIES
-                  ? "bg-[#780301] text-white border-[#780301]"
-                  : "bg-white text-black/80 border-black/15"
-              }`}
-            >
-              All departments
-            </button>
-            {groups.map((g) => (
-              <button
-                key={g.programId}
-                type="button"
-                onClick={() => setCategoryId(g.programId)}
-                className={`h-8 px-3 rounded-md text-[12px] font-semibold border ${
-                  categoryId === g.programId
-                    ? "bg-[#780301] text-white border-[#780301]"
-                    : "bg-white text-black/80 border-black/15"
-                }`}
-              >
-                {g.categoryLabel}
-              </button>
-            ))}
+        {/* Filters: College (DOI) and Department, as select options. */}
+        {campusWide || groups.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {campusWide ? (
+              <label className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
+                College
+                <select
+                  className="h-9 min-w-[240px] rounded-md border border-black/15 bg-white px-2 text-[13px] font-normal"
+                  value={pickedCollegeId}
+                  onChange={(e) => setPickedCollegeId(e.target.value)}
+                >
+                  <option value={ALL_COLLEGES}>All colleges</option>
+                  {[...colleges]
+                    .sort((a, b) => (a.code || a.name || "").localeCompare(b.code || b.name || ""))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.code && c.name ? `${c.code} — ${c.name}` : c.name || c.code || c.id}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ) : null}
+            {groups.length > 0 ? (
+              <label className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-black/75">
+                Department
+                <select
+                  className="h-9 min-w-[240px] max-w-full rounded-md border border-black/15 bg-white px-2 text-[13px] font-normal"
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                >
+                  <option value={ALL_CATEGORIES}>All departments</option>
+                  {groups.map((g) => (
+                    <option key={g.programId} value={g.programId}>
+                      {g.categoryLabel}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
         ) : null}
         {showInitialLoading ? (

@@ -12,7 +12,14 @@ type Program = { id: string; code: string; name: string; collegeId: string | nul
  * CAS College Admin → Chairperson Assignment → CAS Chairs: the same panel DOI has (Service Chairs and
  * CAS Program Chairs, service areas). The server limits these accounts to CAS chairs.
  */
-export function CollegeCasChairsTab({ collegeId }: { collegeId: string }) {
+export function CollegeCasChairsTab({
+  collegeId,
+  serviceChairsOnly = false,
+}: {
+  collegeId: string;
+  /** Service Chairs only (Program Chairs are managed elsewhere on the page). */
+  serviceChairsOnly?: boolean;
+}) {
   const toast = useActionToast();
   const [colleges, setColleges] = useState<College[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -48,6 +55,7 @@ export function CollegeCasChairsTab({ collegeId }: { collegeId: string }) {
       accounts={accounts}
       onChanged={load}
       fixedCollegeId={collegeId}
+      serviceChairsOnly={serviceChairsOnly}
     />
   );
 }
