@@ -11,6 +11,7 @@ public/campus-photos/
 
 # env (never commit secrets)
 .env.*.local
+.env
 
 # debug / os
 npm-debug.log*
